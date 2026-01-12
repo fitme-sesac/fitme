@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="188" viewBox="0 0 600 188">
+  <defs>
+    <style>
+      .cls-1, .cls-2 {
+        font-size: 41.667px;
+      }
+
+      .cls-1 {
+        fill: #221815;
+        font-family: NanumGothic;
+        font-weight: 700;
+      }
+
+      .cls-2 {
+        fill: #02dbca;
+        font-family: HYGothic-Extra;
+      }
+    </style>
+  </defs>
+  <text id="국가농작물병해충_관리시스템" data-name="국가농작물병해충 관리시스템" class="cls-1" x="28" y="60.333">국가농작물병해충<tspan x="28" dy="50">관리시스템</tspan></text>
+  <text id="NCPMS" class="cls-2" transform="translate(226.412 153.249) scale(2.239)">NCPMS</text>
+</svg>

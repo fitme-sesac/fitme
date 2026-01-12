@@ -1,0 +1,80 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.3.2'
+	id 'io.spring.dependency-management' version '1.1.6'
+	id 'war'
+}
+
+group = 'com.woori'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+configurations {
+	compileOnly {
+		// compileOnly 설정에 annotationProcessor 의존성 포함
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+    mavenCentral() // 이제 settings.gradle에서 허용했으므로 에러가 나지 않습니다.
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	compileOnly 'org.projectlombok:lombok'
+
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	// runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+    implementation 'com.mysql:mysql-connector-j:8.4.0'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	//추가 라이브러리(mvnrepository.com)
+	//변환처리
+	implementation 'org.modelmapper:modelmapper:3.1.1'
+	//레이아웃
+	implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
+
+    //AWS S3(서버구동시 적용)
+//	compileOnly 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
+	// https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-s3
+//	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.773'
+
+
+	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+	implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+    // pgvector
+    implementation files('libs/pgvector-java-0.1.6.jar')
+    // postgresql
+    runtimeOnly 'org.postgresql:postgresql'
+
+}
+
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+

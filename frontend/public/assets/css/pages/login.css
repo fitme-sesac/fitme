@@ -1,0 +1,142 @@
+/* 기본 레이아웃 스타일 (화면이 넓을 때) */
+
+        .form-group label {
+            width: 100px; /* 라벨 너비를 늘림 */
+            margin-right: 15px; /* 라벨과 입력 필드 간의 간격 조정 */
+            font-size: 1rem; /* 라벨 폰트 크기 증가 */
+        }
+
+        /* 폼을 중앙에 배치 */
+        form {
+            display: flex;
+            flex-direction: column; /* 세로 방향으로 배치 */
+            align-items: flex-start; /* 왼쪽 정렬 */
+            gap: 1.5rem; /* 요소 간의 간격 조정 */
+        }
+
+        .input-wrap {
+            width: 100%; /* 부모 요소의 너비를 100%로 설정 */
+        }
+
+        .input-wrap > input {
+            width: 100%; /* 인풋 필드가 부모 요소의 너비를 100% 차지하도록 설정 */
+            margin: 0;
+            border: 0; /* 기본 테두리 없애기 */
+            border-bottom: 1px solid #DDD; /* 아래쪽에만 선 추가 */
+            padding: 5px 0; /* 상하 여백 추가 */
+            box-sizing: border-box; /* 패딩과 테두리가 포함되도록 설정 */
+        }
+
+        /* 링크 스타일(아이디찾기,비번,회원가입 */
+        .link-wrap {
+            list-style: none; /* 기본 리스트 스타일 제거 (점 없애기) */
+            padding: 0; /* 패딩 제거 */
+            margin: 0; /* 마진 제거 */
+            display: flex; /* 수평 정렬을 위한 flexbox 사용 */
+            justify-content: flex-start; /* 왼쪽 정렬 */
+        }
+
+        .link-wrap li {
+            margin-right: 10px; /* 항목 간의 간격 조정 */
+        }
+
+        .link-wrap li:last-child {
+            margin-right: 0; /* 마지막 항목의 오른쪽 마진 제거 */
+        }
+
+        .link-wrap li a {
+            color: #666; /* 글자 색상을 #888로 변경 */
+            font-size: 14px; /* 원래 크기 유지 */
+            font-weight: 800; /* 원래 두께 유지 */
+            line-height: normal; /* 원래 줄 높이 유지 */
+            padding: 0 5px; /* 원래 패딩 유지 */
+            text-decoration: none; /* 링크의 기본 밑줄 제거 */
+        }
+
+        /* 로그인 폼 내부 버튼만 전체폭 적용 */
+        form .btn {
+            height: 2.5rem;
+            margin: 0;
+            width: 100%;
+        }
+        /* 헤더 드롭다운 버튼은 기본 부트스트랩 스타일 유지 */
+        header .btn {
+            width: auto !important;
+            height: auto !important;
+        }
+
+        .responsive-span {
+            font-size: 0.8rem; /* 원하는 크기로 조정 */
+            white-space: nowrap; /* 텍스트가 한 줄로 나오게 설정 */
+            overflow: hidden; /* 넘치는 내용 숨기기 */
+            text-overflow: ellipsis; /* 넘칠 경우 생략 기호(...) 표시 */
+        }
+
+        h1 {
+            font-size: 0.5rem; /* h1 크기 조정 (조금 작게) */
+        }
+
+        form .btn {
+            height: 2.5rem;
+            margin: 0;
+            width: 100%;
+        }
+
+        /* === ① 추가: Google 버튼 스타일 (라인 약  sixty~seventy) === */
+        .gsi-material-button {
+            user-select: none;
+            background-color: #fff;
+            border: 1px solid #747775;
+            border-radius: 20px;
+            box-sizing: border-box;
+            font-family: 'Roboto', arial, sans-serif;
+            font-size: 14px;
+            height: 2.5rem;           /* 2.5rem = 로그인 버튼 높이와 동일 */
+            letter-spacing: 0.25px;
+            outline: none;
+            overflow: hidden;
+            padding: 0 12px;
+            position: relative;
+            text-align: center;
+            transition: background-color .218s, border-color .218s, box-shadow .218s;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: 100%;             /* 로그인 버튼과 동일하게 전체폭 */
+            max-width: none;         /* a.btn 처럼 자동 폭 조정 하지 않음 */
+            cursor: pointer;
+        }
+        .gsi-material-button-icon {
+            height: 20px;
+            margin-right: 12px;
+            width: 20px;
+        }
+        .gsi-material-button-content-wrapper {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            width: 100%;
+        }
+        .gsi-material-button-contents {
+            flex-grow: 1;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .gsi-material-button-state {
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            opacity: 0;
+            transition: opacity .218s;
+        }
+        .gsi-material-button:not(:disabled):hover {
+            box-shadow: 0 1px 2px rgba(60,64,67,.30), 0 1px 3px rgba(60,64,67,.15);
+        }
+        .gsi-material-button:not(:disabled):hover .gsi-material-button-state {
+            background-color: #303030;
+            opacity: 8%;
+        }
+        .gsi-material-button:not(:disabled):active .gsi-material-button-state,
+        .gsi-material-button:not(:disabled):focus .gsi-material-button-state {
+            background-color: #303030;
+            opacity: 12%;
+        }

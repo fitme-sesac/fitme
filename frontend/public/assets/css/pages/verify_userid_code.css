@@ -1,0 +1,30 @@
+form {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1.5rem;
+        }
+
+        .input-wrap { width: 100%; }
+
+        .input-wrap > input {
+            width: 100%;
+            margin: 0;
+            border: 0;
+            border-bottom: 1px solid #DDD;
+            padding: 5px 0;
+            box-sizing: border-box;
+        }
+
+        .btn {
+            height: 2.5rem;
+            margin: 0;
+            width: 100%;
+        }
+
+        .responsive-span {
+            font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }

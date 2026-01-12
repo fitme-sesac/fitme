@@ -1,0 +1,7 @@
+/**
+ * main.css (compat)
+ * 기존에 main.css를 참조하던 페이지가 깨지지 않도록 base/home를 import 합니다.
+ * 신규 페이지는 가능하면 base.css + 해당 페이지 전용 css를 직접 로드하세요.
+ */
+@import url('base.css');
+@import url('home.css');
