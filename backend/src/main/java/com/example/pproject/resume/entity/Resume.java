@@ -145,5 +145,7 @@ public class Resume extends BaseSoftDeleteEntity {
     public void completeAiAnalysis(String summary) {
         this.summary = summary;
         this.summaryStatus = SummaryStatus.COMPLETED;
+        this.lastModifiedAt = LocalDateTime.now();
     }
+
 }
