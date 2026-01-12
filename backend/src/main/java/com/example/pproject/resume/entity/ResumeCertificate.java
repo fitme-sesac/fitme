@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import java.time.LocalDate;
 
 @Entity
 @Getter
@@ -12,8 +13,25 @@ import lombok.NoArgsConstructor;
 @Table(name = "resume_certificate", indexes = @Index(name = "idx_resume_certificate_resume_id", columnList = "resume_id"))
 public class ResumeCertificate extends BaseTimeEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "resume_certificate_id")
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resume_id", nullable = false)
+    private Resume resume;
+
+    @Column(nullable = false, length = 100)
+    private String name;
+
+    @Column(nullable = false, length = 100)
+    private String issuer;
+
+    @Column(name = "acquisition_date", nullable = false)
+    private LocalDate acquisitionDate;
+
+    @Column(name = "is_verified")
+    private Boolean verified;
+
+    public void setResume(Resume resume) { this.resume = resume; }
 }
