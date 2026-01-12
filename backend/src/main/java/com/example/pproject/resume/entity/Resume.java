@@ -1,6 +1,9 @@
 package com.example.pproject.resume.entity;
 
 import com.example.pproject.common.entity.BaseSoftDeleteEntity;
+import com.example.pproject.Constant.ResumeField;
+import com.example.pproject.Constant.ResumeStatus;
+import com.example.pproject.Constant.SummaryStatus;
 import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -57,9 +60,12 @@ public class Resume extends BaseSoftDeleteEntity {
     @Column(name = "last_modified_at", nullable = false)
     private LocalDateTime lastModifiedAt;
 
+    // AI 요약 & 임베딩 필드
+    // 1. 타겟 공고 ID
     @Column(name = "target_job_id")
     private Long targetJobId;
 
+    // 2. 이력서 원문 (AI 분석 대상)
     @Lob
     private String content;
 
@@ -67,17 +73,20 @@ public class Resume extends BaseSoftDeleteEntity {
     @Column(nullable = false, length = 20)
     private ResumeField field;
 
+    // 3. AI가 작성해준 요약글
     @Lob
-    private String summary; //  AI 요약
+    private String summary;
 
+    // 4. 벡터 임베딩 (PostgreSQL vector 타입, 1536차원)
     @Column(name = "embedding", columnDefinition = "vector(1536)")
     @JdbcTypeCode(SqlTypes.VECTOR)
     private List<Double> embedding;
 
+    // 5. AI 처리 상태 (대기중, 완료, 실패 등)
     @Enumerated(EnumType.STRING)
     @Column(name = "summary_status", nullable = false, length = 20)
     @ColumnDefault("'NONE'")
-    private SummaryStatus summaryStatus; //  AI 요약 상태
+    private SummaryStatus summaryStatus;
 
     @Column(name = "preference_location", length = 80)
     private String preferenceLocation;
@@ -88,6 +97,7 @@ public class Resume extends BaseSoftDeleteEntity {
     @Column(name = "employment_type", length = 80)
     private String employmentType;
 
+    // 자식 연관관계
     @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ResumeCareer> careers = new ArrayList<>();
 
@@ -106,56 +116,32 @@ public class Resume extends BaseSoftDeleteEntity {
     @OneToOne(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private ResumeProfile profile;
 
-    /**
-     * Create a new Resume for the given owner with initial draft state and current modification time.
-     *
-     * Initializes the resume with status = DRAFT, summaryStatus = NONE, and lastModifiedAt = now.
-     *
-     * @param user    the owner of the resume
-     * @param title   the resume title
-     * @param field   the primary resume field/category
-     * @param primary whether this resume is marked as the user's primary resume
-     */
+    // 생성자 & 편의 메서드
     @Builder
     public Resume(UserEntity user, String title, ResumeField field, boolean primary) {
         this.user = user;
         this.title = title;
         this.field = field;
         this.primary = primary;
-
         this.status = ResumeStatus.DRAFT;
         this.summaryStatus = SummaryStatus.NONE;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    /**
-     * Set the resume's vector embedding and update the last-modified timestamp.
-     *
-     * @param embeddingVector the embedding vector representation for this resume; may be null to clear the existing embedding
-     */
+    // 임베딩 값 업데이트 메서드
     public void updateEmbedding(List<Double> embeddingVector) {
         this.embedding = embeddingVector;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    /**
-     * Requests an AI analysis for this resume.
-     *
-     * Sets the resume's target job id, marks the summary status as `PENDING`, and updates `lastModifiedAt` to the current time.
-     *
-     * @param targetJobId the optional id of the target job to contextualize the AI analysis
-     */
+    // AI 분석 요청 시 상태 변경
     public void requestAiAnalysis(Long targetJobId) {
         this.targetJobId = targetJobId;
         this.summaryStatus = SummaryStatus.PENDING;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    /**
-     * Store the AI-generated summary and mark the resume's summary status as completed.
-     *
-     * @param summary the AI-generated summary text to save; may overwrite any existing summary
-     */
+    // AI 분석 완료 시 결과 저장
     public void completeAiAnalysis(String summary) {
         this.summary = summary;
         this.summaryStatus = SummaryStatus.COMPLETED;
