@@ -106,6 +106,16 @@ public class Resume extends BaseSoftDeleteEntity {
     @OneToOne(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private ResumeProfile profile;
 
+    /**
+     * Create a new Resume for the given owner with initial draft state and current modification time.
+     *
+     * Initializes the resume with status = DRAFT, summaryStatus = NONE, and lastModifiedAt = now.
+     *
+     * @param user    the owner of the resume
+     * @param title   the resume title
+     * @param field   the primary resume field/category
+     * @param primary whether this resume is marked as the user's primary resume
+     */
     @Builder
     public Resume(UserEntity user, String title, ResumeField field, boolean primary) {
         this.user = user;
@@ -118,18 +128,34 @@ public class Resume extends BaseSoftDeleteEntity {
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    // 임베딩 업데이트 메서드
+    /**
+     * Set the resume's vector embedding and update the last-modified timestamp.
+     *
+     * @param embeddingVector the embedding vector representation for this resume; may be null to clear the existing embedding
+     */
     public void updateEmbedding(List<Double> embeddingVector) {
         this.embedding = embeddingVector;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
+    /**
+     * Requests an AI analysis for this resume.
+     *
+     * Sets the resume's target job id, marks the summary status as `PENDING`, and updates `lastModifiedAt` to the current time.
+     *
+     * @param targetJobId the optional id of the target job to contextualize the AI analysis
+     */
     public void requestAiAnalysis(Long targetJobId) {
         this.targetJobId = targetJobId;
         this.summaryStatus = SummaryStatus.PENDING;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
+    /**
+     * Store the AI-generated summary and mark the resume's summary status as completed.
+     *
+     * @param summary the AI-generated summary text to save; may overwrite any existing summary
+     */
     public void completeAiAnalysis(String summary) {
         this.summary = summary;
         this.summaryStatus = SummaryStatus.COMPLETED;
