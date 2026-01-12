@@ -78,3 +78,12 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+sourceSets {
+    main {
+        java {
+            // 패키지 경로를 포함하여 파이썬 모듈 폴더를 빌드 대상에서 제외합니다.
+            // 'com/example/pproject/ai-worker/**' 처럼 구체적인 경로를 적어주면 에러가 사라집니다.
+            exclude '**/ai-worker/**'
+        }
+    }
+}
