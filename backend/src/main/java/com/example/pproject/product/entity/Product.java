@@ -17,10 +17,9 @@ import org.springframework.util.Assert;
 @Table(name = "product")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-// @EntityListeners(AuditingEntityListener.class) // BaseTimeEntity에 포함되어 있으므로 제거
 @SQLDelete(sql = "UPDATE product SET deleted_at = now() WHERE product_id = ?")
 @Where(clause = "deleted_at IS NULL")
-public class Product extends BaseSoftDeleteEntity { // 상속 추가
+public class Product extends BaseSoftDeleteEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "product_id")
@@ -55,8 +54,6 @@ public class Product extends BaseSoftDeleteEntity { // 상속 추가
     @Column(name = "plan_tier", length = 20)
     private String planTier;
 
-    // createdAt, updatedAt, deletedAt 필드는 BaseSoftDeleteEntity(및 BaseTimeEntity)로 이동되어 삭제함
-
     @Builder
     public Product(String productCode, String name, Money price, ProductType productType, Integer creditAmount, String planTier) {
 
@@ -66,12 +63,10 @@ public class Product extends BaseSoftDeleteEntity { // 상속 추가
         Assert.notNull(price, "가격은 필수입니다.");
         Assert.notNull(productType, "상품 유형은 필수입니다.");
 
-        // 2. ★ 타입별 특화 검증 (비즈니스 규칙)
         if (productType == ProductType.SUBSCRIPTION) {
             Assert.hasText(planTier, "구독 상품은 플랜 등급(planTier)이 필수입니다.");
         }
         if (productType == ProductType.ONE_TIME) {
-            // (선택사항) 단건 결제는 보통 크레딧 충전용이므로 크레딧 필수 체크
             if (creditAmount == null || creditAmount <= 0) {
                 throw new IllegalArgumentException("단건 상품은 크레딧 제공량이 필수입니다.");
             }
@@ -89,7 +84,7 @@ public class Product extends BaseSoftDeleteEntity { // 상속 추가
     // === 비즈니스 로직 (State Transition Logic) ===
 
     public void changePrice(Money newPrice) {
-        verifyActiveOrPaused(); // [3] STOPPED 상태인지 공통 검증
+        verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
         Assert.notNull(newPrice, "변경할 가격은 필수입니다.");
 
         this.price.checkCurrency(newPrice);
@@ -97,7 +92,7 @@ public class Product extends BaseSoftDeleteEntity { // 상속 추가
     }
 
     public void pause() {
-        verifyActiveOrPaused(); // STOPPED이면 못 바꿈
+        verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
         if (this.saleStatus == SaleStatus.PAUSED) {
 
             throw new IllegalStateException("이미 일시 정지된 상품입니다.");
@@ -106,7 +101,7 @@ public class Product extends BaseSoftDeleteEntity { // 상속 추가
     }
 
     public void resume() {
-        verifyActiveOrPaused(); // STOPPED이면 못 바꿈
+        verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
         if (this.saleStatus == SaleStatus.ON_SALE) {
             throw new IllegalStateException("이미 판매 중인 상품입니다.");
         }
