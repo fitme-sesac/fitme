@@ -10,4 +10,8 @@ public enum SaleStatus {
     SaleStatus(String description) {
         this.description = description;
     }
+
+    public String getDescription() {
+        return description;
+    }
 }
