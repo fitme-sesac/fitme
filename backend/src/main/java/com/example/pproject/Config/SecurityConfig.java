@@ -36,6 +36,8 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final SignedCookieOAuth2AuthorizationRequestRepository signedCookieAuthRequestRepo;
+    private final NoOpOAuth2AuthorizedClientRepository noOpOAuth2AuthorizedClientRepository;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -81,7 +83,8 @@ public class SecurityConfig {
 
         http.authenticationProvider(daoAuthenticationProvider);
 
-        http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
+        http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
 
         http.authorizeHttpRequests(auth -> {
             auth.requestMatchers("/test1", "/test2").permitAll();
@@ -139,7 +142,11 @@ public class SecurityConfig {
         http.oauth2Login(oauth2 -> oauth2
                 // 프론트에서 /oauth2/authorization/google?prompt=select_account 같은 파라미터를 붙였을 때
                 // 실제로 Google 인증 URL로 전달되도록 커스텀 resolver를 연결한다.
-                .authorizationEndpoint(ae -> ae.authorizationRequestResolver(authorizationRequestResolver))
+                .authorizationEndpoint(ae -> ae
+                        .authorizationRequestResolver(authorizationRequestResolver)
+                        .authorizationRequestRepository(signedCookieAuthRequestRepo)
+                )
+                .authorizedClientRepository(noOpOAuth2AuthorizedClientRepository)
                 .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
                 .successHandler(customAuthenticationSuccessHandler)
                 .failureHandler(customAuthenticationFailureHandler)

@@ -1,5 +1,5 @@
+// FirstSocialLoginPage.jsx
 import HtmlPage from "../components/HtmlPage";
-
 import { usePageCss } from "../hooks/usePageCss";
 
 const html = `<main class="main">
@@ -32,11 +32,7 @@ const html = `<main class="main">
           <form id="firstSocialLoginForm" action="/User/First_Social_Login" method="post">
             <input type="hidden" />
 
-            <!-- 이메일(자동) -->
-            <div class="form-group" style="font-weight: bold;">
-              <label for="emailDisplay">이메일 <span style="color: red;">*</span></label>
-              <input type="text" id="emailDisplay" class="form-control" readonly />
-            </div>
+            <!-- ✅ 이메일 입력 UI 제거 (소셜 이메일 자동 세팅) -->
             <input type="hidden" id="email" name="email" />
             <input type="hidden" id="socialType" name="socialType" value="GOOGLE" />
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
@@ -48,15 +44,13 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 성별 -->
+            <!-- 성별 (✅ DDL ck_member_gender: MALE/FEMALE만 허용이므로 옵션도 맞춤) -->
             <div class="form-group" style="font-weight: bold;">
               <label for="gender">성별 <span style="color: red;">*</span></label>
               <select id="gender" name="gender" class="form-control" required>
                 <option value="">선택</option>
                 <option value="MALE">남성</option>
                 <option value="FEMALE">여성</option>
-                <option value="OTHER">기타</option>
-                <option value="UNDISCLOSED">비공개</option>
               </select>
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
@@ -64,8 +58,10 @@ const html = `<main class="main">
             <!-- 생년월일 -->
             <div class="form-group" style="font-weight: bold;">
               <label for="birthday">생년월일 <span style="color: red;">*</span></label>
-              <input type="date" id="birthday" name="birthday" class="form-control" required />
-              <span class="help-text">YYYY-MM-DD</span>
+              <div style="display:flex; flex-direction:column;">
+                <input type="date" id="birthday" name="birthday" class="form-control" required />
+                <span class="help-text">YYYY-MM-DD</span>
+              </div>
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
@@ -86,31 +82,44 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 약관/정책 (고정 박스 + 스크롤) -->
+            <!-- 약관/정책 (✅ register.css 구조에 맞게 재구성) -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label>정책/약관 <span style="color: red;">*</span></label>
-              <div style="width: 18rem;">
-                <div class="policy-box">
-                  <strong>[이용약관]</strong>
-                  <div style="margin-top:.5rem;">
-                    서비스 제공을 위해 필요한 최소한의 규칙과 이용 조건을 안내합니다.
+
+              <div class="policy-container">
+                <div class="policy-sections">
+                  <div class="policy-section">
+                    <div class="policy-title">[이용약관]</div>
+                    <div class="policy-box">
+                      서비스 제공을 위해 필요한 최소한의 규칙과 이용 조건을 안내합니다.
+                    </div>
+                    <div class="policy-agree">
+                      <label><input type="checkbox" id="agreeTerms" name="agreeTerms" value="true" required /> (필수) 이용약관 동의</label>
+                    </div>
                   </div>
-                  <hr style="margin: .75rem 0;">
-                  <strong>[개인정보 처리방침]</strong>
-                  <div style="margin-top:.5rem;">
-                    회원가입/서비스 제공을 위해 수집하는 정보, 보관 기간, 파기 절차를 안내합니다.
+
+                  <div class="policy-section">
+                    <div class="policy-title">[개인정보 처리방침]</div>
+                    <div class="policy-box">
+                      회원가입/서비스 제공을 위해 수집하는 정보, 보관 기간, 파기 절차를 안내합니다.
+                    </div>
+                    <div class="policy-agree">
+                      <label><input type="checkbox" id="agreePrivacy" name="agreePrivacy" value="true" required /> (필수) 개인정보 처리방침 동의</label>
+                    </div>
                   </div>
-                  <hr style="margin: .75rem 0;">
-                  <strong>[운영정책]</strong>
-                  <div style="margin-top:.5rem;">
-                    커뮤니티 이용 시 금지행위 및 제재 기준, 신고/처리 절차를 안내합니다.
+
+                  <div class="policy-section">
+                    <div class="policy-title">[운영정책]</div>
+                    <div class="policy-box">
+                      커뮤니티 이용 시 금지행위 및 제재 기준, 신고/처리 절차를 안내합니다.
+                    </div>
+                    <div class="policy-agree">
+                      <label><input type="checkbox" id="agreePolicy" name="agreePolicy" value="true" required /> (필수) 운영정책 동의</label>
+                    </div>
                   </div>
                 </div>
 
-                <div class="policy-checks">
-                  <label><input type="checkbox" id="agreeTerms" name="agreeTerms" value="true" required /> (필수) 이용약관 동의</label>
-                  <label><input type="checkbox" id="agreePrivacy" name="agreePrivacy" value="true" required /> (필수) 개인정보 처리방침 동의</label>
-                  <label><input type="checkbox" id="agreePolicy" name="agreePolicy" value="true" required /> (필수) 운영정책 동의</label>
+                <div class="policy-marketing">
                   <label><input type="checkbox" id="marketingOptIn" name="marketingOptIn" value="true" /> (선택) 마케팅 수신 동의</label>
                 </div>
               </div>
@@ -129,7 +138,7 @@ const html = `<main class="main">
 </main>`;
 
 const scripts = [
-  "(() => {\n" +
+    "(() => {\n" +
     "  const form = document.getElementById('firstSocialLoginForm');\n" +
     "  if (!form) return;\n" +
     "  const alertEl = document.querySelector('.alert.alert-danger');\n" +
@@ -141,19 +150,15 @@ const scripts = [
     "  };\n" +
     "  setAlert('');\n" +
     "\n" +
-    "  const params = new URLSearchParams(window.location.search);\n" +
-    "  const em = params.get('errorMessage') || params.get('error') || '';\n" +
+    "  const qs = (sel) => document.querySelector(sel);\n" +
+    "  const urlParams = new URLSearchParams(window.location.search);\n" +
+    "  const em = urlParams.get('errorMessage') || urlParams.get('error') || '';\n" +
     "  if (em) setAlert(em);\n" +
     "\n" +
-    "  const qs = (sel) => document.querySelector(sel);\n" +
-    "  const params = new URLSearchParams(window.location.search);\n" +
-    "  const email = params.get('email') || '';\n" +
-    "  const username = params.get('username') || '';\n" +
-    "\n" +
-    "  const emailDisplay = qs('#emailDisplay');\n" +
+    "  const email = urlParams.get('email') || '';\n" +
+    "  const username = urlParams.get('username') || '';\n" +
     "  const emailHidden = qs('#email');\n" +
     "  const usernameInput = qs('#username');\n" +
-    "  if (emailDisplay) emailDisplay.value = email;\n" +
     "  if (emailHidden) emailHidden.value = email;\n" +
     "  if (usernameInput && !usernameInput.value) usernameInput.value = username;\n" +
     "\n" +
@@ -225,22 +230,15 @@ const scripts = [
     "\n" +
     "  form.addEventListener('submit', (e) => {\n" +
     "    setAlert('');\n" +
-    "\n" +
     "    if (!email) { e.preventDefault(); setAlert('이메일 정보가 없습니다. 다시 로그인 해주세요.'); return; }\n" +
-    "\n" +
-    "    const agreeTerms = qs('#agreeTerms');\n" +
-    "    const agreePrivacy = qs('#agreePrivacy');\n" +
-    "    const agreePolicy = qs('#agreePolicy');\n" +
-    "    if (!agreeTerms?.checked || !agreePrivacy?.checked || !agreePolicy?.checked) {\n" +
-    "      e.preventDefault(); setAlert('필수 약관에 동의해야 가입이 가능합니다.'); return;\n" +
-    "    }\n" +
     "    if (!otpVerified) { e.preventDefault(); setAlert('휴대폰 인증을 완료해주세요.'); return; }\n" +
     "  });\n" +
     "})();",
-  "AOS.init();",
+    "AOS.init();",
 ];
 
 export default function FirstSocialLoginPage() {
-  usePageCss("/assets/css/pages/first_social_login.css");
-  return <HtmlPage html={html} scripts={scripts} />;
+    // ✅ register.css를 그대로 재사용
+    usePageCss("/assets/css/pages/register.css");
+    return <HtmlPage html={html} scripts={scripts} />;
 }
