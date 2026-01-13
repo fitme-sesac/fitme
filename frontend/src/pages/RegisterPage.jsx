@@ -1,5 +1,5 @@
+// RegisterPage.tsx (전체)
 import HtmlPage from "../components/HtmlPage";
-
 import { usePageCss } from "../hooks/usePageCss";
 
 const html = `<main class="main">
@@ -100,8 +100,6 @@ const html = `<main class="main">
                 <option value="" selected disabled>선택</option>
                 <option value="MALE">남성</option>
                 <option value="FEMALE">여성</option>
-                <option value="OTHER">기타</option>
-                <option value="UNDISCLOSED">비공개</option>
               </select>
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
@@ -142,26 +140,74 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 약관/정책 (고정 박스 + 스크롤) -->
+            <!-- 약관/정책 (각 내용 박스 아래에 각각 동의 체크박스) -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label>정책/약관 <span style="color: red;">*</span></label>
-              <div style="width: 18rem;">
-                <div class="policy-box">
-                  <strong>[이용약관]</strong>
-                  <p>서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.</p>
-                  <hr />
-                  <strong>[개인정보 처리방침]</strong>
-                  <p>수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.</p>
-                  <hr />
-                  <strong>[운영정책]</strong>
-                  <p>커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.</p>
+
+              <div class="policy-container">
+                <div class="policy-sections">
+                  <div class="policy-section">
+                    <div class="policy-title">[이용약관]</div>
+                    <div class="policy-box">
+                      <p>서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.
+                      서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.
+                      서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.
+                      서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.
+                      서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.
+                      서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.</p>
+                    </div>
+                    <div class="policy-agree">
+                      <label>
+                        <input type="checkbox" id="agreeTerms" name="agreeTerms" value="true" />
+                        (필수) 이용약관 동의
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="policy-section">
+                    <div class="policy-title">[개인정보 처리방침]</div>
+                    <div class="policy-box">
+                      <p>수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.
+                      수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.
+                      수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.
+                      수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.
+                      수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.
+                      수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.
+                      </p>
+                    </div>
+                    <div class="policy-agree">
+                      <label>
+                        <input type="checkbox" id="agreePrivacy" name="agreePrivacy" value="true" />
+                        (필수) 개인정보 처리방침 동의
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="policy-section">
+                    <div class="policy-title">[운영정책]</div>
+                    <div class="policy-box">
+                      <p>커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.
+                      커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.
+                      커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.
+                      커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.
+                      커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.
+                      커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.</p>
+                    </div>
+                    <div class="policy-agree">
+                      <label>
+                        <input type="checkbox" id="agreePolicy" name="agreePolicy" value="true" />
+                        (필수) 운영정책 동의
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
-                <div class="policy-checks">
-                  <label><input type="checkbox" id="agreeTerms" name="agreeTerms" value="true" /> (필수) 이용약관 동의</label>
-                  <label><input type="checkbox" id="agreePrivacy" name="agreePrivacy" value="true" /> (필수) 개인정보 처리방침 동의</label>
-                  <label><input type="checkbox" id="agreePolicy" name="agreePolicy" value="true" /> (필수) 운영정책 동의</label>
-                  <label><input type="checkbox" id="marketingOptIn" name="marketingOptIn" value="true" /> (선택) 마케팅 수신 동의</label>
+                <!-- 선택 동의(마케팅) -->
+                <div class="policy-marketing">
+                  <label>
+                    <input type="checkbox" id="marketingOptIn" name="marketingOptIn" value="true" />
+                    (선택) 마케팅 수신 동의
+                  </label>
                 </div>
               </div>
             </div>
@@ -180,7 +226,7 @@ const html = `<main class="main">
 </main>`;
 
 const scripts = [
-  "(() => {\n" +
+    "(() => {\n" +
     "  const form = document.getElementById('registerForm');\n" +
     "  if (!form) return;\n" +
     "\n" +
@@ -321,10 +367,10 @@ const scripts = [
     "    }\n" +
     "  });\n" +
     "})();",
-  "AOS.init();",
+    "AOS.init();",
 ];
 
 export default function RegisterPage() {
-  usePageCss("/assets/css/pages/register.css");
-  return <HtmlPage html={html} scripts={scripts} />;
+    usePageCss("/assets/css/pages/register.css");
+    return <HtmlPage html={html} scripts={scripts} />;
 }
