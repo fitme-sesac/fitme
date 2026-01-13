@@ -30,7 +30,6 @@ public class Resume {
     @Column(name = "resume_id")
     private Long id;
 
-    // member_id 컬럼과 매핑
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false)
     private UserEntity user;
@@ -41,7 +40,6 @@ public class Resume {
     @Column(length = 200)
     private String tagline;
 
-    // 기본값 false 설정
     @Column(name = "is_primary", nullable = false)
     @ColumnDefault("false")
     private boolean isPrimary;
@@ -50,37 +48,33 @@ public class Resume {
     @ColumnDefault("false")
     private boolean isPublic;
 
-    // Enum: ResumeStatus (DRAFT, ACTIVE 등)
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     @ColumnDefault("'DRAFT'")
     private ResumeStatus status = ResumeStatus.DRAFT;
 
-    // Enum: ResumeField (RESUME, PORTFOLIO, INTRO)
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private ResumeField field;
+    private ResumeField field; // RESUME, PORTFOLIO, INTRO
 
     @Column(columnDefinition = "TEXT")
-    private String content;
+    private String content; // 사용자 원본 자기소개
 
-    // --- AI 관련 필드 ---
+    // AI 요약 및 임베딩 설계
+
     @Column(columnDefinition = "TEXT")
-    private String summary;
+    private String summary; // AI가 요약한 10줄 요약본 저장
 
-    // Enum: SummaryStatus (NONE, PENDING, COMPLETED...)
     @Enumerated(EnumType.STRING)
     @Column(name = "summary_status", length = 20, nullable = false)
     @ColumnDefault("'NONE'")
-    private SummaryStatus summaryStatus = SummaryStatus.NONE;
+    private SummaryStatus summaryStatus = SummaryStatus.NONE; // 요약 진행 상태
 
-    // DB의 vector(1536) 컬럼 매핑
-    // Hibernate 6 이상에서는 @JdbcTypeCode(SqlTypes.VECTOR)를 사용합니다.
-    @Column(name = "embedding", columnDefinition = "vector")
+    // 요약본(Summary)을 기반으로 생성된 벡터 데이터
+    @Column(name = "embedding", columnDefinition = "vector(1536)")
     @JdbcTypeCode(SqlTypes.VECTOR)
     private List<Double> embedding;
 
-    // --- 취업 선호 정보 ---
     @Column(name = "target_job_id")
     private Long targetJobId;
 
@@ -93,7 +87,6 @@ public class Resume {
     @Column(name = "employment_type", length = 80)
     private String employmentType;
 
-    // --- 날짜 정보 (자동 관리) ---
     @Column(name = "last_modified_at")
     private LocalDateTime lastModifiedAt = LocalDateTime.now();
 
@@ -108,22 +101,18 @@ public class Resume {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // 첨부파일 (1:N)
     @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ResumeAttachment> attachments = new ArrayList<>();
 
-    // --- 생성자 (필수 필드 위주) ---
+    // 생성자
     public Resume(UserEntity user, String title, String content, ResumeField field) {
         this.user = user;
         this.title = title;
         this.content = content;
         this.field = field;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    // --- 편의 메서드 ---
     public void addAttachment(ResumeAttachment attachment) {
         this.attachments.add(attachment);
         attachment.setResume(this);
