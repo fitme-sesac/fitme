@@ -60,7 +60,7 @@ try:
                 )
             """)
             print("✅ 더미 데이터(ID: 1)가 성공적으로 추가되었습니다!")
-            print("Tip: 이제 'python test_api_v2.py'를 실행하면 DB에 결과가 저장될 겁니다.")
+            print("Tip: 이제 'python test_api.py'를 실행하면 DB에 결과가 저장될 겁니다.")
             
         except Exception as insert_e:
             print(f"⚠️ 더미 데이터 추가 실패: {insert_e}")
