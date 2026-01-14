@@ -1,4 +1,3 @@
-// src/main/java/com/example/pproject/user/controller/UserController.java
 package com.example.pproject.user.controller;
 
 import com.example.pproject.Config.CookieUtils;
@@ -32,6 +31,32 @@ public class UserController {
     private final UserService userService;
     private final JavaMailSender mailSender;
     private final JwtTokenProvider jwtTokenProvider;
+    @Value("${verify.pepper}")
+    private String verifyPepper;
+
+    private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
+
+    private String hashVerifyCode(String code) {
+        try {
+            var md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] dig = md.digest((verifyPepper + ":" + code).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(dig);
+        } catch (Exception e) {
+            throw new IllegalStateException("verify code hash error", e);
+        }
+    }
+
+    private boolean equalsHash(String hashB64Url, String code) {
+        if (hashB64Url == null) return false;
+        byte[] a = java.util.Base64.getUrlDecoder().decode(hashB64Url);
+        byte[] b = java.util.Base64.getUrlDecoder().decode(hashVerifyCode(code));
+        return java.security.MessageDigest.isEqual(a, b);
+    }
+
+    private String generateRandomCodeSecure6() {
+        int n = 100000 + SECURE_RANDOM.nextInt(900000);
+        return String.valueOf(n);
+    }
 
     @Value("${app.front-base-url:http://localhost:5173}")
     private String frontBaseUrl;
@@ -116,7 +141,7 @@ public class UserController {
 
             // 3) 휴대폰 인증(서버 쿠키 기반)
             String normalizedPhone = userDTO.getPhone() == null ? "" : userDTO.getPhone().replaceAll("[^0-9]", "");
-            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken);
+            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken, "SIGNUP");
             if (verifiedPhone == null || !verifiedPhone.equals(normalizedPhone)) {
                 throw new IllegalStateException("휴대폰 인증을 완료해주세요.");
             }
@@ -219,10 +244,11 @@ public class UserController {
 
             // 3) 휴대폰 인증(서버 쿠키 기반)
             String normalizedPhone = userDTO.getPhone() == null ? "" : userDTO.getPhone().replaceAll("[^0-9]", "");
-            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken);
+            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken, "SIGNUP");
             if (verifiedPhone == null || !verifiedPhone.equals(normalizedPhone)) {
                 throw new IllegalStateException("휴대폰 인증을 완료해주세요.");
             }
+
 
             // 4) 서버가 결정하는 값들
             userDTO.setSocialType(SocialType.GOOGLE);
@@ -286,21 +312,23 @@ public class UserController {
 
     @PostMapping("/User/Find_Userid")
     public String sendUseridVerifyCode(@RequestParam String email,
-                                       Model model,
                                        HttpServletRequest request,
                                        HttpServletResponse response) {
         try {
             userService.assertEmailExists(email);
 
-            String code = generateRandomCode();
+            String code = generateRandomCodeSecure6();
+            String codeHash = hashVerifyCode(code);
 
             Map<String, Object> claims = new HashMap<>();
             claims.put("email", email);
-            claims.put("code", code);
+            claims.put("codeHash", codeHash);
+            claims.put("attempts", 0);
 
             String tmp = jwtTokenProvider.createFlowToken("FIND_USERID", claims, 600);
             CookieUtils.addHttpOnlyCookie(request, response, "FIND_USERID_TMP", tmp, 600, "Lax");
 
+            // 이메일에는 평문 코드 전송(정상)
             sendVerificationEmail(email, code);
 
             return redirectFrontWithQuery("/VerifyUserIdCode", "email=" + enc(email));
@@ -312,7 +340,6 @@ public class UserController {
 
     @PostMapping("/User/Verify_Userid_Code")
     public String verifyUseridCode(@RequestParam String inputCode,
-                                   Model model,
                                    @CookieValue(value = "FIND_USERID_TMP", required = false) String tmpToken,
                                    HttpServletRequest request,
                                    HttpServletResponse response) {
@@ -334,27 +361,39 @@ public class UserController {
             flowClaims = tmp;
         }
 
-        String savedCode = flowClaims.get("code") == null ? null : flowClaims.get("code").toString();
         String email = flowClaims.get("email") == null ? null : flowClaims.get("email").toString();
+        String codeHash = flowClaims.get("codeHash") == null ? null : flowClaims.get("codeHash").toString();
+        Integer attempts = null;
+        Object at = flowClaims.get("attempts");
+        if (at instanceof Number n) attempts = n.intValue();
+        if (attempts == null) attempts = 0;
 
-        if (savedCode == null || email == null) {
+        if (email == null || codeHash == null) {
             return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 절차가 만료되었습니다. 다시 시도해주세요."));
         }
 
-        if (!inputCode.equals(savedCode)) {
-            return redirectFrontWithQuery("/VerifyUserIdCode", "errorMessage=" + enc("인증번호가 일치하지 않습니다."));
+        // ✅ 5회 제한
+        if (attempts >= 5) {
+            CookieUtils.deleteCookie(request, response, "FIND_USERID_TMP");
+            return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 실패 횟수를 초과했습니다. 다시 시도해주세요."));
+        }
+
+        if (!equalsHash(codeHash, inputCode)) {
+            attempts++;
+
+            // attempts 증가 반영 (남은 TTL 유지 대신 간단히 10분으로 재발급해도 됨)
+            Map<String, Object> newClaims = new HashMap<>(flowClaims);
+            newClaims.put("attempts", attempts);
+
+            String next = jwtTokenProvider.createFlowToken("FIND_USERID", newClaims, 600);
+            CookieUtils.addHttpOnlyCookie(request, response, "FIND_USERID_TMP", next, 600, "Lax");
+
+            return redirectFrontWithQuery("/VerifyUserIdCode", "errorMessage=" + enc("인증번호가 일치하지 않습니다. (" + attempts + "/5)"));
         }
 
         String userid = userService.findUseridByEmail(email);
-
         CookieUtils.deleteCookie(request, response, "FIND_USERID_TMP");
-
         return redirectFrontWithQuery("/ResultUserId", "message=" + enc("당신의 아이디는: " + userid));
-    }
-
-    private String generateRandomCode() {
-        Random random = new Random();
-        return String.format("%06d", random.nextInt(1_000_000));
     }
 
     private void sendVerificationEmail(String to, String code) {
