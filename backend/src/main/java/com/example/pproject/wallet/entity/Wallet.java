@@ -3,7 +3,6 @@ package com.example.pproject.wallet.entity;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.WalletStatus;
 import com.example.pproject.common.entity.BaseTimeEntity;
-import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -31,13 +30,13 @@ public class Wallet extends BaseTimeEntity {
     private RoleType ownerType;
 
     @Column(name = "member_id")
-    private Long member; // memberId -> member 로 변경
+    private Long member; // memberId
 
 //    @Column(name = "employer_id")
 //    private Long employer;
 
     @Column(name = "balance")
-    private int balance;
+    private Long balance;   // 확장성을 위해 int 대신 Long으로 설정
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
