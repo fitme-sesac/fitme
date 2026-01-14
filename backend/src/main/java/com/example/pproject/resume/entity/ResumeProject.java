@@ -1,29 +1,25 @@
 package com.example.pproject.resume.entity;
 
-import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.ColumnDefault;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Table(name = "resume_project", indexes = @Index(name = "idx_resume_project_resume_id", columnList = "resume_id"))
-public class ResumeProject extends BaseTimeEntity {
+public class ResumeProject {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "project_id")
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id", nullable = false)
     private Resume resume;
 
-    @Column(nullable = false, length = 120)
+    @Column(nullable = false, length = 100)
     private String title;
 
     @Column(name = "start_date")
@@ -32,17 +28,23 @@ public class ResumeProject extends BaseTimeEntity {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    @Column(name = "contribution_pct", precision = 5, scale = 2)
-    private BigDecimal contributionPct;
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
-    @Lob @Column(name = "tech_stack")
+    @Lob
+    @Column(name = "tech_stack", columnDefinition = "TEXT")
     private String techStack;
 
-    @Lob private String description;
-
-    @Column(name = "sort_order", nullable = false)
-    @ColumnDefault("0")
+    @Column(name = "sort_order")
     private Integer sortOrder;
 
-    public void setResume(Resume resume) { this.resume = resume; }
+    public ResumeProject(Resume resume, String title, LocalDate startDate, LocalDate endDate, String description, String techStack) {
+        this.resume = resume;
+        this.title = title;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.description = description;
+        this.techStack = techStack;
+    }
 }

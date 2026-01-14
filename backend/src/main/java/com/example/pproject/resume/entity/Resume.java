@@ -1,18 +1,17 @@
 package com.example.pproject.resume.entity;
 
-import com.example.pproject.common.entity.BaseSoftDeleteEntity;
 import com.example.pproject.Constant.ResumeField;
 import com.example.pproject.Constant.ResumeStatus;
 import com.example.pproject.Constant.SummaryStatus;
 import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.DynamicInsert;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
@@ -21,13 +20,10 @@ import java.util.List;
 
 @Entity
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-@DynamicInsert
-@Table(name = "resume", indexes = {
-        @Index(name = "idx_resume_member_status", columnList = "member_id, status"),
-        @Index(name = "idx_resume_summary_todo", columnList = "summary_status, updated_at")
-})
-public class Resume extends BaseSoftDeleteEntity {
+@Setter
+@NoArgsConstructor
+@Table(name = "resume")
+public class Resume {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,47 +42,41 @@ public class Resume extends BaseSoftDeleteEntity {
 
     @Column(name = "is_primary", nullable = false)
     @ColumnDefault("false")
-    private boolean primary;
+    private boolean isPrimary;
 
     @Column(name = "is_public", nullable = false)
     @ColumnDefault("false")
-    private boolean publicOption;
+    private boolean isPublic;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20, nullable = false)
     @ColumnDefault("'DRAFT'")
-    private ResumeStatus status;
-
-    @Column(name = "last_modified_at", nullable = false)
-    private LocalDateTime lastModifiedAt;
-
-    // AI 요약 & 임베딩 필드
-    // 1. 타겟 공고 ID
-    @Column(name = "target_job_id")
-    private Long targetJobId;
-
-    // 2. 이력서 원문 (AI 분석 대상)
-    @Lob
-    private String content;
+    private ResumeStatus status = ResumeStatus.DRAFT;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private ResumeField field;
+    @Column(length = 20, nullable = false)
+    private ResumeField field; // RESUME, PORTFOLIO, INTRO
 
-    // 3. AI가 작성해준 요약글
-    @Lob
-    private String summary;
+    @Column(columnDefinition = "TEXT")
+    private String content; // 사용자 원본 자기소개
 
-    // 4. 벡터 임베딩 (PostgreSQL vector 타입, 1536차원)
+    // AI 요약 및 임베딩 설계
+
+    @Column(columnDefinition = "TEXT")
+    private String summary; // AI가 요약한 10줄 요약본 저장
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "summary_status", length = 20, nullable = false)
+    @ColumnDefault("'NONE'")
+    private SummaryStatus summaryStatus = SummaryStatus.NONE; // 요약 진행 상태
+
+    // 요약본(Summary)을 기반으로 생성된 벡터 데이터
     @Column(name = "embedding", columnDefinition = "vector(1536)")
     @JdbcTypeCode(SqlTypes.VECTOR)
     private List<Double> embedding;
 
-    // 5. AI 처리 상태 (대기중, 완료, 실패 등)
-    @Enumerated(EnumType.STRING)
-    @Column(name = "summary_status", nullable = false, length = 20)
-    @ColumnDefault("'NONE'")
-    private SummaryStatus summaryStatus;
+    @Column(name = "target_job_id")
+    private Long targetJobId;
 
     @Column(name = "preference_location", length = 80)
     private String preferenceLocation;
@@ -97,55 +87,34 @@ public class Resume extends BaseSoftDeleteEntity {
     @Column(name = "employment_type", length = 80)
     private String employmentType;
 
-    // 자식 연관관계
-    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ResumeCareer> careers = new ArrayList<>();
+    @Column(name = "last_modified_at")
+    private LocalDateTime lastModifiedAt = LocalDateTime.now();
 
-    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ResumeProject> projects = new ArrayList<>();
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ResumeCertificate> certificates = new ArrayList<>();
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ResumeAttachment> attachments = new ArrayList<>();
 
-    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ResumeLink> links = new ArrayList<>();
-
-    @OneToOne(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
-    private ResumeProfile profile;
-
-    // 생성자 & 편의 메서드
-    @Builder
-    public Resume(UserEntity user, String title, ResumeField field, boolean primary) {
+    // 생성자
+    public Resume(UserEntity user, String title, String content, ResumeField field) {
         this.user = user;
         this.title = title;
+        this.content = content;
         this.field = field;
-        this.primary = primary;
-        this.status = ResumeStatus.DRAFT;
-        this.summaryStatus = SummaryStatus.NONE;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    // 임베딩 값 업데이트 메서드
-    public void updateEmbedding(List<Double> embeddingVector) {
-        this.embedding = embeddingVector;
-        this.lastModifiedAt = LocalDateTime.now();
+    public void addAttachment(ResumeAttachment attachment) {
+        this.attachments.add(attachment);
+        attachment.setResume(this);
     }
-
-    // AI 분석 요청 시 상태 변경
-    public void requestAiAnalysis(Long targetJobId) {
-        this.targetJobId = targetJobId;
-        this.summaryStatus = SummaryStatus.PENDING;
-        this.lastModifiedAt = LocalDateTime.now();
-    }
-
-    // AI 분석 완료 시 결과 저장
-    public void completeAiAnalysis(String summary) {
-        this.summary = summary;
-        this.summaryStatus = SummaryStatus.COMPLETED;
-        this.lastModifiedAt = LocalDateTime.now();
-    }
-
 }
