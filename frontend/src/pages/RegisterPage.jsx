@@ -213,6 +213,8 @@ const scripts = [
     "(() => {\n" +
     "  const form = document.getElementById('registerForm');\n" +
     "  if (!form) return;\n" +
+    "  if (form.dataset.fitmeRegisterInit === '1') return;\n" +
+    "  form.dataset.fitmeRegisterInit = '1';\n" +
     "\n" +
     "  const alertEl = document.querySelector('.alert.alert-danger');\n" +
     "  const setAlert = (msg) => {\n" +
@@ -236,7 +238,6 @@ const scripts = [
     "  const emailTLD = qs('#emailTLD');\n" +
     "  const emailHidden = qs('#email');\n" +
     "\n" +
-    "  // ✅ naver.co.kr 같은 케이스도 지원(domain=naver, tld=co.kr)\n" +
     "  const splitEmail = (v) => {\n" +
     "    const s = (v || '').trim();\n" +
     "    const at = s.lastIndexOf('@');\n" +
@@ -264,6 +265,9 @@ const scripts = [
     "\n" +
     "  // 휴대폰 OTP\n" +
     "  let otpVerified = false;\n" +
+    "  let sending = false;\n" +
+    "  let verifying = false;\n" +
+    "\n" +
     "  const phoneInput = qs('#phone');\n" +
     "  const otpInput = qs('#phoneOtpCode');\n" +
     "  const otpStatus = qs('#otpStatus');\n" +
@@ -277,7 +281,6 @@ const scripts = [
     "    otpStatus.textContent = msg;\n" +
     "    otpStatus.style.color = ok ? '#198754' : '#dc3545';\n" +
     "  };\n" +
-    "\n" +
     "  const lockOtpInputs = () => {\n" +
     "    if (phoneInput) phoneInput.setAttribute('readonly', 'readonly');\n" +
     "    if (otpInput) otpInput.setAttribute('readonly', 'readonly');\n" +
@@ -285,26 +288,28 @@ const scripts = [
     "    if (verifyBtn) verifyBtn.disabled = true;\n" +
     "  };\n" +
     "\n" +
-    "  // ✅ 새로고침/재접속 대비: 서버 쿠키 기준으로 인증 상태 동기화\n" +
     "  const syncOtpStatus = async () => {\n" +
     "    try {\n" +
     "      const res = await fetch('/api/phone/otp/status', { credentials: 'include' });\n" +
+    "      if (!res.ok) return;\n" +
     "      const json = await res.json().catch(() => null);\n" +
     "      if (json && json.verified === true) {\n" +
     "        otpVerified = true;\n" +
     "        setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
     "        lockOtpInputs();\n" +
     "      }\n" +
-    "    } catch (e) {\n" +
-    "      // status 실패는 치명적이지 않음(그냥 다시 인증 유도)\n" +
-    "    }\n" +
+    "    } catch (e) {}\n" +
     "  };\n" +
     "  syncOtpStatus();\n" +
     "\n" +
     "  const sendOtp = async () => {\n" +
+    "    if (otpVerified) return;\n" +
+    "    if (sending) return;\n" +
+    "    sending = true;\n" +
+    "\n" +
     "    setAlert('');\n" +
     "    const p = normalizePhone(phoneInput?.value);\n" +
-    "    if (!isPhoneValid(p)) { setOtpStatus('휴대폰 번호를 확인해주세요. (숫자만 10~11자리)', false); return; }\n" +
+    "    if (!isPhoneValid(p)) { sending = false; setOtpStatus('휴대폰 번호를 확인해주세요. (숫자만 10~11자리)', false); return; }\n" +
     "    if (phoneInput) phoneInput.value = p;\n" +
     "    otpVerified = false;\n" +
     "    if (otpInput) otpInput.value = '';\n" +
@@ -328,16 +333,21 @@ const scripts = [
     "    } catch (e) {\n" +
     "      setOtpStatus('네트워크 오류로 발송에 실패했습니다.', false);\n" +
     "    } finally {\n" +
-    "      if (sendBtn) sendBtn.disabled = false;\n" +
+    "      sending = false;\n" +
+    "      if (sendBtn && !otpVerified) sendBtn.disabled = false;\n" +
     "    }\n" +
     "  };\n" +
     "\n" +
     "  const verifyOtp = async () => {\n" +
+    "    if (otpVerified) return;\n" +
+    "    if (verifying) return;\n" +
+    "    verifying = true;\n" +
+    "\n" +
     "    setAlert('');\n" +
     "    const p = normalizePhone(phoneInput?.value);\n" +
     "    const input = String(otpInput?.value || '').trim();\n" +
-    "    if (!isPhoneValid(p)) { setOtpStatus('휴대폰 번호를 확인해주세요.', false); return; }\n" +
-    "    if (!/^[0-9]{6}$/.test(input)) { setOtpStatus('인증번호는 6자리 숫자입니다.', false); return; }\n" +
+    "    if (!isPhoneValid(p)) { verifying = false; setOtpStatus('휴대폰 번호를 확인해주세요.', false); return; }\n" +
+    "    if (!/^[0-9]{6}$/.test(input)) { verifying = false; setOtpStatus('인증번호는 6자리 숫자입니다.', false); return; }\n" +
     "\n" +
     "    try {\n" +
     "      if (verifyBtn) verifyBtn.disabled = true;\n" +
@@ -354,14 +364,14 @@ const scripts = [
     "        setOtpStatus(msg, false);\n" +
     "        return;\n" +
     "      }\n" +
-    "\n" +
     "      otpVerified = true;\n" +
     "      setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
     "      lockOtpInputs();\n" +
     "    } catch (e) {\n" +
     "      setOtpStatus('네트워크 오류로 인증에 실패했습니다.', false);\n" +
     "    } finally {\n" +
-    "      if (verifyBtn) verifyBtn.disabled = false;\n" +
+    "      verifying = false;\n" +
+    "      if (verifyBtn && !otpVerified) verifyBtn.disabled = false;\n" +
     "    }\n" +
     "  };\n" +
     "\n" +
@@ -370,13 +380,10 @@ const scripts = [
     "\n" +
     "  form.addEventListener('submit', (e) => {\n" +
     "    setAlert('');\n" +
-    "\n" +
     "    const pw = String(qs('#password')?.value || '');\n" +
     "    const pw2 = String(qs('#passwordConfirm')?.value || '');\n" +
     "    if (pw !== pw2) { e.preventDefault(); setAlert('비밀번호와 비밀번호 재확인이 일치하지 않습니다.'); return; }\n" +
-    "\n" +
     "    if (!fillEmailParts()) { e.preventDefault(); return; }\n" +
-    "\n" +
     "    const agreeTerms = qs('#agreeTerms');\n" +
     "    const agreePrivacy = qs('#agreePrivacy');\n" +
     "    const agreePolicy = qs('#agreePolicy');\n" +
@@ -385,7 +392,6 @@ const scripts = [
     "      setAlert('필수 약관에 동의해야 회원가입이 가능합니다.');\n" +
     "      return;\n" +
     "    }\n" +
-    "\n" +
     "    if (!otpVerified) {\n" +
     "      e.preventDefault();\n" +
     "      setAlert('휴대폰 인증을 완료해주세요.');\n" +
@@ -393,7 +399,7 @@ const scripts = [
     "    }\n" +
     "  });\n" +
     "})();",
-    "AOS.init();",
+    "(() => { if (window.AOS && typeof window.AOS.init === 'function') window.AOS.init(); })();",
 ];
 
 export default function RegisterPage() {

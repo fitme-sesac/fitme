@@ -2,11 +2,14 @@ package com.example.pproject.sms;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.sql.PreparedStatement;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
@@ -18,11 +21,11 @@ public class PhoneVerificationService {
 
     private final PhoneVerificationRepository repo;
     private final SolapiSmsService solapiSmsService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Value("${otp.pepper}")
     private String otpPepper;
 
-    // 정책값(원하면 yml로 뺄 것)
     private static final Duration OTP_TTL = Duration.ofMinutes(5);
     private static final Duration RESEND_COOLDOWN = Duration.ofSeconds(30);
     private static final int MAX_ATTEMPTS = 5;
@@ -30,9 +33,26 @@ public class PhoneVerificationService {
 
     public record SendResult(UUID verificationId, OffsetDateTime expiresAt) {}
 
+    // ✅ 트랜잭션 범위 안에서 xact advisory lock 잡기
+    private void advisoryXactLock(String key) {
+        jdbcTemplate.execute(con -> {
+            PreparedStatement ps = con.prepareStatement("select pg_advisory_xact_lock(hashtext(?))");
+            ps.setString(1, key);
+            return ps;
+        }, (PreparedStatement ps) -> {
+            ps.execute();
+            return null;
+        });
+    }
+
+    @Transactional
     public SendResult sendOtp(String phoneDigits, String purpose, String ip, String ua) {
         String phone = normalize(phoneDigits);
         validatePhone(phone);
+
+        // ✅ 동일 phone+purpose 동시 발송 레이스 방지
+        String lockKey = phone + ":" + purpose;
+        advisoryXactLock(lockKey);
 
         OffsetDateTime now = OffsetDateTime.now();
 
@@ -41,13 +61,11 @@ public class PhoneVerificationService {
                 .orElse(null);
 
         if (pv != null) {
-            // 만료된 활성 레코드면 소비 처리 후 새로 발급
             if (!pv.getExpiresAt().isAfter(now)) {
                 pv.setConsumedAt(now);
                 repo.save(pv);
                 pv = null;
             } else {
-                // 재발송 제한
                 if (Duration.between(pv.getLastSentAt(), now).compareTo(RESEND_COOLDOWN) < 0) {
                     throw new IllegalStateException("잠시 후 다시 시도해주세요. (재발송 대기)");
                 }
@@ -58,7 +76,8 @@ public class PhoneVerificationService {
         }
 
         String code = generate6Digits();
-        // 먼저 발송(실패하면 DB 상태 안 바뀌게)
+
+        // ✅ 먼저 발송(실패 시 DB 변경 없음)
         solapiSmsService.sendOtp(phone, code);
 
         String codeHash = hmacSha256Hex(phone + ":" + purpose + ":" + code);
@@ -73,7 +92,7 @@ public class PhoneVerificationService {
             pv.setCreatedAt(now);
         } else {
             pv.setResendCount(pv.getResendCount() + 1);
-            pv.setAttemptCount(0); // 재발송 시 시도횟수 리셋(운영정책에 따라 유지해도 됨)
+            pv.setAttemptCount(0);
         }
 
         pv.setCodeHash(codeHash);
@@ -88,6 +107,7 @@ public class PhoneVerificationService {
         return new SendResult(pv.getVerificationId(), pv.getExpiresAt());
     }
 
+    @Transactional
     public void verifyOtp(UUID verificationId, String phoneDigits, String purpose, String code) {
         String phone = normalize(phoneDigits);
         validatePhone(phone);
@@ -130,7 +150,7 @@ public class PhoneVerificationService {
         }
 
         pv.setVerifiedAt(now);
-        pv.setConsumedAt(now); // 성공 즉시 소비 처리(재사용 방지)
+        pv.setConsumedAt(now);
         repo.save(pv);
     }
 
@@ -139,7 +159,6 @@ public class PhoneVerificationService {
     }
 
     private void validatePhone(String phone) {
-        // DDL: 10~15 자리
         if (phone.isBlank() || !phone.matches("^[0-9]{10,15}$")) {
             throw new IllegalStateException("휴대폰 번호 형식이 올바르지 않습니다.");
         }
@@ -155,7 +174,7 @@ public class PhoneVerificationService {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(otpPepper.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] out = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(out); // 64 hex chars
+            return HexFormat.of().formatHex(out);
         } catch (Exception e) {
             throw new IllegalStateException("OTP hash error", e);
         }
