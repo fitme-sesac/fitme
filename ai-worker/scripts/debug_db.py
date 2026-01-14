@@ -14,9 +14,6 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 
-sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
-
 # DB 클라이언트 인코딩과 로케일 강제 설정 (에러 메시지 깨짐 방지)
 os.environ["PGCLIENTENCODING"] = "utf-8"
 os.environ["LC_ALL"] = "C"
