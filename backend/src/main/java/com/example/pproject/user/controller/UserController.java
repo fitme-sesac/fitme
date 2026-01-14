@@ -36,6 +36,13 @@ public class UserController {
 
     private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
 
+    /**
+     * Produce a URL-safe, no-padding Base64-encoded SHA-256 hash of the given verification code combined with the controller's configured pepper.
+     *
+     * @param code the verification code to hash
+     * @return the URL-safe Base64 (no padding) encoded hash of the peppered verification code
+     * @throws IllegalStateException if the hashing operation fails
+     */
     private String hashVerifyCode(String code) {
         try {
             var md = java.security.MessageDigest.getInstance("SHA-256");
@@ -46,6 +53,16 @@ public class UserController {
         }
     }
 
+    /**
+     * Determines whether a Base64 URL-encoded hash matches the provided verification code.
+     *
+     * Compares the given `hashB64Url` against the hash that would be produced for `code`
+     * using a constant-time comparison. Returns `false` if `hashB64Url` is null.
+     *
+     * @param hashB64Url a Base64 URL-encoded SHA-256 hash (as produced by {@code hashVerifyCode})
+     * @param code the plaintext verification code to validate against the hash
+     * @return `true` if `hashB64Url` equals the hash of `code`, `false` otherwise
+     */
     private boolean equalsHash(String hashB64Url, String code) {
         if (hashB64Url == null) return false;
         byte[] a = java.util.Base64.getUrlDecoder().decode(hashB64Url);
@@ -53,6 +70,11 @@ public class UserController {
         return java.security.MessageDigest.isEqual(a, b);
     }
 
+    /**
+     * Generate a cryptographically secure 6-digit numeric verification code.
+     *
+     * @return a 6-digit numeric code as a string (first digit will not be zero)
+     */
     private String generateRandomCodeSecure6() {
         int n = 100000 + SECURE_RANDOM.nextInt(900000);
         return String.valueOf(n);
@@ -116,6 +138,21 @@ public class UserController {
         return redirectFront("/Register");
     }
 
+    /**
+     * Handle user registration form submission: validate inputs, enforce required consents and phone verification,
+     * apply policy notice IDs and consent timestamps, create the user account, and clean up temporary verification state.
+     *
+     * @param userDTO            DTO containing submitted user fields (username, password, phone, consents, etc.)
+     * @param emailId            local-part of the user's email; combined with domain and TLD to form full email
+     * @param emailDomain        domain part of the user's email
+     * @param emailTLD           top-level domain part of the user's email
+     * @param request             HTTP request (used to obtain client IP and User-Agent)
+     * @param response            HTTP response (used to delete temporary cookies)
+     * @param phoneVerifiedToken  optional cookie token ("PHONE_VERIFIED_TMP") holding server-side phone verification state
+     * @param model               MVC model (unused for successful flow; retained for compatibility with Spring handlers)
+     * @return                    Redirect URL to the front-end: on success redirects to /Login; on validation failure redirects
+     *                            to /Register with an `errorMessage` query parameter describing the problem.
+     */
     @PostMapping("/User/Register")
     public String registerProc(
             UserRequestDTO userDTO,
@@ -205,6 +242,18 @@ public class UserController {
         return redirectFrontWithQuery("/FirstSocialLogin", q);
     }
 
+    /**
+     * Complete a first-time social registration: validate the OAuth2 temporary token and email,
+     * enforce required consents, verify the phone via the phone-verification cookie, register the user,
+     * create an access token and set it in a cookie, then redirect to the front-end root.
+     *
+     * @param userDTO            registration data submitted by the user; its email must match the email carried by the OAuth2 temporary token and it must indicate acceptance of required consents
+     * @param request            the incoming HTTP request (used to obtain client IP and user agent)
+     * @param response           the HTTP response used to set and clear cookies
+     * @param tmpToken           value of the `OAUTH2_TMP` cookie containing the OAuth2 registration flow token (must be a valid `OAUTH2_REGISTER` flow)
+     * @param phoneVerifiedToken value of the `PHONE_VERIFIED_TMP` cookie used to confirm the user's phone verification (context "SIGNUP")
+     * @return                   a redirect URL string; on success redirects to the front root ("/"), on failure redirects back to the first social login page with an error message query
+     */
     @PostMapping("/User/First_Social_Login")
     public String firstSocialLoginSubmit(@ModelAttribute("data") UserRequestDTO userDTO,
                                          HttpServletRequest request,
@@ -310,6 +359,16 @@ public class UserController {
         return redirectFront("/FindUserId");
     }
 
+    /**
+     * Initiates a find-userid verification by generating a 6-digit code, emailing it to the user,
+     * and storing a hashed code plus attempt counter in a short-lived flow token cookie.
+     *
+     * @param email   the target email address to verify
+     * @param request the current HTTP request (used to set the temporary cookie)
+     * @param response the current HTTP response (used to set the temporary cookie)
+     * @return a redirect string to the front-end verification page with the email query on success,
+     *         or a redirect to the find-userid page with an `errorMessage` query on failure
+     */
     @PostMapping("/User/Find_Userid")
     public String sendUseridVerifyCode(@RequestParam String email,
                                        HttpServletRequest request,
@@ -338,6 +397,21 @@ public class UserController {
         }
     }
 
+    /**
+     * Validate the verification code submitted for the "find user ID" flow and redirect to the appropriate front-end page.
+     *
+     * <p>Enforces a maximum of 5 attempts, increments and reissues the temporary flow token on failures, deletes the
+     * temporary cookie on success or when the attempt limit is exceeded, and redirects with an encoded message or error.
+     *
+     * @param inputCode the verification code entered by the user (sent to the user's email)
+     * @param tmpToken  the value of the "FIND_USERID_TMP" cookie containing the flow token claims
+     * @param request   the HTTP servlet request (used for cookie operations)
+     * @param response  the HTTP servlet response (used for cookie operations)
+     * @return a view name that issues a redirect to the front-end:
+     *         - redirects to /ResultUserId with a success message containing the userid on success,
+     *         - redirects to /VerifyUserIdCode with an error message when the code is incorrect (includes attempt count),
+     *         - redirects to /FindUserId with an error message when the flow token is missing, invalid, expired, or attempt limit exceeded.
+     */
     @PostMapping("/User/Verify_Userid_Code")
     public String verifyUseridCode(@RequestParam String inputCode,
                                    @CookieValue(value = "FIND_USERID_TMP", required = false) String tmpToken,
@@ -396,6 +470,12 @@ public class UserController {
         return redirectFrontWithQuery("/ResultUserId", "message=" + enc("당신의 아이디는: " + userid));
     }
 
+    /**
+     * Sends a verification email containing a numeric code to the specified recipient.
+     *
+     * @param to   recipient email address
+     * @param code verification code included in the email body
+     */
     private void sendVerificationEmail(String to, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);

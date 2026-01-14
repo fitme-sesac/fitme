@@ -26,6 +26,14 @@ public class PhoneOtpController {
 
     private static final String PURPOSE_SIGNUP = "SIGNUP";
 
+    /**
+     * Initiates a signup phone OTP: sends an OTP to the provided phone number, stores a short-lived flow token in an HttpOnly cookie, and returns an acknowledgement.
+     *
+     * @param body a JSON-like map expected to contain the key "phone" with the recipient phone number as its value
+     * @param request the incoming HTTP request (used to derive client IP and headers)
+     * @param response the HTTP response used to set the HttpOnly cookie "PHONE_OTP_TMP"
+     * @return a ResponseEntity whose body is a map; on success the map is {@code {"ok": true}}; on validation errors responds with HTTP 400 and {@code {"ok": false, "message": ...}}; on other failures responds with HTTP 502 and {@code {"ok": false, "message": "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요."}}
+     */
     @PostMapping("/send")
     public ResponseEntity<?> send(@RequestBody Map<String, String> body,
                                   HttpServletRequest request,
@@ -59,6 +67,17 @@ public class PhoneOtpController {
         }
     }
 
+    /**
+     * Verify a previously sent phone OTP and, on success, issue a short-lived verified-phone cookie.
+     *
+     * <p>Expects a JSON body with "phone" and "code". Validates the "PHONE_OTP_TMP" flow token from a cookie,
+     * ensures the phone matches the token's saved phone, and delegates OTP verification to the service.
+     * On successful verification sets a "PHONE_VERIFIED_TMP" HttpOnly cookie and removes "PHONE_OTP_TMP".</p>
+     *
+     * @param body     request JSON body containing "phone" and "code"
+     * @param otpToken the value of the "PHONE_OTP_TMP" cookie; a flow token produced by the OTP send step
+     * @return         a map with "verified": `true` when verification succeeded, `false` otherwise; when `false` includes
+     *                 a "message" string describing the failure reason.
     @PostMapping("/verify")
     public ResponseEntity<?> verify(@RequestBody Map<String, String> body,
                                     HttpServletRequest request,
@@ -110,6 +129,13 @@ public class PhoneOtpController {
         }
     }
 
+    /**
+     * Extracts the verified phone number from a PHONE_VERIFIED flow token when the token is valid and its purpose matches the caller's requirement.
+     *
+     * @param verifiedToken     the JWT flow token (typically from the PHONE_VERIFIED_TMP cookie); may be null or blank
+     * @param requiredPurpose   if non-null, the token's purpose must equal this value for the phone to be returned
+     * @return                  the verified phone string if the token is valid, has flowType "PHONE_VERIFIED", contains a phone, and matches the required purpose (if provided); `null` otherwise
+     */
     public static String readVerifiedPhone(JwtTokenProvider jwtTokenProvider, String verifiedToken, String requiredPurpose) {
         if (verifiedToken == null || verifiedToken.isBlank() || jwtTokenProvider == null) return null;
         if (!jwtTokenProvider.validateToken(verifiedToken)) return null;
@@ -127,6 +153,12 @@ public class PhoneOtpController {
         return phone;
     }
 
+    /**
+     * Extracts the nested "claims" map from a JWT Claims object.
+     *
+     * @param c the JWT Claims to read the nested claims from
+     * @return the nested claims as a Map if present and a Map, otherwise an empty map
+     */
     private static Map<String, Object> flowClaimsOf(Claims c) {
         Object claimsObj = c.get("claims");
         if (claimsObj instanceof Map) {
@@ -137,22 +169,50 @@ public class PhoneOtpController {
         return Collections.emptyMap();
     }
 
+    /**
+     * Normalize a phone string by removing all non-digit characters.
+     *
+     * @param p the input phone string (may be null)
+     * @return a string containing only digits from the input; empty if the input is null or contains no digits
+     */
     private String normalize(String p) {
         return String.valueOf(p == null ? "" : p).replaceAll("[^0-9]", "");
     }
 
+    /**
+     * Compute seconds until the provided expiration timestamp.
+     *
+     * If `exp` is null, returns 300. If `exp` is in the past or less than one second away, returns 1.
+     *
+     * @param exp the expiration timestamp to compare against, or `null` to use the default TTL
+     * @return the number of seconds until expiration (minimum 1); 300 when `exp` is null
+     */
     private long secondsUntil(OffsetDateTime exp) {
         if (exp == null) return 300;
         long sec = java.time.Duration.between(OffsetDateTime.now(), exp).getSeconds();
         return Math.max(1, sec);
     }
 
+    /**
+     * Determines the client's IP address, preferring the first value in the `X-Forwarded-For` header when present.
+     *
+     * If the `X-Forwarded-For` header is missing or blank, returns the request's remote address.
+     *
+     * @param request the HTTP servlet request
+     * @return the client's IP address (first `X-Forwarded-For` entry, trimmed, or `request.getRemoteAddr()` if unavailable)
+     */
     private String getClientIp(HttpServletRequest request) {
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) return xff.split(",")[0].trim();
         return request.getRemoteAddr();
     }
 
+    /**
+     * Checks whether a phone number has been verified for the signup purpose.
+     *
+     * @param verifiedToken the value of the `PHONE_VERIFIED_TMP` cookie containing the verification flow token; may be null
+     * @return a map with a single entry `"verified"` set to `true` if a valid verified phone for signup exists, `false` otherwise
+     */
     @GetMapping("/status")
     public ResponseEntity<?> status(
             @CookieValue(value = "PHONE_VERIFIED_TMP", required = false) String verifiedToken

@@ -73,8 +73,17 @@ public class OAuth2Contoller {
     }
 
     /**
-     * (기존 기능 유지)
-     * - 추가정보 저장 후 OAUTH2_TMP 쿠키 제거
+     * Complete an OAuth2 social registration with additional user data and redirect to the frontend.
+     *
+     * Validates the temporary OAuth2 flow token and phone verification token, registers the user with
+     * social type GOOGLE, clears related cookies, and redirects to the configured frontend.
+     *
+     * @param userDTO            DTO containing user-supplied registration fields (email, phone, preferences)
+     * @param tmpToken           value of the `OAUTH2_TMP` cookie containing the OAuth2 flow JWT
+     * @param phoneVerifiedToken value of the `PHONE_VERIFIED_TMP` cookie used to confirm phone verification
+     * @return                   a redirect string to the frontend; on success redirects to frontBaseUrl + '/',
+     *                           on validation/failure redirects to frontBaseUrl + '/Login' with an errorMessage query
+     * @throws IllegalStateException if phone verification is missing or does not match the provided phone
      */
     @PostMapping("/oauth2/register")
     public String socialRegister(UserRequestDTO userDTO,
