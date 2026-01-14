@@ -1,7 +1,7 @@
 package com.example.pproject.wallet.entity;
 
 import com.example.pproject.Constant.SourceType;
-import com.example.pproject.common.entity.BaseSoftDeleteEntity;
+import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "wallet_ledger")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WalletLedger extends BaseSoftDeleteEntity {
+public class WalletLedger extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,7 +20,7 @@ public class WalletLedger extends BaseSoftDeleteEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id")
-    private Wallet wallet; // walletId -> wallet 로 변경
+    private Wallet wallet; // walletId
 
     @Column(name = "tx_type")
     private String txType;  // 거래 유형

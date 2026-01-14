@@ -1,6 +1,6 @@
 package com.example.pproject.wallet.entity;
 
-import com.example.pproject.common.entity.BaseSoftDeleteEntity;
+import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.common.vo.Money;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "wallet_credit_lot")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WalletCreditLot extends BaseSoftDeleteEntity {
+public class WalletCreditLot extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,7 +34,7 @@ public class WalletCreditLot extends BaseSoftDeleteEntity {
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "amount", column = @Column(name = "unit_price_amount")),
+            @AttributeOverride(name = "amount", column = @Column(name = "unit_price_amount")),  // 크래딧 단가 금액
             @AttributeOverride(name = "currency", column = @Column(name = "currency"))
     })
     private Money price;

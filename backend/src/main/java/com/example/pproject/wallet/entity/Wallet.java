@@ -2,7 +2,7 @@ package com.example.pproject.wallet.entity;
 
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.WalletStatus;
-import com.example.pproject.common.entity.BaseSoftDeleteEntity;
+import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -10,10 +10,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "wallet")
+@Table(
+        name = "wallet",
+        indexes = {
+                @Index(name = "uq_wallet_member_one", columnList = "member_id", unique = true),
+                @Index(name = "uq_wallet_employer_one", columnList = "employer_id", unique = true)
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Wallet extends BaseSoftDeleteEntity {
+public class Wallet extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,24 +27,19 @@ public class Wallet extends BaseSoftDeleteEntity {
     private Long walletId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "owner_type")
+    @Column(name = "owner_type", nullable = false)
     private RoleType ownerType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_id")
-    private UserEntity member; // memberId -> member 로 변경
+    @Column(name = "member_id")
+    private Long member; // memberId -> member 로 변경
 
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "employer_id")
-//    private Employer employer;
+//    @Column(name = "employer_id")
+//    private Long employer;
 
     @Column(name = "balance")
     private int balance;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status")
+    @Column(name = "status", nullable = false)
     private WalletStatus status;
-
-    @Version // 낙관적 락을 위한 버전 필드 추가
-    private Long version;
 }
