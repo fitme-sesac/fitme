@@ -15,15 +15,16 @@ public class WalletCreditLot extends BaseSoftDeleteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "lot_id")
     private Long lotId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id")
-    private Wallet walletId;
+    private Wallet wallet; // walletId -> wallet 로 변경
 
-//    @ManyToOne
+//    @ManyToOne(fetch = FetchType.LAZY)
 //    @JoinColumn(name = "payment_id")
-//    private Payment paymentId;
+//    private Payment payment;
 
     @Column(name = "granted_credit")
     private int grantedCredit;
