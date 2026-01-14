@@ -24,7 +24,7 @@ public class Wallet extends BaseSoftDeleteEntity {
     private RoleType ownerType;
 
     @ManyToOne
-    @Column(name = "member_id")
+    @JoinColumn(name = "member_id")
     private UserEntity memberId;
 
 //    @ManyToOne                            // 추후 추가 예정
