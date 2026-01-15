@@ -1,26 +1,88 @@
 package com.example.pproject.auth.service;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
-import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
-/**
- * OAuth2 사용자 정보를 로드한다.
- *
- * - 신규 소셜 사용자 여부 판단/추가 가입 플로우로의 분기는 SuccessHandler에서 처리한다.
- * - 여기서 예외를 던지면 SuccessHandler까지 도달하지 못하므로(=신규 가입 페이지로 못 보냄)
- *   무조건 OAuth2User를 반환하도록 한다.
- */
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @Service
-@RequiredArgsConstructor
-public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
+@Slf4j
+public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     @Override
-    public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
-        return new DefaultOAuth2UserService().loadUser(request);
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        OAuth2User oauth2User = super.loadUser(userRequest);
+
+        String regId = userRequest.getClientRegistration().getRegistrationId();
+        Map<String, Object> attrs = oauth2User.getAttributes();
+
+        // keep all original attributes (so nameAttributeKey like "sub"(google) / "id"(kakao) still exists)
+        Map<String, Object> mapped = new LinkedHashMap<>(attrs);
+
+        try {
+            if ("kakao".equalsIgnoreCase(regId)) {
+                String email = null;
+                String name = null;
+
+                Object kakaoAccountObj = attrs.get("kakao_account");
+                if (kakaoAccountObj instanceof Map<?, ?> kakaoAccount) {
+                    Object emailObj = kakaoAccount.get("email");
+                    if (emailObj != null) email = String.valueOf(emailObj);
+
+                    Object profileObj = kakaoAccount.get("profile");
+                    if (profileObj instanceof Map<?, ?> profile) {
+                        Object nicknameObj = profile.get("nickname");
+                        if (nicknameObj != null) name = String.valueOf(nicknameObj);
+                    }
+                }
+
+                // fallback (some responses expose nickname under "properties")
+                if (name == null) {
+                    Object propsObj = attrs.get("properties");
+                    if (propsObj instanceof Map<?, ?> props) {
+                        Object nickObj = props.get("nickname");
+                        if (nickObj != null) name = String.valueOf(nickObj);
+                    }
+                }
+
+                if (email != null && !email.isBlank()) mapped.put("email", email);
+                if (name != null && !name.isBlank()) mapped.put("name", name);
+
+            } else {
+                // google/others: typically already provides "email" and "name"
+                Object emailObj = attrs.get("email");
+                if (emailObj != null) mapped.put("email", String.valueOf(emailObj));
+
+                Object nameObj = attrs.get("name");
+                if (nameObj != null) mapped.put("name", String.valueOf(nameObj));
+            }
+        } catch (Exception e) {
+            log.warn("OAuth2 attribute mapping failed. regId={}", regId, e);
+        }
+
+        String nameKey = userRequest.getClientRegistration()
+                .getProviderDetails()
+                .getUserInfoEndpoint()
+                .getUserNameAttributeName();
+
+        if (nameKey == null || nameKey.isBlank() || !mapped.containsKey(nameKey)) {
+            // defensive fallback
+            if (mapped.containsKey("id")) nameKey = "id";
+            else if (mapped.containsKey("sub")) nameKey = "sub";
+            else if (mapped.containsKey("email")) nameKey = "email";
+            else if (mapped.containsKey("name")) nameKey = "name";
+            else {
+                mapped.put("id", "UNKNOWN");
+                nameKey = "id";
+            }
+        }
+
+        return new DefaultOAuth2User(oauth2User.getAuthorities(), mapped, nameKey);
     }
 }

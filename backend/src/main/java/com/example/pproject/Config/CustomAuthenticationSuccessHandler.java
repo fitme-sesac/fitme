@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +43,22 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
         String displayName;
         String email = null;
         if (principal instanceof OAuth2User oauth2User) {
+            String provider = "OTHER";
+            if (authentication instanceof OAuth2AuthenticationToken oat) {
+                provider = oat.getAuthorizedClientRegistrationId(); // google / kakao / ...
+            }
+            String providerUpper = (provider == null || provider.isBlank())
+                    ? "OTHER"
+                    : provider.toUpperCase(Locale.ROOT);
+
             // 소셜 로그인: OAuth2User의 "name" 속성 사용
             displayName = oauth2User.getAttribute("name");
             email = oauth2User.getAttribute("email");
+
+            if (displayName == null || displayName.isBlank()) {
+                // 일부 제공자(또는 커스텀 매핑 실패 시)에서 nickname으로 오는 케이스 대비
+                displayName = oauth2User.getAttribute("nickname");
+            }
 
             // ✅ 신규 소셜 사용자(DB 미존재)면: 임시 쿠키(OAUTH2_TMP) 발급 후 추가정보 입력 페이지로 이동
             if (email == null || email.isBlank()) {
@@ -57,7 +72,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
                 Map<String, Object> claims = new HashMap<>();
                 claims.put("email", email);
                 claims.put("name", displayName);
-                claims.put("provider", "GOOGLE");
+                claims.put("provider", providerUpper);
 
                 // 10분 유효
                 String tmp = jwtTokenProvider.createFlowToken("OAUTH2_REGISTER", claims, 600);
