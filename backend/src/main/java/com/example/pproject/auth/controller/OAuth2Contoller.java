@@ -3,6 +3,7 @@ package com.example.pproject.auth.controller;
 import com.example.pproject.Config.CookieUtils;
 import com.example.pproject.Config.JwtTokenProvider;
 import com.example.pproject.Constant.SocialType;
+import com.example.pproject.user.controller.PhoneOtpController;
 import com.example.pproject.user.dto.UserRequestDTO;
 import com.example.pproject.user.service.UserService;
 import io.jsonwebtoken.Claims;
@@ -97,9 +98,9 @@ public class OAuth2Contoller {
 
         // 휴대폰 인증(쿠키 기반)
         String normalizedPhone = userDTO.getPhone() == null ? "" : userDTO.getPhone().replaceAll("[^0-9]", "");
-        String verifiedPhone = com.example.pproject.user.controller.PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken);
+        String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken, "SIGNUP");
         if (verifiedPhone == null || !verifiedPhone.equals(normalizedPhone)) {
-            return "redirect:" + frontBaseUrl + "/FirstSocialLogin?errorMessage=" + enc("휴대폰 인증을 완료해주세요.");
+            throw new IllegalStateException("휴대폰 인증을 완료해주세요.");
         }
 
         userDTO.setSocialType(SocialType.GOOGLE); // 기존 코드 유지

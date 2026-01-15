@@ -1,10 +1,14 @@
 package com.example.pproject.user.controller;
 
+import com.example.pproject.Config.CookieUtils;
+import com.example.pproject.Config.JwtTokenProvider;
 import com.example.pproject.Config.JwtUserPrincipal;
-import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.SocialType;
 import com.example.pproject.user.dto.UserRequestDTO;
 import com.example.pproject.user.service.UserService;
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,24 +17,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-
-
-import java.util.Map;
-import java.util.Random;
-import io.jsonwebtoken.Claims;
-import org.springframework.web.bind.annotation.CookieValue;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.util.Collections;
-import com.example.pproject.Config.CookieUtils;
-import com.example.pproject.Config.JwtTokenProvider;
+import java.util.*;
 
 @Controller
 @RequiredArgsConstructor
@@ -38,11 +29,47 @@ import com.example.pproject.Config.JwtTokenProvider;
 public class UserController {
 
     private final UserService userService;
-    private final JavaMailSender mailSender; // ✅ 아이디 찾기 이메일 인증에 사용
+    private final JavaMailSender mailSender;
     private final JwtTokenProvider jwtTokenProvider;
+    @Value("${verify.pepper}")
+    private String verifyPepper;
+
+    private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
+
+    private String hashVerifyCode(String code) {
+        try {
+            var md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] dig = md.digest((verifyPepper + ":" + code).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(dig);
+        } catch (Exception e) {
+            throw new IllegalStateException("verify code hash error", e);
+        }
+    }
+
+    private boolean equalsHash(String hashB64Url, String code) {
+        if (hashB64Url == null) return false;
+        byte[] a = java.util.Base64.getUrlDecoder().decode(hashB64Url);
+        byte[] b = java.util.Base64.getUrlDecoder().decode(hashVerifyCode(code));
+        return java.security.MessageDigest.isEqual(a, b);
+    }
+
+    private String generateRandomCodeSecure6() {
+        int n = 100000 + SECURE_RANDOM.nextInt(900000);
+        return String.valueOf(n);
+    }
 
     @Value("${app.front-base-url:http://localhost:5173}")
     private String frontBaseUrl;
+
+    // ✅ 임시(또는 운영) 약관/개인정보/운영정책 notice_id (DB의 notice.notice_id)
+    @Value("${app.notice.terms-id:0}")
+    private Long termsNoticeId;
+
+    @Value("${app.notice.privacy-id:0}")
+    private Long privacyNoticeId;
+
+    @Value("${app.notice.policy-id:0}")
+    private Long policyNoticeId;
 
     private String redirectFront(String path) {
         return "redirect:" + frontBaseUrl + path;
@@ -57,6 +84,21 @@ public class UserController {
         return v == null ? "" : URLEncoder.encode(v, StandardCharsets.UTF_8);
     }
 
+    private void applyPolicyNoticeIdsOrThrow(UserRequestDTO userDTO) {
+        // DDL의 ck_member_required_consents 때문에 ACTIVE이면 최소 TERMS/PRIVACY notice_id가 필요
+        if (termsNoticeId == null || termsNoticeId <= 0
+                || privacyNoticeId == null || privacyNoticeId <= 0) {
+            throw new IllegalStateException("약관 문서(TERMS/PRIVACY)가 준비되지 않았습니다. (notice_id 설정 필요)");
+        }
+        userDTO.setTermsNoticeId(termsNoticeId);
+        userDTO.setPrivacyNoticeId(privacyNoticeId);
+
+        // DDL에서는 필수 강제가 아니지만, 코드/정책 일관성 위해 세팅
+        if (policyNoticeId != null && policyNoticeId > 0) {
+            userDTO.setPolicyNoticeId(policyNoticeId);
+        }
+    }
+
     // 로그인 페이지 이동
     @GetMapping("/Login")
     public String login(Model model,
@@ -65,11 +107,11 @@ public class UserController {
             model.addAttribute("errorMessage", errorMessage);
         }
         return redirectFrontWithQuery("/Login", errorMessage == null ? "" : ("errorMessage=" + enc(errorMessage)));
-}
+    }
 
     // 로그아웃은 Spring Security의 POST /Logout 처리로 일원화한다.
 
-    @GetMapping("/User/Register") // 회원가입 페이지
+    @GetMapping("/User/Register")
     public String registerForm(Model model) {
         return redirectFront("/Register");
     }
@@ -86,27 +128,30 @@ public class UserController {
             Model model
     ) {
         try {
-            // 1️⃣ 이메일 세 조각을 하나로 합치기
+            // 1) 이메일 세 조각을 하나로 합치기
             String email = emailId.trim() + "@" + emailDomain.trim() + "." + emailTLD.trim();
             userDTO.setEmail(email);
 
-            // 2️⃣ 필수 약관 동의
+            // 2) 필수 약관 동의(프론트 체크박스)
             if (!Boolean.TRUE.equals(userDTO.getAgreeTerms())
                     || !Boolean.TRUE.equals(userDTO.getAgreePrivacy())
                     || !Boolean.TRUE.equals(userDTO.getAgreePolicy())) {
                 throw new IllegalStateException("필수 약관에 동의해야 가입이 가능합니다.");
             }
 
-            // 3️⃣ 휴대폰 인증(서버 쿠키 기반)
+            // 3) 휴대폰 인증(서버 쿠키 기반)
             String normalizedPhone = userDTO.getPhone() == null ? "" : userDTO.getPhone().replaceAll("[^0-9]", "");
-            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken);
+            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken, "SIGNUP");
             if (verifiedPhone == null || !verifiedPhone.equals(normalizedPhone)) {
                 throw new IllegalStateException("휴대폰 인증을 완료해주세요.");
             }
 
-            // 4️⃣ 서버가 결정하는 값들
+            // 4) 서버가 결정하는 값들
             userDTO.setPhone(normalizedPhone);
             userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
+
+            // ✅ notice_id + agreed_at 세팅 (DB 체크제약 통과)
+            applyPolicyNoticeIdsOrThrow(userDTO);
             userDTO.setTermsAgreedAt(java.time.LocalDateTime.now());
             userDTO.setPrivacyAgreedAt(java.time.LocalDateTime.now());
             userDTO.setPolicyAgreedAt(java.time.LocalDateTime.now());
@@ -121,7 +166,7 @@ public class UserController {
             userDTO.setConsentIp(getClientIp(request));
             userDTO.setConsentUserAgent(request.getHeader("User-Agent"));
 
-            // 5️⃣ 서비스에서 회원가입 처리 (정규식 검증/중복 체크 등)
+            // 5) 서비스에서 회원가입 처리
             userService.register(userDTO);
 
             CookieUtils.deleteCookie(request, response, "PHONE_VERIFIED_TMP");
@@ -132,7 +177,7 @@ public class UserController {
         return redirectFront("/Login");
     }
 
-    @GetMapping("/User/First_Social_Login") // 최초 소셜 로그인 이용자 정보 입력 페이지
+    @GetMapping("/User/First_Social_Login")
     public String firstSocialLoginForm(HttpServletRequest request,
                                        @CookieValue(value = "OAUTH2_TMP", required = false) String tmpToken) {
 
@@ -199,18 +244,23 @@ public class UserController {
 
             // 3) 휴대폰 인증(서버 쿠키 기반)
             String normalizedPhone = userDTO.getPhone() == null ? "" : userDTO.getPhone().replaceAll("[^0-9]", "");
-            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken);
+            String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken, "SIGNUP");
             if (verifiedPhone == null || !verifiedPhone.equals(normalizedPhone)) {
                 throw new IllegalStateException("휴대폰 인증을 완료해주세요.");
             }
+
 
             // 4) 서버가 결정하는 값들
             userDTO.setSocialType(SocialType.GOOGLE);
             userDTO.setPhone(normalizedPhone);
             userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
+
+            // ✅ notice_id + agreed_at 세팅
+            applyPolicyNoticeIdsOrThrow(userDTO);
             userDTO.setTermsAgreedAt(java.time.LocalDateTime.now());
             userDTO.setPrivacyAgreedAt(java.time.LocalDateTime.now());
             userDTO.setPolicyAgreedAt(java.time.LocalDateTime.now());
+
             if (Boolean.TRUE.equals(userDTO.getMarketingOptIn())) {
                 userDTO.setMarketingAgreedAt(java.time.LocalDateTime.now());
             } else {
@@ -231,7 +281,8 @@ public class UserController {
                     java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + saved.getRoleType().name()))
             );
             String accessToken = jwtTokenProvider.createAccessToken(authForToken, saved.getUsername(), saved.getEmail());
-            CookieUtils.addHttpOnlyCookie(request, response, "ACCESS_TOKEN", accessToken, jwtTokenProvider.getAccessTokenValiditySeconds(), "Lax");
+            CookieUtils.addHttpOnlyCookie(request, response, "ACCESS_TOKEN", accessToken,
+                    jwtTokenProvider.getAccessTokenValiditySeconds(), "Lax");
 
             CookieUtils.deleteCookie(request, response, "OAUTH2_TMP");
             CookieUtils.deleteCookie(request, response, "PHONE_VERIFIED_TMP");
@@ -254,31 +305,30 @@ public class UserController {
     // ✅ 아이디 찾기 (이메일 인증 방식)
     // =========================
 
-    @GetMapping("/User/Find_Userid") // 이메일 입력 페이지
+    @GetMapping("/User/Find_Userid")
     public String findUseridForm() {
         return redirectFront("/FindUserId");
     }
 
-    @PostMapping("/User/Find_Userid") // 이메일로 인증번호 발송
+    @PostMapping("/User/Find_Userid")
     public String sendUseridVerifyCode(@RequestParam String email,
-                                       Model model,
                                        HttpServletRequest request,
                                        HttpServletResponse response) {
         try {
-            // ✅ DB에 이메일 존재 확인 (없으면 예외 발생)
             userService.assertEmailExists(email);
 
-            // ✅ 인증코드 생성 후, 단기 플로우 토큰(JWT)에 저장 → HttpOnly 쿠키로 전달
-            String code = generateRandomCode();
+            String code = generateRandomCodeSecure6();
+            String codeHash = hashVerifyCode(code);
 
-            Map<String, Object> claims = new java.util.HashMap<>();
+            Map<String, Object> claims = new HashMap<>();
             claims.put("email", email);
-            claims.put("code", code);
+            claims.put("codeHash", codeHash);
+            claims.put("attempts", 0);
 
             String tmp = jwtTokenProvider.createFlowToken("FIND_USERID", claims, 600);
             CookieUtils.addHttpOnlyCookie(request, response, "FIND_USERID_TMP", tmp, 600, "Lax");
 
-            // ✅ 이메일 발송
+            // 이메일에는 평문 코드 전송(정상)
             sendVerificationEmail(email, code);
 
             return redirectFrontWithQuery("/VerifyUserIdCode", "email=" + enc(email));
@@ -288,9 +338,8 @@ public class UserController {
         }
     }
 
-    @PostMapping("/User/Verify_Userid_Code") // 인증번호 확인 후 아이디 출력
+    @PostMapping("/User/Verify_Userid_Code")
     public String verifyUseridCode(@RequestParam String inputCode,
-                                   Model model,
                                    @CookieValue(value = "FIND_USERID_TMP", required = false) String tmpToken,
                                    HttpServletRequest request,
                                    HttpServletResponse response) {
@@ -312,29 +361,39 @@ public class UserController {
             flowClaims = tmp;
         }
 
-        String savedCode = flowClaims.get("code") == null ? null : flowClaims.get("code").toString();
         String email = flowClaims.get("email") == null ? null : flowClaims.get("email").toString();
+        String codeHash = flowClaims.get("codeHash") == null ? null : flowClaims.get("codeHash").toString();
+        Integer attempts = null;
+        Object at = flowClaims.get("attempts");
+        if (at instanceof Number n) attempts = n.intValue();
+        if (attempts == null) attempts = 0;
 
-        if (savedCode == null || email == null) {
+        if (email == null || codeHash == null) {
             return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 절차가 만료되었습니다. 다시 시도해주세요."));
         }
 
-        if (!inputCode.equals(savedCode)) {
-            return redirectFrontWithQuery("/VerifyUserIdCode", "errorMessage=" + enc("인증번호가 일치하지 않습니다."));
+        // ✅ 5회 제한
+        if (attempts >= 5) {
+            CookieUtils.deleteCookie(request, response, "FIND_USERID_TMP");
+            return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 실패 횟수를 초과했습니다. 다시 시도해주세요."));
         }
 
-        // ✅ 인증 성공 → 아이디 조회
+        if (!equalsHash(codeHash, inputCode)) {
+            attempts++;
+
+            // attempts 증가 반영 (남은 TTL 유지 대신 간단히 10분으로 재발급해도 됨)
+            Map<String, Object> newClaims = new HashMap<>(flowClaims);
+            newClaims.put("attempts", attempts);
+
+            String next = jwtTokenProvider.createFlowToken("FIND_USERID", newClaims, 600);
+            CookieUtils.addHttpOnlyCookie(request, response, "FIND_USERID_TMP", next, 600, "Lax");
+
+            return redirectFrontWithQuery("/VerifyUserIdCode", "errorMessage=" + enc("인증번호가 일치하지 않습니다. (" + attempts + "/5)"));
+        }
+
         String userid = userService.findUseridByEmail(email);
-
-        // ✅ 플로우 쿠키 정리
         CookieUtils.deleteCookie(request, response, "FIND_USERID_TMP");
-
         return redirectFrontWithQuery("/ResultUserId", "message=" + enc("당신의 아이디는: " + userid));
-    }
-
-    private String generateRandomCode() {
-        Random random = new Random();
-        return String.format("%06d", random.nextInt(1_000_000));
     }
 
     private void sendVerificationEmail(String to, String code) {
