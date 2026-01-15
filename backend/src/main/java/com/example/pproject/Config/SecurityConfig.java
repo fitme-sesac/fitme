@@ -76,6 +76,21 @@ public class SecurityConfig {
         }
     }
 
+    /**
+     * Configures the application's SecurityFilterChain including authentication providers, request
+     * authorization rules, form and OAuth2 login, logout behavior, CSRF and CORS settings, and JWT filter.
+     *
+     * The chain enforces stateless session management, maps URL access rules (public, anonymous,
+     * authenticated, and role-restricted endpoints), wires custom authentication success/failure
+     * handlers, exposes CSRF tokens via a cookie filter, and inserts a JWT authentication filter
+     * before username/password authentication.
+     *
+     * @param http the HttpSecurity to configure
+     * @param daoAuthenticationProvider the DaoAuthenticationProvider to register with the authentication manager
+     * @param authorizationRequestResolver resolver used to customize OAuth2 authorization requests (e.g., to propagate request parameters)
+     * @return the configured SecurityFilterChain
+     * @throws Exception if an error occurs while building the security configuration
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                           DaoAuthenticationProvider daoAuthenticationProvider,

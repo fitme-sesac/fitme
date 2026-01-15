@@ -8,6 +8,11 @@ from app.resumes.schemas import ResumeSummary
 
 class SummaryService:
     def __init__(self):
+        """
+        Initialize the SummaryService by configuring the language model client and the Pydantic output parser.
+        
+        Configures an OpenAI chat model client using application settings and sets up a PydanticOutputParser bound to the ResumeSummary schema for structured output parsing.
+        """
         self.llm = ChatOpenAI(
             model=settings.OPENAI_MODEL_NAME,
             temperature=0,
@@ -18,9 +23,14 @@ class SummaryService:
 
     async def generate_summary(self, data: dict | str, type: str) -> str:
         """
-        이력서 데이터를 받아 구조화된 8줄 요약을 생성합니다.
-        data는 JSON 객체(dict)일 수도 있고, 줄글(str)일 수도 있습니다.
-        Process: LLM -> JSON Output -> Pydantic Model -> Formatted String
+        Generate an eight-line, structured resume summary from resume or self-introduction data.
+        
+        Parameters:
+            data (dict | str): Resume or self-introduction content; if a dict it will be serialized to JSON, if a string it will be used as-is.
+            type (str): "RESUME" to treat the input as a resume; any other value treats the input as a self-introduction.
+        
+        Returns:
+            formatted_summary (str): A human-readable, formatted string produced from a ResumeSummary object that follows the service's schema (PII excluded and verifiable achievements emphasized).
         """
         # 데이터 타입에 따른 텍스트 변환
         if isinstance(data, str):

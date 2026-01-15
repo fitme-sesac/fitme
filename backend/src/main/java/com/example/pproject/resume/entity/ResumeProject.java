@@ -39,6 +39,16 @@ public class ResumeProject {
     @Column(name = "sort_order")
     private Integer sortOrder;
 
+    /**
+     * Creates a ResumeProject initialized with the provided resume, title, date range, description, and technology stack.
+     *
+     * @param resume     the owning Resume entity; must be non-null when persisted
+     * @param title      the project title
+     * @param startDate  the project start date
+     * @param endDate    the project end date (may be null if ongoing)
+     * @param description detailed description of the project
+     * @param techStack  technologies used in the project
+     */
     public ResumeProject(Resume resume, String title, LocalDate startDate, LocalDate endDate, String description, String techStack) {
         this.resume = resume;
         this.title = title;

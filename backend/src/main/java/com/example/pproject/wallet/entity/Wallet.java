@@ -54,6 +54,14 @@ public class Wallet extends BaseTimeEntity {
     @Version
     private Long version;
 
+    /**
+     * Constructs a Wallet for the specified owner and initializes the balance to 0 and status to ACTIVE.
+     *
+     * @param ownerType the role type of the wallet owner; must not be null
+     * @param member the member id when the owner is a candidate, otherwise null
+     * @param employer the employer id when the owner is an employer, otherwise null
+     * @throws IllegalArgumentException if ownerType is null or the provided owner identifiers do not comply with ownership rules
+     */
     @Builder
     public Wallet(RoleType ownerType, Long member, Long employer) {
         validateOwner(ownerType, member, employer);
@@ -103,8 +111,9 @@ public class Wallet extends BaseTimeEntity {
     }
 
     /**
-     * 정지된 지갑을 다시 활성화(재개)합니다.
-     * 이미 활성 상태라면 아무 동작도 하지 않습니다.
+     * Reactivates the wallet and sets its status to ACTIVE.
+     *
+     * If the wallet is already active, this method has no effect.
      */
     public void resume() {
         if (this.status != WalletStatus.ACTIVE) {
@@ -113,8 +122,9 @@ public class Wallet extends BaseTimeEntity {
     }
 
     /**
-     * 지갑을 일시 정지(동결)시킵니다.
-     * 정지된 지갑은 충전 및 사용이 불가능합니다.
+     * Suspend the wallet by setting its status to INACTIVE.
+     *
+     * After suspension, the wallet cannot be charged or used until resumed.
      */
     public void suspend() {
         if (this.status != WalletStatus.INACTIVE) {
@@ -125,7 +135,9 @@ public class Wallet extends BaseTimeEntity {
     // === 내부 헬퍼 메서드 ===
 
     /**
-     * 지갑이 활성 상태인지 검증합니다.
+     * Ensures the wallet is in ACTIVE status.
+     *
+     * @throws IllegalStateException if the wallet status is not ACTIVE
      */
     private void verifyActive() {
         if (this.status != WalletStatus.ACTIVE) {
@@ -134,8 +146,14 @@ public class Wallet extends BaseTimeEntity {
     }
 
     /**
-     * 지갑 소유자 정보의 유효성을 검증합니다.
-     * RoleType에 따라 memberId 또는 employerId 중 하나가 필수여야 합니다.
+     * Validate wallet owner identifiers according to the specified owner type.
+     *
+     * Ensures the required identifier is present and the forbidden identifier is absent for the given RoleType.
+     *
+     * @param ownerType the role type of the wallet owner; determines which identifier is required
+     * @param member the member id, if applicable for the ownerType
+     * @param employer the employer id, if applicable for the ownerType
+     * @throws IllegalArgumentException if ownerType is null, a required identifier is missing, or an invalid identifier combination is provided
      */
     private void validateOwner(RoleType ownerType, Long member, Long employer) {
         Assert.notNull(ownerType, "지갑 소유자 타입은 필수입니다.");

@@ -46,6 +46,12 @@ public class UserController {
     @Value("${app.notice.policy-id:0}")
     private Long policyNoticeId;
 
+    /**
+     * Builds a Spring MVC redirect view string that points to the configured front-end base URL plus the provided path.
+     *
+     * @param path the path segment to append to the front-end base URL (appended as-is)
+     * @return a redirect view string combining the "redirect:" prefix, the front-end base URL, and the provided path
+     */
     private String redirectFront(String path) {
         return "redirect:" + frontBaseUrl + path;
     }
@@ -55,10 +61,25 @@ public class UserController {
         return "redirect:" + frontBaseUrl + path + "?" + query;
     }
 
+    /**
+     * URL-encodes the given string using UTF-8 and returns an empty string if the input is null.
+     *
+     * @param v the string to URL-encode; may be null
+     * @return the UTF-8 URL-encoded representation of {@code v}, or an empty string if {@code v} is null
+     */
     private String enc(String v) {
         return v == null ? "" : URLEncoder.encode(v, StandardCharsets.UTF_8);
     }
 
+    /**
+     * Ensures required notice IDs are configured and applies them to the given user DTO.
+     *
+     * Sets the terms and privacy notice IDs on the provided UserRequestDTO and sets the policy
+     * notice ID when available (> 0).
+     *
+     * @param userDTO the user registration DTO to populate with notice IDs
+     * @throws IllegalStateException if the terms or privacy notice ID is missing or not greater than zero
+     */
     private void applyPolicyNoticeIdsOrThrow(UserRequestDTO userDTO) {
         // DDL의 ck_member_required_consents 때문에 ACTIVE이면 최소 TERMS/PRIVACY notice_id가 필요
         if (termsNoticeId == null || termsNoticeId <= 0
@@ -74,7 +95,12 @@ public class UserController {
         }
     }
 
-    // 로그인 페이지 이동
+    /**
+     * Redirects the user to the front-end login page, including an optional encoded error message.
+     *
+     * @param errorMessage an optional error message to display on the login page; ignored if null or blank
+     * @return the redirect URL to the front-end login page, including an `errorMessage` query parameter when provided
+     */
     @GetMapping("/Login")
     public String login(Model model,
                         @RequestParam(value = "errorMessage", required = false) String errorMessage) {
@@ -84,13 +110,33 @@ public class UserController {
         return redirectFrontWithQuery("/Login", errorMessage == null ? "" : ("errorMessage=" + enc(errorMessage)));
     }
 
-    // 로그아웃은 Spring Security의 POST /Logout 처리로 일원화한다.
+    /**
+     * Redirects the request to the front-end registration page.
+     *
+     * @return a redirect view string pointing to the front-end "/Register" path
+     */
 
     @GetMapping("/User/Register")
     public String registerForm(Model model) {
         return redirectFront("/Register");
     }
 
+    /**
+     * Handle user registration form submission: validate required consents, verify phone via the temporary phone token,
+     * apply configured policy/notice IDs, set consent metadata, register the user, and redirect to the appropriate front-end page.
+     *
+     * @param userDTO            DTO containing user-provided registration fields (expects email will be set from the emailId/emailDomain/emailTLD parts,
+     *                           and uses fields such as `agreeTerms`, `agreePrivacy`, `agreePolicy`, `phone`, and `marketingOptIn`)
+     * @param emailId            local-part of the email address (combined with {@code emailDomain} and {@code emailTLD})
+     * @param emailDomain        domain of the email address (combined with {@code emailId} and {@code emailTLD})
+     * @param emailTLD           top-level domain of the email address (combined with {@code emailId} and {@code emailDomain})
+     * @param request            HTTP request (used to obtain client IP and User-Agent for consent metadata)
+     * @param response           HTTP response (used to delete the phone verification cookie on success)
+     * @param phoneVerifiedToken optional cookie token ("PHONE_VERIFIED_TMP") containing phone verification claims used to validate the submitted phone number
+     * @param model              MVC model (preserved for controller compatibility; not required for primary processing)
+     * @return a redirect URL: on success redirects to the front-end Login page; on validation or verification failure redirects to the front-end Register page
+     *         with an encoded {@code errorMessage} query parameter describing the failure.
+     */
     @PostMapping("/User/Register")
     public String registerProc(
             UserRequestDTO userDTO,
@@ -152,6 +198,14 @@ public class UserController {
         return redirectFront("/Login");
     }
 
+    /**
+     * Redirects the user to the front-end first-social-login page with email and username extracted from a temporary OAuth2 token.
+     *
+     * @param tmpToken the value of the `OAUTH2_TMP` cookie containing a temporary OAuth2 flow token; may be null or invalid
+     * @return a redirect URL string to the front-end `/FirstSocialLogin` with `email` and `username` query parameters;
+     *         if the token is missing, invalid, or not associated with the `OAUTH2_REGISTER` flow, a redirect URL to the front-end `/Login`
+     *         containing an `errorMessage` query parameter is returned
+     */
     @GetMapping("/User/First_Social_Login")
     public String firstSocialLoginForm(HttpServletRequest request,
                                        @CookieValue(value = "OAUTH2_TMP", required = false) String tmpToken) {
@@ -180,6 +234,17 @@ public class UserController {
         return redirectFrontWithQuery("/FirstSocialLogin", q);
     }
 
+    /**
+     * Completes first-time social registration: validates OAuth2 and phone verification, applies required notices and consents,
+     * registers the user, issues an access token cookie, and redirects to the front-end root on success.
+     *
+     * @param userDTO               incoming user registration data from the social-first form (email, phone, consent flags, etc.)
+     * @param request               current HTTP request (used to obtain client IP and headers)
+     * @param response              current HTTP response (used to set and clear cookies)
+     * @param tmpToken              optional OAUTH2_TMP cookie containing a short-lived OAuth2 flow token for email verification
+     * @param phoneVerifiedToken    optional PHONE_VERIFIED_TMP cookie containing a short-lived phone verification token
+     * @return                      a redirect URL string to send the client to the appropriate front-end page (success or form with error)
+     */
     @PostMapping("/User/First_Social_Login")
     public String firstSocialLoginSubmit(@ModelAttribute("data") UserRequestDTO userDTO,
                                          HttpServletRequest request,
@@ -277,13 +342,28 @@ public class UserController {
 
     // =========================
     // ✅ 아이디 찾기 (이메일 인증 방식)
-    // =========================
+    /**
+     * Redirects the request to the front-end FindUserId page.
+     *
+     * @return the redirect URL to the front-end path "/FindUserId"
+     */
 
     @GetMapping("/User/Find_Userid")
     public String findUseridForm() {
         return redirectFront("/FindUserId");
     }
 
+    /**
+     * Initiates the "find userid" flow by generating a one-time verification code, emailing it to the given address,
+     * and storing a short-lived flow token in an HttpOnly cookie.
+     *
+     * @param email the recipient email address to verify
+     * @param model spring MVC model (unused in success path)
+     * @param request the current HTTP request
+     * @param response the current HTTP response
+     * @return a redirect URL to the verification-code page with the email query on success; on failure, a redirect to
+     *         the FindUserId page with an encoded `errorMessage` query parameter
+     */
     @PostMapping("/User/Find_Userid")
     public String sendUseridVerifyCode(@RequestParam String email,
                                        Model model,
@@ -310,6 +390,17 @@ public class UserController {
         }
     }
 
+    /**
+     * Verifies a one-time code for the "find userid" flow and redirects to the appropriate front-end page.
+     *
+     * Validates the temporary FIND_USERID flow token and the submitted code, clears the temporary cookie, and
+     * when valid redirects to the result page containing the recovered userid. If the token is missing/invalid/expired
+     * or the code does not match, redirects back to the appropriate entry page with an error message.
+     *
+     * @param inputCode the verification code submitted by the user
+     * @param tmpToken  the value of the FIND_USERID_TMP cookie (may be null or empty)
+     * @return a redirect URL to the front-end: on success to /ResultUserId with the userid message; on code mismatch to /VerifyUserIdCode with an error; on expired/invalid flow to /FindUserId with an error
+     */
     @PostMapping("/User/Verify_Userid_Code")
     public String verifyUseridCode(@RequestParam String inputCode,
                                    Model model,
@@ -374,6 +465,16 @@ public class UserController {
         return redirectFront("/ChangePassword");
     }
 
+    /**
+     * Handle an authenticated user's request to change their password and redirect according to validation outcome.
+     *
+     * @param currentPassword   the user's current password for verification
+     * @param newPassword       the new password to set
+     * @param confirmPassword   confirmation of the new password; must match {@code newPassword}
+     * @param principal         the authenticated user's principal; if null the user is considered unauthenticated
+     * @param model             the Spring MVC model (used for view attributes)
+     * @return                  a redirect URL string to the appropriate front-end path: redirects to the login page if unauthenticated, back to the change-password page with an error message on validation failure, or to the front-end root on success
+     */
     @PostMapping("/User/Change_Password")
     public String updatePassword(@RequestParam String currentPassword,
                                  @RequestParam String newPassword,

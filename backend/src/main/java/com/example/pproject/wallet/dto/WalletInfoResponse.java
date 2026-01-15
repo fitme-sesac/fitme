@@ -12,7 +12,12 @@ public record WalletInfoResponse(
         WalletStatus status,
         LocalDateTime lastUpdated
 ) {
-    // Entity -> DTO 변환 편의 메서드
+    /**
+     * Create a WalletInfoResponse DTO from a Wallet entity.
+     *
+     * @param wallet the Wallet entity to convert; its id, balance, status, and updated timestamp are copied into the DTO
+     * @return a WalletInfoResponse containing the walletId, balance, status, and lastUpdated values from the provided entity
+     */
     public static WalletInfoResponse from(Wallet wallet) {
         return new WalletInfoResponse(
                 wallet.getWalletId(),

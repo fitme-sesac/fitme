@@ -36,7 +36,14 @@ class ResumeSummary(BaseModel):
     matching_info: str = Field(description="채용 매칭 정보: 희망 근무지 및 고용 형태 등")
 
     def to_formatted_string(self) -> str:
-        """DB 저장을 위해 8줄 평문 텍스트로 변환"""
+        """
+        Convert the ResumeSummary into an eight-line plain-text string suitable for database storage.
+        
+        Each line is a labeled field in the following fixed order: 전문성 요약 (summary), 검증된 역량 (verified_skills), 기술 스택 강점 (tech_stack), 핵심 프로젝트 성과 (key_achievement), 문제 해결 능력 (problem_solving), 대외 신뢰도 (credibility), 협업 및 가치관 (collaboration), 채용 매칭 정보 (matching_info).
+        
+        Returns:
+            str: A single string containing eight newline-separated lines, each prefixed with the Korean label and the corresponding field value.
+        """
         return (
             f"전문성 요약: {self.summary}\n"
             f"검증된 역량: {self.verified_skills}\n"

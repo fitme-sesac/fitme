@@ -13,6 +13,12 @@ public record WalletLedgerResponse(
         String memo,
         LocalDateTime occurredAt
 ) {
+    /**
+     * Create a WalletLedgerResponse DTO from a WalletLedger entity.
+     *
+     * @param ledger the source WalletLedger entity whose fields will be copied into the response
+     * @return a WalletLedgerResponse populated with the ledger's id, transaction type, amount, balance after, memo, and occurrence timestamp
+     */
     public static WalletLedgerResponse from(WalletLedger ledger) {
         return new WalletLedgerResponse(
                 ledger.getLedgerId(),

@@ -237,6 +237,11 @@ const scripts = [
     "AOS.init();",
 ];
 
+/**
+ * Render the first-time social login page and ensure its register stylesheet is applied.
+ *
+ * @returns {JSX.Element} The HtmlPage element containing the page markup and client scripts.
+ */
 export default function FirstSocialLoginPage() {
     // ✅ register.css를 그대로 재사용
     usePageCss("/assets/css/pages/register.css");

@@ -63,6 +63,23 @@ public class WalletLedger extends BaseTimeEntity {
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
+    /**
+     * Creates a new immutable WalletLedger entry representing a single wallet transaction.
+     *
+     * @param wallet         the wallet associated with this ledger entry; must not be null
+     * @param txType         the transaction type (CREDIT or DEBIT); must not be null
+     * @param sourceType     the origin type of the transaction (may be null)
+     * @param sourceRefId    optional identifier of the source entity related to this transaction
+     * @param amount         the transaction amount; must be greater than or equal to 0
+     * @param balanceBefore  the wallet balance before the transaction
+     * @param balanceAfter   the wallet balance after the transaction
+     * @param idempotencyKey optional idempotency key to deduplicate requests
+     * @param memo           optional free-form note about the transaction
+     * @throws IllegalArgumentException if wallet or txType is null, if amount is null or negative,
+     *                                  or if balanceAfter does not equal balanceBefore ± amount
+     *                                  (must equal balanceBefore + amount for CREDIT,
+     *                                  or balanceBefore - amount for DEBIT)
+     */
     @Builder
     public WalletLedger(Wallet wallet, TxType txType, SourceType sourceType, Long sourceRefId, Long amount, Long balanceBefore, Long balanceAfter, String idempotencyKey, String memo) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
@@ -84,11 +101,15 @@ public class WalletLedger extends BaseTimeEntity {
     }
 
     /**
-     * 거래 유형에 따른 잔액 변화의 정합성을 검증합니다.
-     * <p>
-     * - CREDIT(입금): 이전 잔액 + 금액 == 이후 잔액
-     * - DEBIT(출금): 이전 잔액 - 금액 == 이후 잔액
-     * </p>
+     * Validates that balanceAfter equals balanceBefore adjusted by amount according to the transaction type.
+     *
+     * For CREDIT transactions the balance must increase by amount; for DEBIT transactions the balance must decrease by amount.
+     *
+     * @param txType       the transaction type determining whether to add or subtract the amount
+     * @param amount       the transaction amount (expected to be >= 0)
+     * @param balanceBefore the wallet balance before the transaction
+     * @param balanceAfter  the wallet balance after the transaction
+     * @throws IllegalArgumentException if the resulting balance does not match the expected value for the given txType
      */
     private void validateBalanceConsistency(TxType txType, long amount, long balanceBefore, long balanceAfter) {
         if (txType == TxType.CREDIT) {

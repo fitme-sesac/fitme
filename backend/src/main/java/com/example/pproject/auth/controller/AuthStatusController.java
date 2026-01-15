@@ -11,6 +11,16 @@ import java.util.Map;
 @RestController
 public class AuthStatusController {
 
+    /**
+     * Provides the caller's authentication status and a display name for the authenticated user.
+     *
+     * <p>The returned map contains two entries:
+     * - "authenticated": `true` if the request is authenticated with a JwtUserPrincipal, `false` otherwise.
+     * - "name": an empty string when not authenticated; otherwise the principal's display name if present, or the principal's user id.
+     *
+     * @param auth the current Spring Security Authentication (may be null or represent an anonymous/principal-less state)
+     * @return a map with keys "authenticated" and "name" describing the authentication state and a human-visible name
+     */
     @GetMapping("/api/auth/status")
     public Map<String, Object> status(Authentication auth) {
 

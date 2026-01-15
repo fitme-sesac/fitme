@@ -9,20 +9,16 @@ router = APIRouter(prefix="/resumes", tags=["resumes"])
 @router.post("/process", response_model=AIProcessResult)
 async def process_resume(request: ResumeRequest):
     """
-    [핵심 로직] 이력서/자기소개서 처리 파이프라인 엔드포인트
+    Process a resume request to generate an AI-created summary, produce a 1536-dimension embedding, store both in the database, and return the processing result.
     
-    이 함수는 다음과 같은 순서로 동작합니다:
-    1. **요청 수신**: 프론트엔드로부터 이력서 데이터(JSON)를 받습니다.
-    2. **요약 생성 (Summary Service)**: LLM을 사용하여 8줄의 구조화된 요약을 생성합니다.
-    3. **벡터 생성 (Vector Service)**: 생성된 요약문을 1536차원의 벡터 숫자로 변환합니다.
-    4. **DB 저장 (Repository)**: 요약문과 벡터 데이터를 PostgreSQL에 업데이트합니다.
-    5. **결과 반환**: 처리 완료 상태와 생성된 요약을 반환합니다.
-
-    Args:
-        request (ResumeRequest): {id, type, data} 형태의 요청 본문
+    Parameters:
+        request (ResumeRequest): Request body containing `id`, `type`, and `data` (raw resume or cover letter content).
     
     Returns:
-        AIProcessResult: 처리 결과 (summary, vector_status 포함)
+        AIProcessResult: Result containing `id` (string), the generated `summary`, and `vector_status` set to `"generated"`.
+    
+    Raises:
+        HTTPException: Raised with status code 500 and error detail if processing fails.
     """
     try:
         # 1. AI 요약 생성 (LLM 호출)

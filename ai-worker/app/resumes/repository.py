@@ -3,17 +3,14 @@ from app.core.database import get_db_connection, init_db_extensions
 class ResumeRepository:
     def update_resume_data(self, id: int, summary: str, vector: list[float]):
         """
-        이력서의 요약 내용과 임베딩 벡터를 DB에 업데이트하는 함수입니다.
-
-        Args:
-            id (int): 이력서 ID (Primary Key)
-            summary (str): AI가 생성한 8줄 요약 텍스트
-            vector (list[float]): 1536차원의 임베딩 벡터 리스트
-
-        Note:
-            - `pgvector` 확장이 미리 등록되어 있어야 벡터 저장이 가능합니다.
-            - `init_db_extensions(conn)`을 호출하여 세션마다 확장을 등록합니다.
-            - `vector` 타입 컬럼에 리스트를 파이썬 리스트 그대로 넘기면 adapter가 자동으로 변환해줍니다.
+        Update a resume record with an AI-generated summary and its embedding vector.
+        
+        Updates the resume row identified by `id` setting `summary`, `embedding`, `summary_status` to 'COMPLETED', and `updated_at` to the current timestamp. Requires the `pgvector` extension to be initialized for the session before storing the embedding.
+        
+        Parameters:
+            id (int): Resume primary key.
+            summary (str): AI-generated summary text (approximately eight lines).
+            vector (list[float]): Embedding vector (expected 1536 dimensions); a Python list is adapted to the database vector type when `pgvector` is registered.
         """
         conn = get_db_connection()
         try:

@@ -21,6 +21,12 @@ public record ProductResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
+    /**
+     * Create a ProductResponse DTO from a Product entity.
+     *
+     * @param product the source Product entity to convert
+     * @return a ProductResponse populated with the product's fields (price flattened to amount and currency)
+     */
     public static ProductResponse from(Product product) {
         return new ProductResponse(
                 product.getProductId(),

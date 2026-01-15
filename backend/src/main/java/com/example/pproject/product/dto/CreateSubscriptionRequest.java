@@ -12,6 +12,15 @@ public record CreateSubscriptionRequest(
         BigDecimal priceAmount,
         String planTier // ★ 필수
 ) {
+    /**
+     * Converts this request into a Product entity representing a subscription.
+     *
+     * The resulting Product has productCode and name from the request, price set via
+     * Money.wons(priceAmount), productType fixed to ProductType.SUBSCRIPTION, planTier
+     * from the request, and creditAmount left null.
+     *
+     * @return the built Product entity
+     */
     public Product toEntity() {
         return Product.builder()
                 .productCode(productCode)

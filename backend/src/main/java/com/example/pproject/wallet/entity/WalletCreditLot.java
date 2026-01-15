@@ -44,6 +44,16 @@ public class WalletCreditLot extends BaseTimeEntity {
     })
     private Money price;
 
+    /**
+     * Creates a WalletCreditLot representing a purchased bundle of credits tied to the given wallet.
+     *
+     * Initializes the lot with the specified granted credits and sets remaining credits equal to the granted amount.
+     *
+     * @param wallet the owning Wallet; must not be null
+     * @param grantedCredit the number of credits granted for this lot; must be greater than 0
+     * @param price the monetary price for this lot; must not be null
+     * @throws IllegalArgumentException if {@code wallet} or {@code price} is null, or if {@code grantedCredit} is null or not greater than 0
+     */
     @Builder
     public WalletCreditLot(Wallet wallet, Long grantedCredit, Money price) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
@@ -59,11 +69,11 @@ public class WalletCreditLot extends BaseTimeEntity {
     // === 비즈니스 로직 ===
 
     /**
-     * 크레딧을 소비(차감)합니다.
+     * Subtracts the specified amount of credits from this lot.
      *
-     * @param amount 소비할 크레딧 양 (0보다 커야 함)
-     * @throws IllegalStateException 잔여 크레딧이 부족할 경우
-     * @throws IllegalArgumentException 소비량이 0 이하일 경우
+     * @param amount the number of credits to consume; must be greater than 0
+     * @throws IllegalArgumentException if {@code amount} is less than or equal to 0
+     * @throws IllegalStateException if the lot's remaining credits are less than {@code amount}
      */
     public void consume(long amount) {
         Assert.isTrue(amount > 0, "소비할 크레딧은 0보다 커야 합니다.");
@@ -75,19 +85,20 @@ public class WalletCreditLot extends BaseTimeEntity {
     }
 
     /**
-     * 환불 가능 여부를 확인합니다.
-     * <p>
-     * 크레딧을 전혀 사용하지 않은 상태(잔여량 == 제공량)여야 환불이 가능합니다.
-     * </p>
-     * @return 환불 가능하면 true, 아니면 false
+     * Determine whether this credit lot is eligible for refund.
+     *
+     * The lot is refundable only when no credits have been consumed (remaining credit equals granted credit).
+     *
+     * @return `true` if no credits have been consumed (remaining credit equals granted credit), `false` otherwise.
      */
     public boolean isRefundable() {
         return this.remainingCredit.equals(this.grantedCredit);
     }
     
     /**
-     * 크레딧이 모두 소진되었는지 확인합니다.
-     * @return 잔여량이 0 이하면 true
+     * Determines whether the lot has no remaining credits.
+     *
+     * @return `true` if the remaining credit is less than or equal to 0, `false` otherwise.
      */
     public boolean isExhausted() {
         return this.remainingCredit <= 0;

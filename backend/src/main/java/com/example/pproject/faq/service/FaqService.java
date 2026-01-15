@@ -25,10 +25,16 @@ public class FaqService {
     private final FaqRepository faqRepository;
 
     /**
-     * FAQ 목록 조회 (관리자용)
-     * - 모든 FAQ 조회 (삭제되지 않은 것만)
-     * - 키워드 검색 가능
-     * - 공개/비공개 필터링 가능
+     * Retrieve a paginated list of active FAQs for administrative use, optionally filtered by keyword or public visibility.
+     *
+     * If `keyword` is non-empty, performs a keyword search; otherwise if `isPublic` is non-null, filters by public visibility;
+     * otherwise returns all active (not deleted) FAQs. Results are sorted by `createdAt` descending.
+     *
+     * @param keyword an optional search term to match FAQ content; treated as not provided when null or empty
+     * @param isPublic an optional visibility filter; when non-null, only FAQs with matching `isPublic` are returned
+     * @param page zero-based page index
+     * @param size number of items per page
+     * @return a page of {@code FaqResponse} objects representing the matching FAQs
      */
     @Transactional(readOnly = true)
     public Page<FaqResponse> getFaqList(String keyword, Boolean isPublic, int page, int size) {
@@ -51,9 +57,11 @@ public class FaqService {
     }
 
     /**
-     * FAQ 목록 조회 (회원용)
-     * - 공개된 FAQ만 조회
-     * - 삭제되지 않은 것만 조회
+     * Retrieve a paginated list of publicly visible, non-deleted FAQs for members.
+     *
+     * @param page zero-based page index
+     * @param size the number of items per page
+     * @return a page of FaqResponse objects representing public, active FAQs sorted by creation time descending
      */
     @Transactional(readOnly = true)
     public Page<FaqResponse> getPublicFaqList(int page, int size) {
@@ -62,7 +70,11 @@ public class FaqService {
     }
 
     /**
-     * FAQ 상세 조회 (관리자용)
+     * Retrieve detailed information for an active FAQ by its ID for administrative use.
+     *
+     * @param faqId the ID of the FAQ to retrieve
+     * @return a FaqResponse containing the FAQ's details
+     * @throws javax.persistence.EntityNotFoundException if no active FAQ exists with the given ID
      */
     @Transactional(readOnly = true)
     public FaqResponse getFaqDetail(Long faqId) {
@@ -72,7 +84,12 @@ public class FaqService {
     }
 
     /**
-     * FAQ 신규 등록 (관리자용)
+     * Create a new FAQ from the provided request data.
+     *
+     * If `locked` is not specified in the request, the FAQ is created with `locked = true`.
+     *
+     * @param request the DTO containing question, answer, visibility, and optional locked flag
+     * @return the persisted FAQ as a FaqResponse
      */
     public FaqResponse createFaq(CreateFaqRequest request) {
         Faq faq = Faq.builder()
@@ -89,7 +106,14 @@ public class FaqService {
     }
 
     /**
-     * FAQ 수정 (관리자용)
+     * Update an existing FAQ using values from the provided request.
+     *
+     * The request's `locked` field defaults to `true` when null.
+     *
+     * @param faqId  the identifier of the active FAQ to update
+     * @param request  the payload containing updated `question`, `answer`, `isPublic`, and optional `locked`
+     * @return the updated FAQ represented as a `FaqResponse`
+     * @throws EntityNotFoundException if no active FAQ exists with the given `faqId`
      */
     public FaqResponse updateFaq(Long faqId, UpdateFaqRequest request) {
         Faq faq = faqRepository.findByIdActive(faqId)
@@ -107,8 +131,12 @@ public class FaqService {
     }
 
     /**
-     * FAQ 삭제 (관리자용)
-     * - 논리 삭제 (deleted_at 업데이트)
+     * Soft-delete an active FAQ identified by its ID for administrative use.
+     *
+     * Updates the entity to a deleted state (sets the deletion timestamp) and persists the change.
+     *
+     * @param faqId the ID of the FAQ to soft-delete
+     * @throws javax.persistence.EntityNotFoundException if no active FAQ exists with the given ID
      */
     public void deleteFaq(Long faqId) {
         Faq faq = faqRepository.findByIdActive(faqId)
@@ -120,7 +148,10 @@ public class FaqService {
     }
 
     /**
-     * Entity → DTO 변환
+     * Convert a Faq entity into a FaqResponse DTO.
+     *
+     * @param faq the source Faq entity
+     * @return a FaqResponse containing faqId, question, answer, locked, isPublic, createdAt, and updatedAt
      */
     private FaqResponse toFaqResponse(Faq faq) {
         return FaqResponse.builder()

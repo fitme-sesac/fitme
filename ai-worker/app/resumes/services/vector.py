@@ -15,8 +15,11 @@ logger = logging.getLogger(__name__)
 class VectorService:
     def __init__(self):
         """
-        벡터 서비스 초기화: OpenAI 임베딩 모델을 설정합니다.
-        실패 시 구형 모델(ada-002)로 자동 절체(Fallback)하는 로직이 포함되어 있습니다.
+        Initialize the vector embedding service using the configured OpenAI embedding model, automatically falling back to the "text-embedding-ada-002" model if the primary model fails.
+        
+        Attempts to create an OpenAIEmbeddings instance with settings.OPENAI_EMBEDDING_MODEL and settings.OPENAI_API_KEY. If that initialization fails, it logs a warning, tries to initialize the backup model "text-embedding-ada-002", and performs an immediate test embed query to validate the backup. If the backup initialization or validation fails, the underlying exception is re-raised to propagate the failure.
+         
+        @raises Exception: Raised when both the primary and backup embedding model initializations fail.
         """
         try:
             # 1. 주력 모델 설정 시도
@@ -48,7 +51,13 @@ class VectorService:
 
     async def generate_vector(self, text: str) -> list[float]:
         """
-        텍스트를 임베딩 벡터로 변환합니다.
+        Convert input text into a numeric embedding vector.
+        
+        Parameters:
+            text (str): The input text to be embedded.
+        
+        Returns:
+            list[float]: Embedding vector for the given text as a list of floats.
         """
         return await self.embeddings.aembed_query(text)
 

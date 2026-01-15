@@ -58,7 +58,9 @@ public class Faq {
     private LocalDateTime deletedAt;
 
     /**
-     * 논리 삭제 여부 확인
+     * Determines whether this FAQ has been soft-deleted.
+     *
+     * @return `true` if the entity is soft-deleted (i.e., `deletedAt` is non-null), `false` otherwise.
      */
     @Transient
     public boolean isDeleted() {
@@ -66,7 +68,7 @@ public class Faq {
     }
 
     /**
-     * 논리 삭제 처리
+     * Marks the entity as deleted by setting {@code deletedAt} to the current local date-time.
      */
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();

@@ -22,7 +22,12 @@ public class ProductController {
 
     private final ProductService productService;
 
-    // 1. 상품 생성 (단건) - 관리자 전용
+    /**
+     * Create a one-time (non-subscription) product.
+     *
+     * @param request the validated DTO containing details for the one-time product to create
+     * @return the ID of the created product
+     */
     @PostMapping("/one-time")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Long> createOneTime(@RequestBody @Valid CreateOneTimeRequest request) {
@@ -30,7 +35,12 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(productId);
     }
 
-    // 2. 상품 생성 (구독) - 관리자 전용
+    /**
+     * Creates a subscription product from the provided request.
+     *
+     * @param request DTO containing subscription product details
+     * @return the ID of the created subscription product
+     */
     @PostMapping("/subscription")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Long> createSubscription(@RequestBody @Valid CreateSubscriptionRequest request) {
@@ -38,14 +48,24 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(productId);
     }
 
-    // 3. 상품 단건 조회 - 인증된 사용자 가능 (혹은 permitAll)
+    /**
+     * Retrieves a product by its identifier for authenticated users.
+     *
+     * @param productId the ID of the product to retrieve
+     * @return the product's details as a ProductResponse
+     */
     @GetMapping("/{productId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ProductResponse> getProduct(@PathVariable Long productId) {
         return ResponseEntity.ok(productService.getProduct(productId));
     }
 
-    // 4. 상품 전체 조회 (페이징) - 인증된 사용자 가능
+    /**
+     * Retrieves a paginated list of products available to the authenticated user.
+     *
+     * @param pageable pagination and sorting information; defaults to size=10 and sort by `createdAt` descending
+     * @return a page of ProductResponse objects representing the requested product slice
+     */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<ProductResponse>> getAllProducts(
@@ -53,7 +73,12 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllProducts(pageable));
     }
 
-    // 5. 상품 삭제 - 관리자 전용
+    /**
+     * Deletes the product identified by the given ID.
+     *
+     * @param productId the identifier of the product to delete
+     * @return a ResponseEntity with HTTP 204 No Content when deletion succeeds
+     */
     @DeleteMapping("/{productId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long productId) {
@@ -61,7 +86,13 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 
-    // 6. 상태 변경 (일시 정지) - 관리자 전용
+    /**
+     * Pauses the product with the given ID.
+     *
+     * Sets the product's state to paused; this operation is restricted to administrators.
+     *
+     * @param productId the ID of the product to pause
+     */
     @PatchMapping("/{productId}/pause")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> pauseProduct(@PathVariable Long productId) {
@@ -69,7 +100,12 @@ public class ProductController {
         return ResponseEntity.ok().build();
     }
 
-    // 7. 상태 변경 (재개) - 관리자 전용
+    /**
+     * Resumes a paused product so it becomes active again.
+     *
+     * @param productId the identifier of the product to resume
+     * @return a ResponseEntity with HTTP 200 OK and an empty body
+     */
     @PatchMapping("/{productId}/resume")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> resumeProduct(@PathVariable Long productId) {
@@ -77,7 +113,12 @@ public class ProductController {
         return ResponseEntity.ok().build();
     }
 
-    // 8. 상태 변경 (종료) - 관리자 전용
+    /**
+     * Stops the specified product, transitioning it to a finished/inactive state.
+     *
+     * @param productId the identifier of the product to stop
+     * @return HTTP 200 OK with an empty response body
+     */
     @PatchMapping("/{productId}/stop")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> stopProduct(@PathVariable Long productId) {

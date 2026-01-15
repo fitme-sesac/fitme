@@ -54,6 +54,23 @@ public class Product extends BaseSoftDeleteEntity {
     @Column(name = "plan_tier", length = 20)
     private String planTier;
 
+    /**
+     * Creates a new Product with the given identity, metadata, pricing, and type-specific configuration.
+     *
+     * <p>Initializes the product's sale status to ON_SALE.</p>
+     *
+     * @param productCode unique code for the product; must be a non-empty string
+     * @param name display name for the product; must be a non-empty string
+     * @param price monetary price for the product; must not be null
+     * @param productType type of the product; must not be null
+     * @param creditAmount credit quantity provided by the product; required and must be > 0 when {@code productType} is {@code ONE_TIME}; may be null otherwise
+     * @param planTier subscription plan tier; required and must be a non-empty string when {@code productType} is {@code SUBSCRIPTION}; may be null otherwise
+     * @throws IllegalArgumentException if any required argument is missing or invalid:
+     *                                  - {@code productCode} or {@code name} is empty,
+     *                                  - {@code price} or {@code productType} is null,
+     *                                  - {@code productType} is {@code SUBSCRIPTION} and {@code planTier} is empty,
+     *                                  - {@code productType} is {@code ONE_TIME} and {@code creditAmount} is null or <= 0
+     */
     @Builder
     public Product(String productCode, String name, Money price, ProductType productType, Integer creditAmount, String planTier) {
 
@@ -81,7 +98,13 @@ public class Product extends BaseSoftDeleteEntity {
         this.saleStatus = SaleStatus.ON_SALE;
     }
 
-    // === 비즈니스 로직 (State Transition Logic) ===
+    /**
+     * Change the product's price to the provided Money value.
+     *
+     * @param newPrice the new price to set; must not be null and must use the same currency as the current price
+     * @throws IllegalStateException if the product is in the STOPPED state and cannot be modified
+     * @throws IllegalArgumentException if {@code newPrice} is null or its currency is incompatible with the current price
+     */
 
     public void changePrice(Money newPrice) {
         verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
@@ -91,6 +114,13 @@ public class Product extends BaseSoftDeleteEntity {
         this.price = newPrice;
     }
 
+    /**
+     * Pause the product's sale status.
+     *
+     * Sets the product's saleStatus to PAUSED.
+     *
+     * @throws IllegalStateException if the product is already paused or if the product is stopped and cannot be modified.
+     */
     public void pause() {
         verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
         if (this.saleStatus == SaleStatus.PAUSED) {
@@ -100,6 +130,11 @@ public class Product extends BaseSoftDeleteEntity {
         this.saleStatus = SaleStatus.PAUSED;
     }
 
+    /**
+     * Sets the product's sale status to ON_SALE.
+     *
+     * @throws IllegalStateException if the product is STOPPED or already ON_SALE.
+     */
     public void resume() {
         verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
         if (this.saleStatus == SaleStatus.ON_SALE) {
@@ -108,6 +143,11 @@ public class Product extends BaseSoftDeleteEntity {
         this.saleStatus = SaleStatus.ON_SALE;
     }
 
+    /**
+     * Transitions the product into the STOPPED sale status.
+     *
+     * This operation is idempotent: if the product is already STOPPED it makes no changes.
+     */
     public void stop() {
         // 이미 STOPPED인 경우 굳이 에러낼 필요 없음 (멱등성)
         if (this.saleStatus == SaleStatus.STOPPED) {
@@ -118,7 +158,11 @@ public class Product extends BaseSoftDeleteEntity {
 
     // === 내부 헬퍼 메서드 ===
 
-    // "판매 종료(STOPPED) 상태에서는 아무것도 못한다"는 규칙을 한곳에서 관리
+    /**
+     * Ensures the product is not in the STOPPED sale status.
+     *
+     * @throws IllegalStateException if the product's `saleStatus` is `STOPPED` (message: "판매가 종료된 상품은 상태를 변경할 수 없습니다.")
+     */
     private void verifyActiveOrPaused() {
         if (this.saleStatus == SaleStatus.STOPPED) {
             throw new IllegalStateException("판매가 종료된 상품은 상태를 변경할 수 없습니다.");

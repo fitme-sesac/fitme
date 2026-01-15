@@ -30,6 +30,15 @@ app = FastAPI(
 # Health Check
 @app.get("/")
 def health_check():
+    """
+    Return the current health status for the service.
+    
+    Returns:
+        dict: JSON-compatible mapping with keys:
+            - status (str): "ok" when the service is healthy.
+            - service (str): service name ("ai-worker").
+            - version (str): application version from settings.APP_VERSION.
+    """
     return {"status": "ok", "service": "ai-worker", "version": settings.APP_VERSION}
 
 # Register Routers

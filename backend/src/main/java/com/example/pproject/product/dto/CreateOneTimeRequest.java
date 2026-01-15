@@ -12,6 +12,14 @@ public record CreateOneTimeRequest(
         BigDecimal priceAmount,
         Integer creditAmount // ★ 필수
 ) {
+    /**
+     * Converts this DTO into a Product entity for a one-time product.
+     *
+     * The resulting Product uses Money.wons(priceAmount) for its price, has productType
+     * set to ProductType.ONE_TIME, and leaves planTier null.
+     *
+     * @return the constructed Product entity reflecting this request
+     */
     public Product toEntity() {
         return Product.builder()
                 .productCode(productCode)

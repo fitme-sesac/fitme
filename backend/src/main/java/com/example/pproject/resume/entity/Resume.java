@@ -104,7 +104,16 @@ public class Resume {
     @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ResumeAttachment> attachments = new ArrayList<>();
 
-    // 생성자
+    /**
+     * Create a Resume for the specified user with the given title, content, and field.
+     *
+     * Sets the resume's lastModifiedAt timestamp to the current time.
+     *
+     * @param user    the owner of the resume
+     * @param title   the resume's title
+     * @param content the user's self-introduction or resume content
+     * @param field   the resume's categorized field (ResumeField)
+     */
     public Resume(UserEntity user, String title, String content, ResumeField field) {
         this.user = user;
         this.title = title;
@@ -113,6 +122,14 @@ public class Resume {
         this.lastModifiedAt = LocalDateTime.now();
     }
 
+    /**
+     * Associate a ResumeAttachment with this resume.
+     *
+     * Adds the given attachment to this resume's attachment list and sets the attachment's
+     * resume reference to this instance to maintain bidirectional linkage.
+     *
+     * @param attachment the ResumeAttachment to associate with this resume
+     */
     public void addAttachment(ResumeAttachment attachment) {
         this.attachments.add(attachment);
         attachment.setResume(this);

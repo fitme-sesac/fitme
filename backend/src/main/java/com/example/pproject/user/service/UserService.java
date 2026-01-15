@@ -43,6 +43,13 @@ public class UserService implements UserDetailsService {
     @Value("${app.notice.policy-id:0}")
     private Long defaultPolicyNoticeId;
 
+    /**
+     * Load user information required for authentication using the supplied userid.
+     *
+     * @param userid the user identifier to look up
+     * @return a UserDetails containing the stored username, encoded password, and the user's role as a single authority
+     * @throws UsernameNotFoundException if no user exists for the given userid
+     */
     @Override
     public UserDetails loadUserByUsername(String userid) throws UsernameNotFoundException {
         UserEntity userEntity = userRepository.findByUserid(userid)
@@ -57,6 +64,21 @@ public class UserService implements UserDetailsService {
                 .build();
     }
 
+    /**
+     * Create and persist a new user account after validating input, normalizing fields, enforcing consent/notice requirements,
+     * handling normal vs social signup flows, encoding passwords, and applying default values.
+     *
+     * <p>Validations include email format, userid/password requirements for normal signups, unique userid/email, phone presence
+     * and verification, required terms/privacy consent timestamps, and presence of terms/privacy notice IDs (with configured defaults).
+     * The method maps the request DTO to an entity, normalizes the phone number, encodes the password when provided, sets default
+     * role/social/marketing values, forces final notice_id values on the entity, and saves the entity.</p>
+     *
+     * @param userDTO DTO containing user registration data
+     * @throws IllegalStateException when the request is null, email format is invalid, required userid/password are missing or mismatched,
+     *                               userid or email already exist, phone is missing or already verified by another account,
+     *                               phone verification timestamp is absent, required consents are not provided,
+     *                               or required TERMS/PRIVACY notice IDs are not available (> 0)
+     */
     public void register(UserRequestDTO userDTO) {
         if (userDTO == null) {
             throw new IllegalStateException("요청 데이터가 비어있습니다.");
@@ -172,11 +194,26 @@ public class UserService implements UserDetailsService {
         userRepository.save(userEntity);
     }
 
+    /**
+     * Retrieve the user account associated with the given email.
+     *
+     * @param email the email address to look up
+     * @return the matching UserEntity
+     * @throws IllegalStateException if no account exists for the provided email
+     */
     public UserEntity findByEmailOrThrow(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("해당 이메일로 가입된 계정이 없습니다."));
     }
 
+    /**
+     * Validates that the given email corresponds to an existing, non-social user account.
+     *
+     * @param email the email address to check
+     * @throws IllegalStateException if the email is null or blank
+     * @throws IllegalStateException if no account is registered with the given email
+     * @throws IllegalStateException if the account associated with the email is a social-only account (no password)
+     */
     public void assertEmailExists(String email) {
         if (email == null || email.isBlank()) {
             throw new IllegalStateException("이메일을 입력해주세요.");
@@ -190,6 +227,13 @@ public class UserService implements UserDetailsService {
         }
     }
 
+    /**
+     * Retrieve the userid for a non-social account registered with the given email.
+     *
+     * @param email the email address used to look up the account
+     * @return the userid associated with the provided email
+     * @throws IllegalStateException if no account exists for the email or if the account is a social-only account
+     */
     public String findUseridByEmail(String email) {
         UserEntity userEntity = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("해당 이메일로 가입된 계정이 없습니다."));
@@ -200,6 +244,14 @@ public class UserService implements UserDetailsService {
         return userEntity.getUserid();
     }
 
+    /**
+     * Checks whether the given plaintext password matches the stored password for the specified user.
+     *
+     * @param userid   the user's identifier to look up the account
+     * @param password the plaintext password to verify
+     * @return `true` if the provided password matches the user's stored password, `false` otherwise
+     * @throws org.springframework.security.core.userdetails.UsernameNotFoundException if no user exists for the given `userid`
+     */
     public boolean verifyPassword(String userid, String password) {
         UserEntity userEntity = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userid));
@@ -207,6 +259,13 @@ public class UserService implements UserDetailsService {
         return passwordEncoder.matches(password, userEntity.getPassword());
     }
 
+    /**
+     * Update the stored password for the user identified by the given userid with the provided new password after encoding it.
+     *
+     * @param userid the identifier of the user whose password will be updated
+     * @param newPassword the plain-text new password to encode and store
+     * @throws org.springframework.security.core.userdetails.UsernameNotFoundException if no user exists with the given userid
+     */
     public void updatePassword(String userid, String newPassword) {
         UserEntity userEntity = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userid));
@@ -215,6 +274,13 @@ public class UserService implements UserDetailsService {
         userRepository.save(userEntity);
     }
 
+    /**
+     * Retrieve the email address for a user matching the given userid, username, and birthday.
+     *
+     * @return the user's email address
+     * @throws RuntimeException if no matching user is found
+     * @throws RuntimeException if the matching user has no password set (social-only account)
+     */
     public String findEmailByUseridAndUsernameAndBirthday(String userid, String username, String birthday) {
         UserEntity userEntity = userRepository.findByUseridAndUsernameAndBirthday(userid, username, birthday)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
@@ -225,6 +291,16 @@ public class UserService implements UserDetailsService {
         return userEntity.getEmail();
     }
 
+    /**
+     * Retrieve the email for a user matching the given userid, username, and email for password-reset verification.
+     *
+     * @param userid   the user's login identifier
+     * @param username the user's display or real name
+     * @param email    the user's email address to validate
+     * @return the matched user's email
+     * @throws RuntimeException if no account matches the provided information
+     * @throws RuntimeException if the matched account has no password (social-only account)
+     */
     public String findEmailByUseridAndUsernameAndEmailForPasswordLink(String userid, String username, String email) {
         UserEntity userEntity = userRepository.findByUseridAndUsernameAndEmail(userid, username, email)
                 .orElseThrow(() -> new RuntimeException("정보가 일치하지 않습니다."));

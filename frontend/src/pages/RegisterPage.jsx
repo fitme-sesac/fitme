@@ -370,6 +370,11 @@ const scripts = [
     "AOS.init();",
 ];
 
+/**
+ * Render the Register page containing the registration form and its client-side scripts.
+ *
+ * @returns {JSX.Element} The page element that injects the registration HTML and associated scripts.
+ */
 export default function RegisterPage() {
     usePageCss("/assets/css/pages/register.css");
     return <HtmlPage html={html} scripts={scripts} />;

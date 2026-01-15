@@ -31,12 +31,16 @@ public class ServiceAdminFaqController {
     private final FaqService faqService;
 
     /**
-     * FAQ 목록 조회 (관리자)
-     * - 모든 FAQ 조회 (삭제되지 않은 것만)
-     * - 키워드 검색 가능
-     * - 공개/비공개 필터링
+     * Retrieve a paginated list of FAQs for administrative use.
      *
-     * GET /api/admin/faqs?keyword=검색어&isPublic=true&page=0&size=10
+     * The result includes only FAQs that have not been deleted and can be filtered by
+     * a keyword and by public visibility.
+     *
+     * @param keyword an optional search term to filter FAQs by question or content
+     * @param isPublic an optional filter; `true` for public FAQs, `false` for private FAQs, or `null` for both
+     * @param page the zero-based page index to retrieve
+     * @param size the number of items per page
+     * @return a page of FaqResponse objects matching the provided filters
      */
     @GetMapping
     public ResponseEntity<Page<FaqResponse>> getFaqList(
@@ -53,9 +57,10 @@ public class ServiceAdminFaqController {
     }
 
     /**
-     * FAQ 상세 조회
+     * Retrieve detailed information for a specific FAQ.
      *
-     * GET /api/admin/faqs/{id}
+     * @param id the ID of the FAQ to retrieve
+     * @return the FAQ details as a {@link FaqResponse}
      */
     @GetMapping("/{id}")
     public ResponseEntity<FaqResponse> getFaqDetail(@PathVariable Long id) {
@@ -65,15 +70,10 @@ public class ServiceAdminFaqController {
     }
 
     /**
-     * FAQ 신규 등록
+     * Create a new FAQ entry.
      *
-     * POST /api/admin/faqs
-     * {
-     *   "question": "질문",
-     *   "answer": "답변",
-     *   "isPublic": true,
-     *   "locked": true
-     * }
+     * @param request the validated request containing `question`, `answer`, `isPublic`, and `locked` fields
+     * @return the created FAQ as a FaqResponse
      */
     @PostMapping
     public ResponseEntity<FaqResponse> createFaq(@Valid @RequestBody CreateFaqRequest request) {
@@ -83,14 +83,13 @@ public class ServiceAdminFaqController {
     }
 
     /**
-     * FAQ 수정
+     * Update an existing FAQ entry.
      *
-     * PUT /api/admin/faqs/{id}
-     * {
-     *   "question": "수정된 질문",
-     *   "answer": "수정된 답변",
-     *   "isPublic": true
-     * }
+     * Updates the FAQ identified by the given ID using the values in the request.
+     *
+     * @param id      the ID of the FAQ to update
+     * @param request the update payload containing new question, answer, and visibility
+     * @return        the updated FAQ representation
      */
     @PutMapping("/{id}")
     public ResponseEntity<FaqResponse> updateFaq(
@@ -103,9 +102,10 @@ public class ServiceAdminFaqController {
     }
 
     /**
-     * FAQ 삭제 (논리 삭제)
+     * Performs a logical delete of an FAQ identified by the given ID.
      *
-     * DELETE /api/admin/faqs/{id}
+     * @param id the ID of the FAQ to delete
+     * @return a ResponseEntity with HTTP 204 No Content when the FAQ is deleted
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFaq(@PathVariable Long id) {

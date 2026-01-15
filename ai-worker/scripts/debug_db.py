@@ -29,6 +29,15 @@ except Exception as e:
 
 # 2. 값 확인 및 HEX 덤프 (숨겨진 문자 확인)
 def print_hex(name, value):
+    """
+    Prints a label and the given value along with a hexadecimal representation of each character.
+    
+    If `value` is falsy (None or empty), prints "<name>: None". Otherwise prints "<name>: <value> (Hex: xx yy ...)" where each hex token is the two-digit lowercase hexadecimal of each character's Unicode code point. Output is written to standard output.
+    
+    Parameters:
+        name (str): Label to print before the value.
+        value (str | None): The string to display and hex-dump; falsy values are shown as None.
+    """
     if not value:
         print(f"{name}: None")
         return

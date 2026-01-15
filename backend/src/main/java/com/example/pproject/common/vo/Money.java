@@ -19,7 +19,13 @@ public class Money {
     private BigDecimal amount;
     private String currency;
 
-    // 생성자: 여기서 "돈"에 대한 무결성을 보장합니다.
+    /**
+     * Creates a Money value while enforcing amount and currency invariants.
+     *
+     * @param amount   the monetary amount; must not be null and must be greater than or equal to zero
+     * @param currency the ISO currency code to use; if null or blank, defaults to "KRW"
+     * @throws IllegalArgumentException if {@code amount} is null or is less than zero
+     */
     public Money(BigDecimal amount, String currency) {
         if (amount == null) {
             throw new IllegalArgumentException("금액은 필수 값입니다.");
@@ -31,15 +37,32 @@ public class Money {
         this.currency = (currency == null || currency.isBlank()) ? "KRW" : currency;
     }
 
+    /**
+     * Create a Money instance representing the given amount in Korean won.
+     *
+     * @param amount the monetary amount in whole won
+     * @return the Money instance for the specified amount in KRW
+     */
     public static Money wons(long amount) {
         return new Money(BigDecimal.valueOf(amount), "KRW");
     }
 
+    /**
+     * Create a Money instance denominated in South Korean won (KRW) with the specified amount.
+     *
+     * @param amount the monetary amount in KRW
+     * @return a Money instance representing the given amount in KRW
+     */
     public static Money wons(BigDecimal amount) {
         return new Money(amount, "KRW");
     }
 
-    // 통화 일치 검증 로직
+    /**
+     * Validates that this Money uses the same currency as the provided Money.
+     *
+     * @param other the Money whose currency is compared against this instance
+     * @throws IllegalArgumentException if the currencies do not match
+     */
     public void checkCurrency(Money other) {
         if (!this.currency.equals(other.currency)) {
             throw new IllegalArgumentException("통화가 일치하지 않습니다.");

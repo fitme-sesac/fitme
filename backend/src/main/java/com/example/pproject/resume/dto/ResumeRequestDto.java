@@ -41,7 +41,18 @@ public class ResumeRequestDto {
     private List<AttachmentDto> attachments;
 
     private String summary;       // AI가 만든 10줄 요약
-    private List<Double> embedding; // 요약본의 벡터 데이터
+    private List<Double> embedding; /**
+     * Create a Resume entity populated from this DTO and the given user.
+     *
+     * <p>The resulting Resume includes core fields (title, content, field, tagline),
+     * preference fields (target job, location, salary, employment type), and AI-generated
+     * data (summary and embedding). Nested collections such as projects, careers,
+     * certificates, links, profiles, and attachments are not attached or persisted by this
+     * method and must be handled separately.
+     *
+     * @param user the owner UserEntity to associate with the created Resume
+     * @return a Resume entity populated with this DTO's core, preference, and AI fields
+     */
 
     public Resume toEntity(UserEntity user) {
         Resume resume = new Resume(user, this.title, this.content, this.field);

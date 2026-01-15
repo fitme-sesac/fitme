@@ -33,7 +33,14 @@ public class ResumeResponseDto {
     // 상세 정보 리스트 (프로젝트, 첨부파일 등)
     private List<AttachmentResponseDto> attachments;
 
-    // DTO 변환 생성자
+    /**
+     * Create a ResumeResponseDto from a Resume entity.
+     *
+     * Maps the resume's id, title, tagline, content, AI summary and status, domain fields (field, status, updatedAt),
+     * and converts attachments to a list of AttachmentResponseDto when the source attachments are non-null.
+     *
+     * @param resume the source Resume entity to convert; if resume.getAttachments() is null, the DTO's attachments remain null
+     */
     public ResumeResponseDto(Resume resume) {
         this.resumeId = resume.getId();
         this.title = resume.getTitle();
@@ -62,6 +69,11 @@ public class ResumeResponseDto {
         private String fileName;
         private String aiDescription;
 
+        /**
+         * Creates an AttachmentResponseDto populated from the given ResumeAttachment entity.
+         *
+         * @param entity the source ResumeAttachment whose id, fileUrl, fileName, and aiDescription are copied into this DTO
+         */
         public AttachmentResponseDto(com.example.pproject.resume.entity.ResumeAttachment entity) {
             this.id = entity.getId();
             this.fileUrl = entity.getFileUrl();

@@ -12,6 +12,11 @@ public record UpdatePriceRequest(
         BigDecimal newPriceAmount
 ) {
 
+    /**
+     * Converts this request's price value to a Money instance denominated in Korean wons.
+     *
+     * @return the Money representation of the record's price in wons
+     */
     public Money toMoney() {
         return Money.wons(newPriceAmount);
     }

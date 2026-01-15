@@ -38,6 +38,12 @@ public class ResumeAttachment {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /**
+     * Create a ResumeAttachment with the given file URL and file name.
+     *
+     * @param fileUrl  the URL or storage path of the attachment file
+     * @param fileName the display or original name of the file
+     */
     public ResumeAttachment(String fileUrl, String fileName) {
         this.fileUrl = fileUrl;
         this.fileName = fileName;
