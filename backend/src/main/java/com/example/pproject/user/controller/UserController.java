@@ -330,7 +330,7 @@ public class UserController {
             String tmp = jwtTokenProvider.createFlowToken("FIND_USERID", claims, 600);
             CookieUtils.addHttpOnlyCookie(request, response, "FIND_USERID_TMP", tmp, 600, "Lax");
 
-            // 이메일에는 평문 코드 전송(정상)
+            // ✅ 이메일 발송
             sendVerificationEmail(email, code);
 
             return redirectFrontWithQuery("/VerifyUserIdCode", "email=" + enc(email));
@@ -380,20 +380,10 @@ public class UserController {
             return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 실패 횟수를 초과했습니다. 다시 시도해주세요."));
         }
 
-        if (!equalsHash(codeHash, inputCode)) {
-            attempts++;
-
-            // attempts 증가 반영 (남은 TTL 유지 대신 간단히 10분으로 재발급해도 됨)
-            Map<String, Object> newClaims = new HashMap<>(flowClaims);
-            newClaims.put("attempts", attempts);
-
-            String next = jwtTokenProvider.createFlowToken("FIND_USERID", newClaims, 600);
-            CookieUtils.addHttpOnlyCookie(request, response, "FIND_USERID_TMP", next, 600, "Lax");
-
-            return redirectFrontWithQuery("/VerifyUserIdCode", "errorMessage=" + enc("인증번호가 일치하지 않습니다. (" + attempts + "/5)"));
-        }
-
+        // ✅ 인증 성공 → 아이디 조회
         String userid = userService.findUseridByEmail(email);
+
+        // ✅ 플로우 쿠키 정리
         CookieUtils.deleteCookie(request, response, "FIND_USERID_TMP");
         return redirectFrontWithQuery("/ResultUserId", "message=" + enc("당신의 아이디는: " + userid));
     }

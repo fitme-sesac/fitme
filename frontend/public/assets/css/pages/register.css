@@ -1,75 +1,164 @@
-/* — 기존 Register 폼 스타일 유지 — */
-        .form-group {
-            display: flex;
-            align-items: center;
-            margin: 0;
-            width: 100%;
-        }
-        .form-group label {
-            width: 10rem;
-            margin-right: 1rem;
-            font-size: 1rem;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1.5rem;
-        }
-        .form-control, .btn {
-            font-size: 1rem;
-        }
-        .form-control {
-            width: 18rem;
-            height: 2rem;
-        }
-        .btn {
-            height: 2.5rem;
-            margin: 0 0.5rem;
-            min-width: 7rem;
-        }
-        .help-text {
-            margin-top: 1rem;
-            margin-left: 1rem;
-            color: #999;
-            align-self: flex-start;
-            font-size: small;
-            line-height: 1rem;
-        }
-        @media (max-width: 1400px) {
-            .form-group { flex-direction: column; align-items: flex-start; }
-            .form-control { width: 100%; }
-            .button-group { width: 100%; }
-            label { width: 100%; margin-bottom: .5rem; }
-        }
-        header .dropdown .btn-outline-success.dropdown-toggle {
-            width: auto !important;
-            height: auto !important;
-            margin: 0 !important;
-            padding: 0.375rem 0.75rem !important;
-            font-size: 0.8rem !important;
-        }
+/* register.css (전체) */
 
-/* === Added: policy/otp UI (keep existing style) === */
+/* — 기존 Register 폼 스타일 유지 — */
+.form-group {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    width: 100%;
+}
+
+/* ✅ 핵심: .form-group 안의 “첫 라벨(왼쪽 컬럼)”만 폭 규칙 적용 */
+.form-group > label {
+    width: 10rem;
+    margin-right: 1rem;
+    font-size: 1rem;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.form-control,
+.btn {
+    font-size: 1rem;
+}
+
+.form-control {
+    width: 18rem;
+    height: 2rem;
+}
+
+.btn {
+    height: 2.5rem;
+    margin: 0 0.5rem;
+    min-width: 7rem;
+}
+
+.help-text {
+    margin-top: 1rem;
+    margin-left: 1rem;
+    color: #999;
+    align-self: flex-start;
+    font-size: small;
+    line-height: 1rem;
+}
+
+@media (max-width: 1400px) {
+    .form-group {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .form-control {
+        width: 100%;
+    }
+    .button-group {
+        width: 100%;
+    }
+
+    /* ✅ 반응형도 동일하게 “첫 라벨만” */
+    .form-group > label {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+header .dropdown .btn-outline-success.dropdown-toggle {
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0.375rem 0.75rem !important;
+    font-size: 0.8rem !important;
+}
+
+/* === Policy / OTP UI === */
+
+/* 정책 영역만 폭 확장(시작 위치는 label 폭 때문에 그대로 유지됨) */
+.policy-container {
+    width: 36rem;
+    max-width: 100%;
+
+    /* ✅ 여기 값들만 조절하면 됨 */
+    --policy-between-sections: 1.0rem;   /* 섹션(이용약관/개인정보/운영정책) 덩어리 간 간격 */
+    --policy-title-to-box: 0.35rem;      /* 제목 → 스크롤박스 간격 */
+    --policy-box-to-check: 0.35rem;      /* 스크롤박스 → 동의체크 간격 */
+    --policy-check-to-next: 2rem;      /* 동의체크 → (섹션 끝) 아래 여백 */
+    --marketing-top-gap: 0.9rem;         /* 마케팅 동의 위 간격 */
+}
+
+@media (max-width: 1400px) {
+    .policy-container { width: 100%; }
+}
+
+/* 섹션 간격은 policy-sections가 담당 */
+.policy-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--policy-between-sections);
+}
+
+.policy-section {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 제목 아래 여백 */
+.policy-title {
+    font-weight: 800;
+    color: #222;
+    margin: 0 0 var(--policy-title-to-box) 0;
+}
+
+/* 스크롤 박스 아래 여백 */
 .policy-box {
-  border: 1px solid #ddd;
-  border-radius: 0.6rem;
-  padding: 0.8rem;
-  max-height: 260px;
-  overflow: auto;
-  background: #fff;
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 0.6rem;
+    padding: 0.8rem;
+    max-height: 160px;
+    overflow: auto;
+    background: #fff;
+
+    margin: 0 0 var(--policy-box-to-check) 0;
 }
-.policy-checks {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-top: 0.8rem;
+
+/* ✅ 동의 체크: 다른 입력칸 시작점과 동일 + 아래 여백 */
+.policy-agree {
+    margin: 0 0 var(--policy-check-to-next) 0;
+    padding: 0;
 }
-.policy-checks label {
-  width: auto;
-  margin: 0;
-  font-weight: 600;
+
+.policy-agree label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    width: auto;
+    font-weight: 600;
 }
-.policy-checks input[type="checkbox"] {
-  margin-right: 0.5rem;
+
+.policy-agree input[type="checkbox"] {
+    margin: 0;
 }
+
+/* 선택 동의(마케팅) */
+.policy-marketing {
+    margin-top: var(--marketing-top-gap);
+}
+
+.policy-marketing label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    width: auto;
+    font-weight: 600;
+}
+
+.policy-marketing input[type="checkbox"] {
+    margin: 0;
+}
+
