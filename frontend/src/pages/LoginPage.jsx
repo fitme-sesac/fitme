@@ -69,6 +69,26 @@ const html = `<main class="main">
                                 </button>
                             </div>
 
+                            <div style="display:flex; justify-content:flex-end; width:100%; margin-top:0.2rem">
+                                <button
+                                        type="button"
+                                        class="gsi-material-button"
+                                        style="background-color:#FEE500; border-color:#FEE500;"
+                                        onclick="location.href='/oauth2/authorization/kakao'">
+                                    <div class="gsi-material-button-state"></div>
+                                    <div class="gsi-material-button-content-wrapper">
+                                        <div class="gsi-material-button-icon">
+                                            <!-- Kakao 로고(단순화) SVG -->
+                                            <svg viewBox="0 0 24 24" style="display:block;">
+                                                <path d="M12 3C6.477 3 2 6.58 2 11c0 2.78 1.79 5.22 4.53 6.67-.2.74-.74 2.68-.85 3.09-.13.5.18.5.38.37.16-.1 2.55-1.73 3.58-2.44.77.11 1.57.17 2.36.17 5.523 0 10-3.58 10-8s-4.477-8-10-8z" fill="#000000"/>
+                                            </svg>
+                                        </div>
+                                        <span class="gsi-material-button-contents">Sign in with Kakao</span>
+                                        <span style="display:none">Sign in with Kakao</span>
+                                    </div>
+                                </button>
+                            </div>
+
                             <!-- 로그인 실패 메시지(쿼리 파라미터 기반) -->
                             <div class="alert alert-danger mt-3">
                                 <span></span>

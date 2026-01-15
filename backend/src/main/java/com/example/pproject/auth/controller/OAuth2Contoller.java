@@ -3,6 +3,7 @@ package com.example.pproject.auth.controller;
 import com.example.pproject.Config.CookieUtils;
 import com.example.pproject.Config.JwtTokenProvider;
 import com.example.pproject.Constant.SocialType;
+import com.example.pproject.user.controller.PhoneOtpController;
 import com.example.pproject.user.dto.UserRequestDTO;
 import com.example.pproject.user.service.UserService;
 import io.jsonwebtoken.Claims;
@@ -53,6 +54,7 @@ public class OAuth2Contoller {
         Map<String, Object> flowClaims = flowClaimsOf(claims);
         String email = flowClaims.get("email") == null ? null : flowClaims.get("email").toString();
         String username = flowClaims.get("name") == null ? null : flowClaims.get("name").toString();
+        String provider = flowClaims.get("provider") == null ? null : flowClaims.get("provider").toString();
 
         UserRequestDTO userDTO = new UserRequestDTO();
         userDTO.setEmail(email);
@@ -67,7 +69,7 @@ public class OAuth2Contoller {
 
         // ✅ 네 요구(백엔드 프론트 삭제) 관점:
         // - templates를 삭제했다면 Thymeleaf 반환하면 500 남 -> 프론트 라우트로 redirect 해야 함
-        String q = "email=" + enc(email) + "&username=" + enc(username);
+        String q = "email=" + enc(email) + "&username=" + enc(username) + "&socialType=" + enc(provider);
         return "redirect:" + frontBaseUrl + "/FirstSocialLogin?" + q;
     }
 
@@ -97,12 +99,15 @@ public class OAuth2Contoller {
 
         // 휴대폰 인증(쿠키 기반)
         String normalizedPhone = userDTO.getPhone() == null ? "" : userDTO.getPhone().replaceAll("[^0-9]", "");
-        String verifiedPhone = com.example.pproject.user.controller.PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken);
+        String verifiedPhone = PhoneOtpController.readVerifiedPhone(jwtTokenProvider, phoneVerifiedToken, "SIGNUP");
         if (verifiedPhone == null || !verifiedPhone.equals(normalizedPhone)) {
-            return "redirect:" + frontBaseUrl + "/FirstSocialLogin?errorMessage=" + enc("휴대폰 인증을 완료해주세요.");
+            throw new IllegalStateException("휴대폰 인증을 완료해주세요.");
         }
 
-        userDTO.setSocialType(SocialType.GOOGLE); // 기존 코드 유지
+        // provider는 SuccessHandler에서 발급한 flow token(claims.provider) 기준
+        String provider = flow.get("provider") == null ? null : flow.get("provider").toString();
+        SocialType st = SocialType.from(provider);
+        userDTO.setSocialType(st == null ? SocialType.OTHER : st);
         userDTO.setPhone(normalizedPhone);
         userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
         userDTO.setTermsAgreedAt(java.time.LocalDateTime.now());

@@ -72,6 +72,7 @@ dependencies {
     // postgresql
     runtimeOnly 'org.postgresql:postgresql'
 
+    implementation 'com.solapi:sdk:1.0.3'
 }
 
 
