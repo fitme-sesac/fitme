@@ -141,15 +141,13 @@ public class Wallet extends BaseTimeEntity {
         Assert.notNull(ownerType, "지갑 소유자 타입은 필수입니다.");
 
         if (ownerType == RoleType.CANDIDATE) {
-            Assert.notNull(member, "후보자 지갑은 memberId가 필수입니다.");
-            Assert.isNull(employer, "후보자 지갑에는 employerId가 없어야 합니다.");
+            Assert.notNull(member, "일반 회원 지갑은 memberId가 필수입니다.");
+            Assert.isNull(employer, "일반 회원 지갑에는 employerId가 없어야 합니다.");
         } else if (ownerType == RoleType.EMPLOYER) {
-            Assert.notNull(employer, "고용주 지갑은 employerId가 필수입니다.");
-            Assert.isNull(member, "고용주 지갑에는 memberId가 없어야 합니다.");
+            Assert.notNull(employer, "기업 지갑은 employerId가 필수입니다.");
+            Assert.isNull(member, "기업 지갑에는 memberId가 없어야 합니다.");
         } else {
-            if (member == null && employer == null) {
-                throw new IllegalArgumentException("지갑 소유자 ID가 필요합니다.");
-            }
+            throw new IllegalArgumentException("지갑은 CANDIDATE 또는 EMPLOYER만 소유할 수 있습니다.");
         }
     }
 }

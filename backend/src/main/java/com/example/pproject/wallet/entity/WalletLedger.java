@@ -67,7 +67,10 @@ public class WalletLedger extends BaseTimeEntity {
     public WalletLedger(Wallet wallet, TxType txType, SourceType sourceType, Long sourceRefId, Long amount, Long balanceBefore, Long balanceAfter, String idempotencyKey, String memo) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
         Assert.notNull(txType, "거래 유형은 필수입니다.");
+        Assert.notNull(sourceType, "거래 출처 유형은 필수입니다.");
         Assert.isTrue(amount != null && amount >= 0, "거래 금액은 0 이상이어야 합니다.");
+        Assert.notNull(balanceBefore, "이전 잔액은 필수입니다.");
+        Assert.notNull(balanceAfter, "이후 잔액은 필수입니다.");
         
         validateBalanceConsistency(txType, amount, balanceBefore, balanceAfter);
 
@@ -92,11 +95,11 @@ public class WalletLedger extends BaseTimeEntity {
      */
     private void validateBalanceConsistency(TxType txType, long amount, long balanceBefore, long balanceAfter) {
         if (txType == TxType.CREDIT) {
-            if (balanceAfter != balanceBefore + amount) {
+            if (balanceAfter - balanceBefore != amount) {
                 throw new IllegalArgumentException("입금 시 잔액 증가량이 일치하지 않습니다.");
             }
         } else if (txType == TxType.DEBIT) {
-            if (balanceAfter != balanceBefore - amount) {
+            if (balanceBefore - balanceAfter != amount) {
                 throw new IllegalArgumentException("출금 시 잔액 감소량이 일치하지 않습니다.");
             }
         }

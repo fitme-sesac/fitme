@@ -41,6 +41,9 @@ public class Money {
 
     // 통화 일치 검증 로직
     public void checkCurrency(Money other) {
+        if (other == null) {
+            throw new IllegalArgumentException("비교 대상 금액은 필수 입니다.");
+        }
         if (!this.currency.equals(other.currency)) {
             throw new IllegalArgumentException("통화가 일치하지 않습니다.");
         }
