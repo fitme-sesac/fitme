@@ -35,7 +35,7 @@ const html = `<main class="main">
 
             <!-- ✅ 이메일 입력 UI 제거 (소셜 이메일 자동 세팅) -->
             <input type="hidden" id="email" name="email" />
-            <input type="hidden" id="socialType" name="socialType" value="GOOGLE" />
+            <input type="hidden" id="socialType" name="socialType" value="OTHER" />
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
             <!-- 이름 -->
@@ -164,10 +164,13 @@ const scripts = [
     "  // ✅ 소셜에서 넘어온 email/username 자동 세팅\n" +
     "  const email = urlParams.get('email') || '';\n" +
     "  const username = urlParams.get('username') || '';\n" +
+    "  const socialType = (urlParams.get('socialType') || urlParams.get('provider') || 'OTHER').toUpperCase();\n" +
     "  const emailHidden = qs('#email');\n" +
     "  const usernameInput = qs('#username');\n" +
+    "  const socialTypeHidden = qs('#socialType');\n" +
     "  if (emailHidden) emailHidden.value = email;\n" +
     "  if (usernameInput && !usernameInput.value) usernameInput.value = username;\n" +
+    "  if (socialTypeHidden) socialTypeHidden.value = socialType;\n" +
     "\n" +
     "  // ===== 휴대폰 OTP (SOLAPI + 쿠키 기반) =====\n" +
     "  let otpVerified = false;\n" +

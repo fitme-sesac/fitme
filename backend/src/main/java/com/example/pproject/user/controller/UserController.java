@@ -200,8 +200,9 @@ public class UserController {
 
         String email = flowClaims.get("email") == null ? "" : flowClaims.get("email").toString();
         String name = flowClaims.get("name") == null ? "" : flowClaims.get("name").toString();
+        String provider = flowClaims.get("provider") == null ? "OTHER" : flowClaims.get("provider").toString();
 
-        String q = "email=" + enc(email) + "&username=" + enc(name);
+        String q = "email=" + enc(email) + "&username=" + enc(name) + "&socialType=" + enc(provider);
         return redirectFrontWithQuery("/FirstSocialLogin", q);
     }
 
@@ -251,7 +252,8 @@ public class UserController {
 
 
             // 4) 서버가 결정하는 값들
-            userDTO.setSocialType(SocialType.GOOGLE);
+            String provider = flowClaims.get("provider") == null ? "OTHER" : flowClaims.get("provider").toString();
+            userDTO.setSocialType(SocialType.from(provider));
             userDTO.setPhone(normalizedPhone);
             userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
 
