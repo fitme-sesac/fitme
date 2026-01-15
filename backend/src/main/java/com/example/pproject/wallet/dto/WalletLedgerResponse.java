@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
 public record WalletLedgerResponse(
         Long ledgerId,
         TxType type, // CREDIT(입금) / DEBIT(출금)
-        int amount,          // 변동 금액
-        int balanceAfter,    // 변동 후 잔액
+        Long amount,          // 변동 금액
+        Long balanceAfter,    // 변동 후 잔액
         String memo,
         LocalDateTime occurredAt
 ) {
