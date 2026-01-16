@@ -1,23 +1,44 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Union
+from enum import Enum
+
+class Preference(BaseModel):
+    location: str = Field(description="희망 근무지")
+    salary: str = Field(description="희망 연봉")
+    employment_type: str = Field(description="고용 형태")
+
+class BasicInfo(BaseModel):
+    title: str = Field(description="한줄 소개")
+    tagline: str = Field(description="태그라인")
+    re_stack: List[str] = Field(description="종합 보유 기술 (나의 정체성)")
+    field: str = Field(description="데이터 타입 (RESUME 또는 SELF_INTRO)")
+    preference: Preference
+
+class SummaryType(str, Enum):
+    STRUCTURED = "STRUCTURED"
+    TEXT = "TEXT"
+
+class Project(BaseModel):
+    project_name: str
+    period: str
+    total_tech_stack: List[str]
+    my_tech_stack: List[str]
+    contribution: str
+    description: str
+
+class Career(BaseModel):
+    company_name: str
+    role: str
+    period: str
+    description: str
 
 class ResumeRequest(BaseModel):
-    id: int = Field(..., description="이력서 또는 자기소개서 ID")
-    type: str = Field(..., description="데이터 타입 (RESUME 또는 SELF_INTRO)")
-    data: Union[Dict[str, Any], str] = Field(..., description="이력서/자기소개서 데이터 (JSON 객체 또는 일반 텍스트)")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": 1,
-                "type": "RESUME",
-                "data": {
-                    "experience": [],
-                    "skills": ["Python", "Java"],
-                    "ai_description": "..."
-                }
-            }
-        }
+    resume_id: int = Field(description="이력서 ID")
+    basic_info: BasicInfo
+    content: str = Field(description="자기소개 본문")
+    projects: List[Project]
+    careers: List[Career]
+    summary_type: SummaryType = Field(default=SummaryType.STRUCTURED, description="요약 형태 (STRUCTURED: 구조화, TEXT: 줄글)")
 
 class AIProcessResult(BaseModel):
     id: str
