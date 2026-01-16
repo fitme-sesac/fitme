@@ -30,84 +30,155 @@ public class ResumeRequest {
     private Boolean primary;
     private Boolean publicOption;
     private String content;
-    private String reStack;
-
-    private Long targetJobId;
     private String preferenceLocation;
     private String preferenceSalary;
     private String employmentType;
+    private String reStack;
+    private Long targetJobId;
 
-    private String school;
-    private String schoolState;
-    private String schoolClass;
+    @Valid
+    private ProfileDto profile;
 
-    @Valid private ProfileDto profile;
-    @Valid private List<CareerDto> careers;
-    @Valid private List<ProjectDto> projects;
-    @Valid private List<CertificateDto> certificates;
-    @Valid private List<LinkDto> links;
-    @Valid private List<AttachmentDto> attachments;
+    @Valid
+    private List<CareerDto> careers;
 
-    private String summary;
-    private List<Double> embedding;
+    @Valid
+    private List<ProjectDto> projects;
+
+    @Valid
+    private List<CertificateDto> certificates;
+
+    @Valid
+    private List<LinkDto> links;
+
+    @Valid
+    private List<AttachmentDto> attachments;
 
     public Resume toEntity(UserEntity user) {
         return Resume.builder()
                 .user(user)
                 .title(this.title)
                 .field(this.field)
-                .content(this.content)
-                .tagline(this.tagline)
                 .primary(this.primary != null ? this.primary : false)
                 .publicOption(this.publicOption != null ? this.publicOption : false)
-                .reStack(this.reStack)
-                .targetJobId(this.targetJobId)
+                .tagline(this.tagline)
+                .content(this.content)
                 .preferenceLocation(this.preferenceLocation)
                 .preferenceSalary(this.preferenceSalary)
                 .employmentType(this.employmentType)
-                .school(this.school)
-                .schoolState(this.schoolState)
-                .schoolClass(this.schoolClass)
+                .reStack(this.reStack)
+                .targetJobId(this.targetJobId)
                 .build();
     }
 
-    @Getter @Setter @NoArgsConstructor
+    @Getter @Setter @NoArgsConstructor @ToString
     public static class ProfileDto {
-        private String address; private String photoUrl;
-        public ResumeProfile toEntity(Resume resume) { return ResumeProfile.builder().resume(resume).address(address).photoUrl(photoUrl).build(); }
+
+        private String address;
+        private String photoUrl;
+
+        public ResumeProfile toEntity(Resume resume) {
+            return ResumeProfile.builder().resume(resume).address(this.address).photoUrl(this.photoUrl).build();
+        }
     }
-    @Getter @Setter @NoArgsConstructor
+
+    @Getter @Setter @NoArgsConstructor @ToString
     public static class CareerDto {
-        @NotBlank private String companyName;
-        @NotBlank private String department;
-        @NotBlank private String role;
-        @NotNull private LocalDate startDate;
-        private LocalDate endDate; private Boolean current; private Boolean verified;
-        public ResumeCareer toEntity(Resume resume) { return ResumeCareer.builder().resume(resume).companyName(companyName).department(department).role(role).startDate(startDate).endDate(endDate).current(current).verified(verified).build(); }
+
+        @NotBlank(message = "회사명은 필수입니다.")
+        private String companyName;
+
+        @NotBlank(message = "부서명은 필수입니다.")
+        private String department;
+
+        @NotBlank(message = "직무/역할은 필수입니다.")
+        private String role;
+
+        @NotNull(message = "근무 시작일은 필수입니다.")
+        private LocalDate startDate;
+
+        private LocalDate endDate;
+        private Boolean current;
+        private Boolean verified;
+
+        public ResumeCareer toEntity(Resume resume) {
+            return ResumeCareer.builder().resume(resume).companyName(companyName).department(department).role(role)
+                    .startDate(startDate).endDate(endDate).current(current).verified(verified).build();
+        }
     }
-    @Getter @Setter @NoArgsConstructor
+
+    @Getter @Setter @NoArgsConstructor @ToString
     public static class ProjectDto {
-        @NotBlank private String title;
-        private String description; private String techStack;
-        private LocalDate startDate; private LocalDate endDate; private BigDecimal contributionPct; private Integer sortOrder;
-        public ResumeProject toEntity(Resume resume) { return ResumeProject.builder().resume(resume).title(title).description(description).techStack(techStack).startDate(startDate).endDate(endDate).contributionPct(contributionPct).sortOrder(sortOrder).build(); }
+
+        @NotBlank(message = "프로젝트명은 필수입니다.")
+        private String title;
+
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private BigDecimal contributionPct;
+        private String techStack;
+        private String description;
+        private Integer sortOrder;
+
+        public ResumeProject toEntity(Resume resume) {
+            return ResumeProject.builder().resume(resume).title(title).startDate(startDate).endDate(endDate)
+                    .contributionPct(contributionPct).techStack(techStack).description(description).sortOrder(sortOrder).build();
+        }
     }
-    @Getter @Setter @NoArgsConstructor
+
+    @Getter @Setter @NoArgsConstructor @ToString
     public static class CertificateDto {
-        @NotBlank private String name;
-        @NotBlank private String issuer;
-        @NotNull private LocalDate acquisitionDate; private Boolean verified;
-        public ResumeCertificate toEntity(Resume resume) { return ResumeCertificate.builder().resume(resume).name(name).issuer(issuer).acquisitionDate(acquisitionDate).verified(verified).build(); }
+
+        @NotBlank(message = "자격증명은 필수입니다.")
+        private String name;
+
+        @NotBlank(message = "발행기관은 필수입니다.")
+        private String issuer;
+
+        @NotNull(message = "취득일은 필수입니다.")
+        private LocalDate acquisitionDate;
+
+        private Boolean verified;
+
+        public ResumeCertificate toEntity(Resume resume) {
+            return ResumeCertificate.builder().resume(resume).name(name).issuer(issuer)
+                    .acquisitionDate(acquisitionDate).verified(verified).build();
+        }
     }
-    @Getter @Setter @NoArgsConstructor
+
+    @Getter @Setter @NoArgsConstructor @ToString
     public static class LinkDto {
-        @NotNull private LinkType linkType; @NotBlank private String url;
-        public ResumeLink toEntity(Resume resume) { return ResumeLink.builder().resume(resume).linkType(linkType).url(url).build(); }
+        @NotNull(message = "링크 타입은 필수입니다.")
+        private LinkType linkType;
+
+        @NotBlank(message = "URL은 필수입니다.")
+        private String url;
+
+        public ResumeLink toEntity(Resume resume) {
+            return ResumeLink.builder().resume(resume).linkType(linkType).url(url).build();
+        }
     }
-    @Getter @Setter @NoArgsConstructor
+
+    @Getter @Setter @NoArgsConstructor @ToString
     public static class AttachmentDto {
-        @NotBlank private String fileUrl; @NotBlank private String fileName;
-        private String mimeType; private Long fileSize;
-        public ResumeAttachment toEntity(Resume resume) { return ResumeAttachment.builder().resume(resume).fileUrl(fileUrl).fileName(fileName).mimeType(mimeType).fileSize(fileSize).scanStatus(ScanStatus.PENDING).build(); }
+        @NotBlank(message = "파일 경로는 필수입니다.")
+        private String fileUrl;
+
+        @NotBlank(message = "파일명은 필수입니다.")
+        private String fileName;
+
+        private String mimeType;
+        private Long fileSize;
+
+        public ResumeAttachment toEntity(Resume resume) {
+            return ResumeAttachment.builder()
+                    .resume(resume)
+                    .fileUrl(fileUrl)
+                    .fileName(fileName)
+                    .mimeType(mimeType)
+                    .fileSize(fileSize)
+                    .scanStatus(ScanStatus.PENDING) // 기본값 설정
+                    .build();
+        }
     }
 }
