@@ -1,10 +1,7 @@
-// FirstSocialLoginPage.jsx
-// ✅ SOLAPI(백엔드 쿠키 기반) OTP 연동 버전: devCode/로컬 OTP 제거
 import HtmlPage from "../components/HtmlPage";
 import { usePageCss } from "../hooks/usePageCss";
 
 const html = `<main class="main">
-  <!-- Page Title -->
   <div class="page-title" style="background-color: #003300; margin-bottom: 30px;">
     <div class="container text-center">
       <h1 style="color: white;">추가 정보 입력</h1>
@@ -33,19 +30,16 @@ const html = `<main class="main">
           <form id="firstSocialLoginForm" action="/User/First_Social_Login" method="post">
             <input type="hidden" />
 
-            <!-- ✅ 이메일 입력 UI 제거 (소셜 이메일 자동 세팅) -->
             <input type="hidden" id="email" name="email" />
             <input type="hidden" id="socialType" name="socialType" value="OTHER" />
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 이름 -->
             <div class="form-group" style="font-weight: bold;">
               <label for="username">이름 <span style="color: red;">*</span></label>
               <input type="text" id="username" name="username" class="form-control" required placeholder="이름을 입력하세요" />
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 성별 -->
             <div class="form-group" style="font-weight: bold;">
               <label for="gender">성별 <span style="color: red;">*</span></label>
               <select id="gender" name="gender" class="form-control" required>
@@ -56,7 +50,6 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 생년월일 -->
             <div class="form-group" style="font-weight: bold;">
               <label for="birthday">생년월일 <span style="color: red;">*</span></label>
               <div style="display:flex; flex-direction:column;">
@@ -66,7 +59,6 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 휴대폰 번호 + 인증 -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label for="phone">휴대폰 <span style="color: red;">*</span></label>
               <div style="display:flex; flex-direction:column; gap:.5rem; width: 18rem;">
@@ -83,7 +75,6 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 약관/정책 -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label>정책/약관 <span style="color: red;">*</span></label>
 
@@ -142,8 +133,6 @@ const scripts = [
     "(() => {\n" +
     "  const form = document.getElementById('firstSocialLoginForm');\n" +
     "  if (!form) return;\n" +
-    "\n" +
-    "  // ✅ 중복 초기화 방지\n" +
     "  if (form.dataset.fitmeFirstSocialInit === '1') return;\n" +
     "  form.dataset.fitmeFirstSocialInit = '1';\n" +
     "\n" +
@@ -161,23 +150,33 @@ const scripts = [
     "  const em = urlParams.get('errorMessage') || urlParams.get('error') || '';\n" +
     "  if (em) setAlert(em);\n" +
     "\n" +
-    "  // ✅ 소셜에서 넘어온 email/username 자동 세팅\n" +
     "  const email = urlParams.get('email') || '';\n" +
-    "  const username = urlParams.get('username') || '';\n" +
+    "  const username = urlParams.get('username') || urlParams.get('name') || '';\n" +
     "  const socialType = (urlParams.get('socialType') || urlParams.get('provider') || 'OTHER').toUpperCase();\n" +
+    "\n" +
+    "  const gender = (urlParams.get('gender') || '').toUpperCase();\n" +
+    "  const birthday = urlParams.get('birthday') || '';\n" +
+    "  const phone = (urlParams.get('phone') || '').replace(/[^0-9]/g, '');\n" +
+    "\n" +
     "  const emailHidden = qs('#email');\n" +
     "  const usernameInput = qs('#username');\n" +
     "  const socialTypeHidden = qs('#socialType');\n" +
+    "  const genderSelect = qs('#gender');\n" +
+    "  const birthdayInput = qs('#birthday');\n" +
+    "  const phoneInput = qs('#phone');\n" +
+    "\n" +
     "  if (emailHidden) emailHidden.value = email;\n" +
-    "  if (usernameInput && !usernameInput.value) usernameInput.value = username;\n" +
+    "  if (usernameInput && username && !usernameInput.value) usernameInput.value = username;\n" +
     "  if (socialTypeHidden) socialTypeHidden.value = socialType;\n" +
+    "  if (genderSelect && (gender === 'MALE' || gender === 'FEMALE') && !genderSelect.value) genderSelect.value = gender;\n" +
+    "  if (birthdayInput && birthday && !birthdayInput.value) birthdayInput.value = birthday;\n" +
+    "  if (phoneInput && phone && !phoneInput.value) phoneInput.value = phone;\n" +
     "\n" +
     "  // ===== 휴대폰 OTP (SOLAPI + 쿠키 기반) =====\n" +
     "  let otpVerified = false;\n" +
     "  let sending = false;\n" +
     "  let verifying = false;\n" +
     "\n" +
-    "  const phoneInput = qs('#phone');\n" +
     "  const otpInput = qs('#phoneOtpCode');\n" +
     "  const otpStatus = qs('#otpStatus');\n" +
     "  const sendBtn = qs('#sendOtpBtn');\n" +
@@ -199,7 +198,6 @@ const scripts = [
     "    if (verifyBtn) verifyBtn.disabled = true;\n" +
     "  };\n" +
     "\n" +
-    "  // ✅ 새로고침 대비: 서버 쿠키(PHONE_VERIFIED_TMP)로 인증 상태 동기화\n" +
     "  const syncOtpStatus = async () => {\n" +
     "    try {\n" +
     "      const res = await fetch('/api/phone/otp/status', { credentials: 'include' });\n" +
