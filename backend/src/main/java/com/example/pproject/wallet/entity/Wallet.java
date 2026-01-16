@@ -14,7 +14,7 @@ import org.springframework.util.Assert;
  * 사용자 또는 고용주의 지갑 엔티티.
  * <p>
  * 잔액(Balance)을 관리하며, 충전(Charge) 및 사용(Use) 기능을 제공합니다.
- * 동시성 제어를 위해 낙관적 락(@Version)을 사용합니다.
+ * 동시성 제어를 위해 비관적 락(PESSIMISTIC_WRITE)을 Repository 레벨에서 사용합니다.
  * </p>
  */
 @Entity
@@ -51,8 +51,7 @@ public class Wallet extends BaseTimeEntity {
     @Column(name = "status", nullable = false)
     private WalletStatus status;
 
-    @Version
-    private Long version;
+    // @Version 필드 삭제됨 (비관적 락 사용)
 
     @Builder
     public Wallet(RoleType ownerType, Long member, Long employer) {
