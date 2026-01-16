@@ -135,6 +135,14 @@ const scripts = [
     "AOS.init();",
 ];
 
+/**
+ * Render the login page and ensure its stylesheet is loaded.
+ *
+ * Loads the page-specific CSS and returns an HtmlPage component populated with
+ * the login page's HTML and client-side scripts.
+ *
+ * @returns {JSX.Element} A React element that renders the login page.
+ */
 export default function LoginPage() {
     usePageCss("/assets/css/pages/login.css");
     return <HtmlPage html={html} scripts={scripts} />;

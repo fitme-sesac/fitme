@@ -300,6 +300,11 @@ const scripts = [
     "(() => { if (window.AOS && typeof window.AOS.init === 'function') window.AOS.init(); })();",
 ];
 
+/**
+ * Render the additional-information page used during first-time social login.
+ *
+ * @returns {JSX.Element} The rendered page element containing the full HTML markup and client-side scripts for collecting and initializing user information for social-login registration.
+ */
 export default function FirstSocialLoginPage() {
     usePageCss("/assets/css/pages/register.css");
     return <HtmlPage html={html} scripts={scripts} />;

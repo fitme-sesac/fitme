@@ -30,6 +30,26 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
 
+    /**
+     * Handle successful authentication by issuing tokens and redirecting the user.
+     *
+     * <p>For OAuth2 logins:
+     * - If the social provider did not supply an email, redirects to the front-end login page with an error message.
+     * - If no user exists for the email, creates a temporary flow token ("OAUTH2_TMP") containing prefilled claims
+     *   (email, provider, and optional name, gender, birthday, phone) and redirects to /User/First_Social_Login.
+     * - If a user exists, ensures the user has an internal userid, creates a JWT access token, sets it as an
+     *   HttpOnly cookie ("ACCESS_TOKEN", SameSite=Lax) and redirects to the front-end home.
+     *
+     * <p>For regular (non-OAuth2) logins:
+     * - Resolves a display name and email from the authenticated principal or user record, creates a JWT access token,
+     *   sets it as an HttpOnly cookie ("ACCESS_TOKEN", SameSite=Lax) and redirects to the front-end home.
+     *
+     * @param request        the servlet request
+     * @param response       the servlet response
+     * @param authentication the successful authentication
+     * @throws IOException      if an I/O error occurs while sending a redirect
+     * @throws ServletException if a servlet error occurs
+     */
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
@@ -138,6 +158,15 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
         response.sendRedirect(frontBaseUrl + "/");
     }
 
+    /**
+     * Put a trimmed string representation of a value into the map when the value is non-null and not blank.
+     *
+     * If `value` is null or its string form is empty after trimming, the map is left unchanged.
+     *
+     * @param out   the destination map to receive the key/value pair
+     * @param key   the key under which to store the value
+     * @param value the value to convert to a trimmed string and store; ignored if null or blank
+     */
     private void putIfPresent(Map<String, Object> out, String key, Object value) {
         if (value == null) return;
         String s = String.valueOf(value).trim();
