@@ -31,6 +31,11 @@ public class WalletCreditLot extends BaseTimeEntity {
     @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
 
+    // Payment 엔티티 구현 후 @ManyToOne으로 변경 예정
+    // 현재는 ID만 저장
+    @Column(name = "payment_id")
+    private Long paymentId;
+
     @Column(name = "granted_credit", nullable = false)
     private Long grantedCredit;
 
@@ -45,12 +50,13 @@ public class WalletCreditLot extends BaseTimeEntity {
     private Money price;
 
     @Builder
-    public WalletCreditLot(Wallet wallet, Long grantedCredit, Money price) {
+    public WalletCreditLot(Wallet wallet, Long paymentId, Long grantedCredit, Money price) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
         Assert.isTrue(grantedCredit != null && grantedCredit > 0, "제공 크레딧은 0보다 커야 합니다.");
         Assert.notNull(price, "가격 정보는 필수입니다.");
 
         this.wallet = wallet;
+        this.paymentId = paymentId; // 결제 ID 추가
         this.grantedCredit = grantedCredit;
         this.remainingCredit = grantedCredit;
         this.price = price;
