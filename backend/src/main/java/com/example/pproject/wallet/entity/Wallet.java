@@ -8,16 +8,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.Check;
 import org.springframework.util.Assert;
 
-/**
- * 사용자 또는 고용주의 지갑 엔티티.
- * <p>
- * 잔액(Balance)을 관리하며, 충전(Charge) 및 사용(Use) 기능을 제공합니다.
- * 동시성 제어를 위해 비관적 락(PESSIMISTIC_WRITE)을 Repository 레벨에서 사용합니다.
- * </p>
- */
 @Entity
+@DynamicUpdate
 @Table(
         name = "wallet",
         indexes = {
@@ -25,6 +21,12 @@ import org.springframework.util.Assert;
                 @Index(name = "uq_wallet_employer_one", columnList = "employer_id", unique = true)
         }
 )
+// DB가 CHECK 제약 지원 시 강력 추천
+@Check(constraints = """
+        (owner_type = 'CANDIDATE' AND member_id IS NOT NULL AND employer_id IS NULL)
+        OR
+        (owner_type = 'EMPLOYER' AND employer_id IS NOT NULL AND member_id IS NULL)
+        """)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Wallet extends BaseTimeEntity {
@@ -35,7 +37,7 @@ public class Wallet extends BaseTimeEntity {
     private Long walletId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "owner_type", nullable = false)
+    @Column(name = "owner_type", nullable = false, length = 20)
     private RoleType ownerType;
 
     @Column(name = "member_id")
@@ -45,18 +47,15 @@ public class Wallet extends BaseTimeEntity {
     private Long employer;
 
     @Column(name = "balance", nullable = false)
-    private Long balance;
+    private long balance;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, length = 20)
     private WalletStatus status;
-
-    // @Version 필드 삭제됨 (비관적 락 사용)
 
     @Builder
     public Wallet(RoleType ownerType, Long member, Long employer) {
         validateOwner(ownerType, member, employer);
-
         this.ownerType = ownerType;
         this.member = member;
         this.employer = employer;
@@ -64,78 +63,44 @@ public class Wallet extends BaseTimeEntity {
         this.status = WalletStatus.ACTIVE;
     }
 
-    // === 비즈니스 로직 ===
-
-    /**
-     * 지갑 잔액을 충전합니다.
-     *
-     * @param amount 충전할 금액 (0보다 커야 함)
-     * @throws IllegalStateException 지갑이 정지 상태이거나, 보유 한도(Long.MAX_VALUE)를 초과할 경우
-     * @throws IllegalArgumentException 충전액이 0 이하일 경우
-     */
     public void charge(long amount) {
         verifyActive();
         Assert.isTrue(amount > 0, "충전액은 0보다 커야 합니다.");
-        
+
         if (Long.MAX_VALUE - this.balance < amount) {
             throw new IllegalStateException("지갑 보유 한도를 초과했습니다.");
         }
-        
         this.balance += amount;
     }
 
-    /**
-     * 지갑 잔액을 사용합니다.
-     *
-     * @param amount 사용할 금액 (0보다 커야 함)
-     * @throws IllegalStateException 지갑이 정지 상태이거나, 잔액이 부족할 경우
-     * @throws IllegalArgumentException 사용액이 0 이하일 경우
-     */
     public void use(long amount) {
         verifyActive();
         Assert.isTrue(amount > 0, "사용액은 0보다 커야 합니다.");
-        
+
         if (this.balance < amount) {
             throw new IllegalStateException("잔액이 부족합니다.");
         }
         this.balance -= amount;
     }
 
-    /**
-     * 정지된 지갑을 다시 활성화(재개)합니다.
-     * 이미 활성 상태라면 아무 동작도 하지 않습니다.
-     */
     public void resume() {
         if (this.status != WalletStatus.ACTIVE) {
             this.status = WalletStatus.ACTIVE;
         }
     }
 
-    /**
-     * 지갑을 일시 정지(동결)시킵니다.
-     * 정지된 지갑은 충전 및 사용이 불가능합니다.
-     */
     public void suspend() {
         if (this.status != WalletStatus.INACTIVE) {
             this.status = WalletStatus.INACTIVE;
         }
     }
 
-    // === 내부 헬퍼 메서드 ===
-
-    /**
-     * 지갑이 활성 상태인지 검증합니다.
-     */
     private void verifyActive() {
         if (this.status != WalletStatus.ACTIVE) {
             throw new IllegalStateException("정지된 지갑은 사용할 수 없습니다.");
         }
     }
 
-    /**
-     * 지갑 소유자 정보의 유효성을 검증합니다.
-     * RoleType에 따라 memberId 또는 employerId 중 하나가 필수여야 합니다.
-     */
     private void validateOwner(RoleType ownerType, Long member, Long employer) {
         Assert.notNull(ownerType, "지갑 소유자 타입은 필수입니다.");
 
