@@ -61,13 +61,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 일반 예외 처리 (수정됨)
-     * - 반환 타입을 ResponseEntity<ApiResponse<Void>>로 변경하여 컴파일 에러 해결
-     * - log.error(..., e)를 추가하여 스택 트레이스 출력
+     * 일반 예외 처리
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
-        log.error("Unexpected Exception 발생", e); // 이제 에러 상세 내용이 콘솔에 보입니다!
+    public ResponseEntity<ApiResponse<Void>> handleGeneralException(Exception e) {
+        log.error("Unexpected Exception 발생", e);
 
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -92,5 +90,4 @@ public class GlobalExceptionHandler {
         }
         return HttpStatus.INTERNAL_SERVER_ERROR;
     }
-
 }

@@ -1,20 +1,23 @@
 package com.example.pproject.faq.service;
 
-import com.example.pproject.faq.dto.CreateFaqRequest;
+import com.example.pproject.faq.dto.FaqCreateRequest;
+import com.example.pproject.faq.dto.FaqListResponse;
 import com.example.pproject.faq.dto.FaqResponse;
-import com.example.pproject.faq.dto.UpdateFaqRequest;
-import com.example.pproject.faq.model.Faq;
+import com.example.pproject.faq.dto.FaqUpdateRequest;
+import com.example.pproject.faq.entity.Faq;
 import com.example.pproject.faq.repository.FaqRepository;
+import com.example.pproject.global.exception.BusinessException;
+import com.example.pproject.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityNotFoundException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,112 +28,131 @@ public class FaqService {
     private final FaqRepository faqRepository;
 
     /**
-     * FAQ 목록 조회 (관리자용)
-     * - 모든 FAQ 조회 (삭제되지 않은 것만)
-     * - 키워드 검색 가능
-     * - 공개/비공개 필터링 가능
+     * ADM-FAQ-001: FAQ 목록 조회
+     * 공개 여부 및 키워드로 검색 가능
      */
     @Transactional(readOnly = true)
-    public Page<FaqResponse> getFaqList(String keyword, Boolean isPublic, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+    public Page<FaqListResponse> getFaqList(Boolean isPublic, String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
 
-        Page<Faq> result;
+        Page<Faq> faqs;
 
-        if (keyword != null && !keyword.isEmpty()) {
+        if (keyword != null && !keyword.trim().isEmpty()) {
             // 키워드 검색
-            result = faqRepository.searchByKeyword(keyword, pageable);
-        } else if (isPublic != null) {
-            // 공개/비공개 필터링
-            result = faqRepository.findByIsPublic(isPublic, pageable);
+            if (isPublic != null) {
+                faqs = faqRepository.searchPublicByKeyword(keyword, pageable);
+            } else {
+                faqs = faqRepository.searchByKeyword(keyword, pageable);
+            }
         } else {
-            // 전체 조회
-            result = faqRepository.findAllActive(pageable);
+            // 필터링 없이 조회
+            if (isPublic != null) {
+                faqs = faqRepository.findByIsPublicAndNotDeleted(isPublic, pageable);
+            } else {
+                faqs = faqRepository.findAllNotDeleted(pageable);
+            }
         }
 
-        return result.map(this::toFaqResponse);
+        log.info("FAQ 목록 조회 - 공개여부: {}, 키워드: {}, 페이지: {}", isPublic, keyword, page);
+
+        return faqs.map(FaqListResponse::fromEntity);
     }
 
     /**
-     * FAQ 목록 조회 (회원용)
-     * - 공개된 FAQ만 조회
-     * - 삭제되지 않은 것만 조회
+     * ADM-FAQ-002: FAQ 신규 등록
      */
-    @Transactional(readOnly = true)
-    public Page<FaqResponse> getPublicFaqList(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return faqRepository.findAllPublic(pageable).map(this::toFaqResponse);
-    }
+    @Transactional
+    public FaqResponse createFaq(FaqCreateRequest request) {
+        // 중복 질문 검증
+        if (faqRepository.existsByQuestionAndNotDeleted(request.getQuestion())) {
+            log.warn("중복된 FAQ 질문 등록 시도: {}", request.getQuestion());
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "이미 존재하는 질문입니다");
+        }
 
-    /**
-     * FAQ 상세 조회 (관리자용)
-     */
-    @Transactional(readOnly = true)
-    public FaqResponse getFaqDetail(Long faqId) {
-        Faq faq = faqRepository.findByIdActive(faqId)
-                .orElseThrow(() -> new EntityNotFoundException("FAQ를 찾을 수 없습니다. ID: " + faqId));
-        return toFaqResponse(faq);
-    }
-
-    /**
-     * FAQ 신규 등록 (관리자용)
-     */
-    public FaqResponse createFaq(CreateFaqRequest request) {
-        Faq faq = Faq.builder()
-                .question(request.getQuestion())
-                .answer(request.getAnswer())
-                .isPublic(request.getIsPublic())
-                .locked(request.getLocked() != null ? request.getLocked() : true)
-                .build();
-
+        Faq faq = request.toEntity();
         Faq savedFaq = faqRepository.save(faq);
-        log.info("FAQ 생성: ID={}, 질문={}", savedFaq.getFaqId(), savedFaq.getQuestion());
 
-        return toFaqResponse(savedFaq);
+        log.info("FAQ 생성 완료 - ID: {}", savedFaq.getId());
+
+        return FaqResponse.fromEntity(savedFaq);
     }
 
     /**
-     * FAQ 수정 (관리자용)
+     * ADM-FAQ-003: FAQ 수정
      */
-    public FaqResponse updateFaq(Long faqId, UpdateFaqRequest request) {
-        Faq faq = faqRepository.findByIdActive(faqId)
-                .orElseThrow(() -> new EntityNotFoundException("FAQ를 찾을 수 없습니다. ID: " + faqId));
+    @Transactional
+    public FaqResponse updateFaq(Long id, FaqUpdateRequest request) {
+        Faq faq = faqRepository.findByIdAndNotDeleted(id)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 FAQ 수정 시도 - ID: {}", id);
+                    return new BusinessException(ErrorCode.NOT_FOUND, "FAQ를 찾을 수 없습니다");
+                });
+
+        // 다른 FAQ와 중복된 질문인 경우 검증
+        if (!faq.getQuestion().equals(request.getQuestion()) &&
+                faqRepository.existsByQuestionAndNotDeleted(request.getQuestion())) {
+            log.warn("중복된 FAQ 질문으로 수정 시도: {}", request.getQuestion());
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "이미 존재하는 질문입니다");
+        }
 
         faq.setQuestion(request.getQuestion());
         faq.setAnswer(request.getAnswer());
         faq.setIsPublic(request.getIsPublic());
-        faq.setLocked(request.getLocked() != null ? request.getLocked() : true);
+
+        if (request.getLocked() != null) {
+            faq.setLocked(request.getLocked());
+        }
 
         Faq updatedFaq = faqRepository.save(faq);
-        log.info("FAQ 수정: ID={}, 질문={}", updatedFaq.getFaqId(), updatedFaq.getQuestion());
 
-        return toFaqResponse(updatedFaq);
+        log.info("FAQ 수정 완료 - ID: {}", updatedFaq.getId());
+
+        return FaqResponse.fromEntity(updatedFaq);
     }
 
     /**
-     * FAQ 삭제 (관리자용)
-     * - 논리 삭제 (deleted_at 업데이트)
+     * ADM-FAQ-004: FAQ 삭제 (소프트 삭제)
+     * 논리 삭제를 위해 deleted_at 필드 업데이트
      */
-    public void deleteFaq(Long faqId) {
-        Faq faq = faqRepository.findByIdActive(faqId)
-                .orElseThrow(() -> new EntityNotFoundException("FAQ를 찾을 수 없습니다. ID: " + faqId));
+    @Transactional
+    public void deleteFaq(Long id) {
+        Faq faq = faqRepository.findByIdAndNotDeleted(id)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 FAQ 삭제 시도 - ID: {}", id);
+                    return new BusinessException(ErrorCode.NOT_FOUND, "FAQ를 찾을 수 없습니다");
+                });
 
-        faq.softDelete();
+        faq.delete();
         faqRepository.save(faq);
-        log.info("FAQ 삭제: ID={}, 질문={}", faqId, faq.getQuestion());
+
+        log.info("FAQ 삭제 완료 - ID: {}", id);
     }
 
     /**
-     * Entity → DTO 변환
+     * FAQ 상세 조회
      */
-    private FaqResponse toFaqResponse(Faq faq) {
-        return FaqResponse.builder()
-                .faqId(faq.getFaqId())
-                .question(faq.getQuestion())
-                .answer(faq.getAnswer())
-                .locked(faq.getLocked())
-                .isPublic(faq.getIsPublic())
-                .createdAt(faq.getCreatedAt())
-                .updatedAt(faq.getUpdatedAt())
-                .build();
+    @Transactional(readOnly = true)
+    public FaqResponse getFaqDetail(Long id) {
+        Faq faq = faqRepository.findByIdAndNotDeleted(id)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 FAQ 상세 조회 시도 - ID: {}", id);
+                    return new BusinessException(ErrorCode.NOT_FOUND, "FAQ를 찾을 수 없습니다");
+                });
+
+        return FaqResponse.fromEntity(faq);
+    }
+
+    /**
+     * 공개 FAQ 목록 조회 (사용자용)
+     */
+    @Transactional(readOnly = true)
+    public List<FaqResponse> getPublicFaqList() {
+        List<Faq> faqs = faqRepository.findAllPublicFaqs();
+
+        log.info("공개 FAQ 목록 조회 - 총 {}개", faqs.size());
+
+        return faqs.stream()
+                .map(FaqResponse::fromEntity)
+                .collect(Collectors.toList());
     }
 }

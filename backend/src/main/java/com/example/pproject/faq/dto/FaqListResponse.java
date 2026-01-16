@@ -6,14 +6,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 /**
- * FAQ 응답 DTO
+ * FAQ 목록 조회 응답 DTO
  */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class FaqResponse {
+public class FaqListResponse {
 
     private Long id;
     private String question;
@@ -21,17 +21,15 @@ public class FaqResponse {
     private Boolean isPublic;
     private Boolean locked;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
-    public static FaqResponse fromEntity(Faq faq) {
-        return FaqResponse.builder()
+    public static FaqListResponse fromEntity(Faq faq) {
+        return FaqListResponse.builder()
                 .id(faq.getId())
                 .question(faq.getQuestion())
                 .answer(faq.getAnswer())
                 .isPublic(faq.getIsPublic())
                 .locked(faq.getLocked())
                 .createdAt(faq.getCreatedAt())
-                .updatedAt(faq.getUpdatedAt())
                 .build();
     }
 }

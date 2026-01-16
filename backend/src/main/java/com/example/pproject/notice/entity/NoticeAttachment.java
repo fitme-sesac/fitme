@@ -2,43 +2,43 @@ package com.example.pproject.notice.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
+/**
+ * 공지사항 첨부파일 엔티티
+ * ADM-NTC-002 관련
+ */
 @Entity
-@Table(name = "notice_attachment")
+@Table(name = "notice_attachments")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class NoticeAttachment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "attachment_id")
     private Long id;
 
-    // Notice와의 연관관계 (N:1)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "notice_id", nullable = false)
     private Notice notice;
 
-    @Column(name = "file_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "file_url", nullable = false)
     private String fileUrl;
 
-    @Column(name = "file_name", nullable = false, length = 200)
+    @Column(name = "file_name", nullable = false)
     private String fileName;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "file_size")
+    private Long fileSize;
+
+    @Column(name = "file_type")
+    private String fileType;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @CreationTimestamp
     private LocalDateTime createdAt;
-
-    // 연관관계 편의 메서드용
-    public void setNotice(Notice notice) {
-        this.notice = notice;
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 }

@@ -10,25 +10,21 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+
+
 /**
- * 공지사항 수정 요청 DTO
+ * 공지사항 배송 요청 DTO
  */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class NoticeUpdateRequest {
+public class NoticeDeliveryRequest {
 
-    private String title;
+    @NotNull(message = "배송 채널은 필수입니다")
+    private String channel;  // EMAIL, SMS
 
-    private String body;
-
-    private String noticeType;
-
-    private Boolean isImportant;
-
-    private Boolean isPublic;
-
-    private String status;  // ACTIVE, PENDING_DELETE
+    @NotNull(message = "대상 회원 ID 목록은 필수입니다")
+    private List<Long> targetMemberIds;
 }

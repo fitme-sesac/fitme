@@ -1,38 +1,40 @@
 package com.example.pproject.notice.dto;
 
 import com.example.pproject.notice.entity.Notice;
-import com.example.pproject.notice.entity.Notice.NoticeStatus;
-import com.example.pproject.notice.entity.Notice.NoticeType;
+import com.example.pproject.notice.entity.NoticeAttachment;
+import com.example.pproject.notice.entity.NoticeDelivery;
 import lombok.*;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
-
+/**
+ * 공지사항 목록 응답 DTO
+ */
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class NoticeListResponse {
 
     private Long id;
     private String title;
-    private NoticeType noticeType;
-    private NoticeStatus status;
-    private Boolean isPublic;
+    private String noticeType;
+    private Boolean isImportant;
+    private String status;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
-    public static NoticeListResponse from(Notice notice) {
+    public static NoticeListResponse fromEntity(Notice notice) {
         return NoticeListResponse.builder()
                 .id(notice.getId())
                 .title(notice.getTitle())
-                .noticeType(notice.getNoticeType())
-                .status(notice.getStatus())
-                .isPublic(notice.getIsPublic())
+                .noticeType(notice.getNoticeType().name())
+                .isImportant(notice.getIsImportant())
+                .status(notice.getStatus().name())
                 .createdAt(notice.getCreatedAt())
-                .updatedAt(notice.getUpdatedAt())
                 .build();
     }
 }

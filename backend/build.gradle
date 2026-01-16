@@ -80,6 +80,10 @@ dependencies {
     implementation files('libs/pgvector-java-0.1.6.jar')
     // postgresql
     runtimeOnly 'org.postgresql:postgresql'
+    dependencies {
+        // ... 기존 의존성들
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+    }
 
     implementation 'com.solapi:sdk:1.0.3'
 }
