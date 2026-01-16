@@ -16,18 +16,18 @@ import java.util.List;
 public interface NoticeDeliveryRepository extends JpaRepository<NoticeDelivery, Long> {
 
     /**
-     * 공지사항별 배송 기록 조회
+     * 공지사항별 알림 기록 조회
      */
     @Query("SELECT nd FROM NoticeDelivery nd WHERE nd.notice.id = :noticeId ORDER BY nd.createdAt DESC")
     Page<NoticeDelivery> findByNoticeId(@Param("noticeId") Long noticeId, Pageable pageable);
 
     /**
-     * 특정 회원의 배송 기록 조회
+     * 특정 회원의 알림 기록 조회
      */
     List<NoticeDelivery> findByMemberId(Long memberId);
 
     /**
-     * 배송 상태별 조회
+     * 알림 상태별 조회
      */
     @Query("SELECT nd FROM NoticeDelivery nd WHERE nd.notice.id = :noticeId AND nd.status = :status")
     List<NoticeDelivery> findByNoticeIdAndStatus(
@@ -35,7 +35,7 @@ public interface NoticeDeliveryRepository extends JpaRepository<NoticeDelivery, 
             @Param("status") NoticeDelivery.DeliveryStatus status);
 
     /**
-     * 채널별 배송 기록
+     * 알림 기록
      */
     @Query("SELECT nd FROM NoticeDelivery nd WHERE nd.notice.id = :noticeId AND nd.channel = :channel")
     List<NoticeDelivery> findByNoticeIdAndChannel(
