@@ -70,8 +70,8 @@ public class WalletService {
      * 유효한 크레딧 LOT 목록 조회
      */
     public List<WalletCreditLot> getMyCreditLots(Long userId, RoleType roleType) {
-        // TODO: 지갑 조회 후 creditLotRepository 호출
-        return null;
+        Wallet wallet = findWalletByOwner(userId, roleType);
+        return creditLotRepository.findByWalletAndRemainingCreditGreaterThanOrderByCreatedAtAsc(wallet, 0L);
     }
 
     // =================================================================================
@@ -83,10 +83,35 @@ public class WalletService {
      */
     @Transactional
     public void chargeCredit(Long userId, RoleType roleType, long amount, Money price, Long paymentId) {
-        // TODO: 1. 지갑 조회 (Lock)
-        // TODO: 2. 지갑 잔액 증가 (wallet.charge)
-        // TODO: 3. CreditLot 생성 및 저장 (paymentId 포함)
-        // TODO: 4. Ledger 기록 (CREDIT)
+        // 1. 지갑 조회 (Lock)
+        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+        long balanceBefore = wallet.getBalance();
+
+        // 2. 지갑 잔액 증가
+        wallet.charge(amount);
+        long balanceAfter = wallet.getBalance();
+
+        // 3. CreditLot 생성 및 저장
+        WalletCreditLot creditLot = WalletCreditLot.builder()
+                .wallet(wallet)
+                .grantedCredit(amount)
+                .price(price)
+                .paymentId(paymentId)
+                .build();
+        creditLotRepository.save(creditLot);
+
+        // 4. Ledger 기록 (CREDIT)
+        WalletLedger ledger = WalletLedger.builder()
+                .wallet(wallet)
+                .txType(TxType.CREDIT)
+                .sourceType(SourceType.PAYMENT) // 결제로 인한 충전
+                .sourceRefId(paymentId)
+                .amount(amount)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .memo("크레딧 충전 (결제)")
+                .build();
+        ledgerRepository.save(ledger);
     }
 
     /**
@@ -148,6 +173,17 @@ public class WalletService {
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
         } else if (roleType == RoleType.EMPLOYER) {
             return walletRepository.findByEmployer(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+        }
+        throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
+    }
+
+    private Wallet findWalletByOwnerWithLock(Long userId, RoleType roleType) {
+        if (roleType == RoleType.CANDIDATE) {
+            return walletRepository.findByMemberWithLock(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+        } else if (roleType == RoleType.EMPLOYER) {
+            return walletRepository.findByEmployerWithLock(userId)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
         }
         throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
