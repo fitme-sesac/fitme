@@ -17,6 +17,15 @@ load_dotenv()
 from app.resumes.services.pdf_helper import PDFHandler
 from app.resumes.prompts import OCR_ADDITIONAL_INSTRUCTION
 
+import os
+from dotenv import load_dotenv
+
+# .env 파일에 정의된 환경 변수들을 읽어옵니다.
+load_dotenv()
+
+# 이제 별도의 os.environ 설정 없이도 LangChain이 시스템 환경 변수를 인식합니다.
+# 랭스미스는 환경 변수만 올바르게 설정되어 있으면 자동으로 추적을 시작합니다.
+
 class SummaryService:
     def __init__(self):
         self.llm = ChatOpenAI(
