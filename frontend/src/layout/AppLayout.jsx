@@ -42,10 +42,14 @@ const headerHtml = (isAuthenticated, displayName, apiBase) => `<header id="heade
         </div>
 
         <!-- 2) 하단 줄: 로고 · 메뉴 -->
-        <div class="container-fluid container-xl d-flex align-items-center justify-content-between py-2">
+        <div class="container-fluid container-xl d-flex align-items-center justify-content-between py-2 px-0">
             <!-- 로고 (왼쪽 고정) -->
-            <a href="/" class="logo d-flex align-items-center">
-                <img src="/assets/img/main/kia_fan_logo.png" alt="로고" style="height:120px;">
+            <a href="/" class="logo d-flex align-items-center" style="margin-right: 0; padding-left: 0;">
+                <img
+                    src="/assets/img/main/fit_me_logo.png"
+                    alt="로고"
+                    style="height:50px; width:auto; display:block;"
+                >
             </a>
 
             <div class="d-flex align-items-center">
@@ -118,7 +122,7 @@ const footerHtml = `<footer id="footer" class="footer" style="background-color: 
             <div class="row gy-4">
                 <div class="col-lg-8 footer-about" style="display: inline-block; text-align: left;">
                     <a href="/" class="d-flex align-items-center">
-                        <img src="/assets/img/main/kia_fan_logo.png" alt="KIAFAN" style="width: 150px; height: auto;">
+                        <img src="/assets/img/main/fit_me_logo.png" alt="KIAFAN" style="width: 150px; height: auto;">
                     </a>
                     <div class="footer-contact pt-1">
                         <p class="text">경기도 부천시 부천로 245번길 44</p>
