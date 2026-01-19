@@ -10,5 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class WalletController {
 
-    WalletService walletService;
+    private final WalletService walletService;
+
+
 }

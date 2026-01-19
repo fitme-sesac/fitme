@@ -19,9 +19,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.List;
 
+/**
+ * 지갑(Wallet) 도메인의 핵심 비즈니스 로직을 담당하는 서비스.
+ * <p>
+ * - 지갑 조회, 충전, 사용, 관리자 기능 등을 제공합니다.
+ * - 동시성 제어를 위해 비관적 락(Pessimistic Lock)을 사용합니다.
+ * - 모든 잔액 변경은 원장(Ledger)에 기록됩니다.
+ * </p>
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -37,10 +46,26 @@ public class WalletService {
     // 1. 조회 로직 (Read)
     // =================================================================================
 
+    /**
+     * 내 지갑 정보를 조회합니다.
+     *
+     * @param userId   사용자 ID
+     * @param roleType 사용자 역할 (CANDIDATE / EMPLOYER)
+     * @return 조회된 지갑 엔티티
+     * @throws IllegalArgumentException 지갑이 존재하지 않을 경우
+     */
     public Wallet getMyWallet(Long userId, RoleType roleType) {
         return findWalletByOwner(userId, roleType);
     }
 
+    /**
+     * 내 지갑의 거래 내역(원장)을 전체 조회합니다. (페이징)
+     *
+     * @param userId   사용자 ID
+     * @param roleType 사용자 역할
+     * @param pageable 페이징 정보
+     * @return 거래 내역 리스트 (DTO)
+     */
     public Page<WalletLedgerResponse> getMyLedgers(Long userId, RoleType roleType, Pageable pageable) {
         Wallet wallet = findWalletByOwner(userId, roleType);
         return ledgerRepository.findByWalletOrderByOccurredAtDesc(wallet, pageable)
@@ -48,21 +73,36 @@ public class WalletService {
     }
 
     /**
-     * 월별 조회: [startAt, endExclusive) 권장 (경계 안전)
+     * 내 지갑의 거래 내역을 특정 월별로 조회합니다.
+     *
+     * @param userId   사용자 ID
+     * @param roleType 사용자 역할
+     * @param year     조회할 연도
+     * @param month    조회할 월
+     * @param pageable 페이징 정보
+     * @return 해당 월의 거래 내역 리스트 (DTO)
      */
     public Page<WalletLedgerResponse> getMyLedgersByMonth(Long userId, RoleType roleType, int year, int month, Pageable pageable) {
         Wallet wallet = findWalletByOwner(userId, roleType);
 
         YearMonth ym = YearMonth.of(year, month);
         LocalDateTime startAt = ym.atDay(1).atStartOfDay();
-        LocalDateTime endExclusive = ym.plusMonths(1).atDay(1).atStartOfDay();
+        // 해당 월의 마지막 순간까지 (Inclusive)
+        LocalDateTime endInclusive = ym.atEndOfMonth().atTime(LocalTime.MAX);
 
         return ledgerRepository.findByWalletAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDesc(
-                        wallet, startAt, endExclusive, pageable
+                        wallet, startAt, endInclusive, pageable
                 )
                 .map(WalletLedgerResponse::from);
     }
 
+    /**
+     * 내 지갑의 유효한(잔여량이 있는) 크레딧 묶음(Lot) 목록을 조회합니다.
+     *
+     * @param userId   사용자 ID
+     * @param roleType 사용자 역할
+     * @return 잔여 크레딧 Lot 리스트 (오래된 순)
+     */
     public List<WalletCreditLot> getMyCreditLots(Long userId, RoleType roleType) {
         Wallet wallet = findWalletByOwner(userId, roleType);
         return creditLotRepository.findByWalletAndRemainingCreditGreaterThanOrderByCreatedAtAsc(wallet, 0L);
@@ -73,68 +113,187 @@ public class WalletService {
     // =================================================================================
 
     /**
-     * [시스템/결제] 크레딧 충전
-     * - paymentId 멱등성 권장 (중복 결제 콜백/재시도 대응)
+     * [시스템/결제] 크레딧을 충전합니다. (결제 완료 시 호출)
+     * <p>
+     * 1. 지갑 조회 (비관적 락)
+     * 2. 잔액 증가
+     * 3. CreditLot 생성
+     * 4. Ledger 기록
+     * </p>
+     *
+     * @param userId    사용자 ID
+     * @param roleType  사용자 역할
+     * @param amount    충전할 크레딧 양
+     * @param price     결제 금액 정보
+     * @param paymentId 결제 ID (멱등성 키로 사용)
      */
     @Transactional
     public void chargeCredit(Long userId, RoleType roleType, long amount, Money price, Long paymentId) {
-
-        // (권장) paymentId로 이미 처리된 충전인지 체크
-        // - DB 유니크 제약 + exists 체크 둘 다 있으면 더 안전
+        // 멱등성 체크: 이미 처리된 결제 건인지 확인
         if (creditLotRepository.existsByPaymentId(paymentId)) {
-            return; // 이미 충전 처리됨(멱등)
+            return; // 이미 처리됨
         }
 
         Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+        executeCharge(wallet, amount, price, SourceType.PAYMENT, paymentId, "PAYMENT:" + paymentId, "크레딧 충전 (결제)");
+    }
+
+    /**
+     * [시스템/사용] 크레딧을 사용(차감)합니다. (상품 구매/서비스 이용 시 호출)
+     * <p>
+     * 1. 지갑 조회 (비관적 락)
+     * 2. 전체 잔액 차감
+     * 3. CreditLot FIFO 차감 (Chunk 조회 최적화 적용)
+     * 4. Ledger 기록
+     * </p>
+     *
+     * @param userId     사용자 ID
+     * @param roleType   사용자 역할
+     * @param amount     사용할 크레딧 양
+     * @param orderId    주문 ID (멱등성 키로 사용)
+     * @param sourceType 사용처 (AI, AD_CLICK 등)
+     */
+    @Transactional
+    public void useCredit(Long userId, RoleType roleType, long amount, String orderId, SourceType sourceType) {
+        // 멱등성 체크: 이미 처리된 주문 건인지 확인
+        if (ledgerRepository.existsByIdempotencyKey(orderId)) {
+            return;
+        }
+
+        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+        executeUse(wallet, amount, sourceType, null, orderId, "크레딧 사용 (주문: " + orderId + ")");
+    }
+
+    // =================================================================================
+    // 3. 관리자 기능 (Admin)
+    // =================================================================================
+
+    /**
+     * [관리자] 특정 지갑에 크레딧을 수동으로 지급합니다.
+     *
+     * @param walletId 지갑 ID
+     * @param amount   지급할 양
+     * @param memo     관리자 메모
+     */
+    @Transactional
+    public void manualCharge(Long walletId, long amount, String memo) {
+        Wallet wallet = walletRepository.findByIdWithLock(walletId)
+                .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+        
+        // 수동 지급은 가격 0원, SourceType.MANUAL
+        executeCharge(wallet, amount, Money.ZERO, SourceType.MANUAL, null, null, memo);
+    }
+
+    /**
+     * [관리자] 특정 지갑에서 크레딧을 수동으로 차감(회수)합니다.
+     *
+     * @param walletId 지갑 ID
+     * @param amount   차감할 양
+     * @param memo     관리자 메모
+     */
+    @Transactional
+    public void manualDeduct(Long walletId, long amount, String memo) {
+        Wallet wallet = walletRepository.findByIdWithLock(walletId)
+                .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+        
+        executeUse(wallet, amount, SourceType.MANUAL, null, null, memo);
+    }
+
+    /**
+     * [관리자] 지갑을 수동으로 생성합니다.
+     *
+     * @param userId   사용자 ID
+     * @param roleType 사용자 역할
+     * @return 생성된 지갑 ID
+     * @throws IllegalStateException 이미 지갑이 존재하는 경우
+     */
+    @Transactional
+    public Long createWallet(Long userId, RoleType roleType) {
+        // 이미 존재하는지 확인
+        if (roleType == RoleType.CANDIDATE && walletRepository.findByMember(userId).isPresent()) {
+            throw new IllegalStateException("이미 지갑이 존재합니다.");
+        }
+        if (roleType == RoleType.EMPLOYER && walletRepository.findByEmployer(userId).isPresent()) {
+            throw new IllegalStateException("이미 지갑이 존재합니다.");
+        }
+
+        Wallet wallet = Wallet.builder()
+                .ownerType(roleType)
+                .member(roleType == RoleType.CANDIDATE ? userId : null)
+                .employer(roleType == RoleType.EMPLOYER ? userId : null)
+                .build();
+        
+        return walletRepository.save(wallet).getWalletId();
+    }
+
+    /**
+     * [관리자] 지갑 상태를 변경합니다. (정지/재개)
+     *
+     * @param walletId 지갑 ID
+     * @param suspend  true면 정지(Suspend), false면 재개(Resume)
+     */
+    @Transactional
+    public void changeWalletStatus(Long walletId, boolean suspend) {
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+        
+        if (suspend) {
+            wallet.suspend();
+        } else {
+            wallet.resume();
+        }
+    }
+
+    // =================================================================================
+    // 4. 내부 헬퍼 (공통 로직)
+    // =================================================================================
+
+    /**
+     * 공통 충전 로직 (결제 충전 & 관리자 지급)
+     */
+    private void executeCharge(Wallet wallet, long amount, Money price, SourceType sourceType, Long sourceRefId, String idempotencyKey, String memo) {
         long balanceBefore = wallet.getBalance();
 
+        // 1. 지갑 잔액 증가
         wallet.charge(amount);
         long balanceAfter = wallet.getBalance();
 
+        // 2. CreditLot 생성 및 저장
         WalletCreditLot creditLot = WalletCreditLot.builder()
                 .wallet(wallet)
                 .grantedCredit(amount)
                 .price(price)
-                .paymentId(paymentId)
+                .paymentId(sourceRefId) // PAYMENT일 때만 의미 있음
                 .build();
         creditLotRepository.save(creditLot);
 
+        // 3. Ledger 기록
         WalletLedger ledger = WalletLedger.builder()
                 .wallet(wallet)
                 .txType(TxType.CREDIT)
-                .sourceType(SourceType.PAYMENT)
-                .sourceRefId(paymentId)
+                .sourceType(sourceType)
+                .sourceRefId(sourceRefId)
                 .amount(amount)
                 .balanceBefore(balanceBefore)
                 .balanceAfter(balanceAfter)
-                .idempotencyKey("PAYMENT:" + paymentId) // (권장) 멱등키 기록
-                .memo("크레딧 충전 (결제)")
+                .idempotencyKey(idempotencyKey)
+                .memo(memo)
                 .build();
         ledgerRepository.save(ledger);
     }
 
     /**
-     * [시스템/사용] 크레딧 사용 - FIFO 차감
-     * - orderId 멱등성 (중복 차감 방지)
-     * - LOT 전체 로딩 제거 (Chunk 방식)
+     * 공통 사용 로직 (서비스 이용 & 관리자 차감)
+     * - FIFO 방식으로 CreditLot을 순회하며 차감합니다.
      */
-    @Transactional
-    public void useCredit(Long userId, RoleType roleType, long amount, String orderId, SourceType sourceType) {
-
-        // 0) 멱등성: 이미 처리된 주문이면 중복 차감 방지
-        if (ledgerRepository.existsByIdempotencyKey(orderId)) {
-            return;
-        }
-
-        // 1) 지갑 조회 + Lock
-        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+    private void executeUse(Wallet wallet, long amount, SourceType sourceType, Long sourceRefId, String idempotencyKey, String memo) {
         long balanceBefore = wallet.getBalance();
 
-        // 2) 지갑 잔액 차감 (부족하면 예외)
+        // 1. 지갑 잔액 차감 (부족하면 예외)
         wallet.use(amount);
         long balanceAfter = wallet.getBalance();
 
-        // 3) LOT FIFO 차감 (Chunk 조회)
+        // 2. LOT FIFO 차감 (Chunk 조회)
         long remaining = amount;
 
         while (remaining > 0) {
@@ -167,25 +326,24 @@ public class WalletService {
             }
         }
 
-        // 4) Ledger 기록
+        // 3. Ledger 기록
         WalletLedger ledger = WalletLedger.builder()
                 .wallet(wallet)
                 .txType(TxType.DEBIT)
                 .sourceType(sourceType)
-                .sourceRefId(null)
+                .sourceRefId(sourceRefId)
                 .amount(amount)
                 .balanceBefore(balanceBefore)
                 .balanceAfter(balanceAfter)
-                .idempotencyKey(orderId)
-                .memo("크레딧 사용 (주문: " + orderId + ")")
+                .idempotencyKey(idempotencyKey)
+                .memo(memo)
                 .build();
         ledgerRepository.save(ledger);
     }
 
-    // =================================================================================
-    // 4. 내부 헬퍼
-    // =================================================================================
-
+    /**
+     * 사용자 ID와 역할로 지갑을 조회합니다. (락 없음)
+     */
     private Wallet findWalletByOwner(Long userId, RoleType roleType) {
         return switch (roleType) {
             case CANDIDATE -> walletRepository.findByMember(userId)
@@ -196,6 +354,9 @@ public class WalletService {
         };
     }
 
+    /**
+     * 사용자 ID와 역할로 지갑을 조회하며 비관적 락을 겁니다. (수정용)
+     */
     private Wallet findWalletByOwnerWithLock(Long userId, RoleType roleType) {
         return switch (roleType) {
             case CANDIDATE -> walletRepository.findByMemberWithLock(userId)
