@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.*;
 /**
  * 첨부파일 업로드 요청 DTO
  */
@@ -25,6 +26,7 @@ public class NoticeAttachmentRequest {
     @NotBlank(message = "파일명은 필수입니다")
     private String fileName;
 
+    @NotNull(message = "파일 사이즈는 필수입니다")
     private Long fileSize;
 
     private String fileType;

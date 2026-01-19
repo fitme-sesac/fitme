@@ -27,9 +27,12 @@ public class NoticeSecurityConfig {
                         // 관리자 API
                         .requestMatchers("/api/admin/notices/**").authenticated()
                         .requestMatchers("/api/admin/policies/**").authenticated()
+                        .requestMatchers("/api/admin/notices/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/policies/**").hasRole("ADMIN")
                         // 사용자 조회 API (공개)
                         .requestMatchers("/api/v1/notices/**").permitAll()
                         .anyRequest().permitAll()
+                        .anyRequest().authenticated() // 허용되지 않은 모든 요청은 인증 필요
                 )
                 .httpBasic(basic -> {});
 

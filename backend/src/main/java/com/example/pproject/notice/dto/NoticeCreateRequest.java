@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.*;
 
 /**
  * 공지사항 생성 요청 DTO
