@@ -35,4 +35,8 @@ public class ResumeProfile extends BaseTimeEntity {
     }
 
     public void setResume(Resume resume) { this.resume = resume; }
+
+    public void updatePhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
+    }
 }
