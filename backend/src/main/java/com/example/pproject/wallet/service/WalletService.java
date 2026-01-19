@@ -12,6 +12,7 @@ import com.example.pproject.wallet.repository.WalletCreditLotRepository;
 import com.example.pproject.wallet.repository.WalletLedgerRepository;
 import com.example.pproject.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -120,6 +121,12 @@ public class WalletService {
      * 3. CreditLot 생성
      * 4. Ledger 기록
      * </p>
+     * <p>
+     * <b>[주의] 결제 소유권 검증 필요:</b>
+     * 현재 로직은 paymentId의 유효성이나 소유권을 검증하지 않습니다.
+     * 실제 운영 시에는 결제 시스템(PG사) 또는 내부 PaymentService를 통해
+     * 해당 paymentId가 유효하고, 현재 요청한 userId의 결제인지 반드시 검증해야 합니다.
+     * </p>
      *
      * @param userId    사용자 ID
      * @param roleType  사용자 역할
@@ -129,12 +136,18 @@ public class WalletService {
      */
     @Transactional
     public void chargeCredit(Long userId, RoleType roleType, long amount, Money price, Long paymentId) {
-        // 멱등성 체크: 이미 처리된 결제 건인지 확인
+
+        // 1. 락 획득
+        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+
+        // 2. 락 획득 후 멱등성 체크
         if (creditLotRepository.existsByPaymentId(paymentId)) {
             return; // 이미 처리됨
         }
 
-        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+        // TODO: [보안] PaymentService.verifyPayment(paymentId, userId, amount) 호출 필요
+        // 결제 정보가 유효한지, 사용자의 결제가 맞는지 검증하는 로직이 반드시 추가되어야 함.
+
         executeCharge(wallet, amount, price, SourceType.PAYMENT, paymentId, "PAYMENT:" + paymentId, "크레딧 충전 (결제)");
     }
 
@@ -155,12 +168,15 @@ public class WalletService {
      */
     @Transactional
     public void useCredit(Long userId, RoleType roleType, long amount, String orderId, SourceType sourceType) {
-        // 멱등성 체크: 이미 처리된 주문 건인지 확인
+
+        // 1. 락 획득
+        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+
+        // 2. 락 획득 후 멱등성 체크
         if (ledgerRepository.existsByIdempotencyKey(orderId)) {
             return;
         }
 
-        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
         executeUse(wallet, amount, sourceType, null, orderId, "크레딧 사용 (주문: " + orderId + ")");
     }
 
@@ -209,7 +225,7 @@ public class WalletService {
      */
     @Transactional
     public Long createWallet(Long userId, RoleType roleType) {
-        // 이미 존재하는지 확인
+        // 1. 애플리케이션 레벨 체크 (1차 방어)
         if (roleType == RoleType.CANDIDATE && walletRepository.findByMember(userId).isPresent()) {
             throw new IllegalStateException("이미 지갑이 존재합니다.");
         }
@@ -223,7 +239,13 @@ public class WalletService {
                 .employer(roleType == RoleType.EMPLOYER ? userId : null)
                 .build();
         
-        return walletRepository.save(wallet).getWalletId();
+        try {
+            // 2. DB 저장 시도 (Unique 제약조건에 의한 2차 방어)
+            return walletRepository.save(wallet).getWalletId();
+        } catch (DataIntegrityViolationException e) {
+            // TOCTOU(Time-Of-Check to Time-Of-Use) 경쟁 조건 발생 시 예외 변환
+            throw new IllegalStateException("이미 지갑이 존재합니다.");
+        }
     }
 
     /**
