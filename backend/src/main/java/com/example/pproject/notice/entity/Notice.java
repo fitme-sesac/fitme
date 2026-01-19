@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +16,7 @@ import java.util.List;
  */
 
 @Entity
-@Table(name = "notices")
+@Table(name = "notice")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -109,7 +111,7 @@ public class Notice {
     }
 
     /**
-     * 배송 기록 추가
+     * 발송 기록 추가
      */
     public void addDelivery(NoticeDelivery delivery) {
         if (deliveries == null) {
@@ -124,7 +126,9 @@ public class Notice {
      */
     public enum NoticeType {
         POLICY,  // 정책
-        OPS      // 운영
+        OPS,      // 운영
+        TERMS,    // 이용 약관 (추가)
+        PRIVACY   // 개인정보 처리방침 (추가)
     }
 
     /**

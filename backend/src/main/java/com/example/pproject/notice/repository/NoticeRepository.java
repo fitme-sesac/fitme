@@ -54,7 +54,11 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     /**
      * 정책 동의서 목록 조회
      */
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.noticeType = 'POLICY' ORDER BY n.createdAt DESC")
+    // 1. [추가] 중복 정책 방지를 위한 존재 여부 확인
+    boolean existsByNoticeTypeAndStatus(Notice.NoticeType noticeType, Notice.NoticeStatus status);
+    // 2. [수정] 정책 동의서 목록 조회 (모든 정책 타입 포함)
+    // 변경: POLICY, TERMS, PRIVACY 타입을 모두 포함하도록 IN 절 사용
+    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.noticeType IN ('POLICY', 'TERMS', 'PRIVACY') ORDER BY n.createdAt DESC")
     Page<Notice> findPolicies(Pageable pageable);
 
     /**

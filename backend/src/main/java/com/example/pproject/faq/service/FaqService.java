@@ -29,26 +29,31 @@ public class FaqService {
 
     /**
      * ADM-FAQ-001: FAQ 목록 조회
-     * 공개 여부 및 키워드로 검색 가능
+     * 수정됨: isPublic 파라미터(true/false)에 따라 정확히 필터링하도록 로직 개선
      */
     @Transactional(readOnly = true)
     public Page<FaqListResponse> getFaqList(Boolean isPublic, String keyword, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-
         Page<Faq> faqs;
 
+        // 1. 키워드 검색이 있는 경우
         if (keyword != null && !keyword.trim().isEmpty()) {
-            // 키워드 검색
             if (isPublic != null) {
-                faqs = faqRepository.searchPublicByKeyword(keyword, pageable);
+                // [Fix] 기존에는 false여도 searchPublicByKeyword를 호출하던 버그 수정
+                // isPublic 값(true/false)을 그대로 전달하여 조회
+                faqs = faqRepository.searchByKeywordAndIsPublic(keyword, isPublic, pageable);
             } else {
+                // 공개 여부 상관없이 전체 검색
                 faqs = faqRepository.searchByKeyword(keyword, pageable);
             }
-        } else {
-            // 필터링 없이 조회
+        }
+        // 2. 키워드 검색이 없는 경우 (기본 목록 조회)
+        else {
             if (isPublic != null) {
+                // 공개/비공개 필터링
                 faqs = faqRepository.findByIsPublicAndNotDeleted(isPublic, pageable);
             } else {
+                // 전체 조회
                 faqs = faqRepository.findAllNotDeleted(pageable);
             }
         }
@@ -70,6 +75,11 @@ public class FaqService {
         }
 
         Faq faq = request.toEntity();
+
+        // Entity에서 @Builder.Default로 locked=true 설정을 권장하지만,
+        // 만약 DTO에서 null이 넘어올 경우를 대비해 한 번 더 체크 가능 (선택 사항)
+        // if (faq.getLocked() == null) faq.setLocked(true);
+
         Faq savedFaq = faqRepository.save(faq);
 
         log.info("FAQ 생성 완료 - ID: {}", savedFaq.getId());
@@ -88,13 +98,14 @@ public class FaqService {
                     return new BusinessException(ErrorCode.NOT_FOUND, "FAQ를 찾을 수 없습니다");
                 });
 
-        // 다른 FAQ와 중복된 질문인 경우 검증
+        // 질문이 변경되었는데, 변경하려는 질문이 이미 다른 FAQ에 존재하는지 검증
         if (!faq.getQuestion().equals(request.getQuestion()) &&
                 faqRepository.existsByQuestionAndNotDeleted(request.getQuestion())) {
             log.warn("중복된 FAQ 질문으로 수정 시도: {}", request.getQuestion());
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "이미 존재하는 질문입니다");
         }
 
+        // Dirty Checking
         faq.setQuestion(request.getQuestion());
         faq.setAnswer(request.getAnswer());
         faq.setIsPublic(request.getIsPublic());
@@ -103,16 +114,16 @@ public class FaqService {
             faq.setLocked(request.getLocked());
         }
 
-        Faq updatedFaq = faqRepository.save(faq);
+        // JPA 변경 감지에 의해 트랜잭션 종료 시 업데이트되지만, 명시적 리턴을 위해 save 호출 또는 그냥 리턴
+        // Auditing(@UpdateTimestamp) 동작을 보장하기 위해 saveAndFlush 혹은 그냥 둠 (Transaction 안이라 자동 반영)
 
-        log.info("FAQ 수정 완료 - ID: {}", updatedFaq.getId());
+        log.info("FAQ 수정 완료 - ID: {}", faq.getId());
 
-        return FaqResponse.fromEntity(updatedFaq);
+        return FaqResponse.fromEntity(faq);
     }
 
     /**
      * ADM-FAQ-004: FAQ 삭제 (소프트 삭제)
-     * 논리 삭제를 위해 deleted_at 필드 업데이트
      */
     @Transactional
     public void deleteFaq(Long id) {
@@ -122,8 +133,8 @@ public class FaqService {
                     return new BusinessException(ErrorCode.NOT_FOUND, "FAQ를 찾을 수 없습니다");
                 });
 
-        faq.delete();
-        faqRepository.save(faq);
+        faq.delete(); // deletedAt 업데이트
+        // faqRepository.save(faq); // Transactional 어노테이션이 있어 save 호출 안 해도 됨 (Dirty Checking)
 
         log.info("FAQ 삭제 완료 - ID: {}", id);
     }

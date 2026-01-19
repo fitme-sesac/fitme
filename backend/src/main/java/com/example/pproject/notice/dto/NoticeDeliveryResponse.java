@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 
 
 /**
- * 배송 결과 응답 DTO
+ * 발송 결과 응답 DTO
  */
 @Getter
 @Setter

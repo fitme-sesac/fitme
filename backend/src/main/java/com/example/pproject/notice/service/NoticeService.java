@@ -121,13 +121,13 @@ public class NoticeService {
     public void deliverNotice(Long noticeId, NoticeDeliveryRequest request) {
         Notice notice = noticeRepository.findByIdAndNotDeleted(noticeId)
                 .orElseThrow(() -> {
-                    log.warn("존재하지 않는 공지사항 배송 시도 - ID: {}", noticeId);
+                    log.warn("존재하지 않는 공지사항 발송 시도 - ID: {}", noticeId);
                     return new BusinessException(ErrorCode.NOT_FOUND, "공지사항을 찾을 수 없습니다");
                 });
 
         NoticeDelivery.DeliveryChannel channel = NoticeDelivery.DeliveryChannel.valueOf(request.getChannel());
 
-        // 각 회원별 배송 기록 생성
+        // 각 회원별 발송 기록 생성
         for (Long memberId : request.getTargetMemberIds()) {
             NoticeDelivery delivery = NoticeDelivery.builder()
                     .notice(notice)
@@ -142,13 +142,13 @@ public class NoticeService {
             // 실제 환경에서는 여기서 이메일/SMS 발송 로직 호출
             // sendNotification(memberId, channel, notice);
 
-            // 시뮬레이션: 배송 성공 처리
-            delivery.setStatus(NoticeDelivery.DeliveryStatus.SUCCESS);
+            // 시뮬레이션: 발송 성공 처리
+            delivery.setStatus(NoticeDelivery.DeliveryStatus.SENT);
             delivery.setDeliveredAt(LocalDateTime.now());
             deliveryRepository.save(delivery);
         }
 
-        log.info("공지사항 배송 완료 - ID: {}, 채널: {}, 대상 인원: {}",
+        log.info("공지사항 발송 완료 - ID: {}, 채널: {}, 대상 인원: {}",
                 noticeId, channel, request.getTargetMemberIds().size());
     }
 
@@ -160,13 +160,13 @@ public class NoticeService {
         // 공지사항 존재 여부 확인
         noticeRepository.findByIdAndNotDeleted(noticeId)
                 .orElseThrow(() -> {
-                    log.warn("존재하지 않는 공지사항 배송 결과 조회 시도 - ID: {}", noticeId);
+                    log.warn("존재하지 않는 공지사항 발송 결과 조회 시도 - ID: {}", noticeId);
                     return new BusinessException(ErrorCode.NOT_FOUND, "공지사항을 찾을 수 없습니다");
                 });
 
         Pageable pageable = PageRequest.of(page, size);
 
-        log.info("공지사항 배송 결과 조회 - ID: {}, 페이지: {}", noticeId, page);
+        log.info("공지사항 발송 결과 조회 - ID: {}, 페이지: {}", noticeId, page);
 
         return deliveryRepository.findByNoticeId(noticeId, pageable)
                 .map(NoticeDeliveryResponse::fromEntity);
@@ -174,20 +174,35 @@ public class NoticeService {
 
     /**
      * ADM-POL-001: 정책동의서 등록
+     * 수정사항: 이용약관/개인정보방침 등 타입 허용 및 중복 활성 정책 검증
      */
     @Transactional
     public NoticeResponse createPolicy(NoticeCreateRequest request) {
-        // 공지 타입을 POLICY로 강제 설정
-        request.setNoticeType("POLICY");
+        // 1. 입력된 타입이 정책 관련 타입인지 검증 (POLICY, TERMS, PRIVACY 등)
+        Notice.NoticeType type = Notice.NoticeType.valueOf(request.getNoticeType());
+        if (type == Notice.NoticeType.OPS) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "운영 공지(OPS)는 정책으로 등록할 수 없습니다.");
+        }
+
+        // 2. [핵심] 해당 타입의 'ACTIVE' 정책이 이미 존재하는지 확인
+        boolean existsActive = noticeRepository.existsByNoticeTypeAndStatus(type, Notice.NoticeStatus.ACTIVE);
+        if (existsActive) {
+            // 방법 A: 에러 발생 (관리자가 기존 것을 먼저 내리게 유도) - 추천
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "이미 활성화된 해당 타입의 정책이 존재합니다. 기존 정책을 비활성화해주세요.");
+
+            // 방법 B: 기존 정책을 자동으로 INACTIVE 처리하려면 여기서 별도 로직 구현 필요
+        }
 
         Notice notice = request.toEntity();
-        notice.setIsPublic(true);
+        notice.setIsPublic(true); // 정책은 무조건 공개
         Notice savedNotice = noticeRepository.save(notice);
 
-        log.info("정책동의서 생성 완료 - ID: {}, 제목: {}", savedNotice.getId(), savedNotice.getTitle());
+        log.info("정책동의서 생성 완료 - ID: {}, 타입: {}, 제목: {}",
+                savedNotice.getId(), type, savedNotice.getTitle());
 
         return NoticeResponse.fromEntity(savedNotice);
     }
+
 
     /**
      * ADM-POL-002: 정책 동의서 목록 조회

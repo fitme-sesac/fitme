@@ -7,7 +7,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "faqs")
+@Table(name = "faq")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,7 +32,7 @@ public class Faq {
 
     @Column(name = "locked", nullable = false)
     @Builder.Default
-    private Boolean locked = false;
+    private Boolean locked = true; // ERD 준수(관리자가 별도 설정 없이 FAQ를 만들어도 잠금)
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp

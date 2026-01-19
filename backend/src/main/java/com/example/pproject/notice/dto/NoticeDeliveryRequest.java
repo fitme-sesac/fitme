@@ -15,7 +15,7 @@ import java.util.List;
 
 
 /**
- * 공지사항 배송 요청 DTO
+ * 공지사항 발송 요청 DTO
  */
 @Getter
 @Setter
@@ -24,7 +24,7 @@ import java.util.List;
 @Builder
 public class NoticeDeliveryRequest {
 
-    @NotNull(message = "배송 채널은 필수입니다")
+    @NotNull(message = "발송 채널은 필수입니다")
     private String channel;  // EMAIL, SMS
 
     @NotNull(message = "대상 회원 ID 목록은 필수입니다")
