@@ -18,6 +18,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.resumes.services.summary import summary_service, SummaryType
+from app.resumes.services.vector import vector_service
 
 # 테스트할 파일이 있는 디렉토리 (temp_pdfs 폴더)
 TEMP_PDF_DIR = os.path.join(os.path.dirname(__file__), "..", "temp_pdfs")
@@ -204,7 +205,31 @@ async def test_integration():
         # ----------------------------------------------------------------------
         print("\n✅ [Success] 통합 테스트 성공! 아래는 LLM이 생성한 결과입니다:")
         print("="*80)
-        print(result) # 실제 요약 결과
+        
+        # 결과가 객체(ResumeSummary 등)라면 포맷팅 메서드 호출
+        if hasattr(result, 'to_formatted_string'):
+            print(result.to_formatted_string(include_reasoning=include_reasoning))
+            # [Debug] 임베딩용 문자열도 한번 찍어보면 좋음
+            print("-" * 40)
+            print("[Debug] 임베딩용 텍스트 (Ranking Optimized):")
+            embedding_text = result.to_embedding_string()
+            print(embedding_text)
+            
+            # [Step 5] 벡터 생성 검증
+            print("-" * 40)
+            print("[Step 5] 임베딩 벡터 생성 테스트...")
+            try:
+                # 벡터 서비스 호출 (비동기)
+                # 주의: vector.py의 vector_service를 import 해야 함
+                vector = await vector_service.generate_vector(embedding_text)
+                print(f"✅ 벡터 생성 성공! (Dimension: {len(vector)})")
+                print(f"   Sample (First 5): {vector[:5]}...")
+            except Exception as ve:
+                print(f"❌ 벡터 생성 실패: {ve}")
+
+        else:
+            print(result) # TEXT 모드(단순 문자열)인 경우
+
         print("="*80)
         
     except Exception as e:

@@ -2,6 +2,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from app.core.config import settings
 import json
+from typing import Union
 
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from app.resumes.schemas import ResumeSummary, ResumeInsightReport, SummaryType
@@ -34,7 +35,7 @@ class SummaryService:
         
         self.pdf_handler = PDFHandler(tesseract_cmd_path=tesseract_path, poppler_path=poppler_path)
 
-    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> str:
+    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> Union[str, ResumeSummary, ResumeInsightReport]:
         """
         이력서 데이터를 받아 요약을 생성합니다.
         data: ResumeRequest 객체 (Schema Validation을 거친 데이터가 들어옴)
@@ -284,7 +285,8 @@ class SummaryService:
             result = await chain.ainvoke({"input_text": final_input_text})
             
             if summary_type == SummaryType.STRUCTURED or summary_type == SummaryType.REPORT:
-                return result.to_formatted_string(include_reasoning=include_reasoning)
+                # Controller에서 용도(Display vs Embedding)에 따라 다르게 포맷팅할 수 있도록 객체 자체를 반환
+                return result
             else:
                 return result
                 

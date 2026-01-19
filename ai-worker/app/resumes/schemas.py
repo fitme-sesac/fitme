@@ -76,6 +76,24 @@ class ResumeSummary(BaseModel):
             base_text += f"\n\n[AI 분석 근거]\n{reasoning_str}"
         return base_text
 
+    def to_embedding_string(self) -> str:
+        """
+        [임베딩 전용 포맷]
+        - 목적: 유사도 검색 정확도 향상
+        - 전략: 
+            1. '채용 매칭 정보(location, salary)' 등 검색 노이즈가 될 수 있는 조건성 정보 제외
+            2. Markdown Header(#)를 사용하여 의미적 블록 구분 강화
+        """
+        return (
+            f"# 전문성 요약\n{self.summary}\n\n"
+            f"# 검증된 역량\n{self.verified_skills}\n\n"
+            f"# 기술 스택 강점\n{self.tech_stack}\n\n"
+            f"# 핵심 프로젝트 성과\n{self.key_achievement}\n\n"
+            f"# 문제 해결 능력\n{self.problem_solving}\n\n"
+            f"# 대외 신뢰도\n{self.credibility}\n\n"
+            f"# 협업 및 가치관\n{self.collaboration}"
+        )
+
 # 2. (신규) 인사이트 보고서형 요약
 class ResumeInsightReport(BaseModel):
     headline: str = Field(description="후보자를 정의하는 한 줄의 기술적 정체성 (예: 0.1초의 승부, RTB 최적화 전문가)")
@@ -105,3 +123,20 @@ class ResumeInsightReport(BaseModel):
             base_text += f"\n\n**[AI 분석 근거]**\n{reasoning_str}"
             
         return base_text
+
+    def to_embedding_string(self) -> str:
+        """
+        [임베딩 전용 포맷]
+        - 매칭 정보(matching_info) 제외
+        - Markdown Header 구조화
+        """
+        achievements_str = "\n".join([f"- {item}" for item in self.technical_achievements])
+        
+        return (
+            f"# Headline\n{self.headline}\n\n"
+            f"# 전문가 프로필\n{self.professional_profile}\n\n"
+            f"# 핵심 기술적 성과\n{achievements_str}\n\n"
+            f"# 기술적 깊이 및 해결 능력\n{self.deep_dive}\n\n"
+            f"# 리쿠르터의 관전 포인트\n{self.recruiter_insight}\n\n"
+            f"# 협업 태도 및 가치관\n{self.soft_skills}"
+        )
