@@ -73,6 +73,10 @@ async def test_integration():
     for f in target_files:
         print(f"   - {os.path.basename(f)}")
     
+    # [Modify] AI Reasoning 옵션 선택 (Step 655)
+    use_reasoning = input("\n[Option] 결과에 'AI 분석 근거'를 포함하시겠습니까? (y/n) [default: y]: ").strip().lower()
+    include_reasoning = True if use_reasoning in ['y', 'yes', ''] else False
+
     # --------------------------------------------------------------------------
     # [Step 2] API 요청 데이터 시뮬레이션 (Mock Data)
     # 실제 프론트엔드에서 보낼법한 JSON 데이터를 흉내냅니다.
@@ -87,7 +91,6 @@ async def test_integration():
         "resume_id": 999, # 테스트용 임의 ID
         "basic_info": {
             "title": "AI Engineer Test",
-            "tagline": "Passionate Developer",
             "re_stack": ["Python", "FastAPI", "LangChain"], # 더미 데이터
             "field": "RESUME",
             "preference": {
@@ -105,7 +108,8 @@ async def test_integration():
         "file_links": file_list, # [핵심] 여기에 PDF 경로 리스트 전달
         "projects": [],
         "careers": [],
-        "summary_type": "STRUCTURED" # 구조화된 결과를 요청
+        "summary_type": "STRUCTURED", # 구조화된 결과를 요청
+        "include_reasoning": include_reasoning # [NEW] 근거 포함 여부
     }
     
     # --------------------------------------------------------------------------
