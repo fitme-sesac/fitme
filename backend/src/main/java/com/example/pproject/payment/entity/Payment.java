@@ -41,7 +41,8 @@ public class Payment extends BaseTimeEntity {
     // Order와 연관관계 (N:1)
 //    @ManyToOne(fetch = FetchType.LAZY)
 //    @JoinColumn(name = "order_id", nullable = false)
-//    private Order order;
+    @Column(name = "order_id", nullable = false)
+    private Long order;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "method", nullable = false, length = 20)
