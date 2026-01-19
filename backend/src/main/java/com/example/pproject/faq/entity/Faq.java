@@ -66,3 +66,4 @@ public class Faq {
         return deletedAt != null;
     }
 }
+// 삭제 여부

@@ -12,6 +12,7 @@ import java.util.List;
  * 공지사항 엔티티
  * ADM-NTC-001, ADM-NTC-003, ADM-POL-001 관련
  */
+
 @Entity
 @Table(name = "notices")
 @Getter
