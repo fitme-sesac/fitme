@@ -54,6 +54,7 @@ class SummaryService:
         input_content = data.get("content", "")
         file_links = data.get("file_links", [])
         basic_info = data.get("basic_info", {})
+        include_reasoning = data.get("include_reasoning", False)
         
         # [NEW] Basic Info를 텍스트로 변환
         # Pydantic 모델이 dict로 변환되어 들어오므로, 예쁘게 포맷팅
@@ -61,7 +62,6 @@ class SummaryService:
         if basic_info:
             basic_info_text = f"""
             - Title: {basic_info.get('title', '')}
-            - Tagline: {basic_info.get('tagline', '')}
             - Tech Stack: {', '.join(basic_info.get('re_stack', []))}
             - Preference: {basic_info.get('preference', {})}
             """
@@ -118,7 +118,15 @@ class SummaryService:
         # 지켜야 할 "절대 원칙"을 정의
         common_constraints = """
         [Constraints]
-        1. 보안 준수: 이름, 나이, 성별, 사진, 주소 등 개인 식별 정보(PII)는 절대 포함하지 않는다. 후보자를 지칭할 때는 '지원자' 또는 '후보자'로 통일한다.
+        1. 보안 준수(Critical): **개인 식별 정보(PII)는 '이름', '나이', '성별', '거주지', '사진'을 포함하여 일체 제외한다.** 
+           - 후보자를 지칭할 때는 오직 '지원자' 또는 '후보자'로만 통일한다.
+           - [Negative Constraints - 절대 하지 말 것]
+             (X) "박지영(29세, 여) 지원자는..." -> 이름, 나이, 성별 노출 금지
+             (X) "판교에 거주하는..." -> 거주지 노출 금지
+             (X) "2024년 2월 졸업 예정인..." -> 학력은 기술하되, 특정 연도를 통해 나이를 유추할 수 있는 표현 자제
+           - [Positive Example - 권장]
+             (O) "해당 지원자는 5년차 백엔드 개발자로서..."
+             (O) "이전 직장에서 대규모 트래픽 처리를 경험하며..."
         2. 성과 구체화: 프로젝트 설명에 포함된 수치나 구체적 방법론(예: N+1 해결, 인덱싱)을 최우선으로 반영한다.
         3. 할루시네이션 방지(중요): 데이터에 없는 내용을 임의로 생성하거나 추측하지 않는다. 
         4. 정보 부재 시 대응: 특정 항목을 작성할 데이터가 부족한 경우, 아래 예시와 같이 세련되게 표현한다.
@@ -157,6 +165,9 @@ class SummaryService:
             structured_instruction = """
             5. 인사이트 통합: 기술적 문제 해결 사례(Troubleshooting)가 있다면 반드시 '방법론 -> 결과' 순으로 배치한다.
             6. 데이터 결여 시: '대외 신뢰도'나 '협업 가치관' 등 증빙 데이터가 아예 없는 항목은 "이력서 내 관련 정보 미기재"라고 짧게 표기하는 대신, 후보자의 전체적인 톤앤매너를 통해 유추할 수 있는 '성향' 위주로 서술해줘.
+            7. [중요] 분석 근거(ai_reasoning): 각 항목(전문성, 역량, 기술 스택 등)의 내용이 어느 페이지에서 유래했는지 '리스트 형태'로 명확히 기술하라.
+               - 예: "- 전문성 요약/기술 스택: [Page 1] 자기소개 및 보유 기술 섹션 참고"
+               - 예: "- 핵심 프로젝트 성과: [Page 3] 'FitMe' 프로젝트 상세 설명 기반"
             """
             
             system_instruction = f"""{common_role}
@@ -204,8 +215,8 @@ class SummaryService:
             result = await chain.ainvoke({"input_text": final_input_text})
             
             if summary_type == SummaryType.STRUCTURED:
-                # Pydantic Object -> Formatted String
-                return result.to_formatted_string()
+                # Pydantic Object -> Formatted String (옵션에 따라 근거 포함)
+                return result.to_formatted_string(include_reasoning=include_reasoning)
             else:
                 # Text String -> Return directly
                 return result

@@ -9,7 +9,6 @@ class Preference(BaseModel):
 
 class BasicInfo(BaseModel):
     title: str = Field(description="한줄 소개")
-    tagline: str = Field(description="태그라인")
     re_stack: List[str] = Field(description="종합 보유 기술 (나의 정체성)")
     field: str = Field(description="데이터 타입 (RESUME 또는 SELF_INTRO)")
     preference: Preference
@@ -20,16 +19,17 @@ class SummaryType(str, Enum):
 
 class Project(BaseModel):
     project_name: str
-    period: str
+    start_date: str
+    end_date: str
     total_tech_stack: List[str]
-    my_tech_stack: List[str]
     contribution: str
     description: str
 
 class Career(BaseModel):
     company_name: str
     role: str
-    period: str
+    start_date: str = Field(description="입사일 (YYYY.MM)")
+    end_date: str = Field(description="퇴사일 (YYYY.MM)")
     description: str
 
 class ResumeRequest(BaseModel):
@@ -40,6 +40,7 @@ class ResumeRequest(BaseModel):
     projects: List[Project]
     careers: List[Career]
     summary_type: SummaryType = Field(default=SummaryType.STRUCTURED, description="요약 형태 (STRUCTURED: 구조화, TEXT: 줄글)")
+    include_reasoning: bool = Field(default=False, description="AI 분석 근거(Page/Section Reference) 포함 여부")
 
 class AIProcessResult(BaseModel):
     id: str
@@ -56,10 +57,11 @@ class ResumeSummary(BaseModel):
     credibility: str = Field(description="대외 신뢰도: 자격증 및 외부 링크를 통한 역량 증빙")
     collaboration: str = Field(description="협업 및 가치관: 후보자가 추구하는 개발 문화와 태도")
     matching_info: str = Field(description="채용 매칭 정보: 희망 근무지 및 고용 형태 등")
+    ai_reasoning: str = Field(description="분석 근거: 각 항목을 작성하기 위해 참고한 문서의 페이지 번호나 섹션 출처 (예: [Page 1] 자기소개, [Page 3] 프로젝트 A)")
 
-    def to_formatted_string(self) -> str:
+    def to_formatted_string(self, include_reasoning: bool = False) -> str:
         """DB 저장을 위해 8줄 평문 텍스트로 변환"""
-        return (
+        base_text = (
             f"전문성 요약: {self.summary}\n"
             f"검증된 역량: {self.verified_skills}\n"
             f"기술 스택 강점: {self.tech_stack}\n"
@@ -69,3 +71,8 @@ class ResumeSummary(BaseModel):
             f"협업 및 가치관: {self.collaboration}\n"
             f"채용 매칭 정보: {self.matching_info}"
         )
+        
+        if include_reasoning:
+            base_text += f"\n\n[AI 분석 근거]\n{self.ai_reasoning}"
+            
+        return base_text

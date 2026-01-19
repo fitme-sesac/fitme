@@ -12,7 +12,6 @@ test_json = """
   "resume_id": 2,
   "basic_info": {
     "title": "기본기를 바탕으로 확장성 있는 코드를 고민하는 신입 백엔드 개발자",
-    "tagline": "문제를 끝까지 추적하여 해결하는 집요함을 가진 개발자입니다.",
     "re_stack": ["Java", "Spring Boot", "MySQL", "JPA", "AWS EC2", "JUnit5"],
     "field": "RESUME",
     "preference": {
@@ -25,17 +24,17 @@ test_json = """
   "projects": [
     {
       "project_name": "중고 거래 플랫폼 '당근마켓' 클론 프로젝트 (팀)",
-      "period": "2025.10 - 2025.12",
+      "start_date": "2025.10",
+      "end_date": "2025.12",
       "total_tech_stack": ["Java", "Spring Boot", "MySQL", "Redis", "S3", "GitHub Actions", "Docker"],
-      "my_tech_stack": ["Java", "Spring Boot", "MySQL", "JPA"],
       "contribution": "실시간 채팅 알림 서버 및 상품 게시판 CRUD 구현",
       "description": "팀 프로젝트에서 백엔드 파트를 담당했습니다. 전체 팀은 Redis를 활용한 채팅 기능을 구현했으나, 저는 그중 데이터베이스 설계와 상품 관리 API 구현에 집중했습니다. 특히, 대량의 데이터 조회 시 발생하는 페이징 처리 속도를 개선하기 위해 인덱스를 활용했으며, JUnit5를 활용해 서비스 로직의 테스트 커버리지를 80% 이상 확보했습니다."
     },
     {
       "project_name": "개인 프로젝트: 날씨 기반 옷차림 추천 서비스",
-      "period": "2025.07 - 2025.08",
+      "start_date": "2025.07",
+      "end_date": "2025.08",
       "total_tech_stack": ["Java", "Spring Boot", "MariaDB", "OpenWeatherMap API", "AWS EC2"],
-      "my_tech_stack": ["Java", "Spring Boot", "MariaDB", "AWS EC2"],
       "contribution": "공공 API 연동 및 서버 배포 전 과정 수행",
       "description": "외부 API를 연동하여 데이터를 가공하고 사용자에게 제공하는 전체 프로세스를 경험했습니다. AWS EC2와 RDS를 연동하여 실제 서비스 운영 환경을 구축해보았으며, 리눅스 환경에서의 기본적인 서버 명령어와 배포 자동화에 대한 기초 지식을 습득했습니다."
     }
@@ -44,7 +43,8 @@ test_json = """
     {
       "company_name": "OO 카페",
       "role": "아르바이트 및 매장 관리",
-      "period": "2022.03 - 2024.02",
+      "start_date": "2022.03",
+      "end_date": "2024.02",
       "description": "2년간 성실하게 근무하며 고객 응대 및 재고 관리 업무를 수행했습니다. 반복되는 재고 기록 업무를 엑셀 시트로 자동화하여 업무 시간을 단축하는 등 효율적인 업무 처리에 관심이 많습니다."
     }
   ]
