@@ -4,17 +4,13 @@ from app.core.config import settings
 import json
 
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
-from app.resumes.schemas import ResumeSummary, SummaryType
+from app.resumes.schemas import ResumeSummary, ResumeInsightReport, SummaryType
 
 import os
 from dotenv import load_dotenv
 
 # .env 파일에 정의된 환경 변수들을 읽어옵니다.
 load_dotenv()
-
-# 이제 별도의 os.environ 설정 없이도 LangChain이 시스템 환경 변수를 인식합니다.
-# 랭스미스는 환경 변수만 올바르게 설정되어 있으면 자동으로 추적을 시작합니다.
-
 
 # [NEW] 필요한 모듈 임포트
 from app.resumes.services.pdf_helper import PDFHandler
@@ -27,13 +23,12 @@ class SummaryService:
             temperature=0,
             openai_api_key=settings.OPENAI_API_KEY
         )
-        # [NEW] Output Parser 설정
+        # Output Parser 설정
         self.json_parser = PydanticOutputParser(pydantic_object=ResumeSummary)
+        self.report_parser = PydanticOutputParser(pydantic_object=ResumeInsightReport)
         self.text_parser = StrOutputParser()
         
-        # [NEW] PDF Handler 초기화
-        # 윈도우 로컬 환경용 경로 설정 (test_pdf_reader.py에서 검증된 경로)
-        # 운영 배포 시에는 환경변수나 Docker 설정을 통해 관리 필요
+        # PDF Handler 초기화
         tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
         poppler_path = r"C:\Program Files\Release-25.12.0-0\poppler-25.12.0\Library\bin"
         
@@ -44,20 +39,17 @@ class SummaryService:
         이력서 데이터를 받아 요약을 생성합니다.
         data: ResumeRequest 객체 (Schema Validation을 거친 데이터가 들어옴)
         type: RESUME 또는 SELF_INTRO (데이터의 성격)
-        summary_type: STRUCTURED (구조화된 8줄) 또는 TEXT (10줄 평문)
+        summary_type: STRUCTURED, TEXT, REPORT
         """
-        # 1. 데이터 파싱
-        # Pydantic 모델(ResumeRequest)이 dict 형태로 들어온다고 가정 (FastAPI가 그렇게 넘겨줌)
-        # 만약 raw dict라면 바로 사용, 객체라면 .dict() 호출 필요
-        # 여기서는 controller에서 `req.dict()` 또는 `jsonable_encoder` 등을 거쳐서 dict로 들어온다고 전제.
         
         input_content = data.get("content", "")
         file_links = data.get("file_links", [])
         basic_info = data.get("basic_info", {})
+        projects = data.get("projects", [])
+        careers = data.get("careers", [])
         include_reasoning = data.get("include_reasoning", False)
         
-        # [NEW] Basic Info를 텍스트로 변환
-        # Pydantic 모델이 dict로 변환되어 들어오므로, 예쁘게 포맷팅
+        # Basic Info를 텍스트로 변환
         basic_info_text = ""
         if basic_info:
             basic_info_text = f"""
@@ -65,46 +57,76 @@ class SummaryService:
             - Tech Stack: {', '.join(basic_info.get('re_stack', []))}
             - Preference: {basic_info.get('preference', {})}
             """
+
+        # Projects를 텍스트로 변환
+        projects_text = ""
+        if projects:
+            projects_list = []
+            for p in projects:
+                # p는 dict 형태일 수도 있고 Pydantic model일 수도 있음. 
+                # ResumeRequest로 들어오면 Pydantic model이지만, dict로 변환되어 들어올 수도 있음.
+                # 안전하게 처리하기 위해 dict access 시도
+                if hasattr(p, 'dict'): p = p.dict()
+                
+                p_text = f"""
+                - Project Name: {p.get('project_name', '')} ({p.get('start_date','')} ~ {p.get('end_date','')})
+                - Tech Stack: {', '.join(p.get('total_tech_stack', []))}
+                - Contribution: {p.get('contribution', '')}
+                - Description: {p.get('description', '')}
+                """
+                projects_list.append(p_text)
+            projects_text = "\n".join(projects_list)
+
+        # Careers를 텍스트로 변환
+        careers_text = ""
+        if careers:
+            careers_list = []
+            for c in careers:
+                if hasattr(c, 'dict'): c = c.dict()
+                
+                c_text = f"""
+                - Company: {c.get('company_name', '')} ({c.get('role', '')})
+                - Period: {c.get('start_date', '')} ~ {c.get('end_date', '')}
+                - Description: {c.get('description', '')}
+                """
+                careers_list.append(c_text)
+            careers_text = "\n".join(careers_list)
         
-        # 2. PDF 파일 처리 (Hybrid Strategy - Multi Files)
+        # PDF 파일 처리
         file_content_parts = []
         is_ocr_data = False
         
         if file_links:
             for idx, file_link in enumerate(file_links):
                 try:
-                    # URL인 경우 다운로드 로직이 필요하지만, 현재는 로컬 경로라고 가정하고 처리
                     if file_link.startswith("http"):
-                        # [TODO] URL 다운로드 구현 필요
                         print(f"URL Download not implemented yet: {file_link}")
                         continue
                     
-                    # 로컬 파일 경로인 경우 바로 추출
                     print(f"Extracting text from PDF ({idx+1}/{len(file_links)}): {file_link}")
                     pdf_result = self.pdf_handler.extract_text(file_link)
                     
-                    # 구분자 추가하여 누적
-                    # [Modify] 섹션 감지(Section Detection) 로직 제거 및 페이지 단위 처리로 변경 (Step 444)
-                    # PDFHandler에서 이미 [[Page X]] 헤더를 붙여주므로, masked_text를 그대로 사용합니다.
-                    
                     pdf_internal_text = pdf_result["masked_text"]
-
                     extracted = f"[File {idx+1}: {os.path.basename(file_link)}]\n{pdf_internal_text}"
                     file_content_parts.append(extracted)
                     is_ocr_data = True
                     
                 except Exception as e:
                     print(f"PDF Processing Failed for {file_link}: {e}")
-                    # 실패한 파일은 건너뛰고 계속 진행
         
         file_content = "\n\n".join(file_content_parts)
         
-        # 3. LLM 입력 데이터 구성
-        # Basic Info + Content + PDF File Content
+        # LLM 입력 데이터 구성
         final_input_text = f"""
         [Candidate Basic Info]
         {basic_info_text}
         
+        [Projects Experience]
+        {projects_text}
+
+        [Professional Careers]
+        {careers_text}
+
         [Self Introduction / Cover Letter]
         {input_content}
         
@@ -113,15 +135,14 @@ class SummaryService:
         """
 
         # [Common System Instruction]
-        # 리쿠르터라는 페르소나를 부여
         common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘."
-        # 지켜야 할 "절대 원칙"을 정의
+        
         common_constraints = """
         [Constraints]
         1. 보안 준수(Critical): **개인 식별 정보(PII)는 '이름', '나이', '성별', '거주지', '사진'을 포함하여 일체 제외한다.** 
            - 후보자를 지칭할 때는 오직 '지원자' 또는 '후보자'로만 통일한다.
            - [Negative Constraints - 절대 하지 말 것]
-             (X) "박지영(29세, 여) 지원자는..." -> 이름, 나이, 성별 노출 금지
+             (X) "박지연(29세, 여) 지원자는..." -> 이름, 나이, 성별 노출 금지
              (X) "판교에 거주하는..." -> 거주지 노출 금지
              (X) "2024년 2월 졸업 예정인..." -> 학력은 기술하되, 특정 연도를 통해 나이를 유추할 수 있는 표현 자제
            - [Positive Example - 권장]
@@ -159,15 +180,40 @@ class SummaryService:
         """
             parser = self.text_parser
             format_instructions = ""
-        else:
+            
+            parser = self.text_parser
+            format_instructions = ""
+            
+        elif summary_type == SummaryType.REPORT:
+            # [NEW] 인사이트 보고서 모드 (User Request: 0.1초 승부)
+            report_instruction = """
+            [작성 목표: 헤드라인 중심의 인사이트 보고서]
+            1. Headline (0.1초의 승부): 후보자의 핵심 경쟁력을 가장 잘 드러내는 강렬한 한 줄 카피를 작성하라. (예: "0.1초의 승부, RTB 최적화 전문가")
+            2. Recruiter Insight (관전 포인트): 단순 사실 나열이 아닌, "왜 이 사람을 뽑아야 하는가?"에 대한 너의 전문적인 평가를 서술하라.
+            3. Technical Achievements (리스트): 줄글이 아닌 '리스트 형태'로 작성하여 가독성을 극대화하라. (문제->해결->성과 구조)
+            4. Deep Dive: 얕은 나열 대신, 가장 깊이 있게 파고든 기술적 경험 하나를 선정하여 심층 분석하라.
+            
+            5. Reasoning (출처 명시 필수): ai_reasoning 필드에 **[Citation Rules]**에 따라 출처를 명확히 표기하라.
+               - 뭉뚱그려 "프로젝트 경험을 통해..."라고 쓰지 말고, 정확히어떤 프로젝트인지, 어떤 섹션인지 지목하라.
+            """
+            
+            system_instruction = f"""{common_role}
+            {common_constraints}
+            {report_instruction}
+            
+            {{format_instructions}}
+            """
+            parser = self.report_parser
+            format_instructions = parser.get_format_instructions()
+            
+        else: # SummaryType.STRUCTURED
             # [STRUCTURED 모드 개선] : 트러블슈팅과 전문성 검증 중심
-            # 5. 인사이트 통합 규칙은 포맷 지침과 함께 전달됨
             structured_instruction = """
             5. 인사이트 통합: 기술적 문제 해결 사례(Troubleshooting)가 있다면 반드시 '방법론 -> 결과' 순으로 배치한다.
             6. 데이터 결여 시: '대외 신뢰도'나 '협업 가치관' 등 증빙 데이터가 아예 없는 항목은 "이력서 내 관련 정보 미기재"라고 짧게 표기하는 대신, 후보자의 전체적인 톤앤매너를 통해 유추할 수 있는 '성향' 위주로 서술해줘.
-            7. [중요] 분석 근거(ai_reasoning): 각 항목(전문성, 역량, 기술 스택 등)의 내용이 어느 페이지에서 유래했는지 '리스트 형태'로 명확히 기술하라.
-               - 예: "- 전문성 요약/기술 스택: [Page 1] 자기소개 및 보유 기술 섹션 참고"
-               - 예: "- 핵심 프로젝트 성과: [Page 3] 'FitMe' 프로젝트 상세 설명 기반"
+            
+            7. [중요] 분석 근거(ai_reasoning): **[Citation Rules]**를 철저히 준수하여 출처를 표기하라.
+               - 추상적인 표현(예: "경력 기술서를 참고함")은 금지한다. 디테일한 섹션명과 프로젝트명을 콕 집어라.
             """
             
             system_instruction = f"""{common_role}
@@ -179,13 +225,37 @@ class SummaryService:
             parser = self.json_parser
             format_instructions = parser.get_format_instructions()
 
-        # [NEW] OCR 데이터가 포함된 경우 추가 지침 주입 (Hybrid Prompting)
+        # [Citation Rules Definition]
+        citation_rules = """
+        [Citation Rules - 절대 준수]
+        모든 ai_reasoning 항목은 아래 5가지 섹션 태그 중 하나를 반드시 포함해야 한다.
+        
+        1. [Candidate Basic Info]: 기본 정보(기술 스택, 희망 연봉 등)
+        2. [Projects Experience]: 프로젝트 경험 (반드시 '프로젝트명'을 함께 언급할 것)
+           - 예: "- [Projects Experience] '유튜브 추천 서비스'의 Qdrant 사용 부분"
+        3. [Professional Careers]: 경력 사항
+        4. [Self Introduction]: 자기소개서 본문
+        5. [Attached File Content]: PDF 첨부 파일 (반드시 'Page 번호'를 명시할 것)
+           - 예: "- [Attached File Content] Page 3 포트폴리오 성과 부분"
+        
+        * 경고: 위 5개 외의 모호한 출처(예: "전반적인 내용", "입력 데이터")는 사용하지 말 것.
+        """
+        
+        # [Global Reinforcement]
+        # 모든 모드 공통으로 마지막에 PII 금지 사항을 강력하게 재주입 (Recency Bias 활용)
+        pii_reinforcement = """
+        [Critical Reminder]
+        - **절대 금지**: 이름, 나이, 성별, 사진 정보는 출력 결과에 절대 포함하지 마라.
+        - 후보자를 지칭할 때는 오직 '지원자' 또는 '후보자'로만 통일한다.
+        """
+        system_instruction += f"\n\n{citation_rules}\n\n{pii_reinforcement}"
+
+        # [Hybrid Prompting]
         if is_ocr_data:
             system_instruction += f"\n\n{OCR_ADDITIONAL_INSTRUCTION}"
 
-        # [User Instruction 강화]
+        # [Instruction 분기]
         if type == "RESUME":
-            # instruction은 "지금 내가 주는 이 데이터에서 정확히 무엇을 뽑아내야 하는지"를 지정하는 개별 작업 지시에 해당
             instruction = """
             이 이력서 데이터에서 후보자의 '기술적 전문성'과 '트러블슈팅 경험'을 찾아내어 분석해줘. 
             특히 이 사람이 팀에 합류했을 때 어떤 기술적 문제를 해결해줄 수 있을지 '강점' 위주로 요약해라.
@@ -197,28 +267,25 @@ class SummaryService:
             """
             
         prompt_template = ChatPromptTemplate.from_messages([
-            ("system", system_instruction), # 1. 너는 누구이고 규칙은 이래 (배경/규칙)
-            ("user", f"{instruction}\n\nData:\n{{input_text}}") # 2. 자, 이제 이 지시대로(instruction) 이 데이터(input_text)를 분석해!
+            ("system", system_instruction),
+            ("user", f"{instruction}\n\nData:\n{{input_text}}")
         ])
         
-        # 포맷 지침 주입 (TEXT 모드일 때는 빈 문자열 들어감)
-        if summary_type == SummaryType.STRUCTURED:
+        # 포맷 지침 주입
+        if summary_type in [SummaryType.STRUCTURED, SummaryType.REPORT]:
              prompt = prompt_template.partial(format_instructions=format_instructions)
         else:
              prompt = prompt_template
 
-        # [Chain 생성] Prompt -> LLM -> OutputParser
+        # [Chain 실행]
         chain = prompt | self.llm | parser
         
-        # 실행 및 결과 변환
         try:
             result = await chain.ainvoke({"input_text": final_input_text})
             
-            if summary_type == SummaryType.STRUCTURED:
-                # Pydantic Object -> Formatted String (옵션에 따라 근거 포함)
+            if summary_type == SummaryType.STRUCTURED or summary_type == SummaryType.REPORT:
                 return result.to_formatted_string(include_reasoning=include_reasoning)
             else:
-                # Text String -> Return directly
                 return result
                 
         except Exception as e:
