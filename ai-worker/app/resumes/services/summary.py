@@ -31,9 +31,13 @@ class SummaryService:
         self.json_parser = PydanticOutputParser(pydantic_object=ResumeSummary)
         self.text_parser = StrOutputParser()
         
-        # [NEW] PDF Handler 초기화 (경로는 환경변수나 Config에서 가져오는 것이 좋으나, 일단은 None으로 기본값 사용)
-        # 실제 운영 환경에서는 Tesseract/Poppler 경로 설정이 필요할 수 있음
-        self.pdf_handler = PDFHandler()
+        # [NEW] PDF Handler 초기화
+        # 윈도우 로컬 환경용 경로 설정 (test_pdf_reader.py에서 검증된 경로)
+        # 운영 배포 시에는 환경변수나 Docker 설정을 통해 관리 필요
+        tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        poppler_path = r"C:\Program Files\Release-25.12.0-0\poppler-25.12.0\Library\bin"
+        
+        self.pdf_handler = PDFHandler(tesseract_cmd_path=tesseract_path, poppler_path=poppler_path)
 
     async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> str:
         """
@@ -114,7 +118,7 @@ class SummaryService:
         # 지켜야 할 "절대 원칙"을 정의
         common_constraints = """
         [Constraints]
-        1. 보안 준수: 개인 식별 정보(PII)는 절대 포함하지 않는다.
+        1. 보안 준수: 이름, 나이, 성별, 사진, 주소 등 개인 식별 정보(PII)는 절대 포함하지 않는다. 후보자를 지칭할 때는 '지원자' 또는 '후보자'로 통일한다.
         2. 성과 구체화: 프로젝트 설명에 포함된 수치나 구체적 방법론(예: N+1 해결, 인덱싱)을 최우선으로 반영한다.
         3. 할루시네이션 방지(중요): 데이터에 없는 내용을 임의로 생성하거나 추측하지 않는다. 
         4. 정보 부재 시 대응: 특정 항목을 작성할 데이터가 부족한 경우, 아래 예시와 같이 세련되게 표현한다.

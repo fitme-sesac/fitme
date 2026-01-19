@@ -22,25 +22,56 @@ from app.resumes.services.summary import summary_service, SummaryType
 # 테스트할 파일이 있는 디렉토리 (temp_pdfs 폴더)
 TEMP_PDF_DIR = os.path.join(os.path.dirname(__file__), "..", "temp_pdfs")
 
-def get_first_pdf():
-    """temp_pdfs 폴더에서 첫 번째 PDF 파일을 찾아 반환합니다."""
+def select_files():
+    """temp_pdfs 폴더에서 사용자가 다양한 파일을 선택하게 합니다."""
     if not os.path.exists(TEMP_PDF_DIR):
         print(f"❌ 폴더가 없습니다: {TEMP_PDF_DIR}")
-        return None
+        return []
         
-    files = [f for f in os.listdir(TEMP_PDF_DIR) if f.endswith('.pdf')]
-    if files:
-        return os.path.join(TEMP_PDF_DIR, files[0])
-    return None
+    files = [f for f in os.listdir(TEMP_PDF_DIR) if f.lower().endswith('.pdf')]
+    if not files:
+        print(f"❌ '{TEMP_PDF_DIR}' 폴더에 PDF 파일이 없습니다.")
+        return []
+
+    print("\n[ 테스트할 PDF 파일을 선택해주세요 (업로드 시뮬레이션) ]")
+    for idx, f in enumerate(files):
+        print(f"{idx + 1}. {f}")
+    
+    print("\n예시) 1, 2 입력 시 1번과 2번 파일 모두 선택")
+    selection = input("번호를 입력하세요 (쉼표로 구분): ").strip()
+    
+    selected_files = []
+    if not selection:
+        # 아무것도 입력 안 하면 첫 번째 파일만 선택
+        print("-> 기본값(첫 번째 파일)을 선택합니다.")
+        return [os.path.join(TEMP_PDF_DIR, files[0])]
+    
+    try:
+        indices = [int(x.strip()) - 1 for x in selection.split(',')]
+        for idx in indices:
+            if 0 <= idx < len(files):
+                selected_files.append(os.path.join(TEMP_PDF_DIR, files[idx]))
+            else:
+                print(f"⚠️ 잘못된 번호 무시됨: {idx + 1}")
+    except ValueError:
+        print("⚠️ 숫자 입력 오류. 기본값으로 진행합니다.")
+        return [os.path.join(TEMP_PDF_DIR, files[0])]
+        
+    return selected_files
 
 async def test_integration():
     print("\n[Step 1] 테스트용 PDF 파일 검색...")
-    pdf_path = get_first_pdf()
-    if not pdf_path:
-        print("❌ 테스트할 PDF 파일이 없습니다. 'temp_pdfs' 폴더에 PDF를 넣어주세요.")
+    
+    # [Modify] 사용자 지정 2개 이상의 파일 선택 기능 추가 (Step 586)
+    target_files = select_files()
+    
+    if not target_files:
+        print("❌ 선택된 파일이 없습니다. 종료합니다.")
         return
 
-    print(f"📄 Found PDF: {pdf_path}")
+    print(f"📄 Selected Files ({len(target_files)}개):")
+    for f in target_files:
+        print(f"   - {os.path.basename(f)}")
     
     # --------------------------------------------------------------------------
     # [Step 2] API 요청 데이터 시뮬레이션 (Mock Data)
@@ -49,8 +80,8 @@ async def test_integration():
     # --------------------------------------------------------------------------
     print("\n[Step 2] 가상 요청 데이터(Mock Request) 생성 중...")
     
-    # 똑같은 파일을 2번 넣어서 "다중 파일 처리"가 잘 되는지 확인합니다.
-    file_list = [pdf_path, pdf_path] 
+    # 사용자가 선택한 파일 리스트를 그대로 전달
+    file_list = target_files
     
     mock_request = {
         "resume_id": 999, # 테스트용 임의 ID
