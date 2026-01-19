@@ -30,7 +30,7 @@ public class FaqController {
      * GET /api/admin/faqs
      * 쿼리 파라미터: is_public (true/false), keyword (질문 검색)
      */
-    @GetMapping
+    @GetMapping("/api/admin/faqs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<FaqListResponse>>> getFaqList(
             @RequestParam(value = "is_public", required = false) Boolean isPublic,
@@ -53,7 +53,7 @@ public class FaqController {
      * POST /api/admin/faqs
      * body: { "question": "질문", "answer": "답변", "is_public": true, "locked": true }
      */
-    @PostMapping
+    @PostMapping("/api/admin/faqs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<FaqResponse>> createFaq(
             @Valid @RequestBody FaqCreateRequest request) {
@@ -71,7 +71,7 @@ public class FaqController {
      * FAQ 상세 조회
      * GET /api/admin/faqs/{id}
      */
-    @GetMapping("/{id}")
+    @GetMapping("/api/admin/faqs/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<FaqResponse>> getFaqDetail(
             @PathVariable Long id) {
@@ -90,7 +90,7 @@ public class FaqController {
      * PUT /api/admin/faqs/{id}
      * body: { "question": "수정 질문", "answer": "수정 답변", "is_public": true }
      */
-    @PutMapping("/{id}")
+    @PutMapping("/api/admin/faqs/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<FaqResponse>> updateFaq(
             @PathVariable Long id,
@@ -110,7 +110,7 @@ public class FaqController {
      * DELETE /api/admin/faqs/{id}
      * Path: id (논리 삭제를 위해 deleted_at 필드 업데이트)
      */
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/api/admin/faqs/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteFaq(
             @PathVariable Long id) {
@@ -128,7 +128,7 @@ public class FaqController {
      * 공개 FAQ 목록 조회 (사용자용)
      * GET /api/v1/faqs/public
      */
-    @GetMapping("/public/list")
+    @GetMapping("/api/v1/faqs/public/list")
     public ResponseEntity<ApiResponse<List<FaqResponse>>> getPublicFaqList() {
 
         log.info("공개 FAQ 목록 조회 요청");
