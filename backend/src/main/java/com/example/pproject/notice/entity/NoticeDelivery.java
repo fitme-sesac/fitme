@@ -6,11 +6,11 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * 공지사항 배송 기록 엔티티
+ * 공지사항 발송 기록 엔티티
  * ADM-NTC-004, ADM-NTC-005 관련
  */
 @Entity
-@Table(name = "notice_deliveries")
+@Table(name = "notice_delivery")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -49,19 +49,20 @@ public class NoticeDelivery {
     private LocalDateTime createdAt;
 
     /**
-     * 배송 채널 열거형
+     * 발송 채널 열거형
      */
     public enum DeliveryChannel {
         EMAIL,  // 이메일
-        SMS     // SMS
+        SMS,    // SMS
+        PUSH    // 푸시
     }
 
     /**
-     * 배송 상태 열거형
+     * 발송 상태 열거형
      */
     public enum DeliveryStatus {
         PENDING,   // 대기중
-        SUCCESS,   // 성공
+        SENT,       // 성공
         FAILED     // 실패
     }
 }

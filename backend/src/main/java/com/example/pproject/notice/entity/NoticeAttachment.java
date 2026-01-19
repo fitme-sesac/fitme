@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * ADM-NTC-002 관련
  */
 @Entity
-@Table(name = "notice_attachments")
+@Table(name = "notice_attachment")
 @Getter
 @Setter
 @NoArgsConstructor

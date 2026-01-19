@@ -26,9 +26,9 @@ public class FaqSecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 관리자 API
-                        .requestMatchers("/api/admin/faqs/**").authenticated()
+                        .requestMatchers("/api/admin/faq/**").authenticated()
                         // 사용자 조회 API (공개)
-                        .requestMatchers("/api/v1/faqs/**").permitAll()
+                        .requestMatchers("/api/v1/faq/**").permitAll()
                         .anyRequest().permitAll()
                 )
                 .httpBasic(basic -> {});

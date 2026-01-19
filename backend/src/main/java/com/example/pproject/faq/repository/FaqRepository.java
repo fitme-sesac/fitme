@@ -15,6 +15,13 @@ import java.util.Optional;
 public interface FaqRepository extends JpaRepository<Faq, Long> {
 
     /**
+     * [Logic Fix] 키워드 + 공개 여부 동적 필터링 검색
+     * 기존 searchPublicByKeyword는 true만 검색 가능했으나, 이 메서드는 true/false 모두 지원함.
+     */
+    @Query("SELECT f FROM Faq f WHERE f.deletedAt IS NULL AND f.isPublic = :isPublic AND (f.question LIKE %:keyword% OR f.answer LIKE %:keyword%) ORDER BY f.createdAt DESC")
+    Page<Faq> searchByKeywordAndIsPublic(@Param("keyword") String keyword, @Param("isPublic") Boolean isPublic, Pageable pageable);
+
+    /**
      * 삭제되지 않은 FAQ 목록 조회 (공개 여부 필터링)
      */
     @Query("SELECT f FROM Faq f WHERE f.deletedAt IS NULL AND f.isPublic = :isPublic ORDER BY f.createdAt DESC")
@@ -27,13 +34,13 @@ public interface FaqRepository extends JpaRepository<Faq, Long> {
     Page<Faq> findAllNotDeleted(Pageable pageable);
 
     /**
-     * 키워드로 FAQ 검색 (질문 및 답변)
+     * 키워드로 FAQ 검색 (질문 및 답변, 공개여부 무관)
      */
     @Query("SELECT f FROM Faq f WHERE f.deletedAt IS NULL AND (f.question LIKE %:keyword% OR f.answer LIKE %:keyword%) ORDER BY f.createdAt DESC")
     Page<Faq> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     /**
-     * 공개 FAQ 중 키워드 검색
+     * (참고) 기존 메서드 - Service에서 더 이상 사용하지 않지만, 공개 API 전용으로 남겨둘 수 있음
      */
     @Query("SELECT f FROM Faq f WHERE f.deletedAt IS NULL AND f.isPublic = true AND (f.question LIKE %:keyword% OR f.answer LIKE %:keyword%) ORDER BY f.createdAt DESC")
     Page<Faq> searchPublicByKeyword(@Param("keyword") String keyword, Pageable pageable);

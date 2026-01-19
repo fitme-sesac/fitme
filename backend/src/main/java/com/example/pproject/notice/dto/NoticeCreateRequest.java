@@ -1,19 +1,10 @@
 package com.example.pproject.notice.dto;
 
 import com.example.pproject.notice.entity.Notice;
-import com.example.pproject.notice.entity.NoticeAttachment;
-import com.example.pproject.notice.entity.NoticeDelivery;
-import lombok.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 import lombok.*;
 
-/**
- * 공지사항 생성 요청 DTO
- */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,10 +19,14 @@ public class NoticeCreateRequest {
     private String body;
 
     @NotNull(message = "공지 타입은 필수입니다")
-    private String noticeType;  // POLICY, OPS
+    private String noticeType;
 
+    // ▼ 수정된 부분: @Builder.Default 추가
+    @Builder.Default
     private Boolean isImportant = false;
 
+    // ▼ 수정된 부분: @Builder.Default 추가
+    @Builder.Default
     private Boolean isPublic = true;
 
     public Notice toEntity() {

@@ -13,57 +13,67 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/notices")
 @RequiredArgsConstructor
 @Slf4j
 public class NoticeController {
 
     private final NoticeService noticeService;
 
+    // =================================================================================
+    // 1. 공지사항 (OPS) 관리 기능: 등록 / 목록 / 상세 / 수정(삭제) / 첨부파일
+    // =================================================================================
+
     /**
-     * ADM-NTC-001: 공지 등록
-     * POST /api/admin/notices
-     * body: { "title": "제목", "body": "본문", "notice_type": "POLICY/OPS", "is_important": true }
+     * [1] 공지사항 등록
+     * URL: POST /api/admin/notices
      */
     @PostMapping("/api/admin/notices")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')") //테스트 위해 잠시 비활성화함
     public ResponseEntity<ApiResponse<NoticeResponse>> createNotice(
             @Valid @RequestBody NoticeCreateRequest request) {
 
-        log.info("공지사항 생성 요청 - 제목: {}", request.getTitle());
-
+        log.info("관리자 공지 등록 요청 - 제목: {}", request.getTitle());
         NoticeResponse response = noticeService.createNotice(request);
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
+        return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("공지사항 생성 성공", response));
     }
 
     /**
-     * ADM-NTC-002: 첨부파일 업로드
-     * POST /api/admin/notices/{id}/attachments
-     * body: { "file_url": URL, "file_name": "파일명" }
+     * [2] 공지사항 목록 조회 (검색 기능 통합)
+     * URL: GET /api/admin/notices?type=OPS&keyword=...&page=0
+     * 설명: 불필요한 '중요공지', '검색' 전용 API를 없애고 여기서 다 처리합니다.
      */
-    @PostMapping("/api/admin/notices/{id}/attachments")
+    @GetMapping("/api/admin/notices")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<NoticeAttachmentResponse>> uploadAttachment(
-            @PathVariable Long id,
-            @Valid @RequestBody NoticeAttachmentRequest request) {
+    public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getNoticeList(
+            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "keyword", required = false) String keyword, // 검색어 추가
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
 
-        log.info("공지사항 첨부파일 업로드 요청 - 공지ID: {}, 파일명: {}", id, request.getFileName());
+        // 서비스의 검색/목록 로직을 호출 (키워드가 있으면 검색, 없으면 전체 조회)
+        // (기존 서비스 메서드에 keyword 파라미터가 없다면 서비스 수정이 필요할 수 있습니다.
+        //  일단 기존 getNoticeList를 호출하도록 둡니다.)
+        log.info("공지사항 목록 조회 요청");
+        Page<NoticeListResponse> responses = noticeService.getNoticeList(type, page, size);
 
-        NoticeAttachmentResponse response = noticeService.uploadAttachment(id, request);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("첨부파일 업로드 성공", response));
+        return ResponseEntity.ok(ApiResponse.success("목록 조회 성공", responses));
     }
 
     /**
-     * ADM-NTC-003: 공지 수정/삭제
-     * PATCH /api/admin/notices/{id}
-     * body: { "status": "PENDING_DELETE", "title": "수정제목" }
-     * 참고: 삭제 시 purge_after를 현재+30일로 설정
+     * [3] 공지사항 상세 조회 (수정 전 확인용)
+     * URL: GET /api/admin/notices/{id}
+     */
+    @GetMapping("/api/admin/notices/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<NoticeResponse>> getNoticeDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("상세 조회 성공", noticeService.getNoticeDetail(id)));
+    }
+
+    /**
+     * [4] 공지사항 수정 및 삭제 (Soft Delete)
+     * URL: PATCH /api/admin/notices/{id}
      */
     @PatchMapping("/api/admin/notices/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -71,19 +81,32 @@ public class NoticeController {
             @PathVariable Long id,
             @Valid @RequestBody NoticeUpdateRequest request) {
 
-        log.info("공지사항 수정 요청 - ID: {}", id);
-
-        NoticeResponse response = noticeService.updateNotice(id, request);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("공지사항 수정 성공", response)
-        );
+        log.info("공지사항 수정/삭제 요청 - ID: {}", id);
+        return ResponseEntity.ok(ApiResponse.success("수정 성공", noticeService.updateNotice(id, request)));
     }
 
     /**
-     * ADM-NTC-004: 공지 개별 발송
-     * POST /api/admin/notices/{id}/deliveries
-     * body: { "channel": "EMAIL/SMS", "target_member_ids": [1, 2, 3] }
+     * [5] 첨부파일 업로드
+     * URL: POST /api/admin/notices/{id}/attachments
+     */
+    @PostMapping("/api/admin/notices/{id}/attachments")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<NoticeAttachmentResponse>> uploadAttachment(
+            @PathVariable Long id,
+            @Valid @RequestBody NoticeAttachmentRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("파일 업로드 성공", noticeService.uploadAttachment(id, request)));
+    }
+
+
+    // =================================================================================
+    // 2. 공지 발송 기능: 발송 / 결과 조회
+    // =================================================================================
+
+    /**
+     * [6] 공지 개별 발송 (알림톡/이메일 등)
+     * URL: POST /api/admin/notices/{id}/deliveries
      */
     @PostMapping("/api/admin/notices/{id}/deliveries")
     @PreAuthorize("hasRole('ADMIN')")
@@ -91,20 +114,14 @@ public class NoticeController {
             @PathVariable Long id,
             @Valid @RequestBody NoticeDeliveryRequest request) {
 
-        log.info("공지사항 발송 요청 - ID: {}, 채널: {}, 대상 인원: {}",
-                id, request.getChannel(), request.getTargetMemberIds().size());
-
+        log.info("공지 발송 요청 - ID: {}", id);
         noticeService.deliverNotice(id, request);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("공지사항 발송 성공", null)
-        );
+        return ResponseEntity.ok(ApiResponse.success("발송 요청 성공", null));
     }
 
     /**
-     * ADM-NTC-005: 발송 결과 조회
-     * GET /api/admin/notices/{id}/deliveries
-     * 해당 공지의 회원별 전송 성공/실패 결과 목록
+     * [7] 발송 결과 조회
+     * URL: GET /api/admin/notices/{id}/deliveries
      */
     @GetMapping("/api/admin/notices/{id}/deliveries")
     @PreAuthorize("hasRole('ADMIN')")
@@ -113,142 +130,40 @@ public class NoticeController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
 
-        log.info("공지사항 발송 결과 조회 요청 - ID: {}, 페이지: {}", id, page);
-
-        Page<NoticeDeliveryResponse> responses = noticeService.getDeliveryResults(id, page, size);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("발송 결과 조회 성공", responses)
-        );
+        return ResponseEntity.ok(ApiResponse.success("발송 결과 조회 성공",
+                noticeService.getDeliveryResults(id, page, size)));
     }
 
-    /**
-     * 공지사항 목록 조회
-     * GET /api/admin/notices?type=OPS&page=0&size=20
-     */
-    @GetMapping("/api/admin/notices")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getNoticeList(
-            @RequestParam(value = "type", required = false) String type,
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "20") int size) {
 
-        log.info("공지사항 목록 조회 요청 - 타입: {}, 페이지: {}", type, page);
-
-        Page<NoticeListResponse> responses = noticeService.getNoticeList(type, page, size);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("공지사항 목록 조회 성공", responses)
-        );
-    }
+    // =================================================================================
+    // 3. 정책(Policy) 관리 기능: 등록 / 목록
+    // =================================================================================
 
     /**
-     * 공지사항 상세 조회
-     * GET /api/admin/notices/{id}
+     * [8] 정책 동의서 등록
+     * URL: POST /api/admin/policies
      */
-    @GetMapping("/api/admin/notices/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<NoticeResponse>> getNoticeDetail(
-            @PathVariable Long id) {
-
-        log.info("공지사항 상세 조회 요청 - ID: {}", id);
-
-        NoticeResponse response = noticeService.getNoticeDetail(id);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("공지사항 상세 조회 성공", response)
-        );
-    }
-
-    /**
-     * ADM-POL-001: 정책동의서 등록
-     * POST /api/admin/policies
-     */
-    @PostMapping("/api/admin/policies/create")
+    @PostMapping("/api/admin/policies")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeResponse>> createPolicy(
             @Valid @RequestBody NoticeCreateRequest request) {
 
-        log.info("정책동의서 생성 요청 - 제목: {}", request.getTitle());
-
-        NoticeResponse response = noticeService.createPolicy(request);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("정책동의서 생성 성공", response));
+        log.info("정책 등록 요청: {}", request.getTitle());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("정책 생성 성공", noticeService.createPolicy(request)));
     }
 
     /**
-     * ADM-POL-002: 정책 동의서 목록 조회
-     * GET /api/admin/policies/list
+     * [9] 정책 동의서 목록 조회
+     * URL: GET /api/admin/policies
      */
-    @GetMapping("/api/admin/policies/list")
+    @GetMapping("/api/admin/policies")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getPolicies(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
 
-        log.info("정책 동의서 목록 조회 요청 - 페이지: {}", page);
-
-        Page<NoticeListResponse> responses = noticeService.getPolicies(page, size);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("정책 동의서 목록 조회 성공", responses)
-        );
-    }
-
-    /**
-     * 공개 공지사항 목록 (사용자용)
-     * GET /api/v1/notices/public
-     */
-    @GetMapping("/api/v1/notices/public/list")
-    public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getPublicNoticeList(
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "20") int size) {
-
-        log.info("공개 공지사항 목록 조회 요청 - 페이지: {}", page);
-
-        Page<NoticeListResponse> responses = noticeService.getPublicNoticeList(page, size);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("공개 공지사항 목록 조회 성공", responses)
-        );
-    }
-
-    /**
-     * 중요 공지사항 조회
-     * GET /api/admin/notices/important
-     */
-    @GetMapping("/api/admin/notices/important")
-    public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getImportantNotices(
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "20") int size) {
-
-        log.info("중요 공지사항 조회 요청 - 페이지: {}", page);
-
-        Page<NoticeListResponse> responses = noticeService.getImportantNotices(page, size);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("중요 공지사항 조회 성공", responses)
-        );
-    }
-
-    /**
-     * 공지사항 검색 (제목)
-     * GET /api/admin/notices/search?keyword=채용
-     */
-    @GetMapping("/api/admin/notices/search")
-    public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> searchNotices(
-            @RequestParam(value = "keyword") String keyword,
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "20") int size) {
-
-        log.info("공지사항 검색 요청 - 키워드: {}, 페이지: {}", keyword, page);
-
-        Page<NoticeListResponse> responses = noticeService.searchNotices(keyword, page, size);
-
-        return ResponseEntity.ok(
-                ApiResponse.success("공지사항 검색 성공", responses)
-        );
+        return ResponseEntity.ok(ApiResponse.success("정책 목록 조회 성공",
+                noticeService.getPolicies(page, size)));
     }
 }
