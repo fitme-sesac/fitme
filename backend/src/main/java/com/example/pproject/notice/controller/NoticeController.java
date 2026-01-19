@@ -25,7 +25,7 @@ public class NoticeController {
      * POST /api/admin/notices
      * body: { "title": "제목", "body": "본문", "notice_type": "POLICY/OPS", "is_important": true }
      */
-    @PostMapping
+    @PostMapping("/api/admin/notices")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeResponse>> createNotice(
             @Valid @RequestBody NoticeCreateRequest request) {
@@ -44,7 +44,7 @@ public class NoticeController {
      * POST /api/admin/notices/{id}/attachments
      * body: { "file_url": URL, "file_name": "파일명" }
      */
-    @PostMapping("/{id}/attachments")
+    @PostMapping("/api/admin/notices/{id}/attachments")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeAttachmentResponse>> uploadAttachment(
             @PathVariable Long id,
@@ -65,7 +65,7 @@ public class NoticeController {
      * body: { "status": "PENDING_DELETE", "title": "수정제목" }
      * 참고: 삭제 시 purge_after를 현재+30일로 설정
      */
-    @PatchMapping("/{id}")
+    @PatchMapping("/api/admin/notices/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeResponse>> updateNotice(
             @PathVariable Long id,
@@ -85,13 +85,13 @@ public class NoticeController {
      * POST /api/admin/notices/{id}/deliveries
      * body: { "channel": "EMAIL/SMS", "target_member_ids": [1, 2, 3] }
      */
-    @PostMapping("/{id}/deliveries")
+    @PostMapping("/api/admin/notices/{id}/deliveries")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deliverNotice(
             @PathVariable Long id,
             @Valid @RequestBody NoticeDeliveryRequest request) {
 
-        log.info("공지사항 배송 요청 - ID: {}, 채널: {}, 대상 인원: {}",
+        log.info("공지사항 발송 요청 - ID: {}, 채널: {}, 대상 인원: {}",
                 id, request.getChannel(), request.getTargetMemberIds().size());
 
         noticeService.deliverNotice(id, request);
@@ -106,14 +106,14 @@ public class NoticeController {
      * GET /api/admin/notices/{id}/deliveries
      * 해당 공지의 회원별 전송 성공/실패 결과 목록
      */
-    @GetMapping("/{id}/deliveries")
+    @GetMapping("/api/admin/notices/{id}/deliveries")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<NoticeDeliveryResponse>>> getDeliveryResults(
             @PathVariable Long id,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
 
-        log.info("공지사항 배송 결과 조회 요청 - ID: {}, 페이지: {}", id, page);
+        log.info("공지사항 발송 결과 조회 요청 - ID: {}, 페이지: {}", id, page);
 
         Page<NoticeDeliveryResponse> responses = noticeService.getDeliveryResults(id, page, size);
 
@@ -126,7 +126,7 @@ public class NoticeController {
      * 공지사항 목록 조회
      * GET /api/admin/notices?type=OPS&page=0&size=20
      */
-    @GetMapping
+    @GetMapping("/api/admin/notices")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getNoticeList(
             @RequestParam(value = "type", required = false) String type,
@@ -146,7 +146,7 @@ public class NoticeController {
      * 공지사항 상세 조회
      * GET /api/admin/notices/{id}
      */
-    @GetMapping("/{id}")
+    @GetMapping("/api/admin/notices/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeResponse>> getNoticeDetail(
             @PathVariable Long id) {
@@ -164,7 +164,7 @@ public class NoticeController {
      * ADM-POL-001: 정책동의서 등록
      * POST /api/admin/policies
      */
-    @PostMapping("/policies/create")
+    @PostMapping("/api/admin/policies/create")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeResponse>> createPolicy(
             @Valid @RequestBody NoticeCreateRequest request) {
@@ -182,7 +182,7 @@ public class NoticeController {
      * ADM-POL-002: 정책 동의서 목록 조회
      * GET /api/admin/policies/list
      */
-    @GetMapping("/policies/list")
+    @GetMapping("/api/admin/policies/list")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getPolicies(
             @RequestParam(value = "page", defaultValue = "0") int page,
@@ -201,7 +201,7 @@ public class NoticeController {
      * 공개 공지사항 목록 (사용자용)
      * GET /api/v1/notices/public
      */
-    @GetMapping("/public/list")
+    @GetMapping("/api/v1/notices/public/list")
     public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getPublicNoticeList(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
@@ -219,7 +219,7 @@ public class NoticeController {
      * 중요 공지사항 조회
      * GET /api/admin/notices/important
      */
-    @GetMapping("/important")
+    @GetMapping("/api/admin/notices/important")
     public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> getImportantNotices(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
@@ -237,7 +237,7 @@ public class NoticeController {
      * 공지사항 검색 (제목)
      * GET /api/admin/notices/search?keyword=채용
      */
-    @GetMapping("/search")
+    @GetMapping("/api/admin/notices/search")
     public ResponseEntity<ApiResponse<Page<NoticeListResponse>>> searchNotices(
             @RequestParam(value = "keyword") String keyword,
             @RequestParam(value = "page", defaultValue = "0") int page,
