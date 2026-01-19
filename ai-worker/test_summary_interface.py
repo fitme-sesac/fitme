@@ -4,6 +4,7 @@ from app.resumes.services.summary import SummaryService
 import json
 import inspect
 
+# 이력서 요약 기능의 인터페이스를 테스트하기 위한 간단한 스크립트
 # 테스트용 더미 데이터 (Mock Data)
 # 실제 DB나 API 요청 대신 사용할 가짜 이력서 데이터입니다.
 mock_data = {
@@ -28,6 +29,7 @@ async def test_summary_interface():
     print("--- 1. 스키마(데이터 구조) 테스트 ---")
     
     # 1-1. 기본값 테스트 (STRUCTURED)
+    # 데이터 모델이 우리가 의도한 대로 데이터를 잘 받아들이는지(유효성 검사) 확인
     # summary_type을 지정하지 않았을 때 기본적으로 'STRUCTURED'로 설정되는지 확인합니다.
     req1 = ResumeRequest(**mock_data)
     print(f"기본 summary_type 값: {req1.summary_type}")

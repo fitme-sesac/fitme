@@ -36,6 +36,7 @@ class ResumeRequest(BaseModel):
     resume_id: int = Field(description="이력서 ID")
     basic_info: BasicInfo
     content: str = Field(description="자기소개 본문")
+    file_links: List[str] = Field(default=[], description="PDF 파일 링크 목록 (선택사항, 예: ['url1', 'url2'])")
     projects: List[Project]
     careers: List[Career]
     summary_type: SummaryType = Field(default=SummaryType.STRUCTURED, description="요약 형태 (STRUCTURED: 구조화, TEXT: 줄글)")

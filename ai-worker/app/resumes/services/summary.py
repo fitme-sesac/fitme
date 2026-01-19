@@ -15,6 +15,11 @@ load_dotenv()
 # 이제 별도의 os.environ 설정 없이도 LangChain이 시스템 환경 변수를 인식합니다.
 # 랭스미스는 환경 변수만 올바르게 설정되어 있으면 자동으로 추적을 시작합니다.
 
+
+# [NEW] 필요한 모듈 임포트
+from app.resumes.services.pdf_helper import PDFHandler
+from app.resumes.prompts import OCR_ADDITIONAL_INSTRUCTION
+
 class SummaryService:
     def __init__(self):
         self.llm = ChatOpenAI(
@@ -25,26 +30,87 @@ class SummaryService:
         # [NEW] Output Parser 설정
         self.json_parser = PydanticOutputParser(pydantic_object=ResumeSummary)
         self.text_parser = StrOutputParser()
+        
+        # [NEW] PDF Handler 초기화 (경로는 환경변수나 Config에서 가져오는 것이 좋으나, 일단은 None으로 기본값 사용)
+        # 실제 운영 환경에서는 Tesseract/Poppler 경로 설정이 필요할 수 있음
+        self.pdf_handler = PDFHandler()
 
-    async def generate_summary(self, data: dict | str, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> str:
+    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> str:
         """
         이력서 데이터를 받아 요약을 생성합니다.
-        data: JSON 객체(dict) 또는 줄글(str)
+        data: ResumeRequest 객체 (Schema Validation을 거친 데이터가 들어옴)
         type: RESUME 또는 SELF_INTRO (데이터의 성격)
         summary_type: STRUCTURED (구조화된 8줄) 또는 TEXT (10줄 평문)
         """
-        # 데이터 타입에 따른 텍스트 변환
-        # isinstance()는 파이썬의 내장 함수로, 특정 객체가 어떤 클래스(타입)의 인스턴스인지 확인(비교)할 때 사용
-        if isinstance(data, str):
-            input_text = data
-            data_type_desc = "텍스트 데이터"
-        else:
-            input_text = json.dumps(data, ensure_ascii=False, indent=2)
-            data_type_desc = "JSON 데이터"
+        # 1. 데이터 파싱
+        # Pydantic 모델(ResumeRequest)이 dict 형태로 들어온다고 가정 (FastAPI가 그렇게 넘겨줌)
+        # 만약 raw dict라면 바로 사용, 객체라면 .dict() 호출 필요
+        # 여기서는 controller에서 `req.dict()` 또는 `jsonable_encoder` 등을 거쳐서 dict로 들어온다고 전제.
+        
+        input_content = data.get("content", "")
+        file_links = data.get("file_links", [])
+        basic_info = data.get("basic_info", {})
+        
+        # [NEW] Basic Info를 텍스트로 변환
+        # Pydantic 모델이 dict로 변환되어 들어오므로, 예쁘게 포맷팅
+        basic_info_text = ""
+        if basic_info:
+            basic_info_text = f"""
+            - Title: {basic_info.get('title', '')}
+            - Tagline: {basic_info.get('tagline', '')}
+            - Tech Stack: {', '.join(basic_info.get('re_stack', []))}
+            - Preference: {basic_info.get('preference', {})}
+            """
+        
+        # 2. PDF 파일 처리 (Hybrid Strategy - Multi Files)
+        file_content_parts = []
+        is_ocr_data = False
+        
+        if file_links:
+            for idx, file_link in enumerate(file_links):
+                try:
+                    # URL인 경우 다운로드 로직이 필요하지만, 현재는 로컬 경로라고 가정하고 처리
+                    if file_link.startswith("http"):
+                        # [TODO] URL 다운로드 구현 필요
+                        print(f"URL Download not implemented yet: {file_link}")
+                        continue
+                    
+                    # 로컬 파일 경로인 경우 바로 추출
+                    print(f"Extracting text from PDF ({idx+1}/{len(file_links)}): {file_link}")
+                    pdf_result = self.pdf_handler.extract_text(file_link)
+                    
+                    # 구분자 추가하여 누적
+                    # [Modify] 섹션 감지(Section Detection) 로직 제거 및 페이지 단위 처리로 변경 (Step 444)
+                    # PDFHandler에서 이미 [[Page X]] 헤더를 붙여주므로, masked_text를 그대로 사용합니다.
+                    
+                    pdf_internal_text = pdf_result["masked_text"]
+
+                    extracted = f"[File {idx+1}: {os.path.basename(file_link)}]\n{pdf_internal_text}"
+                    file_content_parts.append(extracted)
+                    is_ocr_data = True
+                    
+                except Exception as e:
+                    print(f"PDF Processing Failed for {file_link}: {e}")
+                    # 실패한 파일은 건너뛰고 계속 진행
+        
+        file_content = "\n\n".join(file_content_parts)
+        
+        # 3. LLM 입력 데이터 구성
+        # Basic Info + Content + PDF File Content
+        final_input_text = f"""
+        [Candidate Basic Info]
+        {basic_info_text}
+        
+        [Self Introduction / Cover Letter]
+        {input_content}
+        
+        [Attached File Content (OCR Extracted)]
+        {file_content}
+        """
 
         # [Common System Instruction]
         # 리쿠르터라는 페르소나를 부여
-        common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 {data_type_desc}를 분석하여 요약 리포트를 작성해줘."
+        common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘."
         # 지켜야 할 "절대 원칙"을 정의
         common_constraints = """
         [Constraints]
@@ -98,6 +164,10 @@ class SummaryService:
             parser = self.json_parser
             format_instructions = parser.get_format_instructions()
 
+        # [NEW] OCR 데이터가 포함된 경우 추가 지침 주입 (Hybrid Prompting)
+        if is_ocr_data:
+            system_instruction += f"\n\n{OCR_ADDITIONAL_INSTRUCTION}"
+
         # [User Instruction 강화]
         if type == "RESUME":
             # instruction은 "지금 내가 주는 이 데이터에서 정확히 무엇을 뽑아내야 하는지"를 지정하는 개별 작업 지시에 해당
@@ -127,7 +197,7 @@ class SummaryService:
         
         # 실행 및 결과 변환
         try:
-            result = await chain.ainvoke({"input_text": input_text})
+            result = await chain.ainvoke({"input_text": final_input_text})
             
             if summary_type == SummaryType.STRUCTURED:
                 # Pydantic Object -> Formatted String
