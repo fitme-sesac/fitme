@@ -13,8 +13,8 @@ import java.util.Map;
  */
 public record PaymentResponse(
         Long paymentId,
-        String orderId,
-        String orderName,
+        String orderId, // Payment 엔티티에 orderId 필드가 없어서 주석 처리된 상태라면 확인 필요
+        String orderName, // Payment 엔티티에 orderName 필드가 없다면 추가 필요
         PaymentMethod method,
         BigDecimal totalAmount,
         PaymentAppStatus status,
@@ -40,8 +40,8 @@ public record PaymentResponse(
 
         return new PaymentResponse(
                 payment.getPaymentId(),
-                payment.getOrder().getOrderUid().toString(),
-                payment.getOrderName(),
+                "ORDER_ID_PLACEHOLDER", // TODO: Payment 엔티티에 orderId 매핑 필요
+                "ORDER_NAME_PLACEHOLDER", // TODO: Payment 엔티티에 orderName 매핑 필요
                 payment.getMethod(),
                 payment.getPaidAmount().getAmount(),
                 payment.getAppStatus(),
