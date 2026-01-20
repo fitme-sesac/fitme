@@ -123,12 +123,22 @@ class PDFHandler:
         
         # 순수 글자가 50자 넘으면 "아, 이건 텍스트 PDF구나" 하고 바로 반환
         # (주의: 빈 페이지만 잔뜩 있어서 헤더만 남은 경우 OCR로 넘기기 위함)
+        # 1-2. 이미지 포함 여부 확인 및 Hybrid OCR 수행
+        # 텍스트 레이어가 있지만, 이미지가 포함된 경우 OCR 데이터를 보강합니다.
+        if "[IMAGE_DETECTED" in extracted_text:
+            print(f"! Text found ({len(pure_text)} chars), but images also detected. Running Hybrid OCR...")
+            try:
+                ocr_text = self._extract_text_with_ocr(file_path)
+                extracted_text += "\n\n=== [Hybrid OCR Supplement: Text from Images/Diagrams] ===\n" + ocr_text
+            except Exception as e:
+                print(f"Hybrid OCR Warning: OCR failed ({e}), returning only plumber text.")
+
+        # 1-3. 텍스트가 충분하다면 반환
         if pure_text and len(pure_text) > 50:
-            print(f"✓ Text layer found ({len(pure_text)} chars). Skipping OCR.")
+            print(f"✓ Text layer found ({len(pure_text)} chars).")
             return extracted_text
 
-        # 1-2. 실패 시 OCR 수행 (Fallback)
-        # 텍스트가 너무 적으면 이미지 문서로 간주
+        # 1-4. 텍스트가 너무 적으면 이미지 문서로 간주하여 OCR 수행 (Fallback)
         print(f"! Text layer insufficient ({len(pure_text)} chars). Switching to OCR strategy...")
         return self._extract_text_with_ocr(file_path)
 
