@@ -1,3 +1,5 @@
+// LoginPage.jsx (또는 LoginPage.js)
+
 import HtmlPage from "../components/HtmlPage";
 import { usePageCss } from "../hooks/usePageCss";
 
@@ -42,8 +44,9 @@ const html = `<main class="main">
               <button type="submit" class="btn btn-success rounded-pill">로그인</button>
             </div>
 
-            <!-- Google -->
-            <div style="display:flex; justify-content:flex-end; width:100%; margin-top:0.2rem">
+            <!-- ✅ Social (Google/Kakao/Naver 한 줄 + 동일 너비/높이 + 간격) -->
+            <div class="social-auth-row">
+              <!-- Google -->
               <button
                 type="button"
                 class="gsi-material-button"
@@ -59,14 +62,12 @@ const html = `<main class="main">
                       <path fill="none" d="M0 0h48v48H0z"/>
                     </svg>
                   </div>
-                  <span class="gsi-material-button-contents">Sign in with Google</span>
+                  <span class="gsi-material-button-contents">Google</span>
                   <span style="display:none">Sign in with Google</span>
                 </div>
               </button>
-            </div>
 
-            <!-- Kakao -->
-            <div style="display:flex; justify-content:flex-end; width:100%; margin-top:0.2rem">
+              <!-- Kakao -->
               <button
                 type="button"
                 class="gsi-material-button"
@@ -79,14 +80,12 @@ const html = `<main class="main">
                       <path d="M12 3C6.477 3 2 6.58 2 11c0 2.78 1.79 5.22 4.53 6.67-.2.74-.74 2.68-.85 3.09-.13.5.18.5.38.37.16-.1 2.55-1.73 3.58-2.44.77.11 1.57.17 2.36.17 5.523 0 10-3.58 10-8s-4.477-8-10-8z" fill="#000000"/>
                     </svg>
                   </div>
-                  <span class="gsi-material-button-contents">Sign in with Kakao</span>
+                  <span class="gsi-material-button-contents">Kakao</span>
                   <span style="display:none">Sign in with Kakao</span>
                 </div>
               </button>
-            </div>
 
-            <!-- ✅ NAVER (Kakao 아래, 동일 크기/로고) -->
-            <div style="display:flex; justify-content:flex-end; width:100%; margin-top:0.2rem">
+              <!-- Naver -->
               <button
                 type="button"
                 class="gsi-material-button"
@@ -95,12 +94,11 @@ const html = `<main class="main">
                 <div class="gsi-material-button-state"></div>
                 <div class="gsi-material-button-content-wrapper">
                   <div class="gsi-material-button-icon">
-                    <!-- 단순 N 로고 -->
                     <svg viewBox="0 0 24 24" style="display:block;">
                       <path fill="#FFFFFF" d="M7 6h4.2l3.8 6.1V6H17v12h-4.2L9 11.9V18H7V6z"/>
                     </svg>
                   </div>
-                  <span class="gsi-material-button-contents">Sign in with Naver</span>
+                  <span class="gsi-material-button-contents">Naver</span>
                   <span style="display:none">Sign in with Naver</span>
                 </div>
               </button>
