@@ -15,8 +15,6 @@ export default function JobForm({ job, onSubmit, loading }) {
     location: '',
     salaryText: '',
     stack: '',
-    requiredExperience: 0,
-    recruitmentCapacity: 0,
     status: 'DRAFT',
   });
 
@@ -30,8 +28,6 @@ export default function JobForm({ job, onSubmit, loading }) {
         location: job.location || '',
         salaryText: job.salaryText || '',
         stack: job.stack || '',
-        requiredExperience: job.requiredExperience || 0,
-        recruitmentCapacity: job.recruitmentCapacity || 0,
         status: job.status || 'DRAFT',
       });
     }
@@ -188,45 +184,6 @@ export default function JobForm({ job, onSubmit, loading }) {
               maxLength={80}
             />
             <div className="form-text">지원자 매칭에 사용됩니다.</div>
-          </div>
-
-          <div className="row">
-            {/* 요구 경력 */}
-            <div className="col-md-6 mb-3">
-              <label htmlFor="requiredExperience" className="form-label">요구 경력</label>
-              <select
-                className="form-select"
-                id="requiredExperience"
-                name="requiredExperience"
-                value={formData.requiredExperience}
-                onChange={handleChange}
-              >
-                <option value={0}>신입/무관</option>
-                <option value={1}>1년 이상</option>
-                <option value={2}>2년 이상</option>
-                <option value={3}>3년 이상</option>
-                <option value={5}>5년 이상</option>
-                <option value={7}>7년 이상</option>
-                <option value={10}>10년 이상</option>
-              </select>
-              <div className="form-text">지원자 매칭에 사용됩니다.</div>
-            </div>
-
-            {/* 모집 정원 */}
-            <div className="col-md-6 mb-3">
-              <label htmlFor="recruitmentCapacity" className="form-label">모집 인원</label>
-              <input
-                type="number"
-                className="form-control"
-                id="recruitmentCapacity"
-                name="recruitmentCapacity"
-                value={formData.recruitmentCapacity}
-                onChange={handleChange}
-                min={0}
-                placeholder="0 (제한 없음)"
-              />
-              <div className="form-text">0은 제한 없음을 의미합니다.</div>
-            </div>
           </div>
         </div>
       </div>

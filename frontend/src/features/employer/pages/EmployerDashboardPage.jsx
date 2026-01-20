@@ -1,12 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
 import DashboardStats from '../components/DashboardStats';
 import EmployerInfo from '../components/EmployerInfo';
 import QuickActions from '../components/QuickActions';
-import AdStats from '../components/AdStats';
-import InterviewCalendar from '../components/InterviewCalendar';
-import ApplicantList from '../components/ApplicantList';
 
 /**
  * 기업 대시보드 메인 페이지
@@ -15,15 +12,11 @@ import ApplicantList from '../components/ApplicantList';
  */
 export default function EmployerDashboardPage() {
   const navigate = useNavigate();
-  const calendarRef = useRef(null);
   
   // 상태 관리
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // 면접 일정 추가를 위한 선택된 지원자
-  const [selectedApplicant, setSelectedApplicant] = useState(null);
 
   // 대시보드 로드
   useEffect(() => {
@@ -146,15 +139,6 @@ export default function EmployerDashboardPage() {
         {/* 통계 카드 */}
         <DashboardStats stats={stats} loading={false} />
 
-        {/* 광고 현황 섹션 */}
-        {profile && (
-          <div className="row g-4 mb-4">
-            <div className="col-12">
-              <AdStats employerId={profile?.employerId} />
-            </div>
-          </div>
-        )}
-
         <div className="row g-4">
           {/* 왼쪽 영역 */}
           <div className="col-lg-8">
@@ -250,31 +234,6 @@ export default function EmployerDashboardPage() {
                 </div>
               </div>
             </div>
-
-            {/* 지원자 목록 */}
-            {profile && (
-              <div className="mt-4">
-                <ApplicantList 
-                  onScheduleInterview={(applicant) => {
-                    setSelectedApplicant(applicant);
-                    // 캘린더로 스크롤
-                    if (calendarRef.current) {
-                      calendarRef.current.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
-                />
-              </div>
-            )}
-
-            {/* 면접 일정 캘린더 */}
-            {profile && (
-              <div className="mt-4" ref={calendarRef}>
-                <InterviewCalendar 
-                  employerId={profile?.employerId}
-                  selectedApplicant={selectedApplicant}
-                />
-              </div>
-            )}
           </div>
 
           {/* 오른쪽 사이드바 */}

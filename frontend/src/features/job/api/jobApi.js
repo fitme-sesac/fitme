@@ -38,51 +38,10 @@ export const deleteJobPosting = async (jobUid) => {
   return response.data;
 };
 
-// ===== 스크랩 API =====
-
-// 스크랩 토글 (추가/삭제)
-export const toggleScrap = async (jobId) => {
-  const response = await http.post(`/api/v1/jobs/${jobId}/scrap`);
-  return response.data;
-};
-
-// 스크랩 여부 확인
-export const getScrapStatus = async (jobId) => {
-  const response = await http.get(`/api/v1/jobs/${jobId}/scrap-status`);
-  return response.data;
-};
-
-// 내 스크랩 목록 조회
-export const getMyScrapList = async (page = 0, size = 10) => {
-  const response = await http.get('/api/v1/jobs/scraps', {
-    params: { page, size },
-  });
-  return response.data;
-};
-
-// 내 스크랩 수 조회
-export const getScrapCount = async () => {
-  const response = await http.get('/api/v1/jobs/scraps/count');
-  return response.data;
-};
-
-// 최근 본 공고 목록 조회
-export const getRecentViewedJobs = async (limit = 10) => {
-  const response = await http.get('/api/v1/jobs/recent-views', {
-    params: { limit },
-  });
-  return response.data;
-};
-
 export default {
   getJobPostings,
   getJobPosting,
   createJobPosting,
   updateJobPosting,
   deleteJobPosting,
-  toggleScrap,
-  getScrapStatus,
-  getMyScrapList,
-  getScrapCount,
-  getRecentViewedJobs,
 };
