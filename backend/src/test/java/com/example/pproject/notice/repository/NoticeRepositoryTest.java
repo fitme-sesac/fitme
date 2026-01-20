@@ -14,11 +14,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-// ▼ 아래 3줄을 추가하면 무조건 해결됩니다!
-@TestPropertySource(properties = {
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
-        "spring.datasource.url=jdbc:h2:mem:testdb;MODE=LEGACY;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false"
-})
 class NoticeRepositoryTest {
 
     @Autowired
