@@ -15,6 +15,16 @@ import ChangePasswordPage from "./pages/ChangePasswordPage";
 import FirstSocialLoginPage from "./pages/FirstSocialLoginPage";
 import ReEnterCredentialsPage from "./pages/ReEnterCredentialsPage";
 
+// 기업(Employer) 관련 페이지
+import EmployerDashboardPage from "./features/employer/pages/EmployerDashboardPage";
+import EmployerProfilePage from "./features/employer/pages/EmployerProfilePage";
+
+// 채용공고(Job) 관련 페이지
+import JobListPage from "./features/job/pages/JobListPage";
+import JobCreatePage from "./features/job/pages/JobCreatePage";
+import JobEditPage from "./features/job/pages/JobEditPage";
+import JobDetailPage from "./features/job/pages/JobDetailPage";
+
 /**
  * React 라우트에 없는 경로는 기존 백엔드(8080)가 처리하도록 위임.
  * (React로 안 옮긴 기존 페이지/기능을 깨지지 않게 유지)
@@ -98,6 +108,17 @@ export default function App() {
           {/* 소문자 alias (선택) */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* ===== 기업(Employer) 관련 라우트 ===== */}
+          <Route path="/employer/dashboard" element={<EmployerDashboardPage />} />
+          <Route path="/employer/profile" element={<EmployerProfilePage />} />
+          <Route path="/employer" element={<EmployerDashboardPage />} />
+          
+          {/* ===== 채용공고(Job) 관련 라우트 ===== */}
+          <Route path="/employer/jobs" element={<JobListPage />} />
+          <Route path="/employer/jobs/create" element={<JobCreatePage />} />
+          <Route path="/employer/jobs/:jobId" element={<JobDetailPage />} />
+          <Route path="/employer/jobs/:jobId/edit" element={<JobEditPage />} />
 
           {/* 나머지 경로는 백엔드가 처리 */}
           <Route path="*" element={<BackendFallback />} />
