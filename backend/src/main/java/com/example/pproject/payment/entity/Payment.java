@@ -129,10 +129,11 @@ public class Payment extends BaseTimeEntity {
      * @throws IllegalStateException 결제 요청(REQUESTED) 상태가 아닐 경우
      */
     public void confirm(String pgPaymentKey) {
-        if (!this.appStatus.canTransitionTo(PaymentAppStatus.REQUESTED)) { // REQUESTED -> REQUESTED (유지)
-             // 엄밀히 말하면 상태 변경은 아니지만, 인증 완료 단계임을 마킹
-             // 여기서는 상태 체크만 수행
+        // 상태 전이 검증 (REQUESTED -> REQUESTED 유지 가능 여부 확인)
+        if (!this.appStatus.canTransitionTo(PaymentAppStatus.REQUESTED)) {
+             throw new IllegalStateException("현재 상태에서는 승인 요청(Confirm) 단계로 진행할 수 없습니다.");
         }
+
         // 실제로는 REQUESTED 상태에서만 confirm 가능
         if (this.appStatus != PaymentAppStatus.REQUESTED) {
              throw new IllegalStateException("결제 요청(REQUESTED) 상태에서만 승인 요청을 진행할 수 있습니다.");

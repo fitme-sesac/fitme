@@ -11,12 +11,14 @@ import java.util.Map;
  * [Toss API -> Server] 결제 API 공통 응답
  * - 필요한 필드만 매핑 (전체 필드는 Map으로 받아도 됨)
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record TossPaymentResponse(
         String paymentKey,
         String orderId,
         String orderName,
         String status, // READY, IN_PROGRESS, WAITING_FOR_DEPOSIT, DONE, CANCELED, PARTIAL_CANCELED, ABORTED, EXPIRED
-        String lastTransactionKey,  // 토스는 루트 transactionKey 대신 lastTransactionKey를 쓰는 경우가 많음 (안전)
+        String transactionKey, // 추가됨: 토스 트랜잭션 키
+        String lastTransactionKey,
         String requestedAt,
         String approvedAt,
         BigDecimal totalAmount,
