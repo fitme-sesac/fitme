@@ -22,119 +22,121 @@ function loadScriptOnce(src) {
     });
 }
 
-const headerHtml = (isAuthenticated, displayName, apiBase) => `<header id="header" class="header sticky-top" style="padding-bottom: 10px;">
-
-        <!-- 1) 상단 줄: 주요사이트 바로가기 드롭다운 (변경 없음) -->
-        <div class="container-fluid container-xl d-flex justify-content-end py-2 px-2">
-            <div class="dropdown">
-                <a href="#" class="btn btn-outline-success rounded-pill dropdown-toggle"
-                   data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.8rem;">
-                    주요사이트 바로가기
-                </a>
-                <ul class="dropdown-menu" style="font-size:0.8rem;">
-                    <li><a class="dropdown-item" href="https://tigers.co.kr/" target="_blank">KIA타이거즈 바로가기↗</a></li>
-                    <li><a class="dropdown-item" href="https://teamstore.tigers.co.kr/" target="_blank">KIA타이거즈 스토어 바로가기↗</a></li>
-                    <li><a class="dropdown-item" href="https://www.ticketlink.co.kr/sports" target="_blank">티켓링크 바로가기↗</a></li>
-                    <li><a class="dropdown-item" href="https://www.tving.com/sports/kbo" target="_blank">TVING 야구 중계 바로가기↗</a></li>
-                    <li><a class="dropdown-item" href="https://www.msn.com/ko-kr/weather/forecast" target="_blank">일기예보 바로가기↗</a></li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- 2) 하단 줄: 로고 · 메뉴 -->
-        <div class="container-fluid container-xl d-flex align-items-center justify-content-between py-2 px-0">
+/**
+ * ✅ 핵심 변경: header도 Home의 "row justify-content-center" + (7+2)폭(=md-9) 기준에 맞춤
+ * - container-fluid p-0
+ * - row justify-content-center g-0
+ * - col-12 col-md-9 p-0  (홈의 col-md-7 + col-md-2 묶음 폭과 동일)
+ */
+const headerHtml = (isAuthenticated, displayName, apiBase) => `
+  <header id="header" class="header sticky-top" style="padding-bottom: 10px;">
+    <div class="container-fluid p-0">
+      <div class="row justify-content-center g-0">
+        <div class="col-12 col-md-9 px-2">
+          <div class="d-flex align-items-center justify-content-between py-2">
             <!-- 로고 (왼쪽 고정) -->
             <a href="/" class="logo d-flex align-items-center" style="margin-right: 0; padding-left: 0;">
-                <img
-                    src="/assets/img/main/fit_me_logo.png"
-                    alt="로고"
-                    style="height:50px; width:auto; display:block;"
-                >
+              <img
+                src="/assets/img/main/fit_me_logo.png"
+                alt="로고"
+                style="height:50px; width:auto; display:block;"
+              >
             </a>
 
             <div class="d-flex align-items-center">
-                <nav id="navmenu" class="navmenu me-3">
-                    <ul>
-                        <li><a href="/admin/user_info">관리/운영자</a></li>
-                        <li><a href="/guide/info">경기일정</a></li>
+              <nav id="navmenu" class="navmenu me-3">
+                <ul>
+                  <li><a href="/admin/user_info">관리/운영자</a></li>
+                  <li><a href="/guide/info">채용공고</a></li>
+                  <li><a href="/diagnose">이력서 팁</a></li>
+                  <li><a href="/board/list">고객지원</a></li>
 
-                        <li class="dropdown">
-                            <a href="#"><span>선수단</span><i class="bi bi-chevron-down toggle-dropdown"></i></a>
-                            <ul>
-                                <li><a href="/experience/list">선수정보</a></li>
-                                <li><a href="/event/list">코치정보</a></li>
-                                <li><a href="/event/list">감독정보</a></li>
-                            </ul>
-                        </li>
-
-                        <li class="dropdown">
-                            <a href="#"><span>응원문화</span><i class="bi bi-chevron-down toggle-dropdown"></i></a>
-                            <ul>
-                                <li><a href="/plantation/list">응원도구</a></li>
-                                <li><a href="/document/list">응원가</a></li>
-                            </ul>
-                        </li>
-
-                        <li><a href="/diagnose">역사관</a></li>
-                        <li><a href="/board/list">게시판</a></li>
-                        <li><a href="/qna/list">Q&amp;A</a></li>
-
-                        <li class="dropdown">
-                            <a href="#">
-                                <span>${isAuthenticated && displayName ? `${displayName}님` : "방문객"}</span>
-                                <i class="bi bi-chevron-down toggle-dropdown"></i>
-                            </a>
-                            <ul>
-                                ${isAuthenticated
-                                    ? `
-                                <li><a class="dropdown-item" href="/User/Update">회원수정</a></li>
-
-                                <li>
-                                    <a href="#" class="dropdown-item"
-                                       onclick="this.nextElementSibling.submit(); return false;">
-                                        로그아웃
-                                    </a>
-                                    <form action="${apiBase}/Logout" method="post" style="display:none;">
-                                        <input type="hidden" />
-                                    </form>
-                                </li>
-                                    `
-                                    : `
-                                <li><a href="/Login">로그인</a></li>
-                                <li><a href="/User/Register">회원가입</a></li>
-                                    `
-                                }
-                            </ul>
-                        </li>
-                    </ul>
-                    <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
-                </nav>
-
-                <a class="btn-getstarted" href="#">
-                     (준비중)
-                </a>
-            </div>
-        </div>
-    </header>`;
-
-const footerHtml = `<footer id="footer" class="footer" style="background-color: #f0f0f0; padding-top: 0;">
-        <div class="container footer-top" style="text-align: center;">
-            <div class="row gy-4">
-                <div class="col-lg-8 footer-about" style="display: inline-block; text-align: left;">
-                    <a href="/" class="d-flex align-items-center">
-                        <img src="/assets/img/main/fit_me_logo.png" alt="KIAFAN" style="width: 150px; height: auto;">
+                  <li class="dropdown">
+                    <a href="#">
+                      <span>${isAuthenticated && displayName ? `${displayName}님` : "방문객"}</span>
+                      <i class="bi bi-chevron-down toggle-dropdown"></i>
                     </a>
-                    <div class="footer-contact pt-1">
-                        <p class="text">경기도 부천시 부천로 245번길 44</p>
-                        <p class="text">사이트 종합 문의 : rhtkdwls21@naver.com </p>
-                        <p class="sub-text mb-3">Tigers ⓒ 기아팬 플랫폼. All Rights Reserved.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </footer>`;
+                    <ul>
+                      ${
+    isAuthenticated
+        ? `
+                        <li><a class="dropdown-item" href="/User/Update">회원수정</a></li>
 
-const scrollTopHtml = `<a href="#" id="scroll-top" class="scroll-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>`;
+                        <li>
+                          <a href="#" class="dropdown-item"
+                             onclick="this.nextElementSibling.submit(); return false;">
+                            로그아웃
+                          </a>
+                          <form action="${apiBase}/Logout" method="post" style="display:none;">
+                            <input type="hidden" />
+                          </form>
+                        </li>
+                          `
+        : `
+                        <li><a href="/Login">로그인</a></li>
+                        <li><a href="/User/Register">회원가입</a></li>
+                          `
+}
+                    </ul>
+                  </li>
+                </ul>
+                <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
+              </nav>
+
+              <a class="btn-getstarted" href="#">
+                마이페이지
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+`;
+
+const footerHtml = `
+  <footer id="footer" class="footer" style="background-color: #f0f0f0; padding-top: 0;">
+    <!-- ✅ 헤더와 동일한 좌우 기준: container-fluid + centered md-9 + px-2 -->
+    <div class="container-fluid p-0">
+      <div class="row justify-content-center g-0">
+        <div class="col-12 col-md-9 px-2">
+
+          <!-- ✅ 푸터 높이 안에서 세로 가운데 정렬 -->
+          <div class="d-flex align-items-center" style="min-height: 140px;">
+            <!-- 로고(왼쪽) + 텍스트(오른쪽) -->
+            <div class="d-flex align-items-center gap-3 flex-wrap w-100">
+
+              <!-- 왼쪽: 로고 -->
+              <a href="/" class="d-flex align-items-center flex-shrink-0">
+                <img
+                  src="/assets/img/main/fit_me_logo.png"
+                  alt="fit_me_logo"
+                  style="width: 150px; height: auto;"
+                >
+              </a>
+
+              <!-- 오른쪽: 텍스트 -->
+              <div class="footer-contact" style="min-width: 220px;">
+                <p class="text mb-1">서울시 동대문구 용두동 39-1</p>
+                <p class="text mb-1">청량리역 한양수자인 그라시엘 3층 동대문 캠퍼스</p>
+                <p class="text mb-2">사이트 종합 문의 : h321970921@gmail.com</p>
+                <p class="sub-text mb-0">Fitme ⓒ 인재매칭 플랫폼. All Rights Reserved.</p>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </footer>
+`;
+
+const scrollTopHtml = `
+  <a href="#" id="scroll-top" class="scroll-top d-flex align-items-center justify-content-center">
+    <i class="bi bi-arrow-up-short"></i>
+  </a>
+`;
 
 export default function AppLayout() {
     const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -156,7 +158,9 @@ export default function AppLayout() {
                 setDisplayName("");
             }
         })();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [pathname]);
 
     useEffect(() => {
