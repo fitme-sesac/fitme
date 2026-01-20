@@ -49,22 +49,24 @@ class AIProcessResult(BaseModel):
     vector_status: str
 
 # 1. (기존) 데이터 필드형 요약
+# 1. (Hybrid) 데이터 필드형 요약
 class ResumeSummary(BaseModel):
-    summary: str = Field(description="전문성 요약: 전체 경력 연차와 핵심 직무 정체성")
-    verified_skills: str = Field(description="검증된 역량: 인증된 경력 기반의 주요 전문 분야 (is_verified: true 활용)")
-    tech_stack: str = Field(description="기술 스택 강점: 실무에서 가장 숙련도 높게 사용하는 기술 조합")
+    # [Merged] 전문성 + 검증된 역량 + 기술 스택 -> 'Professional Identity'
+    professional_identity: str = Field(description="[전문성 요약 + 검증된 역량 + 핵심 기술 스택]을 모두 통합하여, 후보자의 직무 정체성과 주력 기술을 3~5줄로 포괄적으로 정의")
+    
+    # [Restored] 상세 역량 분석 필드들
     key_achievement: str = Field(description="핵심 프로젝트 성과: 가장 기여도가 높은 프로젝트의 실질적 결과 (contribution_pct 활용)")
-    problem_solving: str = Field(description="문제 해결 능력: ai_description 분석을 통한 기술적 깊이")
+    problem_solving: str = Field(description="문제 해결 능력: ai_description 분석을 통한 기술적 깊이 (Method -> Result 구조)")
     credibility: str = Field(description="대외 신뢰도: 자격증 및 교육 수료 등을 통한 역량 강조")
     collaboration: str = Field(description="협업 및 가치관: 후보자가 추구하는 개발 문화와 태도, 팀원과의 협업 능력")
     matching_info: str = Field(description="채용 매칭 정보: 희망 근무지 및 고용 형태 등")
+    
+    # [System] 분석 근거
     ai_reasoning: List[str] = Field(description="분석 근거: 각 항목을 작성하기 위해 참고한 문서의 페이지 번호나 섹션 출처 (리스트 형태)")
 
     def to_formatted_string(self, include_reasoning: bool = False) -> str:
         base_text = (
-            f"전문성 요약: {self.summary}\n"
-            f"검증된 역량: {self.verified_skills}\n"
-            f"기술 스택 강점: {self.tech_stack}\n"
+            f"전문성 및 기술 역량: {self.professional_identity}\n"
             f"핵심 프로젝트 성과: {self.key_achievement}\n"
             f"문제 해결 능력: {self.problem_solving}\n"
             f"대외 신뢰도: {self.credibility}\n"
@@ -79,15 +81,11 @@ class ResumeSummary(BaseModel):
     def to_embedding_string(self) -> str:
         """
         [임베딩 전용 포맷]
-        - 목적: 유사도 검색 정확도 향상
-        - 전략: 
-            1. '채용 매칭 정보(location, salary)' 등 검색 노이즈가 될 수 있는 조건성 정보 제외
-            2. Markdown Header(#)를 사용하여 의미적 블록 구분 강화
+        - 매칭 정보 제외
+        - Markdown Header 구조화
         """
         return (
-            f"# 전문성 요약\n{self.summary}\n\n"
-            f"# 검증된 역량\n{self.verified_skills}\n\n"
-            f"# 기술 스택 강점\n{self.tech_stack}\n\n"
+            f"# 전문성 및 기술 역량\n{self.professional_identity}\n\n"
             f"# 핵심 프로젝트 성과\n{self.key_achievement}\n\n"
             f"# 문제 해결 능력\n{self.problem_solving}\n\n"
             f"# 대외 신뢰도\n{self.credibility}\n\n"
@@ -109,7 +107,7 @@ class ResumeInsightReport(BaseModel):
         achievements_str = "\n".join([f"  • {item}" for item in self.technical_achievements])
         
         base_text = (
-            f"### 🚀 {self.headline}\n\n"
+            f"### {self.headline}\n\n"
             f"**[전문가 프로필]**\n{self.professional_profile}\n\n"
             f"**[핵심 기술적 성과]**\n{achievements_str}\n\n"
             f"**[기술적 깊이 및 해결 능력]**\n{self.deep_dive}\n\n"
