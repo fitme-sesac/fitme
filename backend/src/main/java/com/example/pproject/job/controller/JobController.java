@@ -4,12 +4,14 @@ import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.job.dto.*;
 import com.example.pproject.job.service.JobService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/jobs")
 @RequiredArgsConstructor
@@ -32,7 +34,11 @@ public class JobController {
             JobListResponseDTO response = jobService.getJobsByEmployer(principal.getUserid(), page, size);
             return ResponseEntity.ok(response);
         } catch (IllegalStateException e) {
+            log.warn("채용공고 목록 조회 실패: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("채용공고 목록 조회 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
 
@@ -50,7 +56,11 @@ public class JobController {
             JobDTO job = jobService.getJob(principal.getUserid(), jobUid);
             return ResponseEntity.ok(job);
         } catch (IllegalStateException e) {
+            log.warn("채용공고 조회 실패: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("채용공고 조회 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
 
@@ -64,11 +74,19 @@ public class JobController {
         if (principal == null) {
             return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
         }
+        
+        log.info("채용공고 등록 요청 - 사용자: {}, 제목: {}", principal.getUserid(), dto.getTitle());
+        
         try {
             JobDTO created = jobService.createJob(principal.getUserid(), dto);
+            log.info("채용공고 등록 성공 - ID: {}", created.getJobId());
             return ResponseEntity.ok(created);
         } catch (IllegalStateException e) {
+            log.warn("채용공고 등록 실패 (IllegalState): {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("채용공고 등록 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
 
@@ -87,7 +105,11 @@ public class JobController {
             JobDTO updated = jobService.updateJob(principal.getUserid(), jobUid, dto);
             return ResponseEntity.ok(updated);
         } catch (IllegalStateException e) {
+            log.warn("채용공고 수정 실패: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("채용공고 수정 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
 
@@ -105,7 +127,11 @@ public class JobController {
             jobService.deleteJob(principal.getUserid(), jobUid);
             return ResponseEntity.ok(Map.of("message", "삭제되었습니다."));
         } catch (IllegalStateException e) {
+            log.warn("채용공고 삭제 실패: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("채용공고 삭제 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
 }

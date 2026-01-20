@@ -10,11 +10,9 @@ import java.util.UUID;
 @Repository
 public interface EmployerRepository extends JpaRepository<EmployerEntity, Long> {
     
-    Optional<EmployerEntity> findByMemberId(Integer memberId);
-    
     Optional<EmployerEntity> findByEmployerUid(UUID employerUid);
     
-    boolean existsByMemberId(Integer memberId);
+    Optional<EmployerEntity> findByIdAndDeletedAtIsNull(Long id);
     
-    boolean existsByBusinessRegistrationNumber(String businessRegistrationNumber);
+    boolean existsByName(String name);
 }
