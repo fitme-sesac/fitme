@@ -2,9 +2,6 @@ package com.example.pproject.job.dto;
 
 import lombok.*;
 
-/**
- * 채용공고 수정 DTO (ERD 기준)
- */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,13 +11,23 @@ public class JobUpdateDTO {
     
     private String title;
     private String description;
-    private String status;
+    private String requirements;
+    private String preferredQualifications;
     
-    // ERD 기준 필드
-    private String location;
-    private String salaryText;  // VARCHAR(80) - 급여 정보
-    private String stack;
-    private Integer requiredExperience;  // 요구 경력 (0: 신입/무관)
-    private Integer recruitmentCapacity; // 모집 정원
-    private String requiredQuestions;
+    private String jobType;
+    private String experienceLevel;
+    private String educationLevel;
+    
+    private Integer salaryMin;
+    private Integer salaryMax;
+    private Boolean salaryNegotiable;
+    
+    private String workLocation;
+    private Boolean remoteWorkAvailable;
+    
+    private String postingStartDate;
+    private String postingEndDate;
+    private Boolean isAlwaysRecruiting;
+    
+    private String status;
 }

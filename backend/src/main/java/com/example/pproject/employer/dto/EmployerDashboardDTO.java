@@ -4,9 +4,6 @@ import lombok.*;
 
 import java.util.List;
 
-/**
- * 기업 대시보드 DTO
- */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,8 +27,7 @@ public class EmployerDashboardDTO {
     @AllArgsConstructor
     @Builder
     public static class JobSummaryDTO {
-        private Long jobId;
-        private String jobUid; // jobId를 문자열로 (기존 API 호환)
+        private String jobUid;
         private String title;
         private String status;
         private int applicationCount;

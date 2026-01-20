@@ -1,9 +1,6 @@
 package com.example.pproject.wallet.controller;
 
-import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
-import com.example.pproject.payment.entity.Payment;
-import com.example.pproject.payment.repository.PaymentRepository;
 import com.example.pproject.wallet.dto.*;
 import com.example.pproject.wallet.service.WalletService;
 import jakarta.validation.Valid;
@@ -27,7 +24,6 @@ import java.util.stream.Collectors;
 public class WalletController {
 
     private final WalletService walletService;
-    private final PaymentRepository paymentRepository;
 
     // =================================================================================
     // 1. 사용자 기능 (User)
@@ -38,11 +34,10 @@ public class WalletController {
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<WalletInfoResponse> getMyWallet(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(defaultValue = "CANDIDATE") RoleType roleType
-    ) {
+    public ResponseEntity<WalletInfoResponse> getMyWallet(@AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
+        RoleType roleType = RoleType.CANDIDATE; // TODO: RoleType 확장 필요
+
         return ResponseEntity.ok(WalletInfoResponse.from(walletService.getMyWallet(userId, roleType)));
     }
 
@@ -53,27 +48,12 @@ public class WalletController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<WalletLedgerResponse>> getMyLedgers(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
             @PageableDefault(size = 20, sort = "occurredAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(walletService.getMyLedgers(userId, roleType, pageable));
-    }
+        RoleType roleType = RoleType.CANDIDATE;
 
-    /**
-     * 내 거래 내역 월별 조회 (페이징)
-     */
-    @GetMapping("/me/ledgers/monthly")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Page<WalletLedgerResponse>> getMyLedgersByMonth(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
-            @RequestParam int year,
-            @RequestParam int month,
-            @PageableDefault(size = 20, sort = "occurredAt", direction = Sort.Direction.DESC) Pageable pageable
-    ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(walletService.getMyLedgersByMonth(userId, roleType, year, month, pageable));
+        return ResponseEntity.ok(walletService.getMyLedgers(userId, roleType, pageable));
     }
 
     /**
@@ -81,11 +61,10 @@ public class WalletController {
      */
     @GetMapping("/me/credit-lots")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<WalletCreditLotResponse>> getMyCreditLots(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(defaultValue = "CANDIDATE") RoleType roleType
-    ) {
+    public ResponseEntity<List<WalletCreditLotResponse>> getMyCreditLots(@AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
+        RoleType roleType = RoleType.CANDIDATE;
+
         return ResponseEntity.ok(
                 walletService.getMyCreditLots(userId, roleType).stream()
                         .map(WalletCreditLotResponse::from)
@@ -103,13 +82,9 @@ public class WalletController {
             @RequestBody @Valid WalletChargeRequest request
     ) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
-        BuyerType buyerType = BuyerType.MEMBER;
+        RoleType roleType = RoleType.CANDIDATE;
 
-        Payment payment = paymentRepository.findById(request.paymentId())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
-
-        walletService.chargeCredit(userId, buyerType, request.amount(), request.toMoney(), payment);
+        walletService.chargeCredit(userId, roleType, request.amount(), request.toMoney(), request.paymentId());
         return ResponseEntity.ok().build();
     }
 
@@ -123,10 +98,9 @@ public class WalletController {
             @RequestBody @Valid WalletUseRequest request
     ) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
-        BuyerType buyerType = BuyerType.MEMBER;
+        RoleType roleType = RoleType.CANDIDATE;
 
-        walletService.useCredit(userId, buyerType, request.amount(), request.orderId(), request.sourceType());
+        walletService.useCredit(userId, roleType, request.amount(), request.orderId(), request.sourceType());
         return ResponseEntity.ok().build();
     }
 }

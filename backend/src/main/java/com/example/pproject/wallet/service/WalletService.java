@@ -1,16 +1,9 @@
 package com.example.pproject.wallet.service;
 
-import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.SourceType;
 import com.example.pproject.Constant.TxType;
 import com.example.pproject.common.vo.Money;
-import com.example.pproject.employer.entity.EmployerEntity;
-import com.example.pproject.employer.repository.EmployerRepository;
-import com.example.pproject.payment.entity.Payment;
-import com.example.pproject.payment.service.PaymentValidationService;
-import com.example.pproject.user.entity.UserEntity;
-import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.dto.WalletLedgerResponse;
 import com.example.pproject.wallet.entity.Wallet;
 import com.example.pproject.wallet.entity.WalletCreditLot;
@@ -49,9 +42,6 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final WalletCreditLotRepository creditLotRepository;
     private final WalletLedgerRepository ledgerRepository;
-    private final PaymentValidationService paymentValidationService;
-    private final UserRepository userRepository;
-    private final EmployerRepository employerRepository;
 
     // =================================================================================
     // 1. 조회 로직 (Read)
@@ -93,8 +83,7 @@ public class WalletService {
      * @param pageable 페이징 정보
      * @return 해당 월의 거래 내역 리스트 (DTO)
      */
-    public Page<WalletLedgerResponse> getMyLedgersByMonth(Long userId, RoleType roleType, int year, int month,
-            Pageable pageable) {
+    public Page<WalletLedgerResponse> getMyLedgersByMonth(Long userId, RoleType roleType, int year, int month, Pageable pageable) {
         Wallet wallet = findWalletByOwner(userId, roleType);
 
         YearMonth ym = YearMonth.of(year, month);
@@ -103,7 +92,8 @@ public class WalletService {
         LocalDateTime endInclusive = ym.atEndOfMonth().atTime(LocalTime.MAX);
 
         return ledgerRepository.findByWalletAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDesc(
-                wallet, startAt, endInclusive, pageable)
+                        wallet, startAt, endInclusive, pageable
+                )
                 .map(WalletLedgerResponse::from);
     }
 
@@ -138,29 +128,27 @@ public class WalletService {
      * 해당 paymentId가 유효하고, 현재 요청한 userId의 결제인지 반드시 검증해야 합니다.
      * </p>
      *
-     * @param userId   사용자 ID
-     * @param roleType 사용자 역할
-     * @param amount   충전할 크레딧 양
-     * @param price    결제 금액 정보
-     * @param payment  결제 엔티티 (멱등성 키로 사용)
+     * @param userId    사용자 ID
+     * @param roleType  사용자 역할
+     * @param amount    충전할 크레딧 양
+     * @param price     결제 금액 정보
+     * @param paymentId 결제 ID (멱등성 키로 사용)
      */
     @Transactional
-    public void chargeCredit(Long userId, BuyerType roleType, long amount, Money price, Payment payment) {
+    public void chargeCredit(Long userId, RoleType roleType, long amount, Money price, Long paymentId) {
 
         // 1. 락 획득
         Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
 
         // 2. 락 획득 후 멱등성 체크
-        if (creditLotRepository.existsByPayment(payment)) {
+        if (creditLotRepository.existsByPaymentId(paymentId)) {
             return; // 이미 처리됨
         }
 
-        // 3. 결제 검증 (PaymentService 호출)
-        // PaymentService에 새로 추가된 validatePayment 메서드를 호출하여 검증
-        paymentValidationService.validatePayment(payment.getPaymentId(), userId, price);
+        // TODO: [보안] PaymentService.verifyPayment(paymentId, userId, amount) 호출 필요
+        // 결제 정보가 유효한지, 사용자의 결제가 맞는지 검증하는 로직이 반드시 추가되어야 함.
 
-        executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(),
-                "크레딧 충전 (결제)");
+        executeCharge(wallet, amount, price, SourceType.PAYMENT, paymentId, "PAYMENT:" + paymentId, "크레딧 충전 (결제)");
     }
 
     /**
@@ -173,16 +161,16 @@ public class WalletService {
      * </p>
      *
      * @param userId     사용자 ID
-     * @param buyerType  사용자 역할
+     * @param roleType   사용자 역할
      * @param amount     사용할 크레딧 양
      * @param orderId    주문 ID (멱등성 키로 사용)
      * @param sourceType 사용처 (AI, AD_CLICK 등)
      */
     @Transactional
-    public void useCredit(Long userId, BuyerType buyerType, long amount, String orderId, SourceType sourceType) {
+    public void useCredit(Long userId, RoleType roleType, long amount, String orderId, SourceType sourceType) {
 
         // 1. 락 획득
-        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
+        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
 
         // 2. 락 획득 후 멱등성 체크
         if (ledgerRepository.existsByIdempotencyKey(orderId)) {
@@ -207,7 +195,7 @@ public class WalletService {
     public void manualCharge(Long walletId, long amount, String memo) {
         Wallet wallet = walletRepository.findByIdWithLock(walletId)
                 .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
-
+        
         // 수동 지급은 가격 0원, SourceType.MANUAL
         executeCharge(wallet, amount, Money.ZERO, SourceType.MANUAL, null, null, memo);
     }
@@ -223,7 +211,7 @@ public class WalletService {
     public void manualDeduct(Long walletId, long amount, String memo) {
         Wallet wallet = walletRepository.findByIdWithLock(walletId)
                 .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
-
+        
         executeUse(wallet, amount, SourceType.MANUAL, null, null, memo);
     }
 
@@ -236,30 +224,21 @@ public class WalletService {
      * @throws IllegalStateException 이미 지갑이 존재하는 경우
      */
     @Transactional
-    public Long createWallet(Long userId, BuyerType buyerType) {
-        UserEntity user = null;
-        EmployerEntity employer = null;
-
-        if (buyerType == BuyerType.MEMBER) {
-            user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
-            if (walletRepository.findByMember(user).isPresent()) {
-                throw new IllegalStateException("이미 지갑이 존재합니다.");
-            }
-        } else if (buyerType == BuyerType.EMPLOYER) {
-            employer = employerRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
-            if (walletRepository.findByEmployer(employer).isPresent()) {
-                throw new IllegalStateException("이미 지갑이 존재합니다.");
-            }
+    public Long createWallet(Long userId, RoleType roleType) {
+        // 1. 애플리케이션 레벨 체크 (1차 방어)
+        if (roleType == RoleType.CANDIDATE && walletRepository.findByMember(userId).isPresent()) {
+            throw new IllegalStateException("이미 지갑이 존재합니다.");
+        }
+        if (roleType == RoleType.EMPLOYER && walletRepository.findByEmployer(userId).isPresent()) {
+            throw new IllegalStateException("이미 지갑이 존재합니다.");
         }
 
         Wallet wallet = Wallet.builder()
-                .ownerType(buyerType)
-                .member(user)
-                .employer(employer)
+                .ownerType(roleType)
+                .member(roleType == RoleType.CANDIDATE ? userId : null)
+                .employer(roleType == RoleType.EMPLOYER ? userId : null)
                 .build();
-
+        
         try {
             // 2. DB 저장 시도 (Unique 제약조건에 의한 2차 방어)
             return walletRepository.save(wallet).getWalletId();
@@ -279,7 +258,7 @@ public class WalletService {
     public void changeWalletStatus(Long walletId, boolean suspend) {
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
-
+        
         if (suspend) {
             wallet.suspend();
         } else {
@@ -294,21 +273,34 @@ public class WalletService {
     /**
      * 공통 충전 로직 (결제 충전 & 관리자 지급)
      */
-    private void executeCharge(Wallet wallet, long amount, Money price, SourceType sourceType, Payment payment,
-            String idempotencyKey, String memo) {
+    private void executeCharge(Wallet wallet, long amount, Money price, SourceType sourceType, Long sourceRefId, String idempotencyKey, String memo) {
         long balanceBefore = wallet.getBalance();
 
         // 1. 지갑 잔액 증가
         wallet.charge(amount);
+        long balanceAfter = wallet.getBalance();
 
-        // 2. CreditLot 생성 및 저장 (엔티티 팩토리 메서드 사용)
-        WalletCreditLot creditLot = wallet.createCreditLot(amount, price, payment);
+        // 2. CreditLot 생성 및 저장
+        WalletCreditLot creditLot = WalletCreditLot.builder()
+                .wallet(wallet)
+                .grantedCredit(amount)
+                .price(price)
+                .paymentId(sourceRefId) // PAYMENT일 때만 의미 있음
+                .build();
         creditLotRepository.save(creditLot);
 
-        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
-        Long sourceRefId = (payment != null) ? payment.getPaymentId() : null;
-        WalletLedger ledger = wallet.createLedger(TxType.CREDIT, sourceType, sourceRefId, amount, balanceBefore,
-                idempotencyKey, memo);
+        // 3. Ledger 기록
+        WalletLedger ledger = WalletLedger.builder()
+                .wallet(wallet)
+                .txType(TxType.CREDIT)
+                .sourceType(sourceType)
+                .sourceRefId(sourceRefId)
+                .amount(amount)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .idempotencyKey(idempotencyKey)
+                .memo(memo)
+                .build();
         ledgerRepository.save(ledger);
     }
 
@@ -316,12 +308,12 @@ public class WalletService {
      * 공통 사용 로직 (서비스 이용 & 관리자 차감)
      * - FIFO 방식으로 CreditLot을 순회하며 차감합니다.
      */
-    private void executeUse(Wallet wallet, long amount, SourceType sourceType, Long sourceRefId, String idempotencyKey,
-            String memo) {
+    private void executeUse(Wallet wallet, long amount, SourceType sourceType, Long sourceRefId, String idempotencyKey, String memo) {
         long balanceBefore = wallet.getBalance();
 
         // 1. 지갑 잔액 차감 (부족하면 예외)
         wallet.use(amount);
+        long balanceAfter = wallet.getBalance();
 
         // 2. LOT FIFO 차감 (Chunk 조회)
         long remaining = amount;
@@ -340,8 +332,7 @@ public class WalletService {
             long deductedThisRound = 0;
 
             for (WalletCreditLot lot : lots) {
-                if (remaining <= 0)
-                    break;
+                if (remaining <= 0) break;
 
                 long canUse = lot.getRemainingCredit();
                 long deduct = Math.min(canUse, remaining);
@@ -357,9 +348,18 @@ public class WalletService {
             }
         }
 
-        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
-        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, sourceType, sourceRefId, amount, balanceBefore,
-                idempotencyKey, memo);
+        // 3. Ledger 기록
+        WalletLedger ledger = WalletLedger.builder()
+                .wallet(wallet)
+                .txType(TxType.DEBIT)
+                .sourceType(sourceType)
+                .sourceRefId(sourceRefId)
+                .amount(amount)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .idempotencyKey(idempotencyKey)
+                .memo(memo)
+                .build();
         ledgerRepository.save(ledger);
     }
 
@@ -367,64 +367,25 @@ public class WalletService {
      * 사용자 ID와 역할로 지갑을 조회합니다. (락 없음)
      */
     private Wallet findWalletByOwner(Long userId, RoleType roleType) {
-        if (roleType == RoleType.CANDIDATE) {
-            UserEntity user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
-            return walletRepository.findByMember(user)
+        return switch (roleType) {
+            case CANDIDATE -> walletRepository.findByMember(userId)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
-        } else if (roleType == RoleType.EMPLOYER) {
-            EmployerEntity employer = employerRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
-            return walletRepository.findByEmployer(employer)
+            case EMPLOYER -> walletRepository.findByEmployer(userId)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
-        } else {
-            throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
-        }
+            default -> throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
+        };
     }
 
     /**
      * 사용자 ID와 역할로 지갑을 조회하며 비관적 락을 겁니다. (수정용)
-     * 지갑이 없으면 자동으로 생성합니다.
      */
-    private Wallet findWalletByOwnerWithLock(Long userId, BuyerType buyerType) {
-        if (buyerType == BuyerType.MEMBER) {
-            return walletRepository.findByMemberWithLock(userId)
-                    .orElseGet(() -> createWalletForMember(userId));
-        } else if (buyerType == BuyerType.EMPLOYER) {
-            return walletRepository.findByEmployerWithLock(userId)
-                    .orElseGet(() -> createWalletForEmployer(userId));
-        } else {
-            throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
-        }
-    }
-
-    /**
-     * 개인 회원용 지갑 자동 생성
-     */
-    private Wallet createWalletForMember(Long userId) {
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
-
-        Wallet wallet = Wallet.builder()
-                .ownerType(BuyerType.MEMBER)
-                .member(user)
-                .build();
-
-        return walletRepository.save(wallet);
-    }
-
-    /**
-     * 기업 회원용 지갑 자동 생성
-     */
-    private Wallet createWalletForEmployer(Long userId) {
-        EmployerEntity employer = employerRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
-
-        Wallet wallet = Wallet.builder()
-                .ownerType(BuyerType.EMPLOYER)
-                .employer(employer)
-                .build();
-
-        return walletRepository.save(wallet);
+    private Wallet findWalletByOwnerWithLock(Long userId, RoleType roleType) {
+        return switch (roleType) {
+            case CANDIDATE -> walletRepository.findByMemberWithLock(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+            case EMPLOYER -> walletRepository.findByEmployerWithLock(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+            default -> throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
+        };
     }
 }

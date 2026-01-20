@@ -2,7 +2,6 @@ import { Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { http } from "../api/http";
 import HtmlPage from "../components/HtmlPage";
-import Header from "../components/Header";
 
 /**
  * main.js를 중복 로드하지 않기 위한 헬퍼
@@ -22,6 +21,78 @@ function loadScriptOnce(src) {
         document.body.appendChild(s);
     });
 }
+
+/**
+ * ✅ 핵심 변경: header도 Home의 "row justify-content-center" + (7+2)폭(=md-9) 기준에 맞춤
+ * - container-fluid p-0
+ * - row justify-content-center g-0
+ * - col-12 col-md-9 p-0  (홈의 col-md-7 + col-md-2 묶음 폭과 동일)
+ */
+const headerHtml = (isAuthenticated, displayName, apiBase) => `
+  <header id="header" class="header sticky-top" style="padding-bottom: 10px;">
+    <div class="container-fluid p-0">
+      <div class="row justify-content-center g-0">
+        <div class="col-12 col-md-9 px-2">
+          <div class="d-flex align-items-center justify-content-between py-2">
+            <!-- 로고 (왼쪽 고정) -->
+            <a href="/" class="logo d-flex align-items-center" style="margin-right: 0; padding-left: 0;">
+              <img
+                src="/assets/img/main/fit_me_logo.png"
+                alt="로고"
+                style="height:50px; width:auto; display:block;"
+              >
+            </a>
+
+            <div class="d-flex align-items-center">
+              <nav id="navmenu" class="navmenu me-3">
+                <ul>
+                  <li><a href="/admin/user_info">관리/운영자</a></li>
+                  <li><a href="/guide/info">채용공고</a></li>
+                  <li><a href="/diagnose">이력서 팁</a></li>
+                  <li><a href="/board/list">고객지원</a></li>
+
+                  <li class="dropdown">
+                    <a href="#">
+                      <span>${isAuthenticated && displayName ? `${displayName}님` : "방문객"}</span>
+                      <i class="bi bi-chevron-down toggle-dropdown"></i>
+                    </a>
+                    <ul>
+                      ${
+    isAuthenticated
+        ? `
+                        <li><a class="dropdown-item" href="/User/Update">회원수정</a></li>
+
+                        <li>
+                          <a href="#" class="dropdown-item"
+                             onclick="this.nextElementSibling.submit(); return false;">
+                            로그아웃
+                          </a>
+                          <form action="${apiBase}/Logout" method="post" style="display:none;">
+                            <input type="hidden" />
+                          </form>
+                        </li>
+                          `
+        : `
+                        <li><a href="/Login">로그인</a></li>
+                        <li><a href="/User/Register">회원가입</a></li>
+                          `
+}
+                    </ul>
+                  </li>
+                </ul>
+                <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
+              </nav>
+
+              <a class="btn-getstarted" href="#">
+                마이페이지
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+`;
 
 const footerHtml = `
   <footer id="footer" class="footer" style="background-color: #f0f0f0; padding-top: 0;">
@@ -72,7 +143,6 @@ export default function AppLayout() {
     const { pathname } = useLocation();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [displayName, setDisplayName] = useState("");
-    const [role, setRole] = useState("");
 
     useEffect(() => {
         let alive = true;
@@ -82,12 +152,10 @@ export default function AppLayout() {
                 if (!alive) return;
                 setIsAuthenticated(!!res?.data?.authenticated);
                 setDisplayName(res?.data?.name || "");
-                setRole(res?.data?.role || "");
             } catch (e) {
                 if (!alive) return;
                 setIsAuthenticated(false);
                 setDisplayName("");
-                setRole("");
             }
         })();
         return () => {
@@ -113,12 +181,7 @@ export default function AppLayout() {
 
     return (
         <>
-            <Header 
-                isAuthenticated={isAuthenticated}
-                displayName={displayName}
-                apiBase={apiBase}
-                role={role}
-            />
+            <HtmlPage html={headerHtml(isAuthenticated, displayName, apiBase)} />
             <Outlet />
             <HtmlPage html={footerHtml} />
             <HtmlPage html={scrollTopHtml} />

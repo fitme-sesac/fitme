@@ -1,5 +1,10 @@
 language: "ko-KR"
+
 reviews:
   target_branches:
     - "main"
-    - "dev"
+    - "develop"
+
+# 이 부분을 추가하여 자동 주석 생성과 추가 PR 생성을 완전히 차단합니다.
+finishing_touches:
+  docstrings: false

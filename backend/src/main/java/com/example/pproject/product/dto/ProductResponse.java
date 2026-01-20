@@ -5,8 +5,8 @@ import com.example.pproject.Constant.SaleStatus;
 import com.example.pproject.product.entity.Product;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-//import java.time.LocalDateTime;
+//import java.time.Instant;
+import java.time.LocalDateTime;
 
 public record ProductResponse(
         Long productId,
@@ -18,8 +18,8 @@ public record ProductResponse(
         SaleStatus saleStatus,
         Integer creditAmount,
         String planTier,
-        Instant createdAt,
-        Instant updatedAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
     public static ProductResponse from(Product product) {
         return new ProductResponse(

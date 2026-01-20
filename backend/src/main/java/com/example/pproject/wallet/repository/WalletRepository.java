@@ -1,7 +1,5 @@
 package com.example.pproject.wallet.repository;
 
-import com.example.pproject.employer.entity.EmployerEntity;
-import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.wallet.entity.Wallet;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,18 +20,18 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     Optional<Wallet> findByIdWithLock(@Param("id") Long id);
 
     // 멤버 ID로 지갑 조회 (단순 조회용)
-    Optional<Wallet> findByMember(UserEntity memberId);
+    Optional<Wallet> findByMember(Long memberId);
 
     // 고용주 ID로 지갑 조회 (단순 조회용)
-    Optional<Wallet> findByEmployer(EmployerEntity employerId);
+    Optional<Wallet> findByEmployer(Long employerId);
 
     // 멤버 ID로 지갑 조회 + 비관적 락
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select w from Wallet w where w.member.id = :memberId")
+    @Query("select w from Wallet w where w.member = :memberId")
     Optional<Wallet> findByMemberWithLock(@Param("memberId") Long memberId);
 
     // 고용주 ID로 지갑 조회 + 비관적 락
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select w from Wallet w where w.employer.id = :employerId")
+    @Query("select w from Wallet w where w.employer = :employerId")
     Optional<Wallet> findByEmployerWithLock(@Param("employerId") Long employerId);
 }

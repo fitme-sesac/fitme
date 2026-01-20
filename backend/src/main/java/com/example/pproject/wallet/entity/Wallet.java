@@ -1,14 +1,8 @@
 package com.example.pproject.wallet.entity;
 
-import com.example.pproject.Constant.BuyerType;
-import com.example.pproject.Constant.SourceType;
-import com.example.pproject.Constant.TxType;
+import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.WalletStatus;
 import com.example.pproject.common.entity.BaseTimeEntity;
-import com.example.pproject.common.vo.Money;
-import com.example.pproject.employer.entity.EmployerEntity;
-import com.example.pproject.payment.entity.Payment;
-import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -20,13 +14,16 @@ import org.springframework.util.Assert;
 
 @Entity
 @DynamicUpdate
-@Table(name = "wallet", indexes = {
-        @Index(name = "uq_wallet_member_one", columnList = "member_id", unique = true),
-        @Index(name = "uq_wallet_employer_one", columnList = "employer_id", unique = true)
-})
+@Table(
+        name = "wallet",
+        indexes = {
+                @Index(name = "uq_wallet_member_one", columnList = "member_id", unique = true),
+                @Index(name = "uq_wallet_employer_one", columnList = "employer_id", unique = true)
+        }
+)
 // DB가 CHECK 제약 지원 시 강력 추천
 @Check(constraints = """
-        (owner_type = 'MEMBER' AND member_id IS NOT NULL AND employer_id IS NULL)
+        (owner_type = 'CANDIDATE' AND member_id IS NOT NULL AND employer_id IS NULL)
         OR
         (owner_type = 'EMPLOYER' AND employer_id IS NOT NULL AND member_id IS NULL)
         """)
@@ -41,15 +38,13 @@ public class Wallet extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "owner_type", nullable = false, length = 20)
-    private BuyerType ownerType;
+    private RoleType ownerType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_id")
-    private UserEntity member;
+    @Column(name = "member_id")
+    private Long member;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "employer_id")
-    private EmployerEntity employer;
+    @Column(name = "employer_id")
+    private Long employer;
 
     @Column(name = "balance", nullable = false)
     private long balance;
@@ -59,7 +54,7 @@ public class Wallet extends BaseTimeEntity {
     private WalletStatus status;
 
     @Builder
-    public Wallet(BuyerType ownerType, UserEntity member, EmployerEntity employer) {
+    public Wallet(RoleType ownerType, Long member, Long employer) {
         validateOwner(ownerType, member, employer);
         this.ownerType = ownerType;
         this.member = member;
@@ -100,55 +95,23 @@ public class Wallet extends BaseTimeEntity {
         }
     }
 
-    // === 팩토리 메서드 (연관 엔티티 생성 위임) ===
-
-    /**
-     * 크레딧 충전용 Lot 생성
-     */
-    public WalletCreditLot createCreditLot(long amount, Money price, Payment paymentId) {
-        return WalletCreditLot.builder()
-                .wallet(this)
-                .grantedCredit(amount)
-                .price(price)
-                .payment(paymentId)
-                .build();
-    }
-
-    /**
-     * 거래 원장(Ledger) 생성
-     */
-    public WalletLedger createLedger(TxType txType, SourceType sourceType, Long sourceRefId, long amount,
-            long balanceBefore, String idempotencyKey, String memo) {
-        return WalletLedger.builder()
-                .wallet(this)
-                .txType(txType)
-                .sourceType(sourceType)
-                .sourceRefId(sourceRefId)
-                .amount(amount)
-                .balanceBefore(balanceBefore)
-                .balanceAfter(this.balance) // 현재 잔액 (변경 후)
-                .idempotencyKey(idempotencyKey)
-                .memo(memo)
-                .build();
-    }
-
     private void verifyActive() {
         if (this.status != WalletStatus.ACTIVE) {
             throw new IllegalStateException("정지된 지갑은 사용할 수 없습니다.");
         }
     }
 
-    private void validateOwner(BuyerType ownerType, UserEntity member, EmployerEntity employer) {
+    private void validateOwner(RoleType ownerType, Long member, Long employer) {
         Assert.notNull(ownerType, "지갑 소유자 타입은 필수입니다.");
 
-        if (ownerType == BuyerType.MEMBER) {
+        if (ownerType == RoleType.CANDIDATE) {
             Assert.notNull(member, "일반 회원 지갑은 memberId가 필수입니다.");
             Assert.isNull(employer, "일반 회원 지갑에는 employerId가 없어야 합니다.");
-        } else if (ownerType == BuyerType.EMPLOYER) {
+        } else if (ownerType == RoleType.EMPLOYER) {
             Assert.notNull(employer, "기업 지갑은 employerId가 필수입니다.");
             Assert.isNull(member, "기업 지갑에는 memberId가 없어야 합니다.");
         } else {
-            throw new IllegalArgumentException("지갑은 MEMBER 또는 EMPLOYER만 소유할 수 있습니다.");
+            throw new IllegalArgumentException("지갑은 CANDIDATE 또는 EMPLOYER만 소유할 수 있습니다.");
         }
     }
 }

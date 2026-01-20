@@ -22,7 +22,7 @@ public class AuthStatusController {
 
         if (!jwtAuthenticated) {
             // Map.of는 null 금지 -> 빈 문자열 사용
-            return Map.of("authenticated", false, "name", "", "role", "");
+            return Map.of("authenticated", false, "name", "");
         }
 
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
@@ -30,14 +30,6 @@ public class AuthStatusController {
                 ? p.getUserid()
                 : p.getDisplayName();
 
-        // role 추출 (ROLE_ 접두사 제거)
-        String role = p.getAuthorities().stream()
-                .map(a -> a.getAuthority())
-                .filter(a -> a.startsWith("ROLE_"))
-                .map(a -> a.substring(5))
-                .findFirst()
-                .orElse("");
-
-        return Map.of("authenticated", true, "name", name, "role", role);
+        return Map.of("authenticated", true, "name", name);
     }
 }

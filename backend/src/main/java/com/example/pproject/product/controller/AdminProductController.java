@@ -2,7 +2,6 @@ package com.example.pproject.product.controller;
 
 import com.example.pproject.product.dto.CreateOneTimeRequest;
 import com.example.pproject.product.dto.CreateSubscriptionRequest;
-import com.example.pproject.product.dto.UpdatePriceRequest;
 import com.example.pproject.product.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,28 +39,21 @@ public class AdminProductController {
         return ResponseEntity.noContent().build();
     }
 
-    // 4. 가격 변경
-    @PatchMapping("/{productId}/price")
-    public ResponseEntity<Void> updatePrice(@PathVariable Long productId, @RequestBody @Valid UpdatePriceRequest request) {
-        productService.updatePrice(productId, request);
-        return ResponseEntity.ok().build();
-    }
-
-    // 5. 상태 변경 (일시 정지)
+    // 4. 상태 변경 (일시 정지)
     @PatchMapping("/{productId}/pause")
     public ResponseEntity<Void> pauseProduct(@PathVariable Long productId) {
         productService.pauseProduct(productId);
         return ResponseEntity.ok().build();
     }
 
-    // 6. 상태 변경 (재개)
+    // 5. 상태 변경 (재개)
     @PatchMapping("/{productId}/resume")
     public ResponseEntity<Void> resumeProduct(@PathVariable Long productId) {
         productService.resumeProduct(productId);
         return ResponseEntity.ok().build();
     }
 
-    // 7. 상태 변경 (종료)
+    // 6. 상태 변경 (종료)
     @PatchMapping("/{productId}/stop")
     public ResponseEntity<Void> stopProduct(@PathVariable Long productId) {
         productService.stopProduct(productId);

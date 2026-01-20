@@ -21,6 +21,10 @@ configurations {
     }
 }
 
+repositories {
+    mavenCentral() // 이제 settings.gradle에서 허용했으므로 에러가 나지 않습니다.
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
@@ -73,33 +77,11 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
     // pgvector
-    // implementation files('libs/pgvector-java-0.1.6.jar')
-
-    implementation "org.hibernate.orm:hibernate-vector:6.5.2.Final"
-
+    implementation files('libs/pgvector-java-0.1.6.jar')
     // postgresql
     runtimeOnly 'org.postgresql:postgresql'
 
     implementation 'com.solapi:sdk:1.0.3'
-
-    // resilience4j : 타임아웃 + 서킷브레이크 설정을 위한 의존성
-    implementation 'org.springframework.boot:spring-boot-starter-aop'
-    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.1.0'
-
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    implementation 'org.springframework.session:spring-session-data-redis'
-
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-
-
-
-//        // [추가] Spring Batch
-//    implementation 'org.springframework.boot:spring-boot-starter-batch'
-//
-//        // [추가] ShedLock (분산 락)
-//    implementation 'net.javacrumbs.shedlock:shedlock-spring:5.10.0'
-//    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.10.0'
-
 }
 
 

@@ -12,7 +12,6 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -31,10 +30,7 @@ public class ResumeRequest {
     private Boolean primary;
     private Boolean publicOption;
     private String content;
-
-    private List<String> reStack;
-
-    private Integer careerYears;
+    private String reStack;
 
     private Long targetJobId;
     private String preferenceLocation;
@@ -64,8 +60,7 @@ public class ResumeRequest {
                 .tagline(this.tagline)
                 .primary(this.primary != null ? this.primary : false)
                 .publicOption(this.publicOption != null ? this.publicOption : false)
-                .reStack(this.reStack != null ? this.reStack : new ArrayList<>()) // List 그대로 전달
-                .careerYears(this.careerYears != null ? this.careerYears : 0)     // 연차 추가
+                .reStack(this.reStack)
                 .targetJobId(this.targetJobId)
                 .preferenceLocation(this.preferenceLocation)
                 .preferenceSalary(this.preferenceSalary)

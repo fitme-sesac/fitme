@@ -29,10 +29,8 @@ public class JobApplicationService {
     private final UserRepository userRepository;
 
     @Transactional
-    public Long apply(JobApplicationRequest request, Long userId) {
-        Long userIdLong = userId.longValue();
-        
-        if (jobApplicationRepository.existsByJobIdAndMemberId(request.getJobId(), userIdLong)) {
+    public Long apply(JobApplicationRequest request, Integer userId) {
+        if (jobApplicationRepository.existsByJobIdAndMemberId(request.getJobId(), userId)) {
             throw new IllegalArgumentException("이미 지원한 공고입니다.");
         }
 
@@ -64,16 +62,10 @@ public class JobApplicationService {
 
     @Transactional
     public void cancel(Long applicationId, Integer userId) {
-        cancel(applicationId, userId != null ? userId.longValue() : null);
-    }
-
-    @Transactional
-    public void cancel(Long applicationId, Long memberId) {
-        if (memberId == null) throw new IllegalArgumentException("로그인이 필요합니다.");
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found"));
 
-        if (!application.getMember().getId().equals(memberId)) {
+        if (!application.getMember().getId().equals(userId)) {
             throw new IllegalArgumentException("본인의 지원 내역만 취소할 수 있습니다.");
         }
 
@@ -90,49 +82,8 @@ public class JobApplicationService {
     }
 
     public List<JobApplicationResponse> getMyApplications(Integer userId) {
-        return getMyApplications(userId != null ? userId.longValue() : null);
-    }
-
-    public List<JobApplicationResponse> getMyApplications(Long memberId) {
-        if (memberId == null) return List.of();
-        return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(memberId).stream()
+        return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(userId).stream()
                 .map(JobApplicationResponse::from)
                 .collect(Collectors.toList());
-    }
-
-    public JobApplicationResponse getApplication(Long applicationId, Long memberId) {
-        JobApplication app = jobApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new IllegalArgumentException("지원 내역을 찾을 수 없습니다."));
-        if (!app.getMember().getId().equals(memberId)) {
-            throw new IllegalArgumentException("본인의 지원 내역만 조회할 수 있습니다.");
-        }
-        return JobApplicationResponse.from(app);
-    }
-
-    /**
-     * 지원 상태별 건수 (CANCELED 제외)
-     * 프론트: { submitted, viewed, interview, hired, rejected }
-     */
-    public java.util.Map<String, Long> getMyApplicationCounts(Long memberId) {
-        List<JobApplication> list = jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(memberId);
-        long submitted = 0, viewed = 0, interview = 0, hired = 0, rejected = 0;
-        for (JobApplication a : list) {
-            if (a.getStatus() == ApplicationStatus.CANCELED) continue;
-            switch (a.getStatus()) {
-                case SUBMITTED -> submitted++;
-                case VIEWED -> viewed++;
-                case INTERVIEW -> interview++;
-                case HIRED -> hired++;
-                case REJECTED -> rejected++;
-                default -> {}
-            }
-        }
-        return java.util.Map.of(
-                "submitted", submitted,
-                "viewed", viewed,
-                "interview", interview,
-                "hired", hired,
-                "rejected", rejected
-        );
     }
 }

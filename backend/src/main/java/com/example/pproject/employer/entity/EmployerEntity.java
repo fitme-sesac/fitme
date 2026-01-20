@@ -7,8 +7,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 기업 프로필 테이블 (ERD: employer)
- * - employer_member 테이블을 통해 member와 연결
+ * 기업회원 상세 정보 테이블
+ * - member 테이블과 1:1 관계 (member_id FK)
  */
 @Getter
 @Setter
@@ -27,49 +27,47 @@ public class EmployerEntity {
     @Column(name = "employer_uid", nullable = false, unique = true)
     private UUID employerUid;
 
-    // 기업 기본 정보 (ERD 기준)
-    @Column(name = "name", nullable = false, length = 120)
-    private String name;
+    // member 테이블과의 FK
+    @Column(name = "member_id", nullable = false)
+    private Integer memberId;
 
-    @Column(name = "logo_url")
-    private String logoUrl;
+    // 회사 정보
+    @Column(name = "company_name", nullable = false, length = 200)
+    private String companyName;
 
-    @Column(name = "industry", length = 80)
+    @Column(name = "business_registration_number", length = 20)
+    private String businessRegistrationNumber;
+
+    @Column(name = "representative_name", length = 80)
+    private String representativeName;
+
+    @Column(name = "company_address", length = 500)
+    private String companyAddress;
+
+    @Column(name = "company_phone", length = 20)
+    private String companyPhone;
+
+    @Column(name = "company_website", length = 500)
+    private String companyWebsite;
+
+    @Column(name = "industry", length = 100)
     private String industry;
-
-    @Column(name = "founded_year")
-    private Integer foundedYear;
 
     @Column(name = "employee_count")
     private Integer employeeCount;
 
-    @Column(name = "location", length = 120)
-    private String location;
+    @Column(name = "company_description", columnDefinition = "TEXT")
+    private String companyDescription;
 
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
-    @Column(name = "culture", columnDefinition = "TEXT")
-    private String culture;
-
-    @Column(name = "benefits", columnDefinition = "TEXT")
-    private String benefits;
-
-    @Column(name = "tech_stack", columnDefinition = "TEXT")
-    private String techStack;
-
-    @Column(name = "contact_email", length = 320)
-    private String contactEmail;
-
-    @Column(name = "contact_phone", length = 20)
-    private String contactPhone;
-
-    @Column(name = "website_url")
-    private String websiteUrl;
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
 
     // 상태
     @Column(name = "status", nullable = false, length = 20)
-    private String status; // ACTIVE, SUSPENDED, CLOSED
+    private String status; // PENDING, APPROVED, REJECTED
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
 
     // 감사
     @Column(name = "created_at", nullable = false)
@@ -78,16 +76,13 @@ public class EmployerEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
     @PrePersist
     void prePersist() {
         if (employerUid == null) {
             employerUid = UUID.randomUUID();
         }
         if (status == null || status.isBlank()) {
-            status = "ACTIVE";
+            status = "PENDING";
         }
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;

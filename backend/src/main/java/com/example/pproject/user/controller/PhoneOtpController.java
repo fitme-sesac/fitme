@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/phone")
+@RequestMapping("/api/phone/otp")
 @RequiredArgsConstructor
 public class PhoneOtpController {
 
@@ -26,54 +26,32 @@ public class PhoneOtpController {
 
     private static final String PURPOSE_SIGNUP = "SIGNUP";
 
-    @PostMapping("/otp/send")
-    public ResponseEntity<?> sendOtp(@RequestBody Map<String, String> body,
-                                     HttpServletRequest request,
-                                     HttpServletResponse response) {
-        return doSend(body, request, response);
-    }
+    @PostMapping("/send")
+    public ResponseEntity<?> send(@RequestBody Map<String, String> body,
+                                  HttpServletRequest request,
+                                  HttpServletResponse response) {
 
-    /** fitme-2 프론트 연동: /api/phone/send-code */
-    @PostMapping("/send-code")
-    public ResponseEntity<?> sendCode(@RequestBody Map<String, String> body,
-                                      HttpServletRequest request,
-                                      HttpServletResponse response) {
-        return doSend(body, request, response);
-    }
-
-    @PostMapping("/otp/verify")
-    public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> body,
-                                       HttpServletRequest request,
-                                       HttpServletResponse response,
-                                       @CookieValue(value = "PHONE_OTP_TMP", required = false) String otpToken) {
-        return doVerify(body, request, response, otpToken);
-    }
-
-    /** fitme-2 프론트 연동: /api/phone/verify */
-    @PostMapping("/verify")
-    public ResponseEntity<?> verify(@RequestBody Map<String, String> body,
-                                    HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    @CookieValue(value = "PHONE_OTP_TMP", required = false) String otpToken) {
-        return doVerify(body, request, response, otpToken);
-    }
-
-    private ResponseEntity<?> doSend(Map<String, String> body,
-                                     HttpServletRequest request,
-                                     HttpServletResponse response) {
         String phone = body == null ? null : body.get("phone");
+
         try {
             String ip = getClientIp(request);
             String ua = request.getHeader("User-Agent");
+
             var result = phoneVerificationService.sendOtp(phone, PURPOSE_SIGNUP, ip, ua);
+
+            // 쿠키 TTL은 OTP 만료와 맞춤(최대 300s)
             long ttl = Math.min(300, secondsUntil(result.expiresAt()));
+
             Map<String, Object> claims = new HashMap<>();
             claims.put("verificationId", result.verificationId().toString());
             claims.put("phone", normalize(phone));
             claims.put("purpose", PURPOSE_SIGNUP);
+
             String tmp = jwtTokenProvider.createFlowToken("PHONE_OTP_DB", claims, ttl);
             CookieUtils.addHttpOnlyCookie(request, response, "PHONE_OTP_TMP", tmp, ttl, "Lax");
+
             return ResponseEntity.ok(Map.of("ok", true));
+
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
         } catch (Exception e) {
@@ -81,39 +59,52 @@ public class PhoneOtpController {
         }
     }
 
-    private ResponseEntity<?> doVerify(Map<String, String> body,
-                                       HttpServletRequest request,
-                                       HttpServletResponse response,
-                                       String otpToken) {
+    @PostMapping("/verify")
+    public ResponseEntity<?> verify(@RequestBody Map<String, String> body,
+                                    HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    @CookieValue(value = "PHONE_OTP_TMP", required = false) String otpToken) {
+
         try {
             String phone = body == null ? null : body.get("phone");
             String code = body == null ? null : body.get("code");
+
             if (otpToken == null || otpToken.isBlank() || !jwtTokenProvider.validateToken(otpToken)) {
                 return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 먼저 발송해주세요."));
             }
+
             Claims c = jwtTokenProvider.getClaims(otpToken);
             if (!"PHONE_OTP_DB".equals(c.get("flowType", String.class))) {
                 return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 다시 발송해주세요."));
             }
+
             Map<String, Object> flow = flowClaimsOf(c);
             String vid = flow.get("verificationId") == null ? null : flow.get("verificationId").toString();
             String savedPhone = flow.get("phone") == null ? null : flow.get("phone").toString();
             String purpose = flow.get("purpose") == null ? null : flow.get("purpose").toString();
+
             String normalizedPhone = normalize(phone);
+
             if (vid == null || savedPhone == null || purpose == null) {
                 return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 다시 발송해주세요."));
             }
             if (!normalizedPhone.equals(savedPhone)) {
                 return ResponseEntity.ok(Map.of("verified", false, "message", "휴대폰 번호가 일치하지 않습니다."));
             }
+
             phoneVerificationService.verifyOtp(UUID.fromString(vid), normalizedPhone, purpose, code);
+
+            // ✅ 인증 성공: PHONE_VERIFIED_TMP (15분)
             Map<String, Object> verifiedClaims = new HashMap<>();
             verifiedClaims.put("phone", normalizedPhone);
             verifiedClaims.put("purpose", purpose);
+
             String verified = jwtTokenProvider.createFlowToken("PHONE_VERIFIED", verifiedClaims, 900);
             CookieUtils.addHttpOnlyCookie(request, response, "PHONE_VERIFIED_TMP", verified, 900, "Lax");
+
             CookieUtils.deleteCookie(request, response, "PHONE_OTP_TMP");
             return ResponseEntity.ok(Map.of("verified", true));
+
         } catch (IllegalStateException e) {
             return ResponseEntity.ok(Map.of("verified", false, "message", e.getMessage()));
         }
@@ -162,7 +153,7 @@ public class PhoneOtpController {
         return request.getRemoteAddr();
     }
 
-    @GetMapping("/otp/status")
+    @GetMapping("/status")
     public ResponseEntity<?> status(
             @CookieValue(value = "PHONE_VERIFIED_TMP", required = false) String verifiedToken
     ) {

@@ -3,7 +3,7 @@ package com.example.pproject.wallet.dto;
 import com.example.pproject.wallet.entity.WalletCreditLot;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 /**
  * [응답 DTO] 크레딧 묶음(Lot) 정보
@@ -15,8 +15,8 @@ public record WalletCreditLotResponse(
         Long remainingCredit,
         BigDecimal unitPriceAmount,
         String currency,
-        Instant createdAt,
-        Instant expiredAt // 만료일 (현재는 미사용, 확장성 고려)
+        LocalDateTime createdAt,
+        LocalDateTime expiredAt // 만료일 (현재는 미사용, 확장성 고려)
 ) {
     public static WalletCreditLotResponse from(WalletCreditLot lot) {
         return new WalletCreditLotResponse(

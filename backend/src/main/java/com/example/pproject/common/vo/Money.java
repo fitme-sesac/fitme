@@ -2,15 +2,16 @@ package com.example.pproject.common.vo;
 
 import jakarta.persistence.Embeddable;
 import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.util.Objects;
 
 @Embeddable
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EqualsAndHashCode
 public class Money {
 
     public static final Money ZERO = Money.wons(0);
@@ -46,30 +47,5 @@ public class Money {
         if (!this.currency.equals(other.currency)) {
             throw new IllegalArgumentException("통화가 일치하지 않습니다.");
         }
-    }
-
-    // BigDecimal의 scale 차이로 인한 비교 문제 해결
-    // 5000.00과 5000은 값이 같으므로 compareTo()로 비교
-    @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-        Money money = (Money) o;
-        return this.amount.compareTo(money.amount) == 0
-                && Objects.equals(this.currency, money.currency);
-    }
-
-    @Override
-    public int hashCode() {
-        // BigDecimal의 hashCode는 scale에 따라 다르므로,
-        // stripTrailingZeros()로 정규화하여 해시코드 생성
-        return Objects.hash(amount.stripTrailingZeros(), currency);
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Money{amount=%s, currency='%s'}", amount, currency);
     }
 }
