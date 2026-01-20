@@ -66,14 +66,6 @@ form {
     }
 }
 
-header .dropdown .btn-outline-success.dropdown-toggle {
-    width: auto !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 0.375rem 0.75rem !important;
-    font-size: 0.8rem !important;
-}
-
 /* === Policy / OTP UI === */
 
 /* 정책 영역만 폭 확장(시작 위치는 label 폭 때문에 그대로 유지됨) */
@@ -161,4 +153,3 @@ header .dropdown .btn-outline-success.dropdown-toggle {
 .policy-marketing input[type="checkbox"] {
     margin: 0;
 }
-
