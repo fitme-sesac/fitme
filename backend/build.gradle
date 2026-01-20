@@ -82,6 +82,10 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     implementation 'com.solapi:sdk:1.0.3'
+
+    // resilience4j : 타임아웃 + 서킷브레이크 설정을 위한 의존성
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.1.0' // 버전 명시 권장
 }
 
 
