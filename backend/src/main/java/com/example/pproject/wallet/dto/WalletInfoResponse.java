@@ -5,14 +5,16 @@ import com.example.pproject.wallet.entity.Wallet;
 
 import java.time.LocalDateTime;
 
-// 내 지갑 정보 응답 ResponseDTO
+/**
+ * [응답 DTO] 내 지갑 정보
+ * - 지갑의 현재 총 잔액과 상태 정보를 조회할 때 사용합니다.
+ */
 public record WalletInfoResponse(
         Long walletId,
         Long balance,
         WalletStatus status,
         LocalDateTime lastUpdated
 ) {
-    // Entity -> DTO 변환 편의 메서드
     public static WalletInfoResponse from(Wallet wallet) {
         return new WalletInfoResponse(
                 wallet.getWalletId(),

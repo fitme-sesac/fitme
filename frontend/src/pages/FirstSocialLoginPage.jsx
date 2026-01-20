@@ -1,9 +1,7 @@
-// FirstSocialLoginPage.jsx
 import HtmlPage from "../components/HtmlPage";
 import { usePageCss } from "../hooks/usePageCss";
 
 const html = `<main class="main">
-  <!-- Page Title -->
   <div class="page-title" style="background-color: #003300; margin-bottom: 30px;">
     <div class="container text-center">
       <h1 style="color: white;">추가 정보 입력</h1>
@@ -32,19 +30,16 @@ const html = `<main class="main">
           <form id="firstSocialLoginForm" action="/User/First_Social_Login" method="post">
             <input type="hidden" />
 
-            <!-- ✅ 이메일 입력 UI 제거 (소셜 이메일 자동 세팅) -->
             <input type="hidden" id="email" name="email" />
-            <input type="hidden" id="socialType" name="socialType" value="GOOGLE" />
+            <input type="hidden" id="socialType" name="socialType" value="OTHER" />
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 이름 -->
             <div class="form-group" style="font-weight: bold;">
               <label for="username">이름 <span style="color: red;">*</span></label>
               <input type="text" id="username" name="username" class="form-control" required placeholder="이름을 입력하세요" />
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 성별 (✅ DDL ck_member_gender: MALE/FEMALE만 허용이므로 옵션도 맞춤) -->
             <div class="form-group" style="font-weight: bold;">
               <label for="gender">성별 <span style="color: red;">*</span></label>
               <select id="gender" name="gender" class="form-control" required>
@@ -55,7 +50,6 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 생년월일 -->
             <div class="form-group" style="font-weight: bold;">
               <label for="birthday">생년월일 <span style="color: red;">*</span></label>
               <div style="display:flex; flex-direction:column;">
@@ -65,7 +59,6 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 휴대폰 번호 + 인증 -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label for="phone">휴대폰 <span style="color: red;">*</span></label>
               <div style="display:flex; flex-direction:column; gap:.5rem; width: 18rem;">
@@ -82,7 +75,6 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 약관/정책 (✅ register.css 구조에 맞게 재구성) -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label>정책/약관 <span style="color: red;">*</span></label>
 
@@ -141,9 +133,12 @@ const scripts = [
     "(() => {\n" +
     "  const form = document.getElementById('firstSocialLoginForm');\n" +
     "  if (!form) return;\n" +
+    "  if (form.dataset.fitmeFirstSocialInit === '1') return;\n" +
+    "  form.dataset.fitmeFirstSocialInit = '1';\n" +
+    "\n" +
     "  const alertEl = document.querySelector('.alert.alert-danger');\n" +
     "  const setAlert = (msg) => {\n" +
-    "    if (!alertEl) { alert(msg); return; }\n" +
+    "    if (!alertEl) { if (msg) alert(msg); return; }\n" +
     "    const span = alertEl.querySelector('span');\n" +
     "    if (span) span.textContent = msg; else alertEl.textContent = msg;\n" +
     "    alertEl.style.display = msg ? 'block' : 'none';\n" +
@@ -156,77 +151,145 @@ const scripts = [
     "  if (em) setAlert(em);\n" +
     "\n" +
     "  const email = urlParams.get('email') || '';\n" +
-    "  const username = urlParams.get('username') || '';\n" +
+    "  const username = urlParams.get('username') || urlParams.get('name') || '';\n" +
+    "  const socialType = (urlParams.get('socialType') || urlParams.get('provider') || 'OTHER').toUpperCase();\n" +
+    "\n" +
+    "  const gender = (urlParams.get('gender') || '').toUpperCase();\n" +
+    "  const birthday = urlParams.get('birthday') || '';\n" +
+    "  const phone = (urlParams.get('phone') || '').replace(/[^0-9]/g, '');\n" +
+    "\n" +
     "  const emailHidden = qs('#email');\n" +
     "  const usernameInput = qs('#username');\n" +
-    "  if (emailHidden) emailHidden.value = email;\n" +
-    "  if (usernameInput && !usernameInput.value) usernameInput.value = username;\n" +
-    "\n" +
-    "  // 휴대폰 OTP (서버 엔드포인트가 없으면 개발용 코드로 동작)\n" +
-    "  let otpCode = null;\n" +
-    "  let otpVerified = false;\n" +
+    "  const socialTypeHidden = qs('#socialType');\n" +
+    "  const genderSelect = qs('#gender');\n" +
+    "  const birthdayInput = qs('#birthday');\n" +
     "  const phoneInput = qs('#phone');\n" +
+    "\n" +
+    "  if (emailHidden) emailHidden.value = email;\n" +
+    "  if (usernameInput && username && !usernameInput.value) usernameInput.value = username;\n" +
+    "  if (socialTypeHidden) socialTypeHidden.value = socialType;\n" +
+    "  if (genderSelect && (gender === 'MALE' || gender === 'FEMALE') && !genderSelect.value) genderSelect.value = gender;\n" +
+    "  if (birthdayInput && birthday && !birthdayInput.value) birthdayInput.value = birthday;\n" +
+    "  if (phoneInput && phone && !phoneInput.value) phoneInput.value = phone;\n" +
+    "\n" +
+    "  // ===== 휴대폰 OTP (SOLAPI + 쿠키 기반) =====\n" +
+    "  let otpVerified = false;\n" +
+    "  let sending = false;\n" +
+    "  let verifying = false;\n" +
+    "\n" +
     "  const otpInput = qs('#phoneOtpCode');\n" +
     "  const otpStatus = qs('#otpStatus');\n" +
     "  const sendBtn = qs('#sendOtpBtn');\n" +
     "  const verifyBtn = qs('#verifyOtpBtn');\n" +
+    "\n" +
+    "  const normalizePhone = (p) => String(p || '').replace(/[^0-9]/g, '');\n" +
+    "  const isPhoneValid = (p) => /^[0-9]{10,11}$/.test(p);\n" +
     "\n" +
     "  const setOtpStatus = (msg, ok) => {\n" +
     "    if (!otpStatus) return;\n" +
     "    otpStatus.textContent = msg;\n" +
     "    otpStatus.style.color = ok ? '#198754' : '#dc3545';\n" +
     "  };\n" +
-    "  const normalizePhone = (p) => String(p || '').replace(/[^0-9]/g, '');\n" +
-    "  const isPhoneValid = (p) => /^[0-9]{10,11}$/.test(p);\n" +
-    "  const randomOtp = () => String(Math.floor(Math.random() * 1000000)).padStart(6, '0');\n" +
     "\n" +
-    "  const sendOtp = async () => {\n" +
-    "    setAlert('');\n" +
-    "    const p = normalizePhone(phoneInput?.value);\n" +
-    "    if (!isPhoneValid(p)) { setOtpStatus('휴대폰 번호를 확인해주세요. (숫자만 10~11자리)', false); return; }\n" +
-    "    if (phoneInput) phoneInput.value = p;\n" +
-    "    otpVerified = false;\n" +
-    "    let devCode = null;\n" +
-    "    try {\n" +
-    "      const res = await fetch('/api/phone/otp/send', {\n" +
-    "        method: 'POST',\n" +
-    "        headers: { 'Content-Type': 'application/json' },\n" +
-    "        body: JSON.stringify({ phone: p })\n" +
-    "      });\n" +
-    "      if (res.ok) {\n" +
-    "        const json = await res.json().catch(() => null);\n" +
-    "        if (json && json.devCode) devCode = String(json.devCode);\n" +
-    "      }\n" +
-    "    } catch (e) { /* ignore */ }\n" +
-    "    otpCode = devCode || randomOtp();\n" +
-    "    setOtpStatus('인증번호를 발송했습니다. (개발용: ' + otpCode + ')', true);\n" +
-    "  };\n" +
-    "\n" +
-    "  const verifyOtp = async () => {\n" +
-    "    setAlert('');\n" +
-    "    const input = String(otpInput?.value || '').trim();\n" +
-    "    if (!otpCode) { setOtpStatus('먼저 인증번호를 발송해주세요.', false); return; }\n" +
-    "    if (!/^[0-9]{6}$/.test(input)) { setOtpStatus('인증번호는 6자리 숫자입니다.', false); return; }\n" +
-    "\n" +
-    "    let serverOk = null;\n" +
-    "    try {\n" +
-    "      const res = await fetch('/api/phone/otp/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: normalizePhone(phoneInput?.value), code: input }) });\n" +
-    "      if (res.ok) { const json = await res.json().catch(() => null); if (json && typeof json.verified === 'boolean') serverOk = json.verified; }\n" +
-    "    } catch (e) {}\n" +
-    "\n" +
-    "    const ok = (serverOk === null) ? (input === otpCode) : serverOk;\n" +
-    "    if (!ok) { otpVerified = false; setOtpStatus('인증번호가 일치하지 않습니다.', false); return; }\n" +
-    "\n" +
-    "    otpVerified = true;\n" +
-    "    setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
+    "  const lockOtpInputs = () => {\n" +
     "    if (phoneInput) phoneInput.setAttribute('readonly', 'readonly');\n" +
     "    if (otpInput) otpInput.setAttribute('readonly', 'readonly');\n" +
     "    if (sendBtn) sendBtn.disabled = true;\n" +
     "    if (verifyBtn) verifyBtn.disabled = true;\n" +
     "  };\n" +
     "\n" +
-    "  if (sendBtn) sendBtn.addEventListener('click', (e) => { e.preventDefault(); sendOtp(); });\n" +
-    "  if (verifyBtn) verifyBtn.addEventListener('click', (e) => { e.preventDefault(); verifyOtp(); });\n" +
+    "  const syncOtpStatus = async () => {\n" +
+    "    try {\n" +
+    "      const res = await fetch('/api/phone/otp/status', { credentials: 'include' });\n" +
+    "      if (!res.ok) return;\n" +
+    "      const json = await res.json().catch(() => null);\n" +
+    "      if (json && json.verified === true) {\n" +
+    "        otpVerified = true;\n" +
+    "        setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
+    "        lockOtpInputs();\n" +
+    "      }\n" +
+    "    } catch (e) {}\n" +
+    "  };\n" +
+    "  syncOtpStatus();\n" +
+    "\n" +
+    "  const sendOtp = async () => {\n" +
+    "    if (otpVerified) return;\n" +
+    "    if (sending) return;\n" +
+    "    sending = true;\n" +
+    "\n" +
+    "    setAlert('');\n" +
+    "    const p = normalizePhone(phoneInput?.value);\n" +
+    "    if (!isPhoneValid(p)) { sending = false; setOtpStatus('휴대폰 번호를 확인해주세요. (숫자만 10~11자리)', false); return; }\n" +
+    "    if (phoneInput) phoneInput.value = p;\n" +
+    "    otpVerified = false;\n" +
+    "    if (otpInput) otpInput.value = '';\n" +
+    "    setOtpStatus('인증번호 발송 중...', true);\n" +
+    "\n" +
+    "    try {\n" +
+    "      if (sendBtn) sendBtn.disabled = true;\n" +
+    "      const res = await fetch('/api/phone/otp/send', {\n" +
+    "        method: 'POST',\n" +
+    "        headers: { 'Content-Type': 'application/json' },\n" +
+    "        credentials: 'include',\n" +
+    "        body: JSON.stringify({ phone: p })\n" +
+    "      });\n" +
+    "      const json = await res.json().catch(() => null);\n" +
+    "      if (!res.ok || !json || json.ok !== true) {\n" +
+    "        const msg = (json && (json.message || json.errorMessage)) ? (json.message || json.errorMessage) : '인증번호 발송에 실패했습니다.';\n" +
+    "        setOtpStatus(msg, false);\n" +
+    "        return;\n" +
+    "      }\n" +
+    "      setOtpStatus('인증번호를 발송했습니다. 문자로 받은 6자리를 입력해주세요.', true);\n" +
+    "    } catch (e) {\n" +
+    "      setOtpStatus('네트워크 오류로 발송에 실패했습니다.', false);\n" +
+    "    } finally {\n" +
+    "      sending = false;\n" +
+    "      if (sendBtn && !otpVerified) sendBtn.disabled = false;\n" +
+    "    }\n" +
+    "  };\n" +
+    "\n" +
+    "  const verifyOtp = async () => {\n" +
+    "    if (otpVerified) return;\n" +
+    "    if (verifying) return;\n" +
+    "    verifying = true;\n" +
+    "\n" +
+    "    setAlert('');\n" +
+    "    const p = normalizePhone(phoneInput?.value);\n" +
+    "    const input = String(otpInput?.value || '').trim();\n" +
+    "    if (!isPhoneValid(p)) { verifying = false; setOtpStatus('휴대폰 번호를 확인해주세요.', false); return; }\n" +
+    "    if (!/^[0-9]{6}$/.test(input)) { verifying = false; setOtpStatus('인증번호는 6자리 숫자입니다.', false); return; }\n" +
+    "\n" +
+    "    try {\n" +
+    "      if (verifyBtn) verifyBtn.disabled = true;\n" +
+    "      const res = await fetch('/api/phone/otp/verify', {\n" +
+    "        method: 'POST',\n" +
+    "        headers: { 'Content-Type': 'application/json' },\n" +
+    "        credentials: 'include',\n" +
+    "        body: JSON.stringify({ phone: p, code: input })\n" +
+    "      });\n" +
+    "      const json = await res.json().catch(() => null);\n" +
+    "      if (!json || json.verified !== true) {\n" +
+    "        const msg = (json && (json.message || json.errorMessage)) ? (json.message || json.errorMessage) : '인증번호가 일치하지 않습니다.';\n" +
+    "        otpVerified = false;\n" +
+    "        setOtpStatus(msg, false);\n" +
+    "        return;\n" +
+    "      }\n" +
+    "      otpVerified = true;\n" +
+    "      setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
+    "      lockOtpInputs();\n" +
+    "    } catch (e) {\n" +
+    "      setOtpStatus('네트워크 오류로 인증에 실패했습니다.', false);\n" +
+    "    } finally {\n" +
+    "      verifying = false;\n" +
+    "      if (verifyBtn && !otpVerified) verifyBtn.disabled = false;\n" +
+    "    }\n" +
+    "  };\n" +
+    "\n" +
+    "  const onSendClick = (e) => { e.preventDefault(); sendOtp(); };\n" +
+    "  const onVerifyClick = (e) => { e.preventDefault(); verifyOtp(); };\n" +
+    "\n" +
+    "  if (sendBtn) sendBtn.addEventListener('click', onSendClick);\n" +
+    "  if (verifyBtn) verifyBtn.addEventListener('click', onVerifyClick);\n" +
     "\n" +
     "  form.addEventListener('submit', (e) => {\n" +
     "    setAlert('');\n" +
@@ -234,11 +297,10 @@ const scripts = [
     "    if (!otpVerified) { e.preventDefault(); setAlert('휴대폰 인증을 완료해주세요.'); return; }\n" +
     "  });\n" +
     "})();",
-    "AOS.init();",
+    "(() => { if (window.AOS && typeof window.AOS.init === 'function') window.AOS.init(); })();",
 ];
 
 export default function FirstSocialLoginPage() {
-    // ✅ register.css를 그대로 재사용
     usePageCss("/assets/css/pages/register.css");
     return <HtmlPage html={html} scripts={scripts} />;
 }

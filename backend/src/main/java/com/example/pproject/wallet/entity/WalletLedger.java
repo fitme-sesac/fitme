@@ -12,15 +12,16 @@ import org.springframework.util.Assert;
 
 import java.time.LocalDateTime;
 
-/**
- * 지갑 거래 내역(원장) 엔티티.
- * <p>
- * 모든 자금의 흐름(입금/출금)을 불변(Immutable)으로 기록합니다.
- * 시스템 장애 시 이 원장을 재계산(Replay)하여 지갑 잔액을 복구할 수 있어야 합니다.
- * </p>
- */
 @Entity
-@Table(name = "wallet_ledger")
+@Table(
+        name = "wallet_ledger",
+        indexes = {
+                // 지갑별 최신순 조회 최적화
+                @Index(name = "idx_ledger_wallet_occurred", columnList = "wallet_id, occurred_at"),
+                // 멱등성 (가능하면 unique index 권장)
+                @Index(name = "uq_ledger_idempotency_key", columnList = "idempotency_key", unique = true)
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WalletLedger extends BaseTimeEntity {
@@ -30,48 +31,56 @@ public class WalletLedger extends BaseTimeEntity {
     @Column(name = "ledger_id")
     private Long ledgerId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tx_type", nullable = false)
+    @Column(name = "tx_type", nullable = false, length = 10)
     private TxType txType;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "source_type", nullable = false)
+    @Column(name = "source_type", nullable = false, length = 30)
     private SourceType sourceType;
 
     @Column(name = "source_ref_id")
     private Long sourceRefId;
 
     @Column(name = "amount", nullable = false)
-    private Long amount;
+    private long amount;
 
     @Column(name = "balance_before", nullable = false)
-    private Long balanceBefore;
+    private long balanceBefore;
 
     @Column(name = "balance_after", nullable = false)
-    private Long balanceAfter;
+    private long balanceAfter;
 
-    @Column(name = "idempotency_key")
+    @Column(name = "idempotency_key", length = 64)
     private String idempotencyKey;
 
-    @Column(name = "memo")
+    @Column(name = "memo", length = 255)
     private String memo;
 
-    @Column(name = "occurred_at", nullable = false)
+    @Column(name = "occurred_at", nullable = false, updatable = false)
     private LocalDateTime occurredAt;
 
     @Builder
-    public WalletLedger(Wallet wallet, TxType txType, SourceType sourceType, Long sourceRefId, Long amount, Long balanceBefore, Long balanceAfter, String idempotencyKey, String memo) {
+    public WalletLedger(
+            Wallet wallet,
+            TxType txType,
+            SourceType sourceType,
+            Long sourceRefId,
+            long amount,
+            long balanceBefore,
+            long balanceAfter,
+            String idempotencyKey,
+            String memo,
+            LocalDateTime occurredAt
+    ) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
         Assert.notNull(txType, "거래 유형은 필수입니다.");
         Assert.notNull(sourceType, "거래 출처 유형은 필수입니다.");
-        Assert.isTrue(amount != null && amount >= 0, "거래 금액은 0 이상이어야 합니다.");
-        Assert.notNull(balanceBefore, "이전 잔액은 필수입니다.");
-        Assert.notNull(balanceAfter, "이후 잔액은 필수입니다.");
-        
+        Assert.isTrue(amount > 0, "거래 금액은 0보다 커야 합니다.");
         validateBalanceConsistency(txType, amount, balanceBefore, balanceAfter);
 
         this.wallet = wallet;
@@ -83,16 +92,9 @@ public class WalletLedger extends BaseTimeEntity {
         this.balanceAfter = balanceAfter;
         this.idempotencyKey = idempotencyKey;
         this.memo = memo;
-        this.occurredAt = LocalDateTime.now();
+        this.occurredAt = (occurredAt != null) ? occurredAt : LocalDateTime.now();
     }
 
-    /**
-     * 거래 유형에 따른 잔액 변화의 정합성을 검증합니다.
-     * <p>
-     * - CREDIT(입금): 이전 잔액 + 금액 == 이후 잔액
-     * - DEBIT(출금): 이전 잔액 - 금액 == 이후 잔액
-     * </p>
-     */
     private void validateBalanceConsistency(TxType txType, long amount, long balanceBefore, long balanceAfter) {
         if (txType == TxType.CREDIT) {
             if (balanceAfter - balanceBefore != amount) {

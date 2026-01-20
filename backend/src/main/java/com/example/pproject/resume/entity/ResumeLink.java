@@ -1,9 +1,10 @@
 package com.example.pproject.resume.entity;
 
-import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.Constant.LinkType;
+import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -27,6 +28,13 @@ public class ResumeLink extends BaseTimeEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String url;
+
+    @Builder
+    public ResumeLink(Resume resume, LinkType linkType, String url) {
+        this.resume = resume;
+        this.linkType = linkType;
+        this.url = url;
+    }
 
     public void setResume(Resume resume) { this.resume = resume; }
 }

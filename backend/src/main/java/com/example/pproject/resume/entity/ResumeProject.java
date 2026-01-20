@@ -1,25 +1,30 @@
 package com.example.pproject.resume.entity;
 
+import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "resume_project", indexes = @Index(name = "idx_resume_project_resume_id", columnList = "resume_id"))
-public class ResumeProject {
+public class ResumeProject extends BaseTimeEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "project_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id", nullable = false)
     private Resume resume;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 120)
     private String title;
 
     @Column(name = "start_date")
@@ -28,23 +33,31 @@ public class ResumeProject {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    @Lob
-    @Column(columnDefinition = "TEXT")
-    private String description;
+    @Column(name = "contribution_pct", precision = 5, scale = 2)
+    private BigDecimal contributionPct;
 
-    @Lob
     @Column(name = "tech_stack", columnDefinition = "TEXT")
     private String techStack;
 
-    @Column(name = "sort_order")
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "sort_order", nullable = false)
+    @ColumnDefault("0")
     private Integer sortOrder;
 
-    public ResumeProject(Resume resume, String title, LocalDate startDate, LocalDate endDate, String description, String techStack) {
+    @Builder
+    public ResumeProject(Resume resume, String title, LocalDate startDate, LocalDate endDate,
+                         BigDecimal contributionPct, String techStack, String description, Integer sortOrder) {
         this.resume = resume;
         this.title = title;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.description = description;
+        this.contributionPct = contributionPct;
         this.techStack = techStack;
+        this.description = description;
+        this.sortOrder = (sortOrder != null) ? sortOrder : 0;
     }
+
+    public void setResume(Resume resume) { this.resume = resume; }
 }

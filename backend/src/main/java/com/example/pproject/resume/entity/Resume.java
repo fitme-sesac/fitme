@@ -3,15 +3,16 @@ package com.example.pproject.resume.entity;
 import com.example.pproject.Constant.ResumeField;
 import com.example.pproject.Constant.ResumeStatus;
 import com.example.pproject.Constant.SummaryStatus;
+import com.example.pproject.common.entity.BaseSoftDeleteEntity;
 import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
@@ -20,10 +21,13 @@ import java.util.List;
 
 @Entity
 @Getter
-@Setter
-@NoArgsConstructor
-@Table(name = "resume")
-public class Resume {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@DynamicInsert
+@Table(name = "resume", indexes = {
+        @Index(name = "idx_resume_member_status", columnList = "member_id, status"),
+        @Index(name = "idx_resume_summary_todo", columnList = "summary_status, updated_at")
+})
+public class Resume extends BaseSoftDeleteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,41 +46,56 @@ public class Resume {
 
     @Column(name = "is_primary", nullable = false)
     @ColumnDefault("false")
-    private boolean isPrimary;
+    private boolean primary;
 
     @Column(name = "is_public", nullable = false)
     @ColumnDefault("false")
-    private boolean isPublic;
+    private boolean publicOption;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20, nullable = false)
+    @Column(nullable = false, length = 20)
     @ColumnDefault("'DRAFT'")
-    private ResumeStatus status = ResumeStatus.DRAFT;
+    private ResumeStatus status;
+
+    @Column(name = "last_modified_at", nullable = false)
+    private LocalDateTime lastModifiedAt;
+
+    @Column(name = "target_job_id")
+    private Long targetJobId;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20, nullable = false)
-    private ResumeField field; // RESUME, PORTFOLIO, INTRO
+    @Column(nullable = false, length = 20)
+    private ResumeField field;
 
     @Column(columnDefinition = "TEXT")
-    private String content; // 사용자 원본 자기소개
+    private String content;
 
-    // AI 요약 및 임베딩 설계
-
+    // AI 요약 결과
     @Column(columnDefinition = "TEXT")
-    private String summary; // AI가 요약한 10줄 요약본 저장
+    private String summary;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "summary_status", length = 20, nullable = false)
-    @ColumnDefault("'NONE'")
-    private SummaryStatus summaryStatus = SummaryStatus.NONE; // 요약 진행 상태
+    // 희망 기술 스택
+    @Column(name = "re_stack", columnDefinition = "TEXT")
+    private String reStack;
 
-    // 요약본(Summary)을 기반으로 생성된 벡터 데이터
+    // 학력 정보
+    @Column(name = "school")
+    private String school;
+
+    @Column(name = "school_state")
+    private String schoolState;
+
+    @Column(name = "school_class")
+    private String schoolClass;
+
     @Column(name = "embedding", columnDefinition = "vector(1536)")
     @JdbcTypeCode(SqlTypes.VECTOR)
     private List<Double> embedding;
 
-    @Column(name = "target_job_id")
-    private Long targetJobId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "summary_status", nullable = false, length = 20)
+    @ColumnDefault("'NONE'")
+    private SummaryStatus summaryStatus;
 
     @Column(name = "preference_location", length = 80)
     private String preferenceLocation;
@@ -87,34 +106,82 @@ public class Resume {
     @Column(name = "employment_type", length = 80)
     private String employmentType;
 
-    @Column(name = "last_modified_at")
-    private LocalDateTime lastModifiedAt = LocalDateTime.now();
+    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ResumeCareer> careers = new ArrayList<>();
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ResumeProject> projects = new ArrayList<>();
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ResumeCertificate> certificates = new ArrayList<>();
 
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ResumeLink> links = new ArrayList<>();
 
     @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ResumeAttachment> attachments = new ArrayList<>();
 
-    // 생성자
-    public Resume(UserEntity user, String title, String content, ResumeField field) {
+    @OneToOne(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
+    private ResumeProfile profile;
+
+    @Builder
+    public Resume(UserEntity user, String title, ResumeField field, boolean primary, boolean publicOption,
+                  String tagline, String content, String reStack, Long targetJobId,
+                  String preferenceLocation, String preferenceSalary, String employmentType,
+                  String school, String schoolState, String schoolClass) {
         this.user = user;
         this.title = title;
-        this.content = content;
         this.field = field;
+        this.primary = primary;
+        this.publicOption = publicOption;
+        this.tagline = tagline;
+        this.content = content;
+        this.reStack = reStack;
+        this.targetJobId = targetJobId;
+        this.preferenceLocation = preferenceLocation;
+        this.preferenceSalary = preferenceSalary;
+        this.employmentType = employmentType;
+        this.school = school;
+        this.schoolState = schoolState;
+        this.schoolClass = schoolClass;
+        this.status = ResumeStatus.DRAFT;
+        this.summaryStatus = SummaryStatus.NONE;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    public void addAttachment(ResumeAttachment attachment) {
-        this.attachments.add(attachment);
-        attachment.setResume(this);
+    public void updateProfile(ResumeProfile profile) {
+        this.profile = profile;
+        if (profile != null) profile.setResume(this);
+    }
+
+    public void setPrimary(boolean primary) {
+        this.primary = primary;
+        this.lastModifiedAt = LocalDateTime.now();
+    }
+
+    public void updateInfo(String title, String tagline, String content, Boolean publicOption, ResumeField field,
+                           String preferenceLocation, String preferenceSalary, String employmentType, String reStack,
+                           String school, String schoolState, String schoolClass) {
+        if (title != null) this.title = title;
+        if (tagline != null) this.tagline = tagline;
+        if (content != null) this.content = content;
+        if (publicOption != null) this.publicOption = publicOption;
+        if (field != null) this.field = field;
+        if (preferenceLocation != null) this.preferenceLocation = preferenceLocation;
+        if (preferenceSalary != null) this.preferenceSalary = preferenceSalary;
+        if (employmentType != null) this.employmentType = employmentType;
+        if (reStack != null) this.reStack = reStack;
+        if (school != null) this.school = school;
+        if (schoolState != null) this.schoolState = schoolState;
+        if (schoolClass != null) this.schoolClass = schoolClass;
+        this.lastModifiedAt = LocalDateTime.now();
+    }
+
+    // AI 분석 결과 업데이트용 (나중에 사용)
+    public void updateAiAnalysis(String summary, String techStack) {
+        if (summary != null) this.summary = summary;
+        if (techStack != null) this.reStack = techStack;
+        this.summaryStatus = SummaryStatus.COMPLETED;
+        this.lastModifiedAt = LocalDateTime.now();
     }
 }
