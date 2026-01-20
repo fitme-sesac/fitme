@@ -12,12 +12,39 @@ except ImportError:
 # 모듈 로거 설정 (print 대신 사용)
 logger = logging.getLogger(__name__)
 
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
+
+try:
+    from langsmith import traceable
+except ImportError:
+    # langsmith가 없는 경우를 대비한 더미 데코레이터
+    def traceable(**kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
 class VectorService:
     def __init__(self):
         """
         벡터 서비스 초기화: OpenAI 임베딩 모델을 설정합니다.
         실패 시 구형 모델(ada-002)로 자동 절체(Fallback)하는 로직이 포함되어 있습니다.
         """
+        # [Debug] API Key & Tracing Check (Print로 변경)
+        tracing = os.getenv("LANGCHAIN_TRACING_V2")
+        project = os.getenv("LANGCHAIN_PROJECT")
+        api_key_exists = "O" if os.getenv("LANGCHAIN_API_KEY") else "X"
+        
+        print(f"\n[VectorService Init] Tracing: {tracing}, Project: {project}, API_KEY: {api_key_exists}")
+        
+        if not settings.OPENAI_API_KEY:
+            print("❌ OpenAI API Key is MISSING in settings! Check .env file.")
+        else:
+            masked = settings.OPENAI_API_KEY[:5] + "..." 
+            print(f"✅ OpenAI API Key loaded. Key: {masked}")
+
         try:
             # 1. 주력 모델 설정 시도
             self.embeddings = OpenAIEmbeddings(
@@ -46,10 +73,14 @@ class VectorService:
                 # 상위 호출자에게 에러를 전파하여 서버 실행을 멈춥니다.
                 raise fallback_e
 
+    @traceable(name="Generate Embedding Vector", run_type="embedding")
     async def generate_vector(self, text: str) -> list[float]:
         """
         텍스트를 임베딩 벡터로 변환합니다.
         """
+        print("\n" + "="*20 + " [Embedding Input Text Check] " + "="*20)
+        print(text)
+        print("="*66 + "\n")
         return await self.embeddings.aembed_query(text)
 
 vector_service = VectorService()

@@ -19,7 +19,7 @@ async def process_resume(request: ResumeRequest):
     5. **결과 반환**: 처리 완료 상태와 생성된 요약을 반환합니다.
 
     Args:
-        request (ResumeRequest): {id, type, data} 형태의 요청 본문
+        request (ResumeRequest): {resume_id, basic_info, content, projects, careers} 형태의 구조화된 요청 본문
     
     Returns:
         AIProcessResult: 처리 결과 (summary, vector_status 포함)
@@ -27,21 +27,34 @@ async def process_resume(request: ResumeRequest):
     try:
         # 1. AI 요약 생성 (LLM 호출)
         # LangChain Output Parser를 통해 구조화된 텍스트가 반환됩니다.
-        summary = await summary_service.generate_summary(request.data, request.type)
+        # request 전체를 dict로 변환하여 전달 (새로운 스키마 대응)
+        summary_result = await summary_service.generate_summary(request.model_dump(), request.basic_info.field, request.summary_type)
+
+        # [NEW] 표시용 텍스트와 임베딩용 텍스트 분리
+        # 구조화된 객체(ResumeSummary, ResumeInsightReport)인 경우, 
+        # 임베딩 시에는 검색에 불필요한 메타 데이터(매칭 정보 등)를 제거하고 Markdown 헤더를 적용하여 성능을 높입니다.
+        if isinstance(summary_result, str):
+            display_summary = summary_result
+            embedding_summary = summary_result
+        else:
+            display_summary = summary_result.to_formatted_string(include_reasoning=request.include_reasoning)
+            embedding_summary = summary_result.to_embedding_string()
 
         # 2. 임베딩 생성 (Embedding API 호출)
-        vector = await vector_service.generate_vector(summary)
+        # 검색 최적화된 텍스트(embedding_summary)를 벡터화합니다.
+        vector = await vector_service.generate_vector(embedding_summary)
 
         # 3. DB 저장 (DB 커넥션 및 트랜잭션 처리)
-        # resume_repo.update_resume_data(request.id, summary, vector) # TODO: DB연결 설정 후 주석 해제
-        resume_repo.update_resume_data(request.id, summary, vector)
+        # 사용자에게 보여줄 원본 요약(display_summary)을 저장합니다.
+        # resume_repo.update_resume_data(request.id, display_summary, vector) # TODO: DB연결 설정 후 주석 해제
+        resume_repo.update_resume_data(request.resume_id, display_summary, vector)
 
         # 4. 결과 반환
         return AIProcessResult(
-            id=str(request.id),
-            summary=summary,
+            id=str(request.resume_id),
+            summary=display_summary,
             vector_status="generated"
         )
     except Exception as e:
-        print(f"Error processing resume {request.id}: {e}")
+        print(f"Error processing resume {request.resume_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
