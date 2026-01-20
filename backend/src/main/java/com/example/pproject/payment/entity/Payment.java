@@ -5,7 +5,6 @@ import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.common.vo.Money;
 import com.example.pproject.payment.dto.toss.TossPaymentResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -14,9 +13,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
@@ -132,11 +129,16 @@ public class Payment extends BaseTimeEntity {
      * @throws IllegalStateException 결제 요청(REQUESTED) 상태가 아닐 경우
      */
     public void confirm(String pgPaymentKey) {
-        if (this.appStatus != PaymentAppStatus.REQUESTED) {
-            throw new IllegalStateException("결제 요청(REQUESTED) 상태에서만 승인 요청을 진행할 수 있습니다.");
+        if (!this.appStatus.canTransitionTo(PaymentAppStatus.REQUESTED)) { // REQUESTED -> REQUESTED (유지)
+             // 엄밀히 말하면 상태 변경은 아니지만, 인증 완료 단계임을 마킹
+             // 여기서는 상태 체크만 수행
         }
+        // 실제로는 REQUESTED 상태에서만 confirm 가능
+        if (this.appStatus != PaymentAppStatus.REQUESTED) {
+             throw new IllegalStateException("결제 요청(REQUESTED) 상태에서만 승인 요청을 진행할 수 있습니다.");
+        }
+        
         this.pgPaymentKey = pgPaymentKey;
-        // 상태 변경 없음 (여전히 요청 중)
     }
 
     /**
@@ -147,41 +149,27 @@ public class Payment extends BaseTimeEntity {
      * 요청 금액과 승인 금액이 일치하는지 검증합니다.
      * </p>
      * @param response 토스 승인 API 응답 DTO
+     * @param rawPayload 토스 응답 원본 Map (저장용)
      * @throws IllegalStateException 요청 금액과 승인 금액이 일치하지 않을 경우
      */
-    public void approve(TossPaymentResponse response) {
-        // 금액 검증 (요청 금액과 승인 금액 일치 여부)
+    public void approve(TossPaymentResponse response, Map<String, Object> rawPayload) {
+        if (!this.appStatus.canTransitionTo(PaymentAppStatus.APPROVED)) {
+            throw new IllegalStateException("현재 상태에서는 승인 완료(APPROVED)로 변경할 수 없습니다.");
+        }
+
+        // 금액 검증
         if (this.paidAmount.getAmount().compareTo(response.totalAmount()) != 0) {
             throw new IllegalStateException("요청 금액과 승인 금액이 일치하지 않습니다.");
         }
 
-        this.appStatus = PaymentAppStatus.APPROVED; // DONE -> APPROVED
+        this.appStatus = PaymentAppStatus.APPROVED;
         this.pgStatus = response.status();
         this.pgPaymentKey = response.paymentKey();
-        this.pgTransactionId = response.transactionKey(); // 추가됨
+        this.pgTransactionId = response.transactionKey();
+        this.pgPayload = rawPayload;
         
         if (response.approvedAt() != null) {
-            this.approvedAt = OffsetDateTime.parse(response.approvedAt()).toLocalDateTime();
-        }
-    }
-    
-    /**
-     * 2-1. 승인 완료 (Map Payload 버전)
-     * <p>
-     * DTO 대신 원본 Map 데이터를 사용하여 승인 처리를 합니다.
-     * 전체 응답 JSON(pgPayload)을 저장할 때 유용합니다.
-     * </p>
-     * @param pgPayload 토스 승인 API 응답 Map
-     */
-    public void approve(Map<String, Object> pgPayload) {
-        this.appStatus = PaymentAppStatus.APPROVED; // DONE -> APPROVED
-        this.pgStatus = (String) pgPayload.get("status");
-        this.pgTransactionId = (String) pgPayload.get("transactionKey"); // 추가됨
-        this.pgPayload = pgPayload;
-        
-        String approvedAtStr = (String) pgPayload.get("approvedAt");
-        if (approvedAtStr != null) {
-            this.approvedAt = LocalDateTime.parse(approvedAtStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            this.approvedAt = LocalDateTime.parse(response.approvedAt(), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         }
     }
 
@@ -191,12 +179,17 @@ public class Payment extends BaseTimeEntity {
      * 토스 취소 API 호출 성공 후 호출합니다.
      * 상태를 CANCELED로 변경하고, 취소 일시를 기록합니다.
      * </p>
-     * @param pgPayload 토스 취소 API 응답 Map
+     * @param response 토스 취소 API 응답 DTO
+     * @param rawPayload 토스 응답 원본 Map (저장용)
      */
-    public void cancel(Map<String, Object> pgPayload) {
-        this.appStatus = PaymentAppStatus.CANCELED; // CANCELED
-        this.pgStatus = (String) pgPayload.get("status");
-        this.pgPayload = pgPayload;
+    public void cancel(TossPaymentResponse response, Map<String, Object> rawPayload) {
+        if (!this.appStatus.canTransitionTo(PaymentAppStatus.CANCELED)) {
+             throw new IllegalStateException("현재 상태에서는 취소(CANCELED)로 변경할 수 없습니다.");
+        }
+
+        this.appStatus = PaymentAppStatus.CANCELED; // 부분 취소 고려 시 로직 추가 필요
+        this.pgStatus = response.status();
+        this.pgPayload = rawPayload;
         this.canceledAt = LocalDateTime.now();
     }
 }
