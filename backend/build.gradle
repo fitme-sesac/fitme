@@ -1,81 +1,82 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.3.2'
-	id 'io.spring.dependency-management' version '1.1.6'
-	id 'war'
+    id 'java'
+    id 'org.springframework.boot' version '3.3.2'
+    id 'io.spring.dependency-management' version '1.1.6'
+    id 'war'
 }
 
 group = 'com.woori'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 configurations {
-	compileOnly {
-		// compileOnly 설정에 annotationProcessor 의존성 포함
-		extendsFrom annotationProcessor
-	}
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
 }
 
 repositories {
-    mavenCentral() // 이제 settings.gradle에서 허용했으므로 에러가 나지 않습니다.
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-validation' // Validation 추가
+    // 1. Spring Boot Starters (핵심 의존성)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
-	compileOnly 'org.projectlombok:lombok'
+    // 2. View Template (Thymeleaf)
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+    implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
 
-	developmentOnly 'org.springframework.boot:spring-boot-devtools'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	// runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+    // 3. Database Drivers
+    // MySQL
     implementation 'com.mysql:mysql-connector-j:8.4.0'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	//추가 라이브러리(mvnrepository.com)
-	//변환처리
-	implementation 'org.modelmapper:modelmapper:3.1.1'
-	//레이아웃
-	implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
+    // PostgreSQL
+    runtimeOnly 'org.postgresql:postgresql'
+    // Pgvector (로컬 라이브러리)
+    implementation files('libs/pgvector-java-0.1.6.jar')
 
-    //AWS S3(서버구동시 적용)
-//	compileOnly 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
-	// https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-s3
-//	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.773'
+    // [중요] 테스트용 H2 DB (테스트 실패 해결을 위해 필수)
+    runtimeOnly 'com.h2database:h2'
 
+    // 4. Lombok & DevTools
+    compileOnly 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.projectlombok:lombok'
 
-	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
-	implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+    // 5. Utility Libraries (Mapper, JSON, SDK)
+    implementation 'org.modelmapper:modelmapper:3.1.1'
+    implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+    implementation 'com.solapi:sdk:1.0.3'
 
-	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+    // 6. Swagger (API 문서화) - 최신 버전 하나로 통일
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 
-	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
-
-	implementation 'org.springframework.boot:spring-boot-starter-mail'
-
-	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-
-    // JWT
+    // 7. JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
-    // pgvector
-    implementation files('libs/pgvector-java-0.1.6.jar')
-    // postgresql
-    runtimeOnly 'org.postgresql:postgresql'
 
-    implementation 'com.solapi:sdk:1.0.3'
+    // 8. Tomcat (WAR 배포용)
+    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+
+    // 9. Testing (테스트 관련)
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }
