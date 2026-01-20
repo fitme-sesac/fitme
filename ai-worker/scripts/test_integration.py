@@ -13,6 +13,10 @@
 import asyncio
 import os
 import sys
+from dotenv import load_dotenv
+
+# .env 로드 (API Key 환경변수 확보)
+load_dotenv()
 
 # 프로젝트 루트 경로 추가 (모듈 import를 위해 필요)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -240,3 +244,4 @@ async def test_integration():
 if __name__ == "__main__":
     # 비동기 함수 실행을 위한 이벤트 루프 시작
     asyncio.run(test_integration())
+ 
