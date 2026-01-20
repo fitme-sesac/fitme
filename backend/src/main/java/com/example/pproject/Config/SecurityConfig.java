@@ -93,6 +93,9 @@ public class SecurityConfig {
 
             // 토스 페이먼츠 웹훅 (인증 없이 접근 가능해야 함)
             auth.requestMatchers("/api/v1/payments/webhook").permitAll();
+            
+            // 공개 API (인증 없이 접근 가능)
+            auth.requestMatchers("/api/public/**").permitAll();
 
             auth.requestMatchers(
                     "/Login",
