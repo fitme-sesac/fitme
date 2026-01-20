@@ -208,13 +208,34 @@ class SummaryService:
             format_instructions = parser.get_format_instructions()
             
         else: # SummaryType.STRUCTURED
-            # [STRUCTURED 모드 개선] : 트러블슈팅과 전문성 검증 중심
+            # [STRUCTURED 모드 개선] : Hybrid Schema (3-in-1 Integration) + Bullet Points (개조식)
             structured_instruction = """
-            5. 인사이트 통합: 기술적 문제 해결 사례(Troubleshooting)가 있다면 반드시 '방법론 -> 결과' 순으로 배치한다.
-            6. 데이터 결여 시: '대외 신뢰도'나 '협업 가치관' 등 증빙 데이터가 아예 없는 항목은 "이력서 내 관련 정보 미기재"라고 짧게 표기하는 대신, 후보자의 전체적인 톤앤매너를 통해 유추할 수 있는 '성향' 위주로 서술해줘.
+            [작성 가이드라인 - Hybrid Schema & Extreme Conciseness]
+            **모든 항목은 '최대 3개의 개조식(Bullet Points)'으로 제한하며, 수식어를 배제하고 핵심(Core)만 남겨라.**
             
-            7. [중요] 분석 근거(ai_reasoning): **[Citation Rules]**를 철저히 준수하여 출처를 표기하라.
-               - 추상적인 표현(예: "경력 기술서를 참고함")은 금지한다. 디테일한 섹션명과 프로젝트명을 콕 집어라.
+            1. professional_identity: [전문성+역량+기술] 통합. (최대 3줄)
+               - • 5년차 Java/Spring 백엔드 개발자 (대규모 트래픽 처리)
+               - • Main: Java, Spring Boot / Sub: AWS, Docker
+               - • 정보처리기사, MSA 설계 주도 경험
+            
+            [상세 역량 - 핵심만 추출]
+            2. key_achievement: (최대 2개, 수치 중심)
+               - • [프로젝트명] TPS 49% 개선 (3700->5500), 주문 지연 해결
+               - • [시스템명] 재고 오류 0% 달성 (Redis Lock)
+            3. problem_solving: (Situation/Action/Result를 한 줄로 압축)
+               - • (확장성) 모놀리식 한계 → MSA/Kafka 도입 → 장애 전파 차단
+               - • (동시성) 재고 연산 오류 → Redis 비관적 락 적용 → 데이터 무결성 확보
+            4. credibility: (학력/자격증/수료 중 최상위 3개)
+               - • 정보처리기사 (2024.06)
+               - • XX 부트캠프 백엔드 최우수 수료
+            5. collaboration: (리더십/협업 툴 경험만)
+               - • 코드 리뷰 문화 정착 주도 (주 3회)
+               - • Swagger/Wiki 문서화로 커뮤니케이션 비용 30% 절감
+            6. matching_info:
+               - • 희망 연봉: 4,000만원
+               - • 근무지: 서울 강남/판교
+            
+            7. [중요] 분석 근거(ai_reasoning): **[Citation Rules]**를 철저히 준수하여 출처 표기.
             """
             
             system_instruction = f"""{common_role}

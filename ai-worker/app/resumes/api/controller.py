@@ -56,5 +56,5 @@ async def process_resume(request: ResumeRequest):
             vector_status="generated"
         )
     except Exception as e:
-        print(f"Error processing resume {request.id}: {e}")
+        print(f"Error processing resume {request.resume_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
