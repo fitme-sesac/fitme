@@ -3,6 +3,8 @@ package com.example.pproject.payment.repository;
 import com.example.pproject.payment.entity.Payment;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +30,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // 주문 UID 중복 검사 (결제 생성 시)
     boolean existsByOrder_OrderUid(UUID orderUid);
+
+    // 내 결제 내역 조회 (페이징)
+    Page<Payment> findByOrder_BuyerMemberId(Long memberId, Pageable pageable);
 }
