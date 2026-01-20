@@ -1,4 +1,199 @@
 package com.example.pproject.resume.controller;
 
+import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.resume.dto.ResumeRequest;
+import com.example.pproject.resume.dto.ResumeResponse;
+import com.example.pproject.resume.service.ResumeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v1/resumes")
+@RequiredArgsConstructor
+@Tag(name = "Resume", description = "이력서 및 포트폴리오 관리 API")
 public class ResumeController {
+
+    private final ResumeService resumeService;
+
+    /**
+     * 나의 이력서 목록 조회
+     * 설명: 로그인한 사용자의 모든 이력서 목록을 조회합니다. (대표 이력서 여부 포함)
+     */
+    @Operation(summary = "내 이력서 목록 조회", description = "사용자의 이력서 목록을 반환합니다. 대표 이력서(is_primary) 여부를 확인할 수 있습니다.")
+    @GetMapping
+    public ResponseEntity<List<ResumeResponse>> getMyResumes(@AuthenticationPrincipal JwtUserPrincipal user) {
+        return ResponseEntity.ok(resumeService.getResumes(Integer.valueOf(user.getUserid())));
+    }
+
+    /**
+     * 이력서 상세 조회
+     * 설명: 경력, 프로젝트, 자격증, 링크 등 모든 하위 정보를 포함하여 반환합니다.
+     */
+    @Operation(summary = "이력서 상세 조회", description = "특정 이력서의 상세 정보(경력, 프로젝트, 자격증 등 포함)를 조회합니다.")
+    @GetMapping("/{resumeId}")
+    public ResponseEntity<ResumeResponse> getResume(@PathVariable Long resumeId) {
+        return ResponseEntity.ok(resumeService.getResume(resumeId));
+    }
+
+    /**
+     * 새 이력서 생성
+     * 설명: 제목, 직무 분야 등 기본 정보를 받아 새 이력서를 생성합니다.
+     */
+    @Operation(summary = "새 이력서 생성", description = "새로운 이력서를 작성합니다. 첫 이력서일 경우 자동으로 대표 이력서로 설정됩니다.")
+    @PostMapping
+    public ResponseEntity<Long> createResume(@RequestBody ResumeRequest request,
+                                             @AuthenticationPrincipal JwtUserPrincipal user) {
+        return ResponseEntity.ok(resumeService.createResume(request, Integer.valueOf(user.getUserid())));
+    }
+
+    /**
+     * 이력서 수정
+     * 설명: 기본 정보 수정 및 대표 이력서(is_primary) 설정을 수행합니다.
+     */
+    @Operation(summary = "이력서 수정", description = "이력서의 기본 정보(제목, 자기소개 등)를 수정하거나 대표 이력서로 설정합니다.")
+    @PatchMapping("/{resumeId}")
+    public ResponseEntity<Long> updateResume(@PathVariable Long resumeId,
+                                             @RequestBody ResumeRequest request,
+                                             @AuthenticationPrincipal JwtUserPrincipal user) {
+        return ResponseEntity.ok(resumeService.updateResume(resumeId, request, Integer.valueOf(user.getUserid())));
+    }
+
+    /**
+     * 이력서 삭제
+     * 설명: 이력서를 삭제합니다. (지원 내역이 있는 경우 삭제가 제한될 수 있습니다.)
+     */
+    @Operation(summary = "이력서 삭제", description = "이력서를 삭제합니다. 단, 이미 지원한 내역이 있는 경우 삭제가 불가능할 수 있습니다.")
+    @DeleteMapping("/{resumeId}")
+    public ResponseEntity<Void> deleteResume(@PathVariable Long resumeId,
+                                             @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.deleteResume(resumeId, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 이력서 복제
+     * 설명: 기존 이력서의 내용을 그대로 복사하여 새로운 이력서를 생성합니다.
+     */
+    @Operation(summary = "이력서 복제", description = "기존 이력서의 모든 하위 데이터(경력, 프로젝트 등)를 복사하여 새 이력서를 생성합니다.")
+    @PostMapping("/{resumeId}/copy")
+    public ResponseEntity<Long> copyResume(@PathVariable Long resumeId,
+                                           @AuthenticationPrincipal JwtUserPrincipal user) {
+        return ResponseEntity.ok(resumeService.copyResume(resumeId, Integer.valueOf(user.getUserid())));
+    }
+
+    @Operation(summary = "경력 추가", description = "이력서에 경력 사항을 추가합니다.")
+    @PostMapping("/{resumeId}/careers")
+    public ResponseEntity<Void> addCareer(@PathVariable Long resumeId,
+                                          @RequestBody ResumeRequest.CareerDto dto,
+                                          @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.addCareer(resumeId, dto, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "경력 삭제", description = "특정 경력 사항을 삭제합니다.")
+    @DeleteMapping("/{resumeId}/careers/{careerId}")
+    public ResponseEntity<Void> deleteCareer(@PathVariable Long resumeId,
+                                             @PathVariable Long careerId,
+                                             @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.deleteCareer(resumeId, careerId, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "프로젝트 경험 추가", description = "이력서에 프로젝트 수행 경험을 추가합니다.")
+    @PostMapping("/{resumeId}/projects")
+    public ResponseEntity<Void> addProject(@PathVariable Long resumeId,
+                                           @RequestBody ResumeRequest.ProjectDto dto,
+                                           @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.addProject(resumeId, dto, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "프로젝트 경험 삭제", description = "특정 프로젝트 경험을 삭제합니다.")
+    @DeleteMapping("/{resumeId}/projects/{projectId}")
+    public ResponseEntity<Void> deleteProject(@PathVariable Long resumeId,
+                                              @PathVariable Long projectId,
+                                              @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.deleteProject(resumeId, projectId, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "자격증 추가", description = "이력서에 자격증 정보를 추가합니다.")
+    @PostMapping("/{resumeId}/certificates")
+    public ResponseEntity<Void> addCertificate(@PathVariable Long resumeId,
+                                               @RequestBody ResumeRequest.CertificateDto dto,
+                                               @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.addCertificate(resumeId, dto, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "자격증 삭제", description = "특정 자격증 정보를 삭제합니다.")
+    @DeleteMapping("/{resumeId}/certificates/{certId}")
+    public ResponseEntity<Void> deleteCertificate(@PathVariable Long resumeId,
+                                                  @PathVariable Long certId,
+                                                  @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.deleteCertificate(resumeId, certId, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "링크 추가", description = "이력서에 깃허브, 블로그 등의 링크를 추가합니다.")
+    @PostMapping("/{resumeId}/links")
+    public ResponseEntity<Void> addLink(@PathVariable Long resumeId,
+                                        @RequestBody ResumeRequest.LinkDto dto,
+                                        @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.addLink(resumeId, dto, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "링크 삭제", description = "특정 링크를 삭제합니다.")
+    @DeleteMapping("/{resumeId}/links/{linkId}")
+    public ResponseEntity<Void> deleteLink(@PathVariable Long resumeId,
+                                           @PathVariable Long linkId,
+                                           @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.deleteLink(resumeId, linkId, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "이력서 프로필 사진 등록", description = "이력서 상단에 표시될 프로필 사진 URL을 등록합니다.")
+    @PostMapping("/{resumeId}/image")
+    public ResponseEntity<Void> updateProfileImage(@PathVariable Long resumeId,
+                                                   @RequestBody Map<String, String> body, // {"photoUrl": "..."}
+                                                   @AuthenticationPrincipal JwtUserPrincipal user) {
+        // 실제 파일 업로드는 별도 유틸리티/API로 수행 후 URL만 전달한 가정
+        String photoUrl = body.get("photoUrl");
+        resumeService.updateProfileImage(resumeId, photoUrl, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 포트폴리오 파일 업로드 정보 저장
+     * 설명: 파일 서버에 저장된 포트폴리오 파일의 URL과 메타데이터를 DB에 저장합니다.
+     */
+    @Operation(summary = "포트폴리오 파일 등록", description = "업로드된 포트폴리오 파일의 URL 및 메타데이터를 저장합니다. (실제 파일 업로드는 별도 수행)")
+    @PostMapping("/{resumeId}/attachments")
+    public ResponseEntity<Void> addAttachment(@PathVariable Long resumeId,
+                                              @RequestBody ResumeRequest.AttachmentDto dto,
+                                              @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.addAttachment(resumeId, dto, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 포트폴리오 파일 삭제
+     * 설명: 업로드된 포트폴리오 파일 정보를 삭제합니다.
+     */
+    @Operation(summary = "포트폴리오 파일 삭제", description = "등록된 포트폴리오 파일을 삭제합니다.")
+    @DeleteMapping("/{resumeId}/attachments/{attachmentId}")
+    public ResponseEntity<Void> deleteAttachment(@PathVariable Long resumeId,
+                                                 @PathVariable Long attachmentId,
+                                                 @AuthenticationPrincipal JwtUserPrincipal user) {
+        resumeService.deleteAttachment(resumeId, attachmentId, Integer.valueOf(user.getUserid()));
+        return ResponseEntity.ok().build();
+    }
 }
