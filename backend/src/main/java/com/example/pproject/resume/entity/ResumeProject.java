@@ -3,6 +3,7 @@ package com.example.pproject.resume.entity;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
@@ -35,14 +36,28 @@ public class ResumeProject extends BaseTimeEntity {
     @Column(name = "contribution_pct", precision = 5, scale = 2)
     private BigDecimal contributionPct;
 
-    @Lob @Column(name = "tech_stack")
+    @Column(name = "tech_stack", columnDefinition = "TEXT")
     private String techStack;
 
-    @Lob private String description;
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "sort_order", nullable = false)
     @ColumnDefault("0")
     private Integer sortOrder;
+
+    @Builder
+    public ResumeProject(Resume resume, String title, LocalDate startDate, LocalDate endDate,
+                         BigDecimal contributionPct, String techStack, String description, Integer sortOrder) {
+        this.resume = resume;
+        this.title = title;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.contributionPct = contributionPct;
+        this.techStack = techStack;
+        this.description = description;
+        this.sortOrder = (sortOrder != null) ? sortOrder : 0;
+    }
 
     public void setResume(Resume resume) { this.resume = resume; }
 }

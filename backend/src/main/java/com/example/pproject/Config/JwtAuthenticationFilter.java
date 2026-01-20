@@ -6,6 +6,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
@@ -26,18 +27,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = resolveToken(request);
 
-        if (token != null && jwtTokenProvider.validateToken(token)
-                && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (token != null && jwtTokenProvider.validateToken(token)) {
+            Authentication current = SecurityContextHolder.getContext().getAuthentication();
 
-            Authentication authentication = jwtTokenProvider.getAuthentication(token);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            boolean shouldOverride =
+                    current == null
+                            || current instanceof AnonymousAuthenticationToken
+                            || !(current.getPrincipal() instanceof JwtUserPrincipal);
+
+            if (shouldOverride) {
+                Authentication authentication = jwtTokenProvider.getAuthentication(token);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
         }
 
         filterChain.doFilter(request, response);
     }
 
     private String resolveToken(HttpServletRequest request) {
-        // 쿠키에서만 JWT를 읽는다 (단일 방식: HttpOnly Cookie)
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
                 if ("ACCESS_TOKEN".equals(cookie.getName()) &&
