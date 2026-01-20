@@ -3,6 +3,7 @@ package com.example.pproject.payment.entity;
 import com.example.pproject.Constant.WebhookProcessStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -13,6 +14,13 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+/**
+ * PG사(토스) 웹훅 수신함 엔티티.
+ * <p>
+ * 토스 페이먼츠에서 보내는 웹훅(결제 상태 변경, 입금 통보 등) 데이터를 원본 그대로 저장합니다.
+ * 추후 재처리나 디버깅을 위해 사용되며, 처리 상태(RECEIVED, PROCESSED, FAILED)를 관리합니다.
+ * </p>
+ */
 @Entity
 @Table(
         name = "pg_webhook_inbox",
@@ -63,4 +71,35 @@ public class PgWebhookInbox {
     @Column(name = "processed_at")
     private LocalDateTime processedAt;  // 처리 시간
 
+    @Builder
+    public PgWebhookInbox(String pgEventId, String eventType, Payment payment, Map<String, Object> payload) {
+        this.pgEventId = pgEventId;
+        this.eventType = eventType;
+        this.payment = payment;
+        this.payload = payload;
+        this.processStatus = WebhookProcessStatus.RECEIVED; // 초기 상태: RECEIVED
+        this.retryCount = 0;
+    }
+
+    // === 비즈니스 로직 ===
+
+    /**
+     * 웹훅 처리가 성공적으로 완료되었음을 표시합니다.
+     */
+    public void markAsProcessed() {
+        this.processStatus = WebhookProcessStatus.PROCESSED;
+        this.processedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 웹훅 처리가 실패했음을 표시하고, 에러 메시지를 기록합니다.
+     * 재시도 횟수를 증가시킵니다.
+     *
+     * @param errorMessage 발생한 에러 메시지
+     */
+    public void markAsFailed(String errorMessage) {
+        this.processStatus = WebhookProcessStatus.FAILED;
+        this.lastError = errorMessage;
+        this.retryCount++;
+    }
 }

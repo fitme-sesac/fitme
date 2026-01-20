@@ -12,6 +12,7 @@ public record TossPaymentResponse(
         String orderId,
         String orderName,
         String status, // READY, IN_PROGRESS, WAITING_FOR_DEPOSIT, DONE, CANCELED, PARTIAL_CANCELED, ABORTED, EXPIRED
+        String transactionKey, // 추가됨: 토스 트랜잭션 키
         String requestedAt,
         String approvedAt,
         BigDecimal totalAmount,
