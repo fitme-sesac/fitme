@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # OpenAI
     OPENAI_API_KEY: str
-    OPENAI_MODEL_NAME: str = "gpt-3.5-turbo"
+    OPENAI_MODEL_NAME: str = "gpt-5-mini"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     
     # Database
