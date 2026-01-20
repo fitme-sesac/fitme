@@ -16,10 +16,11 @@ class JobEmbeddingRequest(BaseModel):
     # 2. Experience Matching Fields
     # URL이나 PDF 파일 경로가 들어올 수도 있음 -> Service에서 처리
     description: str = Field(description="주요 업무, 자격 요건, 우대 사항 (Text or PDF Link)")
-    required_experience: Optional[int] = Field(default=None, description="최소 요구 경력. 0=신입, None=미기재")
     
     # 3. Context Fields (For additional matching context)
-    # [Modify] 메타데이터(기업명, 지역, 연봉)는 SQL 필터링으로 처리하므로 벡터 생성 과정에서 제외합니다.
+    company_name: Optional[str] = Field(default="", description="기업명")
+    location: Optional[str] = Field(default="", description="근무지")
+    salary_text: Optional[str] = Field(default="", description="연봉 정보 (Text)")
 
 class JobEmbeddingResponse(BaseModel):
     job_id: Union[int, str]

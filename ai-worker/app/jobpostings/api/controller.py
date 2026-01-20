@@ -38,51 +38,11 @@ async def create_job_embedding(request: JobEmbeddingRequest):
             embedding_dim=len(vector),
             vector=vector
         )
-
+        
     except Exception as e:
         logger.error(f"Error processing job embedding: {e}")
         # 500 Error instead of 400, strictly for server-side processing failures
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate embedding: {str(e)}"
-        )
-
-@router.post(
-    "/{job_id}/embedding",
-    response_model=JobEmbeddingResponse,
-    status_code=status.HTTP_200_OK,
-    summary="채용 공고 임베딩 생성 및 DB 업데이트 (ID 기반)"
-)
-async def trigger_job_embedding(job_id: int):
-    """
-    **[채용 공고 ID 기반 임베딩 생성]**
-    
-    DB에 저장된 채용 공고 ID를 받아, 해당 공고의 데이터(제목, 내용, 기술 스택 등)를 조회하여
-    임베딩을 생성하고 DB에 업데이트합니다.
-    
-    - **Trigger**: 관리자 도구 또는 공고 등록/수정 완료 후 비동기로 호출 권장
-    - **Process**: DB 조회 -> 텍스트 변환 -> 임베딩 생성 -> DB 저장
-    """
-    try:
-        logger.info(f"Triggering embedding generation for Job ID: {job_id}")
-        
-        vector = await job_service.generate_and_update_embedding(job_id)
-        
-        return JobEmbeddingResponse(
-            job_id=job_id,
-            vector_status="updated",
-            embedding_dim=len(vector),
-            vector=vector
-        )
-    except ValueError as ve:
-        logger.warning(f"Job ID {job_id} not found: {ve}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job ID {job_id} not found"
-        )
-    except Exception as e:
-        logger.error(f"Error updating embedding for Job ID {job_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
         )
