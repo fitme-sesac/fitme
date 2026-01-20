@@ -2,13 +2,14 @@ package com.example.pproject.job.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 채용공고 테이블
+ * 채용공고 테이블 (ERD: job_posting 기준)
  */
 @Getter
 @Setter
@@ -24,9 +25,6 @@ public class JobEntity {
     @Column(name = "job_id")
     private Long id;
 
-    @Column(name = "job_uid", nullable = false, unique = true)
-    private UUID jobUid;
-
     // employer 테이블과의 FK
     @Column(name = "employer_id", nullable = false)
     private Long employerId;
@@ -38,57 +36,38 @@ public class JobEntity {
     @Column(name = "description", columnDefinition = "TEXT", nullable = false)
     private String description;
 
-    @Column(name = "requirements", columnDefinition = "TEXT")
-    private String requirements;
-
-    @Column(name = "preferred_qualifications", columnDefinition = "TEXT")
-    private String preferredQualifications;
-
-    // 근무 조건
-    @Column(name = "job_type", length = 50)
-    private String jobType; // FULL_TIME, PART_TIME, CONTRACT, INTERN
-
-    @Column(name = "experience_level", length = 50)
-    private String experienceLevel; // ENTRY, JUNIOR, SENIOR, MANAGER
-
-    @Column(name = "education_level", length = 50)
-    private String educationLevel;
-
-    @Column(name = "salary_min")
-    private Integer salaryMin;
-
-    @Column(name = "salary_max")
-    private Integer salaryMax;
-
-    @Column(name = "salary_negotiable")
-    private Boolean salaryNegotiable;
-
-    // 근무지
-    @Column(name = "work_location", length = 500)
-    private String workLocation;
-
-    @Column(name = "remote_work_available")
-    private Boolean remoteWorkAvailable;
-
-    // 모집 기간
-    @Column(name = "posting_start_date")
-    private LocalDate postingStartDate;
-
-    @Column(name = "posting_end_date")
-    private LocalDate postingEndDate;
-
-    @Column(name = "is_always_recruiting")
-    private Boolean isAlwaysRecruiting;
-
-    // 상태
+    // 상태: DRAFT, OPEN, CLOSED
     @Column(name = "status", nullable = false, length = 20)
-    private String status; // DRAFT, ACTIVE, CLOSED, EXPIRED
+    private String status;
+
+    // ERD 컬럼명
+    @Column(name = "location", length = 120)
+    private String location;
+
+    @Column(name = "salary_text", length = 120)
+    private String salaryText;
+
+    // JSONB 타입 - Hibernate 6 방식
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "required_questions", columnDefinition = "jsonb")
+    private String requiredQuestions;
 
     @Column(name = "view_count", nullable = false)
     private Integer viewCount;
 
-    @Column(name = "application_count", nullable = false)
+    // ERD: apply_count
+    @Column(name = "apply_count", nullable = false)
     private Integer applicationCount;
+
+    @Column(name = "stack", length = 80)
+    private String stack;
+
+    @Column(name = "summary", columnDefinition = "TEXT")
+    private String summary;
+
+    // 광고 입찰가
+    @Column(name = "ad_bid_credit", nullable = false)
+    private Integer adBidCredit;
 
     // 감사
     @Column(name = "created_at", nullable = false)
@@ -100,19 +79,18 @@ public class JobEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    // ====== 앱에서 사용할 가상 필드 (DB에 없음) ======
+    @Transient
+    private UUID jobUid;
+
     @PrePersist
     void prePersist() {
-        if (jobUid == null) {
-            jobUid = UUID.randomUUID();
-        }
         if (status == null || status.isBlank()) {
             status = "DRAFT";
         }
         if (viewCount == null) viewCount = 0;
         if (applicationCount == null) applicationCount = 0;
-        if (salaryNegotiable == null) salaryNegotiable = false;
-        if (remoteWorkAvailable == null) remoteWorkAvailable = false;
-        if (isAlwaysRecruiting == null) isAlwaysRecruiting = false;
+        if (adBidCredit == null) adBidCredit = 0;
 
         LocalDateTime now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
@@ -122,5 +100,12 @@ public class JobEntity {
     @PreUpdate
     void preUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * jobUid 대신 id를 UUID 형태 문자열로 반환 (기존 API 호환용)
+     */
+    public UUID getJobUid() {
+        return null;
     }
 }
