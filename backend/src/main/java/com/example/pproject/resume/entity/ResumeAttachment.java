@@ -1,20 +1,24 @@
 package com.example.pproject.resume.entity;
 
-import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.Constant.ScanStatus;
+import com.example.pproject.common.entity.BaseSoftDeleteEntity; // 혹은 BaseTimeEntity 사용 시 변경
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.DynamicInsert;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "resume_attachment", indexes = @Index(name = "idx_resume_attachment_resume_id", columnList = "resume_id"))
-public class ResumeAttachment extends BaseTimeEntity {
+@DynamicInsert
+@Table(name = "resume_attachment")
+public class ResumeAttachment extends BaseSoftDeleteEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "attachment_id")
     private Long id;
 
@@ -43,8 +47,18 @@ public class ResumeAttachment extends BaseTimeEntity {
     @ColumnDefault("false")
     private boolean copyrightOk;
 
-    @Lob @Column(name = "ai_description")
+    @Column(name = "ai_description", columnDefinition = "TEXT")
     private String aiDescription;
 
-    public void setResume(Resume resume) { this.resume = resume; }
+    @Builder
+    public ResumeAttachment(Resume resume, String fileUrl, String fileName, String mimeType, Long fileSize, ScanStatus scanStatus, String aiDescription) {
+        this.resume = resume;
+        this.fileUrl = fileUrl;
+        this.fileName = fileName;
+        this.mimeType = mimeType;
+        this.fileSize = fileSize;
+        this.scanStatus = (scanStatus != null) ? scanStatus : ScanStatus.PENDING;
+        this.aiDescription = aiDescription;
+        this.copyrightOk = false;
+    }
 }

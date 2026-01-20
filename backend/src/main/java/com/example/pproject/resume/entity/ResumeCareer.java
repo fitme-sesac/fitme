@@ -3,6 +3,7 @@ package com.example.pproject.resume.entity;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
@@ -41,6 +42,19 @@ public class ResumeCareer extends BaseTimeEntity {
 
     @Column(name = "is_verified")
     private Boolean verified;
+
+    @Builder
+    public ResumeCareer(Resume resume, String companyName, String department, String role,
+                        LocalDate startDate, LocalDate endDate, Boolean current, Boolean verified) {
+        this.resume = resume;
+        this.companyName = companyName;
+        this.department = department;
+        this.role = role;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.current = current;
+        this.verified = verified;
+    }
 
     public void setResume(Resume resume) { this.resume = resume; }
 }

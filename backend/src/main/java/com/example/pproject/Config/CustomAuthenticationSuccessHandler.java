@@ -1,27 +1,24 @@
 package com.example.pproject.Config;
 
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import com.example.pproject.user.entity.UserEntity;            // ★ 추가
-import com.example.pproject.user.repository.UserRepository;     // ★ 추가
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -30,22 +27,28 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
     @Value("${app.front-base-url:http://localhost:5173}")
     private String frontBaseUrl;
 
-    private final UserRepository userRepository; // ★ 주입
+    private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
+
         Object principal = authentication.getPrincipal();
 
         String displayName;
         String email = null;
-        if (principal instanceof OAuth2User oauth2User) {
-            // 소셜 로그인: OAuth2User의 "name" 속성 사용
-            displayName = oauth2User.getAttribute("name");
-            email = oauth2User.getAttribute("email");
 
-            // ✅ 신규 소셜 사용자(DB 미존재)면: 임시 쿠키(OAUTH2_TMP) 발급 후 추가정보 입력 페이지로 이동
+        if (principal instanceof OAuth2User oauth2User) {
+            String provider = "OTHER";
+            if (authentication instanceof OAuth2AuthenticationToken oat) {
+                provider = oat.getAuthorizedClientRegistrationId(); // google / kakao / naver
+            }
+            String providerUpper = (provider == null || provider.isBlank())
+                    ? "OTHER"
+                    : provider.toUpperCase(Locale.ROOT);
+
+            email = oauth2User.getAttribute("email");
             if (email == null || email.isBlank()) {
                 response.sendRedirect(frontBaseUrl + "/Login?errorMessage=" + java.net.URLEncoder.encode(
                         "소셜 계정 이메일 정보를 가져오지 못했습니다.", StandardCharsets.UTF_8));
@@ -53,17 +56,24 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
             }
 
             Optional<UserEntity> ueByEmail = userRepository.findByEmail(email);
+
+            // ✅ 신규 소셜 사용자: 임시 쿠키(OAUTH2_TMP) 발급 → 추가정보 페이지로
             if (ueByEmail.isEmpty()) {
                 Map<String, Object> claims = new HashMap<>();
                 claims.put("email", email);
-                claims.put("name", displayName);
-                claims.put("provider", "GOOGLE");
+                claims.put("provider", providerUpper);
 
-                // 10분 유효
+                // ✅ 이름(name)만 (닉네임 X)
+                putIfPresent(claims, "name", oauth2User.getAttribute("name"));
+
+                // ✅ 프리필 통일 키: gender/birthday/phone
+                putIfPresent(claims, "gender", oauth2User.getAttribute("gender"));     // MALE/FEMALE/UNDISCLOSED
+                putIfPresent(claims, "birthday", oauth2User.getAttribute("birthday")); // YYYY-MM-DD
+                putIfPresent(claims, "phone", oauth2User.getAttribute("phone"));       // digits
+
                 String tmp = jwtTokenProvider.createFlowToken("OAUTH2_REGISTER", claims, 600);
                 CookieUtils.addHttpOnlyCookie(request, response, "OAUTH2_TMP", tmp, 600, "Lax");
 
-                // 백엔드 경유(쿠키 검증/쿼리 전달) → 프론트 FirstSocialLogin
                 response.sendRedirect("/User/First_Social_Login");
                 return;
             }
@@ -71,14 +81,16 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
             // ✅ 기존 소셜 사용자면: DB 기준 정보로 JWT 발급
             UserEntity ue = ueByEmail.get();
             if (ue.getUserid() == null || ue.getUserid().isBlank()) {
-                // userid(로그인 아이디)가 비어있으면 내부 식별자 생성(토큰 subject 용)
                 String uid = "social_" + UUID.nameUUIDFromBytes(email.getBytes(StandardCharsets.UTF_8))
                         .toString().replace("-", "");
                 ue.setUserid(uid);
                 userRepository.save(ue);
             }
 
-            displayName = (ue.getUsername() != null && !ue.getUsername().isBlank()) ? ue.getUsername() : displayName;
+            displayName = (ue.getUsername() != null && !ue.getUsername().isBlank())
+                    ? ue.getUsername()
+                    : oauth2User.getAttribute("name");
+
             Authentication authForToken = new UsernamePasswordAuthenticationToken(
                     ue.getUserid(),
                     null,
@@ -97,9 +109,10 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 
             response.sendRedirect(frontBaseUrl + "/");
             return;
-        } else if (principal instanceof UserDetails userDetails) {
-            // 일반 로그인: UserDetails.username은 로그인 아이디이므로,
-            // DB에서 실제 'username' 필드(실명)를 조회
+        }
+
+        // 일반 로그인
+        if (principal instanceof UserDetails userDetails) {
             String loginId = userDetails.getUsername();
             Optional<UserEntity> ue = userRepository.findByUserid(loginId);
             displayName = ue.map(UserEntity::getUsername).orElse(loginId);
@@ -112,13 +125,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
             displayName = authentication.getName();
         }
 
-        // 일반 로그인: 기존 authentication을 그대로 사용
-        Authentication authForToken = authentication;
-
-        // ★ 여기서 JWT 생성 (displayName/email 포함)
-        String accessToken = jwtTokenProvider.createAccessToken(authForToken, displayName, email);
-
-        // ★ HttpOnly 쿠키에 저장 (브라우저가 자동 전송)
+        String accessToken = jwtTokenProvider.createAccessToken(authentication, displayName, email);
         CookieUtils.addHttpOnlyCookie(
                 request,
                 response,
@@ -129,5 +136,12 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
         );
 
         response.sendRedirect(frontBaseUrl + "/");
+    }
+
+    private void putIfPresent(Map<String, Object> out, String key, Object value) {
+        if (value == null) return;
+        String s = String.valueOf(value).trim();
+        if (s.isBlank()) return;
+        out.put(key, s);
     }
 }
