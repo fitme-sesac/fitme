@@ -1,8 +1,11 @@
 package com.example.pproject.payment.service;
 
+import com.example.pproject.Constant.OrderStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.order.entity.Orders;
+import com.example.pproject.order.repository.OrderRepository;
 import com.example.pproject.payment.dto.request.PaymentCancelRequest;
 import com.example.pproject.payment.dto.request.PaymentConfirmRequest;
 import com.example.pproject.payment.dto.request.PaymentCreateRequest;
@@ -37,6 +40,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentCancelRepository paymentCancelRepository;
     private final PgWebhookInboxRepository pgWebhookInboxRepository;
+    private final OrderRepository orderRepository;
     private final PaymentPort paymentPort;
     private final WalletService walletService;
     private final ObjectMapper objectMapper;
@@ -47,11 +51,19 @@ public class PaymentService {
      */
     @Transactional
     public PaymentResponse createPayment(Long userId, PaymentCreateRequest request) {
-        String orderId = UUID.randomUUID().toString();
+        // 1. 주문 생성 (Orders)
+        Orders order = Orders.builder()
+                .orderUid(UUID.randomUUID())
+                .buyerType(RoleType.CANDIDATE) // TODO: RoleType 파라미터로 받거나 UserDetails에서 추출
+                .buyerMemberId(userId)
+                .orderAmount(Money.wons(request.amount()))
+                .status(OrderStatus.CREATED) // 수정됨: PENDING -> CREATED
+                .build();
+        orderRepository.save(order);
 
+        // 2. 결제 생성 (Payment)
         Payment payment = Payment.builder()
-                .orderId(orderId)
-                .orderName(request.orderName())
+                .order(order)
                 .method(request.method() != null ? request.method() : PaymentMethod.CARD)
                 .paidAmount(Money.wons(request.amount()))
                 .build();
@@ -63,8 +75,10 @@ public class PaymentService {
      * 2. 결제 승인 (최종 완료)
      */
     public PaymentResponse confirmPayment(Long userId, PaymentConfirmRequest request) {
+        UUID orderUid = UUID.fromString(request.orderId());
+
         transactionTemplate.execute(status -> {
-            Payment payment = paymentRepository.findByOrderIdWithLock(request.orderId())
+            Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
             payment.confirm(request.paymentKey());
             return null;
@@ -77,7 +91,7 @@ public class PaymentService {
         );
 
         return transactionTemplate.execute(status -> {
-            Payment payment = paymentRepository.findByOrderIdWithLock(request.orderId())
+            Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
             Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<Map<String, Object>>() {});
@@ -98,7 +112,9 @@ public class PaymentService {
      * 3. 결제 취소
      */
     public void cancelPayment(Long userId, String orderId, PaymentCancelRequest request) {
-        Payment paymentInfo = paymentRepository.findByOrderId(orderId)
+        UUID orderUid = UUID.fromString(orderId);
+
+        Payment paymentInfo = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
         String paymentKey = paymentInfo.getPgPaymentKey();
 
@@ -108,7 +124,7 @@ public class PaymentService {
         );
 
         transactionTemplate.execute(status -> {
-            Payment payment = paymentRepository.findByOrderIdWithLock(orderId)
+            Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
             Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<Map<String, Object>>() {});
@@ -130,25 +146,28 @@ public class PaymentService {
 
     /**
      * 4. 웹훅 처리 (비동기)
-     * - Controller에서 웹훅 수신 후 호출
      */
     @Async
     @Transactional
     public void handleWebhook(TossWebhookRequest request) {
         String paymentKey = request.data().paymentKey();
         String status = request.data().status();
-        String orderId = request.data().orderId();
+        String orderIdStr = request.data().orderId();
 
-        log.info("웹훅 수신: paymentKey={}, status={}, orderId={}", paymentKey, status, orderId);
+        log.info("웹훅 수신: paymentKey={}, status={}, orderId={}", paymentKey, status, orderIdStr);
 
-        // 1. Inbox 저장
         Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<Map<String, Object>>() {});
         
-        // Payment 조회 (없을 수도 있음)
-        Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+        Payment payment = null;
+        try {
+            UUID orderUid = UUID.fromString(orderIdStr);
+            payment = paymentRepository.findByOrder_OrderUid(orderUid).orElse(null);
+        } catch (IllegalArgumentException e) {
+            log.warn("잘못된 orderId 형식: {}", orderIdStr);
+        }
 
         PgWebhookInbox inbox = PgWebhookInbox.builder()
-                .pgEventId(UUID.randomUUID().toString()) // 토스 웹훅엔 고유 ID가 없어서 생성
+                .pgEventId(UUID.randomUUID().toString())
                 .eventType(request.eventType())
                 .payment(payment)
                 .payload(payload)
@@ -157,13 +176,9 @@ public class PaymentService {
         pgWebhookInboxRepository.save(inbox);
 
         try {
-            // 2. 비즈니스 로직 처리 (예: 가상계좌 입금 확인 등)
             if (payment != null && "DONE".equals(status)) {
-                // 이미 처리된 건인지 확인 후, 안 되어 있다면 approve 처리 등 수행
-                // 여기서는 간단히 로그만 남김
-                log.info("결제 완료 웹훅 처리: {}", orderId);
+                log.info("결제 완료 웹훅 처리: {}", orderIdStr);
             }
-            
             inbox.markAsProcessed();
         } catch (Exception e) {
             log.error("웹훅 처리 실패", e);

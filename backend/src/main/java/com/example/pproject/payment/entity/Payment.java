@@ -4,6 +4,7 @@ import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.order.entity.Orders;
 import com.example.pproject.payment.dto.toss.TossPaymentResponse;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -48,17 +49,10 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "payment_uid", nullable = false, updatable = false)
     private UUID paymentUid;
 
-    // Order와 연관관계 (N:1) - 추후 Order 엔티티 구현 시 주석 해제
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "order_id", nullable = false)
-//    private Order order;
-
-    // 임시 필드 (Order 엔티티 없을 때 사용)
-    @Column(name = "order_id")
-    private String orderId;
-
-    @Column(name = "order_name")
-    private String orderName;
+    // Orders와 연관관계 (N:1)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private Orders order;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "method", nullable = false, length = 20)
@@ -108,10 +102,9 @@ public class Payment extends BaseTimeEntity {
     private LocalDateTime canceledAt;
 
     @Builder
-    public Payment(String orderId, String orderName, PaymentMethod method, Money paidAmount) {
+    public Payment(Orders order, PaymentMethod method, Money paidAmount) {
         this.paymentUid = UUID.randomUUID();
-        this.orderId = orderId;
-        this.orderName = orderName;
+        this.order = order;
         this.method = method;
         this.paidAmount = paidAmount;
         this.appStatus = PaymentAppStatus.REQUESTED; // 초기 상태: REQUESTED
