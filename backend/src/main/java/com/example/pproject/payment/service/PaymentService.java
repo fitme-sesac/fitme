@@ -1,6 +1,7 @@
 package com.example.pproject.payment.service;
 
 import com.example.pproject.Constant.OrderStatus;
+import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.vo.Money;
@@ -87,32 +88,46 @@ public class PaymentService {
     public PaymentResponse confirmPayment(Long userId, PaymentConfirmRequest request) {
         UUID orderUid = UUID.fromString(request.orderId());
 
+        // 1. 결제 요청 상태 검증 및 paymentKey 저장 (트랜잭션 분리)
         transactionTemplate.execute(status -> {
             Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
             
-            // 본인 확인 (선택 사항: 승인 단계에서도 체크 가능)
+            // 본인 확인
             if (!payment.getOrder().getBuyerMemberId().equals(userId)) {
-                throw new IllegalStateException("본인의 결제만 승인할 수 있습니다.");
+               throw new IllegalStateException("본인의 결제만 승인할 수 있습니다.");
             }
             
             payment.confirm(request.paymentKey());
             return null;
         });
 
+        // 2. 외부 PG사 승인 요청 (서킷 브레이커 적용됨)
         TossPaymentResponse tossResponse = paymentPort.confirm(
                 request.paymentKey(),
                 request.orderId(),
                 request.amount()
         );
 
+        // 3. 결과 처리 (트랜잭션 분리)
         return transactionTemplate.execute(status -> {
             Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
-            Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<Map<String, Object>>() {});
+            // 서킷 브레이커 Fallback 등으로 인해 상태를 알 수 없는 경우
+            if ("UNKNOWN".equals(tossResponse.status())) {
+                log.warn("결제 승인 결과 불명 (Circuit Open or Timeout). orderId={}", request.orderId());
+                // 상태를 변경하지 않고(REQUESTED 유지), pgStatus만 업데이트하거나 별도 처리가 필요함.
+                // 여기서는 예외를 던져서 클라이언트가 재시도하거나 조회를 유도하도록 함.
+                throw new IllegalStateException("결제 시스템 응답이 지연되고 있습니다. 잠시 후 결제 내역을 확인해주세요.");
+            }
+
+            Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
+            
+            // 승인 성공 처리
             payment.approve(tossResponse, rawPayload);
 
+            // 지갑 충전 로직
             walletService.chargeCredit(
                     userId,
                     RoleType.CANDIDATE,
@@ -120,6 +135,7 @@ public class PaymentService {
                     payment.getPaidAmount(),
                     payment.getPaymentId()
             );
+            
             return PaymentResponse.from(payment);
         });
     }
@@ -133,13 +149,14 @@ public class PaymentService {
         Payment paymentInfo = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
         
-        // [추가] 본인 확인 로직
-        if (!paymentInfo.getOrder().getBuyerMemberId().equals(userId)) {
-            throw new IllegalStateException("본인의 결제만 취소할 수 있습니다.");
+        // 본인 확인 로직
+        if (paymentInfo.getOrder() != null && !paymentInfo.getOrder().getBuyerMemberId().equals(userId)) {
+           throw new IllegalStateException("본인의 결제만 취소할 수 있습니다.");
         }
         
         String paymentKey = paymentInfo.getPgPaymentKey();
 
+        // 외부 PG사 취소 요청
         TossPaymentResponse tossResponse = paymentPort.cancel(
                 paymentKey,
                 request.cancelReason()
@@ -149,7 +166,12 @@ public class PaymentService {
             Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
-            Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<Map<String, Object>>() {});
+            if ("UNKNOWN".equals(tossResponse.status())) {
+                log.warn("결제 취소 결과 불명. orderId={}", orderId);
+                throw new IllegalStateException("결제 취소 요청이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
+            }
+
+            Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
             payment.cancel(tossResponse, rawPayload);
 
             PaymentCancel cancel = PaymentCancel.builder()
@@ -187,7 +209,7 @@ public class PaymentService {
 
         PgWebhookInbox inbox = existingInbox;
         if (inbox == null) {
-            Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<>() {});
             
             Payment payment = null;
             try {
@@ -210,7 +232,12 @@ public class PaymentService {
 
         try {
             if ("DONE".equals(status)) {
-                log.info("결제 완료 웹훅 처리: {}", orderIdStr);
+                // 웹훅으로 결제 완료 처리 (승인 API 응답을 못 받았을 경우 대비)
+                if (inbox.getPayment() != null && inbox.getPayment().getAppStatus() == PaymentAppStatus.REQUESTED) {
+                    log.info("웹훅을 통한 결제 승인 처리: {}", orderIdStr);
+                    // 주의: 웹훅 데이터로 approve 호출 시 검증 로직 필요 (금액 등)
+                    // 여기서는 단순 로깅만 하고, 실제 상태 변경은 신중해야 함.
+                }
             }
             inbox.markAsProcessed();
         } catch (Exception e) {

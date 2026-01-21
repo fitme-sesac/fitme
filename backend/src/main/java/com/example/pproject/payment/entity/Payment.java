@@ -186,4 +186,11 @@ public class Payment extends BaseTimeEntity {
         this.pgPayload = rawPayload;
         this.canceledAt = LocalDateTime.now();
     }
+    
+    public String getOrderName() {
+        if (this.order != null && this.order.getProduct() != null) {
+            return this.order.getProduct().getName();
+        }
+        return "상품 정보 없음";
+    }
 }
