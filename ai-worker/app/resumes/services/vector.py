@@ -43,7 +43,7 @@ class VectorService:
             print("❌ OpenAI API Key is MISSING in settings! Check .env file.")
         else:
             masked = settings.OPENAI_API_KEY[:5] + "..." 
-            print(f"✅ OpenAI API Key loaded. Key: {masked}")
+            print(f"[OK] OpenAI API Key loaded. Key: {masked}")
 
         try:
             # 1. 주력 모델 설정 시도
