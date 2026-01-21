@@ -395,44 +395,32 @@ public class PaymentService {
             if (payment != null && payment.getAppStatus() == PaymentAppStatus.REQUESTED) {
                 log.info("웹훅을 통한 결제 승인 처리: {}", payment.getPaymentUid());
                 
-                // TossWebhookRequest -> TossPaymentResponse 변환 (필요한 필드만 매핑)
-                // orderName은 Payment 엔티티에서 가져옴
-                TossPaymentResponse tossResponse = new TossPaymentResponse(
-                        request.data().paymentKey(),
-                        request.data().orderId(),
-                        payment.getOrderName(), // Payment 엔티티에서 가져옴
-                        request.data().status(),
-                        request.data().transactionKey(),
-                        null, // lastTransactionKey
-                        request.data().requestedAt(),
-                        request.data().approvedAt(),
-                        request.data().totalAmount(),
-                        request.data().balanceAmount(),
-                        request.data().method(),
-                        null, // receipt
-                        null, // cancels
-                        null, // card
-                        null  // virtualAccount
-                );
+                // DTO 변환 로직을 DTO 내부 팩토리 메서드로 위임
+                TossPaymentResponse tossResponse = TossPaymentResponse.from(request, payment.getOrderName());
                 
                 Map<String, Object> rawPayload = objectMapper.convertValue(request, new TypeReference<>() {});
 
-                // 승인 처리 (엔티티 내부에서 상태 및 금액 검증 수행)
-                payment.approve(tossResponse, rawPayload);
-
-                // 지갑 충전 로직
-                Long userId = payment.getOrder().getBuyerType() == RoleType.CANDIDATE 
-                        ? payment.getOrder().getBuyerMemberId().getId() 
-                        : payment.getOrder().getBuyerEmployerId().getId();
-
-                walletService.chargeCredit(
-                        userId,
-                        payment.getOrder().getBuyerType(),
-                        payment.getPaidAmount().getAmount().longValue(),
-                        payment.getPaidAmount(),
-                        payment.getPaymentId()
-                );
+                processPaymentApproval(payment, tossResponse, rawPayload);
             }
         }
+    }
+
+    // 결제 승인 및 지갑 충전 처리
+    private void processPaymentApproval(Payment payment, TossPaymentResponse tossResponse, Map<String, Object> rawPayload) {
+        // 승인 처리 (엔티티 내부에서 상태 및 금액 검증 수행)
+        payment.approve(tossResponse, rawPayload);
+
+        // 지갑 충전 로직
+        Long userId = payment.getOrder().getBuyerType() == RoleType.CANDIDATE 
+                ? payment.getOrder().getBuyerMemberId().getId() 
+                : payment.getOrder().getBuyerEmployerId().getId();
+
+        walletService.chargeCredit(
+                userId,
+                payment.getOrder().getBuyerType(),
+                payment.getPaidAmount().getAmount().longValue(),
+                payment.getPaidAmount(),
+                payment.getPaymentId()
+        );
     }
 }
