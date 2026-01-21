@@ -91,4 +91,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // OneDrive 동기화 문제 회피를 위해 로컬 빌드 캐시 비활성화 시도
+    outputs.upToDateWhen { false }
 }
