@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -64,6 +65,11 @@ public class JobEntity {
 
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
+
+    // AI 벡터 임베딩 (이력서와의 유사도 계산용)
+    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    private List<Double> embedding;
 
     // 광고 입찰가
     @Column(name = "ad_bid_credit", nullable = false)

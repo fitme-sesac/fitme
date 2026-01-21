@@ -311,7 +311,7 @@ export default function PublicJobListPage() {
                             }`}
                             title={`일치하는 스택: ${job.matchInfo.matchedStacks?.join(', ') || '없음'}`}
                           >
-                            <span className="match-rate">{job.matchInfo.matchRate}%</span>
+                            <span className="match-rate">{job.matchInfo.matchRate || job.matchInfo.overallMatchRate || 0}%</span>
                             <span className="match-label">일치</span>
                           </div>
                         </div>

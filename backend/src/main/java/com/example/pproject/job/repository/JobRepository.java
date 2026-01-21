@@ -4,6 +4,7 @@ import com.example.pproject.job.entity.JobEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -62,4 +63,9 @@ public interface JobRepository extends JpaRepository<JobEntity, Long> {
     // 공개 채용공고 단일 조회 (조회수 증가용)
     @Query("SELECT j FROM JobEntity j WHERE j.id = :id AND j.status = 'OPEN' AND j.deletedAt IS NULL")
     Optional<JobEntity> findPublicJobById(@Param("id") Long id);
+    
+    // 조회수 증가 (embedding 필드 제외하여 pgvector null 바인딩 문제 방지)
+    @Modifying
+    @Query("UPDATE JobEntity j SET j.viewCount = j.viewCount + 1, j.updatedAt = CURRENT_TIMESTAMP WHERE j.id = :id")
+    void incrementViewCount(@Param("id") Long id);
 }

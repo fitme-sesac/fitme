@@ -8,6 +8,8 @@ import com.example.pproject.job.dto.*;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.repository.JobRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
+import com.example.pproject.resume.entity.Resume;
+import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -34,6 +35,7 @@ public class JobService {
     private final EmployerMemberRepository employerMemberRepository;
     private final UserRepository userRepository;
     private final OutboxEventProducer outboxEventProducer;
+    private final ResumeRepository resumeRepository;
     
     // Resume 모듈에서 구현 필요 - Optional로 주입받아 없으면 매칭 기능 비활성화
     private final Optional<CandidateSkillProvider> candidateSkillProvider;
@@ -446,11 +448,14 @@ public class JobService {
         JobEntity job = jobRepository.findPublicJobById(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
 
-        // 조회수 증가
-        job.setViewCount(job.getViewCount() + 1);
-        jobRepository.save(job);
-
-        return toPublicJobDTO(job);
+        // 조회수 증가 (별도 쿼리로 처리하여 embedding 필드 업데이트 방지)
+        jobRepository.incrementViewCount(jobId);
+        
+        // DTO 변환 시 조회수 +1 반영
+        JobDTO dto = toPublicJobDTO(job);
+        dto.setViewCount(job.getViewCount() + 1);
+        
+        return dto;
     }
 
     /**
@@ -577,18 +582,37 @@ public class JobService {
             return baseResponse;
         }
         
-        // 지원자의 기술 스택 조회
-        Set<String> candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
-        
-        if (candidateSkills.isEmpty()) {
-            return baseResponse;
+        // 지원자의 기술 스택 조회 (예외 발생 시 빈 Set 사용)
+        Set<String> candidateSkills;
+        try {
+            candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
+            if (candidateSkills == null) {
+                candidateSkills = Collections.emptySet();
+            }
+        } catch (Exception e) {
+            log.warn("지원자 기술 스택 조회 실패 (memberId: {}): {}", memberId, e.getMessage());
+            candidateSkills = Collections.emptySet();
         }
         
-        // 각 공고에 매칭 정보 추가
+        // final 변수로 복사 (stream 내부에서 사용하기 위해)
+        final Set<String> finalCandidateSkills = candidateSkills;
+        
+        // 각 공고에 매칭 정보 추가 (개별 오류는 무시)
         List<JobDTO> jobsWithMatch = baseResponse.getJobs().stream()
                 .map(job -> {
-                    JobMatchInfoDTO matchInfo = calculateMatchInfo(job.getStack(), candidateSkills);
-                    job.setMatchInfo(matchInfo);
+                    try {
+                        // 스택 매칭만 계산 (벡터 매칭은 목록에서 생략 - 성능상 이유)
+                        JobMatchInfoDTO matchInfo = calculateMatchInfo(
+                                job.getStack(), 
+                                finalCandidateSkills, 
+                                null,  // 목록에서는 벡터 매칭 생략
+                                null,
+                                false  // 벡터 매칭 비활성화
+                        );
+                        job.setMatchInfo(matchInfo);
+                    } catch (Exception e) {
+                        log.debug("공고 {} 매칭 계산 실패: {}", job.getJobId(), e.getMessage());
+                    }
                     return job;
                 })
                 .collect(Collectors.toList());
@@ -614,46 +638,105 @@ public class JobService {
             return job;
         }
         
-        // 지원자의 기술 스택 조회
-        Set<String> candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
-        
-        if (!candidateSkills.isEmpty()) {
-            JobMatchInfoDTO matchInfo = calculateMatchInfo(job.getStack(), candidateSkills);
+        try {
+            // 지원자의 기술 스택 조회
+            Set<String> candidateSkills;
+            try {
+                candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
+                if (candidateSkills == null) {
+                    candidateSkills = Collections.emptySet();
+                }
+            } catch (Exception e) {
+                log.warn("지원자 기술 스택 조회 실패 (memberId: {}): {}", memberId, e.getMessage());
+                candidateSkills = Collections.emptySet();
+            }
+            
+            // 공고 엔티티 조회 (벡터 정보 포함) - 벡터 매칭은 일단 비활성화
+            // JobEntity jobEntity = jobRepository.findById(jobId).orElse(null);
+            
+            // 매칭 정보 계산 (스택 매칭만, 벡터 매칭은 비활성화)
+            JobMatchInfoDTO matchInfo = calculateMatchInfo(
+                    job.getStack(), 
+                    candidateSkills, 
+                    null,  // 벡터 매칭 비활성화
+                    null,
+                    false
+            );
             job.setMatchInfo(matchInfo);
+        } catch (Exception e) {
+            log.warn("매칭 정보 계산 실패 (jobId: {}, memberId: {}): {}", jobId, memberId, e.getMessage());
+            // 매칭 정보 없이 반환
         }
         
         return job;
     }
 
     /**
-     * 채용공고 기술 스택과 지원자 기술 스택 간 매칭 정보 계산
+     * 채용공고와 지원자 간 종합 매칭 정보 계산
+     * - 기술 스택 매칭 + 벡터 유사도 매칭
+     * 
+     * @param jobStack 채용공고의 기술 스택 (쉼표로 구분된 문자열)
+     * @param candidateSkills 지원자의 기술 스택 Set
+     * @param jobEntity 채용공고 엔티티 (벡터 정보 포함)
+     * @param memberId 지원자 회원 ID (이력서 벡터 조회용)
+     * @return 매칭 정보 DTO
+     */
+    public JobMatchInfoDTO calculateMatchInfo(String jobStack, Set<String> candidateSkills, 
+                                               JobEntity jobEntity, Long memberId) {
+        // 기존 메서드 호출 (하위 호환성)
+        return calculateMatchInfo(jobStack, candidateSkills, jobEntity, memberId, true);
+    }
+    
+    /**
+     * 채용공고 기술 스택과 지원자 기술 스택 간 매칭 정보 계산 (기존 메서드 - 하위 호환성)
      * 
      * @param jobStack 채용공고의 기술 스택 (쉼표로 구분된 문자열)
      * @param candidateSkills 지원자의 기술 스택 Set
      * @return 매칭 정보 DTO
      */
+    @Deprecated
     public JobMatchInfoDTO calculateMatchInfo(String jobStack, Set<String> candidateSkills) {
+        return calculateMatchInfo(jobStack, candidateSkills, null, null, false);
+    }
+    
+    /**
+     * 채용공고와 지원자 간 종합 매칭 정보 계산 (내부 메서드)
+     */
+    private JobMatchInfoDTO calculateMatchInfo(String jobStack, Set<String> candidateSkills,
+                                               JobEntity jobEntity, Long memberId, 
+                                               boolean includeVectorMatch) {
         if (jobStack == null || jobStack.isBlank()) {
-            return JobMatchInfoDTO.builder()
-                    .matchRate(0)
+            JobMatchInfoDTO matchInfo = JobMatchInfoDTO.builder()
+                    .stackMatchRate(0)
+                    .vectorMatchRate(0)
                     .requiredStacks(Collections.emptyList())
                     .matchedStacks(Collections.emptyList())
                     .missingStacks(Collections.emptyList())
                     .matchLevel("LOW")
                     .build();
+            matchInfo.setOverallMatchRate(0);
+            return matchInfo;
         }
         
         // 채용공고 요구 스택 파싱 (쉼표, 슬래시, 공백 등으로 구분)
         List<String> requiredStacks = parseStackString(jobStack);
         
         if (requiredStacks.isEmpty()) {
-            return JobMatchInfoDTO.builder()
-                    .matchRate(0)
+            JobMatchInfoDTO matchInfo = JobMatchInfoDTO.builder()
+                    .stackMatchRate(0)
+                    .vectorMatchRate(0)
                     .requiredStacks(Collections.emptyList())
                     .matchedStacks(Collections.emptyList())
                     .missingStacks(Collections.emptyList())
                     .matchLevel("LOW")
                     .build();
+            matchInfo.setOverallMatchRate(0);
+            return matchInfo;
+        }
+        
+        // candidateSkills null 체크
+        if (candidateSkills == null) {
+            candidateSkills = Collections.emptySet();
         }
         
         // 정규화된 지원자 스택 (소문자)
@@ -685,20 +768,141 @@ public class JobService {
             }
         }
         
-        // 매칭률 계산
-        int matchRate = (int) Math.round((double) matchedStacks.size() / requiredStacks.size() * 100);
-        String matchLevel = JobMatchInfoDTO.calculateMatchLevel(matchRate);
+        // 기술 스택 매칭률 계산
+        int stackMatchRate = requiredStacks.isEmpty() ? 0 : 
+                (int) Math.round((double) matchedStacks.size() / requiredStacks.size() * 100);
         
-        log.debug("매칭 계산 - 요구: {}, 보유: {}, 일치: {}, 매칭률: {}%", 
-                requiredStacks, candidateSkills, matchedStacks, matchRate);
+        // 벡터 유사도 매칭률 계산
+        int vectorMatchRate = 0;
+        if (includeVectorMatch && jobEntity != null && memberId != null) {
+            try {
+                vectorMatchRate = calculateVectorSimilarity(jobEntity, memberId);
+            } catch (Exception e) {
+                log.warn("벡터 유사도 계산 중 오류 발생: {}", e.getMessage());
+                vectorMatchRate = 0;
+            }
+        }
         
-        return JobMatchInfoDTO.builder()
-                .matchRate(matchRate)
+        // 종합 매칭률 계산 (기술 스택 40% + 벡터 유사도 60%)
+        int overallMatchRate;
+        if (includeVectorMatch && vectorMatchRate > 0) {
+            overallMatchRate = (int) Math.round(stackMatchRate * 0.4 + vectorMatchRate * 0.6);
+        } else {
+            // 벡터 매칭이 없으면 기술 스택만 사용
+            overallMatchRate = stackMatchRate;
+        }
+        
+        String matchLevel = JobMatchInfoDTO.calculateMatchLevel(overallMatchRate);
+        
+        log.debug("매칭 계산 - 요구: {}, 보유: {}, 일치: {}, 스택매칭: {}%, 벡터매칭: {}%, 종합: {}%", 
+                requiredStacks, candidateSkills, matchedStacks, stackMatchRate, vectorMatchRate, overallMatchRate);
+        
+        JobMatchInfoDTO matchInfo = JobMatchInfoDTO.builder()
+                .stackMatchRate(stackMatchRate)
+                .vectorMatchRate(vectorMatchRate)
                 .requiredStacks(requiredStacks)
                 .matchedStacks(matchedStacks)
                 .missingStacks(missingStacks)
                 .matchLevel(matchLevel)
                 .build();
+        
+        // 종합 매칭률 설정 (자동으로 matchRate와 matchLevel 업데이트)
+        matchInfo.setOverallMatchRate(overallMatchRate);
+        
+        return matchInfo;
+    }
+    
+    /**
+     * 채용공고 벡터와 지원자 이력서 벡터 간 코사인 유사도 계산
+     * 
+     * @param jobEntity 채용공고 엔티티 (embedding 필드 포함)
+     * @param memberId 지원자 회원 ID
+     * @return 벡터 유사도 기반 매칭률 (0~100)
+     */
+    private int calculateVectorSimilarity(JobEntity jobEntity, Long memberId) {
+        try {
+            // memberId null 체크
+            if (memberId == null) {
+                log.debug("memberId가 null입니다.");
+                return 0;
+            }
+            
+            // jobEntity null 체크
+            if (jobEntity == null) {
+                log.debug("jobEntity가 null입니다.");
+                return 0;
+            }
+            
+            // 채용공고 벡터 조회
+            List<Double> jobEmbedding = jobEntity.getEmbedding();
+            if (jobEmbedding == null || jobEmbedding.isEmpty()) {
+                log.debug("채용공고 {}의 벡터가 없습니다.", jobEntity.getId());
+                return 0;
+            }
+            
+            // 지원자의 대표 이력서 벡터 조회
+            // UserEntity의 id는 Integer 타입이므로 Long을 Integer로 변환
+            // memberId는 이미 위에서 null 체크를 했으므로 안전하게 변환 가능
+            Integer memberIdInt = memberId.intValue();
+            Optional<Resume> resumeOpt = resumeRepository.findByMemberIdAndPrimaryTrue(memberIdInt);
+            if (resumeOpt.isEmpty()) {
+                log.debug("회원 {}의 대표 이력서가 없습니다.", memberId);
+                return 0;
+            }
+            
+            Resume resume = resumeOpt.get();
+            List<Double> resumeEmbedding = resume.getEmbedding();
+            if (resumeEmbedding == null || resumeEmbedding.isEmpty()) {
+                log.debug("이력서 {}의 벡터가 없습니다.", resume.getId());
+                return 0;
+            }
+            
+            // 코사인 유사도 계산
+            double cosineSimilarity = calculateCosineSimilarity(jobEmbedding, resumeEmbedding);
+            
+            // 유사도를 0~100 범위로 변환 (코사인 유사도는 -1~1 범위이지만, 임베딩은 보통 0~1)
+            int matchRate = (int) Math.round(Math.max(0, Math.min(1, cosineSimilarity)) * 100);
+            
+            log.debug("벡터 유사도 계산 - 공고: {}, 이력서: {}, 유사도: {}, 매칭률: {}%", 
+                    jobEntity.getId(), resume.getId(), cosineSimilarity, matchRate);
+            
+            return matchRate;
+        } catch (Exception e) {
+            log.warn("벡터 유사도 계산 중 오류 발생: {}", e.getMessage());
+            return 0;
+        }
+    }
+    
+    /**
+     * 두 벡터 간 코사인 유사도 계산
+     * 
+     * @param vector1 첫 번째 벡터
+     * @param vector2 두 번째 벡터
+     * @return 코사인 유사도 (-1 ~ 1)
+     */
+    private double calculateCosineSimilarity(List<Double> vector1, List<Double> vector2) {
+        if (vector1.size() != vector2.size()) {
+            throw new IllegalArgumentException("벡터 차원이 일치하지 않습니다.");
+        }
+        
+        double dotProduct = 0.0;
+        double norm1 = 0.0;
+        double norm2 = 0.0;
+        
+        for (int i = 0; i < vector1.size(); i++) {
+            double v1 = vector1.get(i);
+            double v2 = vector2.get(i);
+            dotProduct += v1 * v2;
+            norm1 += v1 * v1;
+            norm2 += v2 * v2;
+        }
+        
+        double denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
+        if (denominator == 0.0) {
+            return 0.0;
+        }
+        
+        return dotProduct / denominator;
     }
 
     /**

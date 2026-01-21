@@ -1,17 +1,20 @@
 package com.example.pproject.resume.entity;
 
-import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 이력서 프로필 엔티티
+ * ERD resume_profile 테이블 기준 - created_at/updated_at 컬럼 없음
+ */
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "resume_profile")
-public class ResumeProfile extends BaseTimeEntity {
+public class ResumeProfile {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "profile_id")

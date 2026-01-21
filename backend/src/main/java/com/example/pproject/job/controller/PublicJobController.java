@@ -4,7 +4,6 @@ import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.dto.JobListResponseDTO;
 import com.example.pproject.job.service.JobService;
-import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,8 +49,14 @@ public class PublicJobController {
             
             JobListResponseDTO response;
             if (memberId != null) {
-                // 로그인 사용자: 매칭 정보 포함
-                response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, memberId);
+                // 로그인 사용자: 매칭 정보 포함 시도
+                try {
+                    response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, memberId);
+                } catch (Exception matchError) {
+                    // 매칭 계산 실패 시 기본 조회로 폴백
+                    log.warn("매칭 정보 계산 실패, 기본 조회로 전환: {}", matchError.getMessage());
+                    response = jobService.getPublicJobs(page, size, keyword, stack, location);
+                }
             } else {
                 // 비로그인 사용자: 기본 조회
                 response = jobService.getPublicJobs(page, size, keyword, stack, location);
@@ -78,8 +83,14 @@ public class PublicJobController {
             
             JobDTO job;
             if (memberId != null) {
-                // 로그인 사용자: 매칭 정보 포함
-                job = jobService.getPublicJobWithMatch(jobId, memberId);
+                // 로그인 사용자: 매칭 정보 포함 시도
+                try {
+                    job = jobService.getPublicJobWithMatch(jobId, memberId);
+                } catch (Exception matchError) {
+                    // 매칭 계산 실패 시 기본 조회로 폴백
+                    log.warn("매칭 정보 계산 실패, 기본 조회로 전환: {}", matchError.getMessage());
+                    job = jobService.getPublicJob(jobId);
+                }
             } else {
                 // 비로그인 사용자: 기본 조회
                 job = jobService.getPublicJob(jobId);

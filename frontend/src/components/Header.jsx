@@ -8,6 +8,9 @@ import "../features/notification/components/NotificationDropdown.css";
  */
 export default function Header({ isAuthenticated, displayName, apiBase, role }) {
     const [mobileNavActive, setMobileNavActive] = useState(false);
+    
+    // 디버깅: role 값 확인
+    console.log("[Header] role:", role, "isAuthenticated:", isAuthenticated);
 
     // 모바일 네비게이션 토글
     const toggleMobileNav = () => {
@@ -110,7 +113,14 @@ export default function Header({ isAuthenticated, displayName, apiBase, role }) 
 
                                 <a 
                                     className="btn-getstarted ms-2" 
-                                    href={role === "EMPLOYER" ? "/employer/dashboard" : "/MyPage"}
+                                    href={role?.toUpperCase() === "EMPLOYER" ? "/employer/dashboard" : "/MyPage"}
+                                    onClick={(e) => {
+                                        // 기업회원일 경우 프론트엔드 SPA로 이동
+                                        if (role?.toUpperCase() === "EMPLOYER") {
+                                            e.preventDefault();
+                                            window.location.href = "/employer/dashboard";
+                                        }
+                                    }}
                                 >
                                     마이페이지
                                 </a>
