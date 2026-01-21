@@ -18,8 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,6 +31,9 @@ public class JobService {
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
     private final UserRepository userRepository;
+    
+    // Resume 모듈에서 구현 필요 - Optional로 주입받아 없으면 매칭 기능 비활성화
+    private final Optional<CandidateSkillProvider> candidateSkillProvider;
 
     /**
      * 한글-영어 기술스택 매핑 (양방향)
@@ -492,5 +494,197 @@ public class JobService {
                 .companyName(employer.getName())
                 .companyLogoUrl(employer.getLogoUrl())
                 .build();
+    }
+
+    // ===== 기술 스택 매칭 기능 =====
+
+    /**
+     * 공개 채용공고 목록 조회 (매칭 정보 포함)
+     * - 로그인한 지원자의 경우 각 공고에 대한 매칭률 포함
+     */
+    public JobListResponseDTO getPublicJobsWithMatch(int page, int size, String keyword, 
+                                                      String stack, String location, Long memberId) {
+        JobListResponseDTO baseResponse = getPublicJobs(page, size, keyword, stack, location);
+        
+        // memberId가 없거나 CandidateSkillProvider가 없으면 매칭 정보 없이 반환
+        if (memberId == null || candidateSkillProvider.isEmpty()) {
+            return baseResponse;
+        }
+        
+        // 지원자의 기술 스택 조회
+        Set<String> candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
+        
+        if (candidateSkills.isEmpty()) {
+            return baseResponse;
+        }
+        
+        // 각 공고에 매칭 정보 추가
+        List<JobDTO> jobsWithMatch = baseResponse.getJobs().stream()
+                .map(job -> {
+                    JobMatchInfoDTO matchInfo = calculateMatchInfo(job.getStack(), candidateSkills);
+                    job.setMatchInfo(matchInfo);
+                    return job;
+                })
+                .collect(Collectors.toList());
+        
+        return JobListResponseDTO.builder()
+                .jobs(jobsWithMatch)
+                .page(baseResponse.getPage())
+                .size(baseResponse.getSize())
+                .totalElements(baseResponse.getTotalElements())
+                .totalPages(baseResponse.getTotalPages())
+                .build();
+    }
+
+    /**
+     * 공개 채용공고 상세 조회 (매칭 정보 포함)
+     */
+    @Transactional
+    public JobDTO getPublicJobWithMatch(Long jobId, Long memberId) {
+        JobDTO job = getPublicJob(jobId);
+        
+        // memberId가 없거나 CandidateSkillProvider가 없으면 매칭 정보 없이 반환
+        if (memberId == null || candidateSkillProvider.isEmpty()) {
+            return job;
+        }
+        
+        // 지원자의 기술 스택 조회
+        Set<String> candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
+        
+        if (!candidateSkills.isEmpty()) {
+            JobMatchInfoDTO matchInfo = calculateMatchInfo(job.getStack(), candidateSkills);
+            job.setMatchInfo(matchInfo);
+        }
+        
+        return job;
+    }
+
+    /**
+     * 채용공고 기술 스택과 지원자 기술 스택 간 매칭 정보 계산
+     * 
+     * @param jobStack 채용공고의 기술 스택 (쉼표로 구분된 문자열)
+     * @param candidateSkills 지원자의 기술 스택 Set
+     * @return 매칭 정보 DTO
+     */
+    public JobMatchInfoDTO calculateMatchInfo(String jobStack, Set<String> candidateSkills) {
+        if (jobStack == null || jobStack.isBlank()) {
+            return JobMatchInfoDTO.builder()
+                    .matchRate(0)
+                    .requiredStacks(Collections.emptyList())
+                    .matchedStacks(Collections.emptyList())
+                    .missingStacks(Collections.emptyList())
+                    .matchLevel("LOW")
+                    .build();
+        }
+        
+        // 채용공고 요구 스택 파싱 (쉼표, 슬래시, 공백 등으로 구분)
+        List<String> requiredStacks = parseStackString(jobStack);
+        
+        if (requiredStacks.isEmpty()) {
+            return JobMatchInfoDTO.builder()
+                    .matchRate(0)
+                    .requiredStacks(Collections.emptyList())
+                    .matchedStacks(Collections.emptyList())
+                    .missingStacks(Collections.emptyList())
+                    .matchLevel("LOW")
+                    .build();
+        }
+        
+        // 정규화된 지원자 스택 (소문자)
+        Set<String> normalizedCandidateSkills = candidateSkills.stream()
+                .map(String::toLowerCase)
+                .map(String::trim)
+                .collect(Collectors.toSet());
+        
+        // 매칭되는 스택 찾기
+        List<String> matchedStacks = new ArrayList<>();
+        List<String> missingStacks = new ArrayList<>();
+        
+        for (String required : requiredStacks) {
+            String normalizedRequired = required.toLowerCase().trim();
+            
+            // 정확히 일치하거나, 부분 일치 확인
+            boolean matched = normalizedCandidateSkills.stream()
+                    .anyMatch(candidate -> 
+                            candidate.equals(normalizedRequired) ||
+                            candidate.contains(normalizedRequired) ||
+                            normalizedRequired.contains(candidate) ||
+                            isSynonymMatch(normalizedRequired, candidate)
+                    );
+            
+            if (matched) {
+                matchedStacks.add(required);
+            } else {
+                missingStacks.add(required);
+            }
+        }
+        
+        // 매칭률 계산
+        int matchRate = (int) Math.round((double) matchedStacks.size() / requiredStacks.size() * 100);
+        String matchLevel = JobMatchInfoDTO.calculateMatchLevel(matchRate);
+        
+        log.debug("매칭 계산 - 요구: {}, 보유: {}, 일치: {}, 매칭률: {}%", 
+                requiredStacks, candidateSkills, matchedStacks, matchRate);
+        
+        return JobMatchInfoDTO.builder()
+                .matchRate(matchRate)
+                .requiredStacks(requiredStacks)
+                .matchedStacks(matchedStacks)
+                .missingStacks(missingStacks)
+                .matchLevel(matchLevel)
+                .build();
+    }
+
+    /**
+     * 기술 스택 문자열 파싱
+     * - 쉼표, 슬래시, 세미콜론 등으로 구분된 문자열을 리스트로 변환
+     */
+    private List<String> parseStackString(String stackString) {
+        if (stackString == null || stackString.isBlank()) {
+            return Collections.emptyList();
+        }
+        
+        // 다양한 구분자 지원: 쉼표, 슬래시, 세미콜론, 파이프
+        return Arrays.stream(stackString.split("[,/;|]"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 동의어 매칭 확인
+     * - JavaScript ↔ JS, TypeScript ↔ TS 등
+     */
+    private boolean isSynonymMatch(String stack1, String stack2) {
+        Map<String, Set<String>> synonyms = Map.ofEntries(
+                Map.entry("javascript", Set.of("js", "자바스크립트")),
+                Map.entry("typescript", Set.of("ts", "타입스크립트")),
+                Map.entry("react", Set.of("reactjs", "react.js", "리액트")),
+                Map.entry("vue", Set.of("vuejs", "vue.js", "뷰")),
+                Map.entry("angular", Set.of("angularjs", "angular.js", "앵귤러")),
+                Map.entry("node", Set.of("nodejs", "node.js", "노드")),
+                Map.entry("spring", Set.of("springboot", "spring boot", "스프링")),
+                Map.entry("java", Set.of("자바")),
+                Map.entry("python", Set.of("파이썬")),
+                Map.entry("kotlin", Set.of("코틀린")),
+                Map.entry("postgresql", Set.of("postgres", "포스트그레스")),
+                Map.entry("mysql", Set.of("마이에스큐엘")),
+                Map.entry("mongodb", Set.of("mongo", "몽고디비")),
+                Map.entry("aws", Set.of("amazon web services", "아마존")),
+                Map.entry("gcp", Set.of("google cloud", "구글클라우드")),
+                Map.entry("docker", Set.of("도커")),
+                Map.entry("kubernetes", Set.of("k8s", "쿠버네티스"))
+        );
+        
+        for (Map.Entry<String, Set<String>> entry : synonyms.entrySet()) {
+            Set<String> allVariants = new HashSet<>(entry.getValue());
+            allVariants.add(entry.getKey());
+            
+            if (allVariants.contains(stack1) && allVariants.contains(stack2)) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 }

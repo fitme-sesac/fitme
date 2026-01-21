@@ -6,6 +6,7 @@ import { http } from '../../../api/http';
  * 공개 채용공고 상세 페이지
  * - 모든 사용자(비로그인 포함)가 볼 수 있는 채용공고 상세
  * - /jobs/:jobId 경로로 접근
+ * - 로그인 사용자에게는 기술 스택 매칭 정보 표시
  */
 export default function PublicJobDetailPage() {
   const { jobId } = useParams();
@@ -14,6 +15,7 @@ export default function PublicJobDetailPage() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showMatchDetail, setShowMatchDetail] = useState(false); // 매칭 상세 토글
 
   useEffect(() => {
     fetchJob();
@@ -149,16 +151,123 @@ export default function PublicJobDetailPage() {
                       <i className="bi bi-code-slash me-2"></i>기술 스택
                     </h6>
                     <div>
-                      {job.stack.split(',').map((tech, idx) => (
-                        <Link
-                          key={idx}
-                          to={`/jobs?stack=${encodeURIComponent(tech.trim())}`}
-                          className="badge bg-primary me-2 mb-2 text-decoration-none"
-                          style={{ fontSize: '0.9rem', padding: '0.5em 0.8em' }}
+                      {job.stack.split(',').map((tech, idx) => {
+                        const isMatched = job.matchInfo?.matchedStacks?.some(
+                          m => m.toLowerCase() === tech.trim().toLowerCase()
+                        );
+                        return (
+                          <Link
+                            key={idx}
+                            to={`/jobs?stack=${encodeURIComponent(tech.trim())}`}
+                            className={`badge me-2 mb-2 text-decoration-none ${
+                              job.matchInfo 
+                                ? (isMatched ? 'bg-success' : 'bg-secondary') 
+                                : 'bg-primary'
+                            }`}
+                            style={{ fontSize: '0.9rem', padding: '0.5em 0.8em' }}
+                            title={job.matchInfo ? (isMatched ? '보유한 기술' : '부족한 기술') : ''}
+                          >
+                            {isMatched && <i className="bi bi-check-circle me-1"></i>}
+                            {tech.trim()}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 매칭 정보 (로그인 사용자만) */}
+                {job.matchInfo && (
+                  <div className="mb-4">
+                    <div 
+                      className="match-info-card"
+                      onClick={() => setShowMatchDetail(!showMatchDetail)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className="d-flex align-items-center justify-content-between">
+                        <div className="d-flex align-items-center">
+                          {/* 원형 그래프 */}
+                          <div 
+                            className="match-circle me-3"
+                            style={{
+                              '--match-rate': job.matchInfo.matchRate,
+                              '--match-color': 
+                                job.matchInfo.matchLevel === 'EXCELLENT' ? '#28a745' :
+                                job.matchInfo.matchLevel === 'GOOD' ? '#17a2b8' :
+                                job.matchInfo.matchLevel === 'MODERATE' ? '#ffc107' : '#6c757d'
+                            }}
+                          >
+                            <span className="match-circle-text">
+                              <strong>{job.matchInfo.matchRate}%</strong>
+                              <small>일치</small>
+                            </span>
+                          </div>
+                          <div>
+                            <h6 className="mb-1 fw-bold">
+                              {job.matchInfo.matchLevel === 'EXCELLENT' && '🎯 아주 잘 맞아요!'}
+                              {job.matchInfo.matchLevel === 'GOOD' && '👍 잘 맞는 공고예요'}
+                              {job.matchInfo.matchLevel === 'MODERATE' && '📚 도전해볼 만해요'}
+                              {job.matchInfo.matchLevel === 'LOW' && '🌱 새로운 기회예요'}
+                            </h6>
+                            <p className="mb-0 text-muted small">
+                              {job.matchInfo.matchedStacks?.length || 0}개 기술 일치 / 
+                              {job.matchInfo.requiredStacks?.length || 0}개 중
+                            </p>
+                          </div>
+                        </div>
+                        <button 
+                          className="btn btn-sm btn-link text-decoration-none"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowMatchDetail(!showMatchDetail);
+                          }}
                         >
-                          {tech.trim()}
-                        </Link>
-                      ))}
+                          <i className={`bi bi-chevron-${showMatchDetail ? 'up' : 'down'}`}></i>
+                          상세
+                        </button>
+                      </div>
+
+                      {/* 토글 상세 정보 */}
+                      {showMatchDetail && (
+                        <div className="match-detail mt-3 pt-3 border-top">
+                          <div className="row">
+                            <div className="col-6">
+                              <h6 className="text-success small fw-semibold mb-2">
+                                <i className="bi bi-check-circle-fill me-1"></i>
+                                보유한 기술 ({job.matchInfo.matchedStacks?.length || 0})
+                              </h6>
+                              <div>
+                                {job.matchInfo.matchedStacks?.length > 0 ? (
+                                  job.matchInfo.matchedStacks.map((stack, idx) => (
+                                    <span key={idx} className="badge bg-success-subtle text-success me-1 mb-1">
+                                      {stack}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-muted small">없음</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="col-6">
+                              <h6 className="text-warning small fw-semibold mb-2">
+                                <i className="bi bi-exclamation-circle-fill me-1"></i>
+                                부족한 기술 ({job.matchInfo.missingStacks?.length || 0})
+                              </h6>
+                              <div>
+                                {job.matchInfo.missingStacks?.length > 0 ? (
+                                  job.matchInfo.missingStacks.map((stack, idx) => (
+                                    <span key={idx} className="badge bg-warning-subtle text-warning me-1 mb-1">
+                                      {stack}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-muted small">없음 🎉</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -301,6 +410,83 @@ export default function PublicJobDetailPage() {
           </Link>
         </div>
       </div>
+
+      {/* 매칭 정보 스타일 */}
+      <style>{`
+        /* 매칭 정보 카드 */
+        .match-info-card {
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border-radius: 12px;
+          padding: 1rem 1.25rem;
+          border: 1px solid #dee2e6;
+          transition: all 0.2s ease;
+        }
+        .match-info-card:hover {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        /* 원형 그래프 (도넛 차트) */
+        .match-circle {
+          width: 70px;
+          height: 70px;
+          border-radius: 50%;
+          background: conic-gradient(
+            var(--match-color) calc(var(--match-rate) * 1%),
+            #e9ecef calc(var(--match-rate) * 1%)
+          );
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+        }
+        .match-circle::before {
+          content: '';
+          position: absolute;
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          background: white;
+        }
+        .match-circle-text {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          line-height: 1.2;
+        }
+        .match-circle-text strong {
+          font-size: 1rem;
+          color: #333;
+        }
+        .match-circle-text small {
+          font-size: 0.65rem;
+          color: #666;
+        }
+
+        /* 매칭 상세 애니메이션 */
+        .match-detail {
+          animation: slideDown 0.2s ease;
+        }
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* 뱃지 커스텀 */
+        .bg-success-subtle {
+          background-color: rgba(40, 167, 69, 0.15) !important;
+        }
+        .bg-warning-subtle {
+          background-color: rgba(255, 193, 7, 0.15) !important;
+        }
+      `}</style>
     </main>
   );
 }

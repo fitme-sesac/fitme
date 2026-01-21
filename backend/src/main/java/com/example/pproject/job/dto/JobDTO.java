@@ -34,4 +34,7 @@ public class JobDTO {
     // 기업 정보 (조인)
     private String companyName;
     private String companyLogoUrl;
+    
+    // 매칭 정보 (로그인한 지원자에게만 표시)
+    private JobMatchInfoDTO matchInfo;
 }

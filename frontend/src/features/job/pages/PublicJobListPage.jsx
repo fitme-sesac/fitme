@@ -299,7 +299,23 @@ export default function PublicJobListPage() {
                     to={`/jobs/${job.jobId}`} 
                     className="text-decoration-none"
                   >
-                    <div className="card h-100 shadow-sm border-0 job-card">
+                    <div className="card h-100 shadow-sm border-0 job-card position-relative">
+                      {/* 매칭률 뱃지 (로그인 사용자만 표시) */}
+                      {job.matchInfo && (
+                        <div className="position-absolute top-0 end-0 m-2">
+                          <div 
+                            className={`match-badge ${
+                              job.matchInfo.matchLevel === 'EXCELLENT' ? 'match-excellent' :
+                              job.matchInfo.matchLevel === 'GOOD' ? 'match-good' :
+                              job.matchInfo.matchLevel === 'MODERATE' ? 'match-moderate' : 'match-low'
+                            }`}
+                            title={`일치하는 스택: ${job.matchInfo.matchedStacks?.join(', ') || '없음'}`}
+                          >
+                            <span className="match-rate">{job.matchInfo.matchRate}%</span>
+                            <span className="match-label">일치</span>
+                          </div>
+                        </div>
+                      )}
                       <div className="card-body">
                         {/* 회사 정보 */}
                         <div className="d-flex align-items-center mb-3">
@@ -462,6 +478,40 @@ export default function PublicJobListPage() {
         .job-card:hover {
           transform: translateY(-4px);
           box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+        
+        /* 매칭률 뱃지 스타일 */
+        .match-badge {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          color: white;
+          font-weight: bold;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .match-badge .match-rate {
+          font-size: 0.95rem;
+          line-height: 1;
+        }
+        .match-badge .match-label {
+          font-size: 0.6rem;
+          opacity: 0.9;
+        }
+        .match-excellent {
+          background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .match-good {
+          background: linear-gradient(135deg, #17a2b8, #6f42c1);
+        }
+        .match-moderate {
+          background: linear-gradient(135deg, #ffc107, #fd7e14);
+        }
+        .match-low {
+          background: linear-gradient(135deg, #6c757d, #adb5bd);
         }
       `}</style>
     </main>

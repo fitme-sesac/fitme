@@ -1,11 +1,15 @@
 package com.example.pproject.job.controller;
 
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.dto.JobListResponseDTO;
 import com.example.pproject.job.service.JobService;
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -14,6 +18,7 @@ import java.util.Map;
  * 공개 채용공고 API (인증 없이 접근 가능)
  * - 일반 사용자(구직자)가 채용공고를 열람하는 용도
  * - /api/public/jobs/* 엔드포인트
+ * - 로그인한 사용자의 경우 기술 스택 매칭 정보 제공
  */
 @Slf4j
 @RestController
@@ -22,11 +27,13 @@ import java.util.Map;
 public class PublicJobController {
 
     private final JobService jobService;
+    private final UserRepository userRepository;
 
     /**
      * 공개 채용공고 목록 조회
      * - status='OPEN'인 공고만 반환
      * - 검색, 필터링 지원
+     * - 로그인 사용자의 경우 기술 스택 매칭 정보 포함
      */
     @GetMapping
     public ResponseEntity<?> getPublicJobs(
@@ -34,12 +41,21 @@ public class PublicJobController {
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String stack,
-            @RequestParam(required = false) String location) {
+            @RequestParam(required = false) String location,
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
-            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}",
-                    page, size, keyword, stack, location);
+            Long memberId = getMemberIdFromPrincipal(principal);
+            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, memberId: {}",
+                    page, size, keyword, stack, location, memberId);
             
-            JobListResponseDTO response = jobService.getPublicJobs(page, size, keyword, stack, location);
+            JobListResponseDTO response;
+            if (memberId != null) {
+                // 로그인 사용자: 매칭 정보 포함
+                response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, memberId);
+            } else {
+                // 비로그인 사용자: 기본 조회
+                response = jobService.getPublicJobs(page, size, keyword, stack, location);
+            }
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("공개 채용공고 목록 조회 중 오류 발생", e);
@@ -50,13 +66,24 @@ public class PublicJobController {
     /**
      * 공개 채용공고 상세 조회
      * - 조회수 자동 증가
+     * - 로그인 사용자의 경우 기술 스택 매칭 정보 포함
      */
     @GetMapping("/{jobId}")
-    public ResponseEntity<?> getPublicJob(@PathVariable Long jobId) {
+    public ResponseEntity<?> getPublicJob(
+            @PathVariable Long jobId,
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
-            log.info("공개 채용공고 상세 조회 - jobId: {}", jobId);
+            Long memberId = getMemberIdFromPrincipal(principal);
+            log.info("공개 채용공고 상세 조회 - jobId: {}, memberId: {}", jobId, memberId);
             
-            JobDTO job = jobService.getPublicJob(jobId);
+            JobDTO job;
+            if (memberId != null) {
+                // 로그인 사용자: 매칭 정보 포함
+                job = jobService.getPublicJobWithMatch(jobId, memberId);
+            } else {
+                // 비로그인 사용자: 기본 조회
+                job = jobService.getPublicJob(jobId);
+            }
             return ResponseEntity.ok(job);
         } catch (IllegalStateException e) {
             log.warn("공개 채용공고 조회 실패: {}", e.getMessage());
@@ -64,6 +91,25 @@ public class PublicJobController {
         } catch (Exception e) {
             log.error("공개 채용공고 상세 조회 중 오류 발생", e);
             return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * JWT Principal에서 memberId 추출
+     * - 비로그인 또는 인증 실패 시 null 반환
+     */
+    private Long getMemberIdFromPrincipal(JwtUserPrincipal principal) {
+        if (principal == null || principal.getUserid() == null) {
+            return null;
+        }
+        
+        try {
+            return userRepository.findByUserid(principal.getUserid())
+                    .map(user -> user.getId().longValue())
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("memberId 조회 실패: {}", e.getMessage());
+            return null;
         }
     }
 }
