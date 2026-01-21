@@ -15,7 +15,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "orders",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uq_orders_uid", columnNames = "order_uid"),
+        @UniqueConstraint(name = "uq_orders_idempotency_key", columnNames = "idempotency_key")
+    }
+)
 @Getter
 @Builder
 @AllArgsConstructor
@@ -25,37 +30,38 @@ public class Orders extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "order_id")
-    private Long orderId;
+    private Long orderId; // 주문 ID
 
     @Column(name = "order_uid", nullable = false, updatable = false)
-    private UUID orderUid;
+    private UUID orderUid; // 주문 고유 번호
 
     @Column(name = "buyer_type", nullable = false, length = 20)
-    private RoleType buyerType;
+    private RoleType buyerType; // 구매자 타입
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buyer_member_id")
-    private UserEntity buyerMemberId;
+    private UserEntity buyerMember; // 구매자(개인)
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buyer_employer_id")
-    private EmployerEntity buyerEmployerId;
+    private EmployerEntity buyerEmployer; // 구매자(기업)
     
     @ManyToOne
     @JoinColumn(name = "product_id")
-    private Product product;
+    private Product product; // 상품 정보
     
-    @Column(name = "order_amount")
-    private Money orderAmount;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "order_amount", nullable = false)),
+            @AttributeOverride(name = "currency", column = @Column(name = "currency"))
+    })
+    private Money orderAmount; // 주문 금액
     
     @Column(name = "status")
-    private OrderStatus status;
+    private OrderStatus status; // 주문 상태
     
     @Column(name = "idempotency_key")
-    private String idempotencyKey;
-    
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private String idempotencyKey; // 멱등성 키
 
     // === 팩토리 메서드 ===
 
@@ -75,10 +81,10 @@ public class Orders extends BaseTimeEntity {
 
         if (buyerType == RoleType.CANDIDATE) {
             Assert.notNull(buyer, "개인 회원은 필수입니다.");
-            builder.buyerMemberId(buyer);
+            builder.buyerMember(buyer);
         } else if (buyerType == RoleType.EMPLOYER) {
             Assert.notNull(employer, "기업 회원은 필수입니다.");
-            builder.buyerEmployerId(employer);
+            builder.buyerEmployer(employer);
         } else {
             throw new IllegalArgumentException("지원하지 않는 구매자 타입입니다.");
         }
@@ -95,13 +101,50 @@ public class Orders extends BaseTimeEntity {
      */
     public void validateOwner(Long userId) {
         if (this.buyerType == RoleType.CANDIDATE) {
-            if (this.buyerMemberId == null || !this.buyerMemberId.getId().equals(userId)) {
+            if (this.buyerMember == null || !this.buyerMember.getId().equals(userId)) {
                 throw new IllegalStateException("본인의 주문 내역만 접근할 수 있습니다.");
             }
         } else if (this.buyerType == RoleType.EMPLOYER) {
-            if (this.buyerEmployerId == null || !this.buyerEmployerId.getId().equals(userId)) {
+            if (this.buyerEmployer == null || !this.buyerEmployer.getId().equals(userId)) {
                 throw new IllegalStateException("본인의 기업 주문 내역만 접근할 수 있습니다.");
             }
         }
+    }
+
+    /**
+     * 결제 금액 검증
+     * 결제 요청 금액이 주문 금액과 일치하는지 확인합니다.
+     */
+    public void validatePaymentAmount(Money paymentAmount) {
+        if (paymentAmount == null || !this.orderAmount.equals(paymentAmount)) {
+            throw new IllegalStateException(
+                    String.format("주문 금액(%s)과 결제 금액(%s)이 일치하지 않습니다.",
+                            this.orderAmount, paymentAmount)
+            );
+        }
+    }
+
+    /**
+     * 주문 완료 처리 (결제 성공 시)
+     */
+    public void complete() {
+        if (this.status == OrderStatus.CANCELED) {
+            throw new IllegalStateException("이미 취소된 주문은 완료 처리할 수 없습니다.");
+        }
+        // 이미 완료된 경우 멱등성 보장을 위해 무시하거나 예외 처리
+        if (this.status == OrderStatus.PAID) {
+            return;
+        }
+        this.status = OrderStatus.PAID;
+    }
+
+    /**
+     * 주문 취소 처리
+     */
+    public void cancel() {
+        if (this.status == OrderStatus.PAID) {
+            throw new IllegalStateException("이미 완료된 주문은 취소할 수 없습니다.");
+        }
+        this.status = OrderStatus.CANCELED;
     }
 }
