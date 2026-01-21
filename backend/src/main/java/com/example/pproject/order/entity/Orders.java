@@ -118,10 +118,18 @@ public class Orders extends BaseTimeEntity {
      * 결제 요청 금액이 주문 금액과 일치하는지 확인합니다.
      */
     public void validatePaymentAmount(Money paymentAmount) {
-        if (paymentAmount == null || !this.orderAmount.equals(paymentAmount)) {
+        if (paymentAmount == null) {
+            throw new IllegalArgumentException("결제 금액 정보가 없습니다.");
+        }
+        
+        // 1. 통화 일치 여부 확인 (Money 내부 로직 활용)
+        this.orderAmount.checkCurrency(paymentAmount);
+
+        // 2. 금액 일치 여부 확인 (BigDecimal compareTo 사용 권장)
+        if (this.orderAmount.getAmount().compareTo(paymentAmount.getAmount()) != 0) {
             throw new IllegalStateException(
                     String.format("주문 금액(%s)과 결제 금액(%s)이 일치하지 않습니다.",
-                            this.orderAmount, paymentAmount)
+                            this.orderAmount.getAmount(), paymentAmount.getAmount())
             );
         }
     }
