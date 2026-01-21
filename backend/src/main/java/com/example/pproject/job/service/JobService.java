@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,6 +32,103 @@ public class JobService {
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
     private final UserRepository userRepository;
+
+    /**
+     * 한글-영어 기술스택 매핑 (양방향)
+     * 한글로 검색해도 영어 스택을 찾을 수 있도록 지원
+     */
+    private static final Map<String, String> KOREAN_TO_ENGLISH_STACK = Map.ofEntries(
+            // 프로그래밍 언어
+            Map.entry("자바", "Java"),
+            Map.entry("파이썬", "Python"),
+            Map.entry("자바스크립트", "JavaScript"),
+            Map.entry("타입스크립트", "TypeScript"),
+            Map.entry("코틀린", "Kotlin"),
+            Map.entry("스위프트", "Swift"),
+            Map.entry("고", "Go"),
+            Map.entry("고랭", "Go"),
+            Map.entry("러스트", "Rust"),
+            Map.entry("씨", "C"),
+            Map.entry("씨플플", "C++"),
+            Map.entry("씨샵", "C#"),
+            Map.entry("루비", "Ruby"),
+            Map.entry("펄", "Perl"),
+            Map.entry("스칼라", "Scala"),
+            Map.entry("다트", "Dart"),
+            Map.entry("알", "R"),
+            Map.entry("매트랩", "MATLAB"),
+            Map.entry("피에이치피", "PHP"),
+            
+            // 프레임워크/라이브러리
+            Map.entry("리액트", "React"),
+            Map.entry("뷰", "Vue"),
+            Map.entry("앵귤러", "Angular"),
+            Map.entry("스프링", "Spring"),
+            Map.entry("스프링부트", "Spring Boot"),
+            Map.entry("장고", "Django"),
+            Map.entry("플라스크", "Flask"),
+            Map.entry("노드", "Node.js"),
+            Map.entry("노드제이에스", "Node.js"),
+            Map.entry("익스프레스", "Express"),
+            Map.entry("넥스트", "Next.js"),
+            Map.entry("넥스트제이에스", "Next.js"),
+            Map.entry("넉스트", "Nuxt"),
+            Map.entry("플러터", "Flutter"),
+            Map.entry("리액트네이티브", "React Native"),
+            Map.entry("레일즈", "Rails"),
+            Map.entry("라라벨", "Laravel"),
+            Map.entry("부트스트랩", "Bootstrap"),
+            Map.entry("테일윈드", "Tailwind"),
+            Map.entry("제이쿼리", "jQuery"),
+            
+            // 데이터베이스
+            Map.entry("마이에스큐엘", "MySQL"),
+            Map.entry("포스트그레스", "PostgreSQL"),
+            Map.entry("포스트그레스큐엘", "PostgreSQL"),
+            Map.entry("몽고디비", "MongoDB"),
+            Map.entry("몽고", "MongoDB"),
+            Map.entry("레디스", "Redis"),
+            Map.entry("오라클", "Oracle"),
+            Map.entry("엘라스틱서치", "Elasticsearch"),
+            Map.entry("카산드라", "Cassandra"),
+            Map.entry("다이나모디비", "DynamoDB"),
+            
+            // 클라우드/인프라
+            Map.entry("에이더블유에스", "AWS"),
+            Map.entry("아마존", "AWS"),
+            Map.entry("애저", "Azure"),
+            Map.entry("지씨피", "GCP"),
+            Map.entry("구글클라우드", "GCP"),
+            Map.entry("도커", "Docker"),
+            Map.entry("쿠버네티스", "Kubernetes"),
+            Map.entry("쿠베", "Kubernetes"),
+            Map.entry("케이에이트에스", "Kubernetes"),
+            Map.entry("젠킨스", "Jenkins"),
+            Map.entry("테라폼", "Terraform"),
+            Map.entry("앤서블", "Ansible"),
+            Map.entry("엔진엑스", "Nginx"),
+            Map.entry("아파치", "Apache"),
+            Map.entry("리눅스", "Linux"),
+            
+            // 기타
+            Map.entry("깃", "Git"),
+            Map.entry("깃허브", "GitHub"),
+            Map.entry("깃랩", "GitLab"),
+            Map.entry("지라", "Jira"),
+            Map.entry("슬랙", "Slack"),
+            Map.entry("피그마", "Figma"),
+            Map.entry("그래프큐엘", "GraphQL"),
+            Map.entry("레스트", "REST"),
+            Map.entry("에이피아이", "API"),
+            Map.entry("마이크로서비스", "Microservices"),
+            Map.entry("머신러닝", "Machine Learning"),
+            Map.entry("딥러닝", "Deep Learning"),
+            Map.entry("인공지능", "AI"),
+            Map.entry("에이아이", "AI"),
+            Map.entry("빅데이터", "Big Data"),
+            Map.entry("데이터분석", "Data Analysis"),
+            Map.entry("블록체인", "Blockchain")
+    );
 
     /**
      * 기업의 채용공고 목록 조회
@@ -197,6 +295,121 @@ public class JobService {
         } catch (NumberFormatException e) {
             throw new IllegalStateException("잘못된 채용공고 ID입니다.");
         }
+    }
+
+    // ===== 공개 채용공고 조회 (인증 없이 접근 가능) =====
+
+    /**
+     * 공개 채용공고 목록 조회 (status='OPEN')
+     * - 대소문자 구분 없이 검색
+     * - 한글 기술스택 검색 지원 (자바 → Java)
+     */
+    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location) {
+        Page<JobEntity> jobPage;
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        if (keyword != null && !keyword.isBlank()) {
+            // 키워드 검색 (한글 → 영어 변환 포함)
+            String searchKeyword = convertKoreanToEnglish(keyword.trim());
+            log.info("검색 키워드 변환: '{}' → '{}'", keyword.trim(), searchKeyword);
+            jobPage = jobRepository.searchPublicJobs(searchKeyword, pageRequest);
+        } else if (stack != null && !stack.isBlank()) {
+            // 스택 필터 (한글 → 영어 변환 포함)
+            String searchStack = convertKoreanToEnglish(stack.trim());
+            log.info("스택 필터 변환: '{}' → '{}'", stack.trim(), searchStack);
+            jobPage = jobRepository.findPublicJobsByStack(searchStack, pageRequest);
+        } else if (location != null && !location.isBlank()) {
+            // 지역 필터
+            jobPage = jobRepository.findPublicJobsByLocation(location.trim(), pageRequest);
+        } else {
+            // 전체 조회
+            jobPage = jobRepository.findPublicJobs(pageRequest);
+        }
+
+        List<JobDTO> jobs = jobPage.getContent().stream()
+                .map(this::toPublicJobDTO)
+                .collect(Collectors.toList());
+
+        return JobListResponseDTO.builder()
+                .jobs(jobs)
+                .page(page)
+                .size(size)
+                .totalElements(jobPage.getTotalElements())
+                .totalPages(jobPage.getTotalPages())
+                .build();
+    }
+
+    /**
+     * 한글 기술스택을 영어로 변환
+     * - 완전 일치하는 한글 키워드가 있으면 영어로 변환
+     * - 없으면 원본 그대로 반환 (대소문자 구분 없는 검색은 Repository에서 처리)
+     */
+    private String convertKoreanToEnglish(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return keyword;
+        }
+        
+        // 1. 완전 일치하는 한글 키워드 찾기 (대소문자 무시)
+        String lowerKeyword = keyword.toLowerCase().trim();
+        
+        for (Map.Entry<String, String> entry : KOREAN_TO_ENGLISH_STACK.entrySet()) {
+            if (entry.getKey().equals(lowerKeyword)) {
+                return entry.getValue();
+            }
+        }
+        
+        // 2. 부분 일치도 체크 (한글 키워드가 포함된 경우)
+        for (Map.Entry<String, String> entry : KOREAN_TO_ENGLISH_STACK.entrySet()) {
+            if (lowerKeyword.contains(entry.getKey())) {
+                // 한글 부분을 영어로 대체
+                return keyword.replace(entry.getKey(), entry.getValue());
+            }
+        }
+        
+        // 3. 변환할 게 없으면 원본 반환
+        return keyword;
+    }
+
+    /**
+     * 공개 채용공고 상세 조회 (조회수 증가)
+     */
+    @Transactional
+    public JobDTO getPublicJob(Long jobId) {
+        JobEntity job = jobRepository.findPublicJobById(jobId)
+                .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
+
+        // 조회수 증가
+        job.setViewCount(job.getViewCount() + 1);
+        jobRepository.save(job);
+
+        return toPublicJobDTO(job);
+    }
+
+    /**
+     * 공개 채용공고 DTO 변환 (기업 정보 포함)
+     */
+    private JobDTO toPublicJobDTO(JobEntity job) {
+        // 기업 정보 조회
+        EmployerEntity employer = employerRepository.findById(job.getEmployerId())
+                .orElse(null);
+
+        return JobDTO.builder()
+                .jobId(job.getId())
+                .jobUid(String.valueOf(job.getId()))
+                .title(job.getTitle())
+                .description(job.getDescription())
+                .summary(job.getSummary())
+                .status(job.getStatus())
+                .location(job.getLocation())
+                .salaryText(job.getSalaryText())
+                .stack(job.getStack())
+                .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
+                .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
+                .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)
+                .updatedAt(job.getUpdatedAt() != null ? job.getUpdatedAt().toString() : null)
+                .companyName(employer != null ? employer.getName() : "알 수 없음")
+                .companyLogoUrl(employer != null ? employer.getLogoUrl() : null)
+                .build();
     }
 
     // === Helper Methods ===

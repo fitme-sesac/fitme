@@ -28,7 +28,7 @@ function loadScriptOnce(src) {
  * - row justify-content-center g-0
  * - col-12 col-md-9 p-0  (홈의 col-md-7 + col-md-2 묶음 폭과 동일)
  */
-const headerHtml = (isAuthenticated, displayName, apiBase) => `
+const headerHtml = (isAuthenticated, displayName, apiBase, role) => `
   <header id="header" class="header sticky-top" style="padding-bottom: 10px;">
     <div class="container-fluid p-0">
       <div class="row justify-content-center g-0">
@@ -47,7 +47,7 @@ const headerHtml = (isAuthenticated, displayName, apiBase) => `
               <nav id="navmenu" class="navmenu me-3">
                 <ul>
                   <li><a href="/admin/user_info">관리/운영자</a></li>
-                  <li><a href="/guide/info">채용공고</a></li>
+                  <li><a href="/jobs">채용공고</a></li>
                   <li><a href="/diagnose">이력서 팁</a></li>
                   <li><a href="/board/list">고객지원</a></li>
 
@@ -83,7 +83,7 @@ const headerHtml = (isAuthenticated, displayName, apiBase) => `
                 <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
               </nav>
 
-              <a class="btn-getstarted" href="#">
+              <a class="btn-getstarted" href="${role === 'EMPLOYER' ? '/employer/dashboard' : '/MyPage'}">
                 마이페이지
               </a>
             </div>
@@ -143,6 +143,7 @@ export default function AppLayout() {
     const { pathname } = useLocation();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [displayName, setDisplayName] = useState("");
+    const [role, setRole] = useState("");
 
     useEffect(() => {
         let alive = true;
@@ -152,10 +153,12 @@ export default function AppLayout() {
                 if (!alive) return;
                 setIsAuthenticated(!!res?.data?.authenticated);
                 setDisplayName(res?.data?.name || "");
+                setRole(res?.data?.role || "");
             } catch (e) {
                 if (!alive) return;
                 setIsAuthenticated(false);
                 setDisplayName("");
+                setRole("");
             }
         })();
         return () => {
@@ -181,7 +184,7 @@ export default function AppLayout() {
 
     return (
         <>
-            <HtmlPage html={headerHtml(isAuthenticated, displayName, apiBase)} />
+            <HtmlPage html={headerHtml(isAuthenticated, displayName, apiBase, role)} />
             <Outlet />
             <HtmlPage html={footerHtml} />
             <HtmlPage html={scrollTopHtml} />
