@@ -65,31 +65,9 @@ public class PaymentService {
     @Transactional
     public PaymentResponse createPayment(Long userId, PaymentCreateRequest request) {
         UUID orderUid = UUID.randomUUID();
+        checkOrderUidDuplicate(orderUid);
 
-        if (paymentRepository.existsByOrder_OrderUid(orderUid)) {
-            throw new IllegalStateException("이미 존재하는 주문 ID입니다. 다시 시도해주세요.");
-        }
-
-        Orders.OrdersBuilder orderBuilder = Orders.builder()
-                .orderUid(orderUid)
-                .buyerType(request.buyerType())
-                .orderAmount(Money.wons(request.amount()))
-                .status(OrderStatus.CREATED);
-
-        if (request.buyerType() == RoleType.CANDIDATE) {
-            UserEntity buyer = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
-            orderBuilder.buyerMemberId(buyer);
-        } else if (request.buyerType() == RoleType.EMPLOYER) {
-            EmployerEntity employer = employerRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
-            orderBuilder.buyerEmployerId(employer);
-        } else {
-            throw new IllegalArgumentException("지원하지 않는 구매자 타입입니다.");
-        }
-
-        Orders order = orderBuilder.build();
-        orderRepository.save(order);
+        Orders order = createAndSaveOrder(userId, request, orderUid);
 
         Payment payment = Payment.builder()
                 .order(order)
@@ -108,13 +86,7 @@ public class PaymentService {
 
         // 1. 결제 요청 상태 검증 및 paymentKey 저장 (트랜잭션 분리)
         transactionTemplate.execute(status -> {
-            Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
-            
-            // 본인 확인 (엔티티 로직 위임)
-            payment.getOrder().validateOwner(userId);
-            
-            payment.confirm(request.paymentKey());
+            prepareConfirm(orderUid, userId, request.paymentKey());
             return null;
         });
 
@@ -126,34 +98,7 @@ public class PaymentService {
         );
 
         // 3. 결과 처리 (트랜잭션 분리)
-        return transactionTemplate.execute(status -> {
-            Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
-
-            // 서킷 브레이커 Fallback 등으로 인해 상태를 알 수 없는 경우
-            if ("UNKNOWN".equals(tossResponse.status())) {
-                log.warn("결제 승인 결과 불명 (Circuit Open or Timeout). orderId={}", request.orderId());
-                // 상태를 변경하지 않고(REQUESTED 유지), pgStatus만 업데이트하거나 별도 처리가 필요함.
-                // 여기서는 예외를 던져서 클라이언트가 재시도하거나 조회를 유도하도록 함.
-                throw new IllegalStateException("결제 시스템 응답이 지연되고 있습니다. 잠시 후 결제 내역을 확인해주세요.");
-            }
-
-            Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
-            
-            // 승인 성공 처리
-            payment.approve(tossResponse, rawPayload);
-
-            // 지갑 충전 로직
-            walletService.chargeCredit(
-                    userId,
-                    payment.getOrder().getBuyerType(), // 주문 당시의 구매자 타입 사용
-                    payment.getPaidAmount().getAmount().longValue(),
-                    payment.getPaidAmount(),
-                    payment.getPaymentId()
-            );
-            
-            return PaymentResponse.from(payment);
-        });
+        return transactionTemplate.execute(status -> completeConfirm(orderUid, userId, tossResponse));
     }
 
     /**
@@ -162,44 +107,19 @@ public class PaymentService {
     public void cancelPayment(Long userId, String orderId, PaymentCancelRequest request) {
         UUID orderUid = UUID.fromString(orderId);
 
-        Payment paymentInfo = paymentRepository.findByOrder_OrderUid(orderUid)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
-        
-        // 본인 확인 (엔티티 로직 위임)
-        if (paymentInfo.getOrder() != null) {
-            paymentInfo.getOrder().validateOwner(userId);
-        }
-        
+        // 1. 결제 정보 조회 및 검증 (락 없음)
+        Payment paymentInfo = getValidatedPaymentForCancel(orderUid, userId);
         String paymentKey = paymentInfo.getPgPaymentKey();
 
-        // 외부 PG사 취소 요청
+        // 2. 외부 PG사 취소 요청
         TossPaymentResponse tossResponse = paymentPort.cancel(
                 paymentKey,
                 request.cancelReason()
         );
 
+        // 3. 결과 처리 (트랜잭션 분리)
         transactionTemplate.execute(status -> {
-            Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
-
-            if ("UNKNOWN".equals(tossResponse.status())) {
-                log.warn("결제 취소 결과 불명. orderId={}", orderId);
-                throw new IllegalStateException("결제 취소 요청이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
-            }
-
-            Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
-            payment.cancel(tossResponse, rawPayload);
-
-            // PaymentCancel 생성 로직을 Payment 엔티티로 위임
-            PaymentCancel cancel = payment.createCancel(
-                    tossResponse,
-                    request.cancelReason(),
-                    Money.wons(request.cancelAmount() != null ? request.cancelAmount() : payment.getPaidAmount().getAmount()),
-                    UUID.randomUUID().toString(),
-                    rawPayload
-            );
-            
-            paymentCancelRepository.save(cancel);
+            completeCancel(orderUid, tossResponse, request);
             return null;
         });
     }
@@ -223,38 +143,16 @@ public class PaymentService {
 
         log.info("웹훅 처리 시작: paymentKey={}, status={}, orderId={}", paymentKey, status, orderIdStr);
 
+        // 1. Inbox 조회 또는 생성
         PgWebhookInbox inbox = existingInbox;
         if (inbox == null) {
-            Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<>() {});
-            
-            Payment payment = null;
-            try {
-                UUID orderUid = UUID.fromString(orderIdStr);
-                payment = paymentRepository.findByOrder_OrderUid(orderUid)
-                        .orElseGet(() -> paymentRepository.findByPgPaymentKey(paymentKey).orElse(null));
-            } catch (IllegalArgumentException e) {
-                log.warn("잘못된 orderId 형식: {}. paymentKey로 조회를 시도합니다.", orderIdStr);
-                payment = paymentRepository.findByPgPaymentKey(paymentKey).orElse(null);
-            }
-
-            inbox = PgWebhookInbox.builder()
-                    .pgEventId(UUID.randomUUID().toString())
-                    .eventType(request.eventType())
-                    .payment(payment)
-                    .payload(payload)
-                    .build();
-            pgWebhookInboxRepository.save(inbox);
+            Payment payment = findPaymentForWebhook(orderIdStr, paymentKey);
+            inbox = createWebhookInbox(request, payment);
         }
 
+        // 2. 비즈니스 로직 실행 및 상태 업데이트
         try {
-            if ("DONE".equals(status)) {
-                // 웹훅으로 결제 완료 처리 (승인 API 응답을 못 받았을 경우 대비)
-                if (inbox.getPayment() != null && inbox.getPayment().getAppStatus() == PaymentAppStatus.REQUESTED) {
-                    log.info("웹훅을 통한 결제 승인 처리: {}", orderIdStr);
-                    // 주의: 웹훅 데이터로 approve 호출 시 검증 로직 필요 (금액 등)
-                    // 여기서는 단순 로깅만 하고, 실제 상태 변경은 신중해야 함.
-                }
-            }
+            executeBusinessLogic(request, status, inbox);
             inbox.markAsProcessed();
         } catch (Exception e) {
             log.error("웹훅 처리 실패", e);
@@ -350,5 +248,191 @@ public class PaymentService {
 
         // 금액 검증 (엔티티 로직 위임)
         payment.validateAmount(amount);
+    }
+
+    // =================================================================================
+    // Private Helper Methods
+    // =================================================================================
+
+    // 주문 UID 중복 체크
+    private void checkOrderUidDuplicate(UUID orderUid) {
+        if (paymentRepository.existsByOrder_OrderUid(orderUid)) {
+            throw new IllegalStateException("이미 존재하는 주문 ID입니다. 다시 시도해주세요.");
+        }
+    }
+
+    // 주문 엔티티 생성 및 저장 (구매자 타입 분기)
+    private Orders createAndSaveOrder(Long userId, PaymentCreateRequest request, UUID orderUid) {
+        UserEntity buyer = null;
+        EmployerEntity employer = null;
+
+        if (request.buyerType() == RoleType.CANDIDATE) {
+            buyer = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        } else if (request.buyerType() == RoleType.EMPLOYER) {
+            employer = employerRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
+        }
+
+        // 정적 팩토리 메서드 사용
+        Orders order = Orders.createOrder(
+                orderUid,
+                request.buyerType(),
+                buyer,
+                employer,
+                Money.wons(request.amount())
+        );
+
+        return orderRepository.save(order);
+    }
+
+    // 결제 승인 전 준비 (조회, 락, 검증, 상태 변경)
+    private void prepareConfirm(UUID orderUid, Long userId, String paymentKey) {
+        Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+
+        // 본인 확인 (엔티티 로직 위임)
+        payment.getOrder().validateOwner(userId);
+
+        payment.confirm(paymentKey);
+    }
+
+    // 결제 승인 완료 처리 (상태 변경, 지갑 충전)
+    private PaymentResponse completeConfirm(UUID orderUid, Long userId, TossPaymentResponse tossResponse) {
+        Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+
+        // 서킷 브레이커 Fallback 등으로 인해 상태를 알 수 없는 경우
+        if ("UNKNOWN".equals(tossResponse.status())) {
+            log.warn("결제 승인 결과 불명 (Circuit Open or Timeout). orderId={}", orderUid);
+            throw new IllegalStateException("결제 시스템 응답이 지연되고 있습니다. 잠시 후 결제 내역을 확인해주세요.");
+        }
+
+        Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
+
+        // 승인 성공 처리
+        payment.approve(tossResponse, rawPayload);
+
+        // 지갑 충전 로직
+        walletService.chargeCredit(
+                userId,
+                payment.getOrder().getBuyerType(),
+                payment.getPaidAmount().getAmount().longValue(),
+                payment.getPaidAmount(),
+                payment.getPaymentId()
+        );
+
+        return PaymentResponse.from(payment);
+    }
+
+    // 결제 취소 전 조회 및 검증
+    private Payment getValidatedPaymentForCancel(UUID orderUid, Long userId) {
+        Payment paymentInfo = paymentRepository.findByOrder_OrderUid(orderUid)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+
+        // 본인 확인 (엔티티 로직 위임)
+        if (paymentInfo.getOrder() != null) {
+            paymentInfo.getOrder().validateOwner(userId);
+        }
+        return paymentInfo;
+    }
+
+    // 결제 취소 완료 처리 (상태 변경, 이력 저장)
+    private void completeCancel(UUID orderUid, TossPaymentResponse tossResponse, PaymentCancelRequest request) {
+        Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+
+        if ("UNKNOWN".equals(tossResponse.status())) {
+            log.warn("결제 취소 결과 불명. orderId={}", orderUid);
+            throw new IllegalStateException("결제 취소 요청이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
+        }
+
+        Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
+        payment.cancel(tossResponse, rawPayload);
+
+        // PaymentCancel 생성 로직을 Payment 엔티티로 위임
+        PaymentCancel cancel = payment.createCancel(
+                tossResponse,
+                request.cancelReason(),
+                Money.wons(request.cancelAmount() != null ? request.cancelAmount() : payment.getPaidAmount().getAmount()),
+                UUID.randomUUID().toString(),
+                rawPayload
+        );
+
+        paymentCancelRepository.save(cancel);
+    }
+
+    // 웹훅용 결제 정보 조회 (orderId 우선, 실패 시 paymentKey)
+    private Payment findPaymentForWebhook(String orderIdStr, String paymentKey) {
+        try {
+            UUID orderUid = UUID.fromString(orderIdStr);
+            return paymentRepository.findByOrder_OrderUid(orderUid)
+                    .orElseGet(() -> paymentRepository.findByPgPaymentKey(paymentKey).orElse(null));
+        } catch (IllegalArgumentException e) {
+            log.warn("잘못된 orderId 형식: {}. paymentKey로 조회를 시도합니다.", orderIdStr);
+            return paymentRepository.findByPgPaymentKey(paymentKey).orElse(null);
+        }
+    }
+
+    // 웹훅 Inbox 엔티티 생성
+    private PgWebhookInbox createWebhookInbox(TossWebhookRequest request, Payment payment) {
+        Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<>() {});
+
+        // 정적 팩토리 메서드 사용
+        return PgWebhookInbox.create(
+                UUID.randomUUID().toString(),
+                request.eventType(),
+                payment,
+                payload
+        );
+    }
+
+    // 웹훅 비즈니스 로직 실행 (결제 완료 처리 등)
+    private void executeBusinessLogic(TossWebhookRequest request, String status, PgWebhookInbox inbox) {
+        if ("DONE".equals(status)) {
+            Payment payment = inbox.getPayment();
+            // 웹훅으로 결제 완료 처리 (승인 API 응답을 못 받았을 경우 대비)
+            if (payment != null && payment.getAppStatus() == PaymentAppStatus.REQUESTED) {
+                log.info("웹훅을 통한 결제 승인 처리: {}", payment.getPaymentUid());
+                
+                // TossWebhookRequest -> TossPaymentResponse 변환 (필요한 필드만 매핑)
+                // orderName은 Payment 엔티티에서 가져옴
+                TossPaymentResponse tossResponse = new TossPaymentResponse(
+                        request.data().paymentKey(),
+                        request.data().orderId(),
+                        payment.getOrderName(), // Payment 엔티티에서 가져옴
+                        request.data().status(),
+                        request.data().transactionKey(),
+                        null, // lastTransactionKey
+                        request.data().requestedAt(),
+                        request.data().approvedAt(),
+                        request.data().totalAmount(),
+                        request.data().balanceAmount(),
+                        request.data().method(),
+                        null, // receipt
+                        null, // cancels
+                        null, // card
+                        null  // virtualAccount
+                );
+                
+                Map<String, Object> rawPayload = objectMapper.convertValue(request, new TypeReference<>() {});
+
+                // 승인 처리 (엔티티 내부에서 상태 및 금액 검증 수행)
+                payment.approve(tossResponse, rawPayload);
+
+                // 지갑 충전 로직
+                Long userId = payment.getOrder().getBuyerType() == RoleType.CANDIDATE 
+                        ? payment.getOrder().getBuyerMemberId().getId() 
+                        : payment.getOrder().getBuyerEmployerId().getId();
+
+                walletService.chargeCredit(
+                        userId,
+                        payment.getOrder().getBuyerType(),
+                        payment.getPaidAmount().getAmount().longValue(),
+                        payment.getPaidAmount(),
+                        payment.getPaymentId()
+                );
+            }
+        }
     }
 }

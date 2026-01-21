@@ -81,6 +81,20 @@ public class PgWebhookInbox {
         this.retryCount = 0;
     }
 
+    // === 팩토리 메서드 ===
+
+    /**
+     * 웹훅 수신함 엔티티 생성
+     */
+    public static PgWebhookInbox create(String pgEventId, String eventType, Payment payment, Map<String, Object> payload) {
+        return PgWebhookInbox.builder()
+                .pgEventId(pgEventId)
+                .eventType(eventType)
+                .payment(payment)
+                .payload(payload)
+                .build();
+    }
+
     // === 비즈니스 로직 ===
 
     /**
