@@ -1,0 +1,209 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { notificationApi } from "../api/notificationApi";
+
+/**
+ * 알림 관리 커스텀 훅
+ */
+export function useNotifications() {
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [hasNext, setHasNext] = useState(false);
+    const [page, setPage] = useState(0);
+
+    // 폴링 인터벌 ref
+    const pollingRef = useRef(null);
+
+    /**
+     * 읽지 않은 알림 수 조회
+     */
+    const fetchUnreadCount = useCallback(async () => {
+        try {
+            const response = await notificationApi.getUnreadCount();
+            if (response?.data) {
+                setUnreadCount(response.data.unreadCount || 0);
+            }
+        } catch (err) {
+            // 로그인하지 않은 경우 에러 무시
+            if (err.response?.status !== 401 && err.response?.status !== 403) {
+                console.error("알림 수 조회 실패:", err);
+            }
+        }
+    }, []);
+
+    /**
+     * 최근 알림 조회 (드롭다운용)
+     */
+    const fetchRecentNotifications = useCallback(async (limit = 10) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await notificationApi.getRecentNotifications(limit);
+            if (response?.data) {
+                setNotifications(response.data);
+            }
+        } catch (err) {
+            if (err.response?.status !== 401 && err.response?.status !== 403) {
+                setError("알림을 불러오는데 실패했습니다.");
+                console.error("알림 조회 실패:", err);
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    /**
+     * 알림 목록 조회 (페이징)
+     */
+    const fetchNotifications = useCallback(async (pageNum = 0, size = 20) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await notificationApi.getNotifications(pageNum, size);
+            if (response?.data) {
+                const { notifications: newNotifications, hasNext: hasMore, unreadCount: count } = response.data;
+                
+                if (pageNum === 0) {
+                    setNotifications(newNotifications);
+                } else {
+                    setNotifications(prev => [...prev, ...newNotifications]);
+                }
+                
+                setHasNext(hasMore);
+                setUnreadCount(count);
+                setPage(pageNum);
+            }
+        } catch (err) {
+            if (err.response?.status !== 401 && err.response?.status !== 403) {
+                setError("알림을 불러오는데 실패했습니다.");
+                console.error("알림 조회 실패:", err);
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    /**
+     * 더 많은 알림 로드
+     */
+    const loadMore = useCallback(() => {
+        if (!loading && hasNext) {
+            fetchNotifications(page + 1);
+        }
+    }, [loading, hasNext, page, fetchNotifications]);
+
+    /**
+     * 특정 알림 읽음 처리
+     */
+    const markAsRead = useCallback(async (notificationId) => {
+        try {
+            await notificationApi.markAsRead(notificationId);
+            
+            // 로컬 상태 업데이트
+            setNotifications(prev => 
+                prev.map(n => 
+                    n.id === notificationId 
+                        ? { ...n, isRead: true, status: "READ" } 
+                        : n
+                )
+            );
+            
+            // 읽지 않은 수 감소
+            setUnreadCount(prev => Math.max(0, prev - 1));
+        } catch (err) {
+            console.error("알림 읽음 처리 실패:", err);
+        }
+    }, []);
+
+    /**
+     * 모든 알림 읽음 처리
+     */
+    const markAllAsRead = useCallback(async () => {
+        try {
+            await notificationApi.markAllAsRead();
+            
+            // 로컬 상태 업데이트
+            setNotifications(prev => 
+                prev.map(n => ({ ...n, isRead: true, status: "READ" }))
+            );
+            setUnreadCount(0);
+        } catch (err) {
+            console.error("전체 읽음 처리 실패:", err);
+        }
+    }, []);
+
+    /**
+     * 알림 삭제
+     */
+    const deleteNotification = useCallback(async (notificationId) => {
+        try {
+            await notificationApi.deleteNotification(notificationId);
+            
+            // 로컬 상태에서 제거
+            setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        } catch (err) {
+            console.error("알림 삭제 실패:", err);
+        }
+    }, []);
+
+    /**
+     * 새로고침
+     */
+    const refresh = useCallback(() => {
+        fetchUnreadCount();
+        fetchRecentNotifications();
+    }, [fetchUnreadCount, fetchRecentNotifications]);
+
+    /**
+     * 폴링 시작 (30초마다 읽지 않은 알림 수 확인)
+     */
+    const startPolling = useCallback((interval = 30000) => {
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+        }
+        
+        fetchUnreadCount(); // 즉시 실행
+        
+        pollingRef.current = setInterval(() => {
+            fetchUnreadCount();
+        }, interval);
+    }, [fetchUnreadCount]);
+
+    /**
+     * 폴링 중지
+     */
+    const stopPolling = useCallback(() => {
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+        }
+    }, []);
+
+    // 컴포넌트 언마운트 시 폴링 중지
+    useEffect(() => {
+        return () => {
+            stopPolling();
+        };
+    }, [stopPolling]);
+
+    return {
+        notifications,
+        unreadCount,
+        loading,
+        error,
+        hasNext,
+        fetchUnreadCount,
+        fetchRecentNotifications,
+        fetchNotifications,
+        loadMore,
+        markAsRead,
+        markAllAsRead,
+        deleteNotification,
+        refresh,
+        startPolling,
+        stopPolling
+    };
+}
+
+export default useNotifications;

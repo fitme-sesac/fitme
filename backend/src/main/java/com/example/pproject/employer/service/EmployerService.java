@@ -7,6 +7,7 @@ import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class EmployerService {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final OutboxEventProducer outboxEventProducer;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -179,7 +181,8 @@ public class EmployerService {
                 .websiteUrl(dto.getWebsiteUrl())
                 .build();
         
-        employerRepository.save(employer);
+        // 저장된 엔티티를 반환받아 ID 등이 채워진 상태로 갱신
+        employer = employerRepository.save(employer);
         log.info("새 기업 생성: {}", employer.getName());
 
         // employer_member 매핑 생성 (OWNER로)
@@ -275,7 +278,7 @@ public class EmployerService {
     private EmployerProfileDTO toProfileDTO(EmployerEntity entity, String roleInCompany) {
         return EmployerProfileDTO.builder()
                 .employerId(entity.getId())
-                .employerUid(entity.getEmployerUid().toString())
+                .employerUid(entity.getEmployerUid() != null ? entity.getEmployerUid().toString() : null)
                 .name(entity.getName())
                 .logoUrl(entity.getLogoUrl())
                 .industry(entity.getIndustry())
@@ -472,6 +475,34 @@ public class EmployerService {
         jdbcTemplate.update(updateSql, newStatus, applicationId);
         
         log.info("지원서 {} 상태 변경: {}", applicationId, newStatus);
+
+        // 지원자에게 알림 발송
+        try {
+            String infoSql = """
+                SELECT ja.member_id, jp.title as job_title, e.name as company_name
+                FROM job_application ja
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN employer e ON e.employer_id = jp.employer_id
+                WHERE ja.application_id = ?
+                """;
+            var info = jdbcTemplate.queryForMap(infoSql, applicationId);
+            
+            Integer candidateMemberId = ((Number) info.get("member_id")).intValue();
+            String jobTitle = (String) info.get("job_title");
+            String companyName = (String) info.get("company_name");
+            
+            outboxEventProducer.publishApplicationStatusChangedEvent(
+                    applicationId,
+                    candidateMemberId,
+                    jobTitle,
+                    companyName,
+                    newStatus
+            );
+            log.info("지원 상태 변경 알림 발행: applicationId={}, candidateMemberId={}, newStatus={}", 
+                    applicationId, candidateMemberId, newStatus);
+        } catch (Exception e) {
+            log.warn("지원 상태 변경 알림 발행 실패: {}", e.getMessage());
+        }
     }
 
     // ===== 면접 일정 관리 =====
@@ -607,6 +638,36 @@ public class EmployerService {
 
         log.info("면접 일정 생성: {}", interviewId);
 
+        // 지원자에게 알림 발송
+        try {
+            // 지원자 정보 조회
+            String infoSql = """
+                SELECT ja.member_id, jp.title as job_title, e.name as company_name
+                FROM job_application ja
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN employer e ON e.employer_id = jp.employer_id
+                WHERE ja.application_id = ?
+                """;
+            var info = jdbcTemplate.queryForMap(infoSql, dto.getApplicationId());
+            
+            Integer candidateMemberId = ((Number) info.get("member_id")).intValue();
+            String jobTitle = (String) info.get("job_title");
+            String companyName = (String) info.get("company_name");
+            
+            outboxEventProducer.publishInterviewCreatedEvent(
+                    interviewId,
+                    dto.getApplicationId(),
+                    candidateMemberId,
+                    jobTitle,
+                    companyName,
+                    dto.getStartAt(),
+                    dto.getLocation()
+            );
+            log.info("면접 일정 등록 알림 발행: interviewId={}, candidateMemberId={}", interviewId, candidateMemberId);
+        } catch (Exception e) {
+            log.warn("면접 일정 등록 알림 발행 실패: {}", e.getMessage());
+        }
+
         dto.setInterviewId(interviewId);
         dto.setStatus("PROPOSED");
         return dto;
@@ -659,6 +720,36 @@ public class EmployerService {
 
         log.info("면접 일정 수정: {}", interviewId);
 
+        // 지원자에게 알림 발송
+        try {
+            String infoSql = """
+                SELECT ja.application_id, ja.member_id, jp.title as job_title, e.name as company_name
+                FROM interview_schedule isc
+                JOIN job_application ja ON ja.application_id = isc.application_id
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN employer e ON e.employer_id = jp.employer_id
+                WHERE isc.interview_id = ?
+                """;
+            var info = jdbcTemplate.queryForMap(infoSql, interviewId);
+            
+            Long applicationId = ((Number) info.get("application_id")).longValue();
+            Integer candidateMemberId = ((Number) info.get("member_id")).intValue();
+            String jobTitle = (String) info.get("job_title");
+            String companyName = (String) info.get("company_name");
+            
+            outboxEventProducer.publishInterviewUpdatedEvent(
+                    interviewId,
+                    applicationId,
+                    candidateMemberId,
+                    jobTitle,
+                    companyName,
+                    dto.getStartAt()
+            );
+            log.info("면접 일정 수정 알림 발행: interviewId={}, candidateMemberId={}", interviewId, candidateMemberId);
+        } catch (Exception e) {
+            log.warn("면접 일정 수정 알림 발행 실패: {}", e.getMessage());
+        }
+
         dto.setInterviewId(interviewId);
         return dto;
     }
@@ -686,9 +777,50 @@ public class EmployerService {
             throw new IllegalStateException("해당 면접 일정에 대한 권한이 없습니다.");
         }
 
+        // 지원자 정보 조회 (삭제 전에)
+        Long applicationId = null;
+        Integer candidateMemberId = null;
+        String jobTitle = null;
+        String companyName = null;
+        
+        try {
+            String infoSql = """
+                SELECT ja.application_id, ja.member_id, jp.title as job_title, e.name as company_name
+                FROM interview_schedule isc
+                JOIN job_application ja ON ja.application_id = isc.application_id
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN employer e ON e.employer_id = jp.employer_id
+                WHERE isc.interview_id = ?
+                """;
+            var info = jdbcTemplate.queryForMap(infoSql, interviewId);
+            
+            applicationId = ((Number) info.get("application_id")).longValue();
+            candidateMemberId = ((Number) info.get("member_id")).intValue();
+            jobTitle = (String) info.get("job_title");
+            companyName = (String) info.get("company_name");
+        } catch (Exception e) {
+            log.warn("면접 정보 조회 실패: {}", e.getMessage());
+        }
+
         // 삭제
         jdbcTemplate.update("DELETE FROM interview_schedule WHERE interview_id = ?", interviewId);
         log.info("면접 일정 삭제: {}", interviewId);
+
+        // 지원자에게 알림 발송
+        if (candidateMemberId != null) {
+            try {
+                outboxEventProducer.publishInterviewCanceledEvent(
+                        interviewId,
+                        applicationId,
+                        candidateMemberId,
+                        jobTitle,
+                        companyName
+                );
+                log.info("면접 일정 취소 알림 발행: interviewId={}, candidateMemberId={}", interviewId, candidateMemberId);
+            } catch (Exception e) {
+                log.warn("면접 일정 취소 알림 발행 실패: {}", e.getMessage());
+            }
+        }
     }
 
     // ===== Helper Methods =====

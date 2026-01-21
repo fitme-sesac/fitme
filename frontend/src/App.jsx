@@ -19,6 +19,9 @@ import ReEnterCredentialsPage from "./pages/ReEnterCredentialsPage";
 import EmployerDashboardPage from "./features/employer/pages/EmployerDashboardPage";
 import EmployerProfilePage from "./features/employer/pages/EmployerProfilePage";
 
+// 회원(Member) 관련 페이지
+import UserEditPage from "./features/member/pages/UserEditPage";
+
 // 채용공고(Job) 관련 페이지
 import JobListPage from "./features/job/pages/JobListPage";
 import JobCreatePage from "./features/job/pages/JobCreatePage";
@@ -28,6 +31,9 @@ import JobDetailPage from "./features/job/pages/JobDetailPage";
 // 공개 채용공고 페이지 (일반 사용자용)
 import PublicJobListPage from "./features/job/pages/PublicJobListPage";
 import PublicJobDetailPage from "./features/job/pages/PublicJobDetailPage";
+
+// 알림(Notification) 관련 페이지
+import NotificationPage from "./features/notification/pages/NotificationPage";
 
 /**
  * React 라우트에 없는 경로는 기존 백엔드(8080)가 처리하도록 위임.
@@ -103,11 +109,17 @@ export default function App() {
           <Route path="/User/FirstSocialLogin" element={<FirstSocialLoginPage />} />
           <Route path="/User/ReEnterCredentials" element={<ReEnterCredentialsPage />} />
 
+          {/* ===== 회원 정보 수정 페이지 ===== */}
+          <Route path="/User/Edit" element={<UserEditPage />} />
+          <Route path="/User/edit" element={<UserEditPage />} />
+          <Route path="/user/edit" element={<UserEditPage />} />
+          <Route path="/UserEdit" element={<UserEditPage />} />
+          <Route path="/profile/edit" element={<UserEditPage />} />
+          <Route path="/member/edit" element={<UserEditPage />} />
+
           {/* 백엔드에서 아직 처리하는 화면/기능 경로들 (React 페이지가 없으므로 백엔드로 위임) */}
           <Route path="/MyPage" element={<BackendFallback />} />
           <Route path="/User/MyPage" element={<BackendFallback />} />
-          <Route path="/User/Update" element={<BackendFallback />} />
-          <Route path="/user/update" element={<BackendFallback />} />
 
           {/* 소문자 alias (선택) */}
           <Route path="/login" element={<LoginPage />} />
@@ -127,6 +139,9 @@ export default function App() {
           <Route path="/employer/jobs/create" element={<JobCreatePage />} />
           <Route path="/employer/jobs/:jobId" element={<JobDetailPage />} />
           <Route path="/employer/jobs/:jobId/edit" element={<JobEditPage />} />
+
+          {/* ===== 알림(Notification) 관련 라우트 ===== */}
+          <Route path="/notifications" element={<NotificationPage />} />
 
           {/* 나머지 경로는 백엔드가 처리 */}
           <Route path="*" element={<BackendFallback />} />

@@ -25,6 +25,7 @@ public class PhoneOtpController {
     private final PhoneVerificationService phoneVerificationService;
 
     private static final String PURPOSE_SIGNUP = "SIGNUP";
+    private static final String PURPOSE_PROFILE_UPDATE = "PROFILE_UPDATE";
 
     @PostMapping("/send")
     public ResponseEntity<?> send(@RequestBody Map<String, String> body,
@@ -32,12 +33,18 @@ public class PhoneOtpController {
                                   HttpServletResponse response) {
 
         String phone = body == null ? null : body.get("phone");
+        // purpose가 없으면 기본값 SIGNUP 사용
+        String purpose = body == null ? PURPOSE_SIGNUP : body.getOrDefault("purpose", PURPOSE_SIGNUP);
+        // 허용된 목적만 사용
+        if (!PURPOSE_SIGNUP.equals(purpose) && !PURPOSE_PROFILE_UPDATE.equals(purpose)) {
+            purpose = PURPOSE_SIGNUP;
+        }
 
         try {
             String ip = getClientIp(request);
             String ua = request.getHeader("User-Agent");
 
-            var result = phoneVerificationService.sendOtp(phone, PURPOSE_SIGNUP, ip, ua);
+            var result = phoneVerificationService.sendOtp(phone, purpose, ip, ua);
 
             // 쿠키 TTL은 OTP 만료와 맞춤(최대 300s)
             long ttl = Math.min(300, secondsUntil(result.expiresAt()));
@@ -45,7 +52,7 @@ public class PhoneOtpController {
             Map<String, Object> claims = new HashMap<>();
             claims.put("verificationId", result.verificationId().toString());
             claims.put("phone", normalize(phone));
-            claims.put("purpose", PURPOSE_SIGNUP);
+            claims.put("purpose", purpose);
 
             String tmp = jwtTokenProvider.createFlowToken("PHONE_OTP_DB", claims, ttl);
             CookieUtils.addHttpOnlyCookie(request, response, "PHONE_OTP_TMP", tmp, ttl, "Lax");

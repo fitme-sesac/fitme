@@ -3,6 +3,7 @@ package com.example.pproject.user.service;
 
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.SocialType;
+import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.user.dto.UserRequestDTO;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
@@ -32,6 +33,7 @@ public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
+    private final OutboxEventProducer outboxEventProducer;
 
     // ✅ 서버 기본 notice_id (컨트롤러에서 안 세팅되더라도 최후 방어)
     @Value("${app.notice.terms-id:0}")
@@ -234,5 +236,116 @@ public class UserService implements UserDetailsService {
         }
 
         return userEntity.getEmail();
+    }
+
+    /**
+     * 현재 로그인한 사용자의 회원 정보 조회
+     */
+    public UserEntity findByUseridOrThrow(String userid) {
+        return userRepository.findByUserid(userid)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
+    }
+
+    /**
+     * 회원 정보 수정
+     * - ID, 이름, 성별, 생일은 변경 불가
+     * - 비밀번호는 필수 입력
+     * - 휴대폰 번호 변경 시 재인증 필요
+     */
+    public void updateUserInfo(String userid, UserRequestDTO dto, String verifiedPhone) {
+        UserEntity user = findByUseridOrThrow(userid);
+
+        // 비밀번호 검증 (필수)
+        if (dto.getPassword() == null || dto.getPassword().isBlank()) {
+            throw new IllegalStateException("비밀번호를 입력해주세요.");
+        }
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            throw new IllegalStateException("비밀번호가 일치하지 않습니다.");
+        }
+
+        // 이메일 변경 처리
+        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+            String newEmail = dto.getEmail().trim();
+            if (!newEmail.equalsIgnoreCase(user.getEmail())) {
+                // 이메일 중복 체크
+                Optional<UserEntity> existingEmail = userRepository.findByEmail(newEmail);
+                if (existingEmail.isPresent() && !existingEmail.get().getId().equals(user.getId())) {
+                    throw new IllegalStateException("이미 사용 중인 이메일입니다.");
+                }
+                user.setEmail(newEmail);
+            }
+        }
+
+        // 휴대폰 번호 변경 처리
+        String currentPhone = user.getPhone() == null ? "" : user.getPhone();
+        String newPhone = dto.getPhone() == null ? "" : dto.getPhone().replaceAll("[^0-9]", "");
+
+        if (!newPhone.isBlank() && !newPhone.equals(currentPhone)) {
+            // 휴대폰 번호가 변경된 경우 인증 필요
+            if (verifiedPhone == null || !verifiedPhone.equals(newPhone)) {
+                throw new IllegalStateException("변경된 휴대폰 번호의 인증을 완료해주세요.");
+            }
+            // 다른 계정에서 이미 인증된 번호인지 확인
+            Optional<UserEntity> phoneOwner = userRepository.findFirstByPhoneAndPhoneVerifiedAtIsNotNullAndDeletedAtIsNull(newPhone);
+            if (phoneOwner.isPresent() && !phoneOwner.get().getId().equals(user.getId())) {
+                throw new IllegalStateException("이미 다른 계정에서 인증된 휴대폰 번호입니다.");
+            }
+            user.setPhone(newPhone);
+            user.setPhoneVerifiedAt(java.time.LocalDateTime.now());
+        }
+
+        // 마케팅 수신 동의 변경
+        if (dto.getMarketingOptIn() != null) {
+            boolean wasOptIn = Boolean.TRUE.equals(user.getMarketingOptIn());
+            boolean newOptIn = Boolean.TRUE.equals(dto.getMarketingOptIn());
+            if (newOptIn && !wasOptIn) {
+                // 새로 동의한 경우
+                user.setMarketingOptIn(true);
+                user.setMarketingAgreedAt(java.time.LocalDateTime.now());
+            } else if (!newOptIn && wasOptIn) {
+                // 동의 철회한 경우
+                user.setMarketingOptIn(false);
+                user.setMarketingAgreedAt(null);
+            }
+        }
+
+        userRepository.save(user);
+        
+        // 알림 이벤트 발행
+        try {
+            outboxEventProducer.publishProfileUpdatedEvent(user.getId(), user.getUsername());
+            log.info("회원정보 수정 알림 발행: userId={}", user.getId());
+        } catch (Exception e) {
+            log.warn("회원정보 수정 알림 발행 실패: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 회원 비밀번호 변경 (회원정보 수정 페이지에서)
+     */
+    public void updatePasswordWithVerification(String userid, String currentPassword, String newPassword) {
+        UserEntity user = findByUseridOrThrow(userid);
+
+        // 현재 비밀번호 검증
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalStateException("현재 비밀번호가 일치하지 않습니다.");
+        }
+
+        // 새 비밀번호 유효성 검사
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new IllegalStateException("새 비밀번호는 8자 이상이어야 합니다.");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPasswordChangedAt(java.time.LocalDateTime.now());
+        userRepository.save(user);
+        
+        // 알림 이벤트 발행
+        try {
+            outboxEventProducer.publishPasswordChangedEvent(user.getId(), user.getUsername());
+            log.info("비밀번호 변경 알림 발행: userId={}", user.getId());
+        } catch (Exception e) {
+            log.warn("비밀번호 변경 알림 발행 실패: {}", e.getMessage());
+        }
     }
 }

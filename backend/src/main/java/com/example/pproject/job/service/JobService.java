@@ -7,6 +7,7 @@ import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.dto.*;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class JobService {
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
     private final UserRepository userRepository;
+    private final OutboxEventProducer outboxEventProducer;
     
     // Resume 모듈에서 구현 필요 - Optional로 주입받아 없으면 매칭 기능 비활성화
     private final Optional<CandidateSkillProvider> candidateSkillProvider;
@@ -191,6 +193,8 @@ public class JobService {
     @Transactional
     public JobDTO createJob(String userid, JobCreateDTO dto) {
         EmployerEntity employer = getEmployerByUserid(userid);
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
         // 기업 상태 확인 (ACTIVE만 등록 가능)
         if (!"ACTIVE".equals(employer.getStatus())) {
@@ -215,6 +219,20 @@ public class JobService {
         jobRepository.save(job);
         log.info("채용공고 생성: {} (기업: {}, 요약: {})", job.getTitle(), employer.getName(), summary);
 
+        // 알림 이벤트 발행
+        try {
+            outboxEventProducer.publishJobPostingCreatedEvent(
+                    job.getId(),
+                    user.getId(),
+                    job.getTitle(),
+                    employer.getName(),
+                    job.getStatus()
+            );
+            log.info("채용공고 등록 알림 발행: jobId={}, userId={}", job.getId(), user.getId());
+        } catch (Exception e) {
+            log.error("채용공고 등록 알림 발행 실패: {}", e.getMessage());
+        }
+
         return toJobDTO(job, employer);
     }
 
@@ -224,6 +242,8 @@ public class JobService {
     @Transactional
     public JobDTO updateJob(String userid, Long jobId, JobUpdateDTO dto) {
         EmployerEntity employer = getEmployerByUserid(userid);
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
         JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
@@ -232,6 +252,8 @@ public class JobService {
         if (!job.getEmployerId().equals(employer.getId())) {
             throw new IllegalStateException("수정 권한이 없습니다.");
         }
+
+        String oldStatus = job.getStatus();
 
         // 업데이트
         if (dto.getTitle() != null) job.setTitle(dto.getTitle());
@@ -248,6 +270,32 @@ public class JobService {
 
         jobRepository.save(job);
         log.info("채용공고 수정: {}", job.getTitle());
+
+        // 알림 이벤트 발행
+        try {
+            // 상태가 변경된 경우 상태 변경 알림
+            if (dto.getStatus() != null && !dto.getStatus().equals(oldStatus)) {
+                outboxEventProducer.publishJobPostingStatusChangedEvent(
+                        job.getId(),
+                        user.getId(),
+                        job.getTitle(),
+                        employer.getName(),
+                        oldStatus,
+                        dto.getStatus()
+                );
+            } else {
+                // 일반 수정 알림
+                outboxEventProducer.publishJobPostingUpdatedEvent(
+                        job.getId(),
+                        user.getId(),
+                        job.getTitle(),
+                        employer.getName()
+                );
+            }
+            log.info("채용공고 수정 알림 발행: jobId={}, userId={}", job.getId(), user.getId());
+        } catch (Exception e) {
+            log.error("채용공고 수정 알림 발행 실패: {}", e.getMessage());
+        }
 
         return toJobDTO(job, employer);
     }
@@ -271,6 +319,8 @@ public class JobService {
     @Transactional
     public void deleteJob(String userid, Long jobId) {
         EmployerEntity employer = getEmployerByUserid(userid);
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
         JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
@@ -280,10 +330,25 @@ public class JobService {
             throw new IllegalStateException("삭제 권한이 없습니다.");
         }
 
+        String jobTitle = job.getTitle(); // 삭제 전 제목 저장
+
         job.setDeletedAt(LocalDateTime.now());
         job.setStatus("CLOSED");
         jobRepository.save(job);
-        log.info("채용공고 삭제: {}", job.getTitle());
+        log.info("채용공고 삭제: {}", jobTitle);
+
+        // 알림 이벤트 발행
+        try {
+            outboxEventProducer.publishJobPostingDeletedEvent(
+                    job.getId(),
+                    user.getId(),
+                    jobTitle,
+                    employer.getName()
+            );
+            log.info("채용공고 삭제 알림 발행: jobId={}, userId={}", job.getId(), user.getId());
+        } catch (Exception e) {
+            log.error("채용공고 삭제 알림 발행 실패: {}", e.getMessage());
+        }
     }
 
     /**
