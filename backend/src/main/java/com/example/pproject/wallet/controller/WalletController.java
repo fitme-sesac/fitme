@@ -1,6 +1,8 @@
 package com.example.pproject.wallet.controller;
 
 import com.example.pproject.Constant.RoleType;
+import com.example.pproject.payment.entity.Payment;
+import com.example.pproject.payment.repository.PaymentRepository;
 import com.example.pproject.wallet.dto.*;
 import com.example.pproject.wallet.service.WalletService;
 import jakarta.validation.Valid;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class WalletController {
 
     private final WalletService walletService;
+    private final PaymentRepository paymentRepository;
 
     // =================================================================================
     // 1. 사용자 기능 (User)
@@ -102,7 +105,10 @@ public class WalletController {
         // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
         RoleType roleType = RoleType.CANDIDATE;
 
-        walletService.chargeCredit(userId, roleType, request.amount(), request.toMoney(), request.paymentId());
+        Payment payment = paymentRepository.findById(request.paymentId())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
+
+        walletService.chargeCredit(userId, roleType, request.amount(), request.toMoney(), payment);
         return ResponseEntity.ok().build();
     }
 

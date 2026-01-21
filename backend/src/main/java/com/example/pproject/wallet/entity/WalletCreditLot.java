@@ -2,6 +2,7 @@ package com.example.pproject.wallet.entity;
 
 import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.payment.entity.Payment;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -15,9 +16,11 @@ import org.springframework.util.Assert;
         name = "wallet_credit_lot",
         indexes = {
                 // FIFO 차감 + 남은 lot 조회 최적화
-                @Index(name = "idx_lot_wallet_remain_created", columnList = "wallet_id, remaining_credit, created_at"),
+                @Index(name = "idx_lot_wallet_remain_created", columnList = "wallet_id, remaining_credit, created_at")
+        },
+        uniqueConstraints = {
                 // 결제 멱등성 (unique를 DB에 잡아두는 게 제일 안전)
-                @Index(name = "uq_lot_payment_id", columnList = "payment_id", unique = true)
+                @UniqueConstraint(name = "uq_lot_payment_id", columnNames = "payment_id")
         }
 )
 @Check(constraints = "remaining_credit >= 0 AND granted_credit > 0")
@@ -36,8 +39,9 @@ public class WalletCreditLot extends BaseTimeEntity {
 
     // 결제 기반 충전이면 보통 NOT NULL이 더 안전하지만
     // 관리자 지급 등도 고려하면 nullable 유지 가능
-    @Column(name = "payment_id")
-    private Long paymentId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_id")
+    private Payment payment;
 
     @Column(name = "granted_credit", nullable = false)
     private long grantedCredit;
@@ -53,13 +57,13 @@ public class WalletCreditLot extends BaseTimeEntity {
     private Money price;
 
     @Builder
-    public WalletCreditLot(Wallet wallet, Long paymentId, long grantedCredit, Money price) {
+    public WalletCreditLot(Wallet wallet, Payment payment, long grantedCredit, Money price) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
         Assert.isTrue(grantedCredit > 0, "제공 크레딧은 0보다 커야 합니다.");
         Assert.notNull(price, "가격 정보는 필수입니다.");
 
         this.wallet = wallet;
-        this.paymentId = paymentId;
+        this.payment = payment;
         this.grantedCredit = grantedCredit;
         this.remainingCredit = grantedCredit;
         this.price = price;

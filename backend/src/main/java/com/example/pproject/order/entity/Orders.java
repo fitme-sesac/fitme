@@ -35,6 +35,7 @@ public class Orders extends BaseTimeEntity {
     @Column(name = "order_uid", nullable = false, updatable = false)
     private UUID orderUid; // 주문 고유 번호
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "buyer_type", nullable = false, length = 20)
     private RoleType buyerType; // 구매자 타입
 
@@ -56,7 +57,8 @@ public class Orders extends BaseTimeEntity {
             @AttributeOverride(name = "currency", column = @Column(name = "currency"))
     })
     private Money orderAmount; // 주문 금액
-    
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private OrderStatus status; // 주문 상태
     

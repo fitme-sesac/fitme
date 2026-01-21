@@ -183,10 +183,10 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public Page<PaymentResponse> getMyPayments(Long userId, RoleType roleType, Pageable pageable) {
         if (roleType == RoleType.CANDIDATE) {
-            return paymentRepository.findByOrder_BuyerMemberId_Id(userId, pageable)
+            return paymentRepository.findByOrder_BuyerMember_Id(userId, pageable)
                     .map(PaymentResponse::from);
         } else if (roleType == RoleType.EMPLOYER) {
-            return paymentRepository.findByOrder_BuyerEmployerId_Id(userId, pageable)
+            return paymentRepository.findByOrder_BuyerEmployer_Id(userId, pageable)
                     .map(PaymentResponse::from);
         } else {
             throw new IllegalArgumentException("지원하지 않는 사용자 타입입니다.");
@@ -231,23 +231,6 @@ public class PaymentService {
         
         TossWebhookRequest request = objectMapper.convertValue(inbox.getPayload(), TossWebhookRequest.class);
         processWebhookLogic(request, inbox);
-    }
-
-    /**
-     * 10. 결제 유효성 및 소유권 검증 (WalletService 호출용)
-     */
-    @Transactional(readOnly = true)
-    public void validatePayment(Long paymentId, Long userId, Money amount) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 결제입니다."));
-
-        // 소유권 검증 (엔티티 로직 위임)
-        if (payment.getOrder() != null) {
-            payment.getOrder().validateOwner(userId);
-        }
-
-        // 금액 검증 (엔티티 로직 위임)
-        payment.validateAmount(amount);
     }
 
     // =================================================================================
@@ -319,7 +302,7 @@ public class PaymentService {
                 payment.getOrder().getBuyerType(),
                 payment.getPaidAmount().getAmount().longValue(),
                 payment.getPaidAmount(),
-                payment.getPaymentId()
+                payment
         );
 
         return PaymentResponse.from(payment);
@@ -412,15 +395,15 @@ public class PaymentService {
 
         // 지갑 충전 로직
         Long userId = payment.getOrder().getBuyerType() == RoleType.CANDIDATE 
-                ? payment.getOrder().getBuyerMemberId().getId() 
-                : payment.getOrder().getBuyerEmployerId().getId();
+                ? payment.getOrder().getBuyerMember().getId()
+                : payment.getOrder().getBuyerEmployer().getId();
 
         walletService.chargeCredit(
                 userId,
                 payment.getOrder().getBuyerType(),
                 payment.getPaidAmount().getAmount().longValue(),
                 payment.getPaidAmount(),
-                payment.getPaymentId()
+                payment
         );
     }
 }

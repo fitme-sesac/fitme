@@ -7,6 +7,7 @@ import com.example.pproject.payment.dto.request.PaymentCreateRequest;
 import com.example.pproject.payment.dto.response.PaymentCancelResponse;
 import com.example.pproject.payment.dto.response.PaymentResponse;
 import com.example.pproject.payment.service.PaymentService;
+import com.example.pproject.user.entity.UserEntity;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

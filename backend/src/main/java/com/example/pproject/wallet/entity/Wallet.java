@@ -6,6 +6,9 @@ import com.example.pproject.Constant.TxType;
 import com.example.pproject.Constant.WalletStatus;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.employer.entity.EmployerEntity;
+import com.example.pproject.payment.entity.Payment;
+import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -43,11 +46,13 @@ public class Wallet extends BaseTimeEntity {
     @Column(name = "owner_type", nullable = false, length = 20)
     private RoleType ownerType;
 
-    @Column(name = "member_id")
-    private Long member;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id")
+    private UserEntity member;
 
-    @Column(name = "employer_id")
-    private Long employer;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "employer_id")
+    private EmployerEntity employer;
 
     @Column(name = "balance", nullable = false)
     private long balance;
@@ -57,7 +62,7 @@ public class Wallet extends BaseTimeEntity {
     private WalletStatus status;
 
     @Builder
-    public Wallet(RoleType ownerType, Long member, Long employer) {
+    public Wallet(RoleType ownerType, UserEntity member, EmployerEntity employer) {
         validateOwner(ownerType, member, employer);
         this.ownerType = ownerType;
         this.member = member;
@@ -103,12 +108,12 @@ public class Wallet extends BaseTimeEntity {
     /**
      * 크레딧 충전용 Lot 생성
      */
-    public WalletCreditLot createCreditLot(long amount, Money price, Long paymentId) {
+    public WalletCreditLot createCreditLot(long amount, Money price, Payment paymentId) {
         return WalletCreditLot.builder()
                 .wallet(this)
                 .grantedCredit(amount)
                 .price(price)
-                .paymentId(paymentId)
+                .payment(paymentId)
                 .build();
     }
 
@@ -135,7 +140,7 @@ public class Wallet extends BaseTimeEntity {
         }
     }
 
-    private void validateOwner(RoleType ownerType, Long member, Long employer) {
+    private void validateOwner(RoleType ownerType, UserEntity member, EmployerEntity employer) {
         Assert.notNull(ownerType, "지갑 소유자 타입은 필수입니다.");
 
         if (ownerType == RoleType.CANDIDATE) {

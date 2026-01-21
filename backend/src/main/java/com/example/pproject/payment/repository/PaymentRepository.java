@@ -32,8 +32,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     boolean existsByOrder_OrderUid(UUID orderUid);
 
     // 내 결제 내역 조회 (페이징) - 개인 회원
-    Page<Payment> findByOrder_BuyerMemberId_Id(Long memberId, Pageable pageable);
+    // 필드명 변경 반영: BuyerMemberId -> BuyerMember_Id (ID값으로 조회)
+    Page<Payment> findByOrder_BuyerMember_Id(Long memberId, Pageable pageable);
 
     // 내 결제 내역 조회 (페이징) - 기업 회원
-    Page<Payment> findByOrder_BuyerEmployerId_Id(Long employerId, Pageable pageable);
+    // 필드명 변경 반영: BuyerEmployerId -> BuyerEmployer_Id (ID값으로 조회)
+    Page<Payment> findByOrder_BuyerEmployer_Id(Long employerId, Pageable pageable);
 }
