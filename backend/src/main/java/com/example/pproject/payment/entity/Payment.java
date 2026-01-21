@@ -201,6 +201,17 @@ public class Payment extends BaseTimeEntity {
                 .rawCancel(rawPayload)
                 .build();
     }
+
+    /**
+     * 결제 금액 검증
+     * @param amount 검증할 금액
+     * @throws IllegalStateException 금액이 일치하지 않을 경우
+     */
+    public void validateAmount(Money amount) {
+        if (amount != null && !this.paidAmount.equals(amount)) {
+            throw new IllegalStateException("결제 금액 불일치: 요청된 금액(" + amount + ")과 실제 결제 금액(" + this.paidAmount + ")이 다릅니다.");
+        }
+    }
     
     public String getOrderName() {
         if (this.order != null && this.order.getProduct() != null) {

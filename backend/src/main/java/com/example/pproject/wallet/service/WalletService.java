@@ -4,6 +4,7 @@ import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.SourceType;
 import com.example.pproject.Constant.TxType;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.payment.service.PaymentService;
 import com.example.pproject.wallet.dto.WalletLedgerResponse;
 import com.example.pproject.wallet.entity.Wallet;
 import com.example.pproject.wallet.entity.WalletCreditLot;
@@ -42,6 +43,7 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final WalletCreditLotRepository creditLotRepository;
     private final WalletLedgerRepository ledgerRepository;
+    private final PaymentService paymentService; // PaymentService 주입
 
     // =================================================================================
     // 1. 조회 로직 (Read)
@@ -145,8 +147,9 @@ public class WalletService {
             return; // 이미 처리됨
         }
 
-        // TODO: [보안] PaymentService.verifyPayment(paymentId, userId, amount) 호출 필요
-        // 결제 정보가 유효한지, 사용자의 결제가 맞는지 검증하는 로직이 반드시 추가되어야 함.
+        // 3. 결제 검증 (PaymentService 호출)
+        // PaymentService에 새로 추가된 validatePayment 메서드를 호출하여 검증
+        paymentService.validatePayment(paymentId, userId, price);
 
         executeCharge(wallet, amount, price, SourceType.PAYMENT, paymentId, "PAYMENT:" + paymentId, "크레딧 충전 (결제)");
     }

@@ -198,7 +198,7 @@ public class PaymentService {
                     UUID.randomUUID().toString(),
                     rawPayload
             );
-
+            
             paymentCancelRepository.save(cancel);
             return null;
         });
@@ -333,5 +333,22 @@ public class PaymentService {
         
         TossWebhookRequest request = objectMapper.convertValue(inbox.getPayload(), TossWebhookRequest.class);
         processWebhookLogic(request, inbox);
+    }
+
+    /**
+     * 10. 결제 유효성 및 소유권 검증 (WalletService 호출용)
+     */
+    @Transactional(readOnly = true)
+    public void validatePayment(Long paymentId, Long userId, Money amount) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 결제입니다."));
+
+        // 소유권 검증 (엔티티 로직 위임)
+        if (payment.getOrder() != null) {
+            payment.getOrder().validateOwner(userId);
+        }
+
+        // 금액 검증 (엔티티 로직 위임)
+        payment.validateAmount(amount);
     }
 }
