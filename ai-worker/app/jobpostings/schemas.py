@@ -18,9 +18,7 @@ class JobEmbeddingRequest(BaseModel):
     description: str = Field(description="주요 업무, 자격 요건, 우대 사항 (Text or PDF Link)")
     
     # 3. Context Fields (For additional matching context)
-    company_name: Optional[str] = Field(default="", description="기업명")
-    location: Optional[str] = Field(default="", description="근무지")
-    salary_text: Optional[str] = Field(default="", description="연봉 정보 (Text)")
+    # [Modify] 메타데이터(기업명, 지역, 연봉)는 SQL 필터링으로 처리하므로 벡터 생성 과정에서 제외합니다.
 
 class JobEmbeddingResponse(BaseModel):
     job_id: Union[int, str]

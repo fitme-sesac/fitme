@@ -26,7 +26,6 @@ class JobRepository:
                         jp.summary, 
                         jp.location, 
                         jp.status,
-                        jp.required_experience,
                         e.industry
                     FROM job_posting jp
                     JOIN employer e ON jp.employer_id = e.employer_id
@@ -87,43 +86,6 @@ class JobRepository:
             conn.rollback()
             self.logger.error(f"DB Error during job embedding update: {e}")
             raise e
-        finally:
-            conn.close()
-
-    def get_target_job_ids(self, only_null: bool = True) -> list[int]:
-        """
-        [배치 처리용] 임베딩 생성 대상 Job ID 목록 조회
-        
-        Args:
-            only_null (bool): True면 embedding이 NULL인 것만 조회 (이어하기)
-                              False면 모든 활성 공고 조회 (전체 갱신)
-        """
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                # 기본 조건: 삭제되지 않은(Active) 공고
-                conditions = ["deleted_at IS NULL"]
-                
-                if only_null:
-                    conditions.append("embedding IS NULL")
-                
-                where_clause = " AND ".join(conditions)
-                
-                sql = f"""
-                    SELECT job_id 
-                    FROM job_posting 
-                    WHERE {where_clause}
-                    ORDER BY job_id ASC
-                """
-                
-                cur.execute(sql)
-                rows = cur.fetchall()
-                
-                return [row[0] for row in rows]
-                
-        except Exception as e:
-            self.logger.error(f"Error fetching target job ids: {e}")
-            return []
         finally:
             conn.close()
 

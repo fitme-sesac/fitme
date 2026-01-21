@@ -4,6 +4,7 @@ from typing import List, Union
 from app.jobpostings.schemas import JobEmbeddingRequest
 from app.resumes.services.pdf_helper import PDFHandler
 from app.resumes.services.vector import vector_service
+from app.jobpostings.repository import job_repo
 
 class JobService:
     """
@@ -13,6 +14,48 @@ class JobService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.pdf_handler = PDFHandler()
+
+    async def generate_and_update_embedding(self, job_id: int) -> List[float]:
+        """
+        [DB 기준 임베딩 생성 및 업데이트]
+        DB에 저장된 채용 공고 데이터를 조회하여 임베딩을 생성하고 다시 DB에 업데이트합니다.
+        
+        Args:
+            job_id (int): 채용 공고 ID
+            
+        Returns:
+            List[float]: 생성된 임베딩 벡터
+            
+        Raises:
+            ValueError: 유효하지 않은 Job ID인 경우
+        """
+        # 1. DB에서 공고 정보 조회
+        job_data = job_repo.get_job_posting(job_id)
+        if not job_data:
+            raise ValueError(f"Job Posting not found for ID: {job_id}")
+            
+        # 2. Schema Mapping (DB Dict -> Pydantic Request)
+        # 2-1. Stack Parsing (CSV String -> List)
+        stack_raw = job_data.get('stack') or ""
+        stack_list = [s.strip() for s in stack_raw.split(',') if s.strip()]
+        
+        # 2-2. Create Request Object
+        # [Strict Validation] DB에 필수 정보가 없으면 에러를 발생시킵니다 (기본값 사용 X)
+        industry = job_data.get('industry')
+        if not industry:
+             raise ValueError(f"Job ID {job_id}: 'industry' information is missing in Employer table.")
+
+        request = JobEmbeddingRequest(
+            job_id=job_id,
+            title=job_data.get('title') or "",
+            stack=stack_list,
+            industry=industry,
+            description=job_data.get('description') or ""
+        )
+        
+        # 3. Generate & Update (Resuse existing logic)
+        # generate_embedding 내부에서 update_job_embedding을 호출함
+        return await self.generate_embedding(request)
 
     async def generate_embedding(self, request: JobEmbeddingRequest) -> List[float]:
         """
@@ -28,6 +71,20 @@ class JobService:
         # 3. Vector Generation
         self.logger.info(f"[JobService] Generating Embedding for Job ID: {request.job_id}")
         vector = await vector_service.generate_vector(embedding_text)
+        
+        # 4. DB Update
+        # job_id가 유효한 숫자일 때만 DB 업데이트 시도
+        try:
+            job_id_int = int(request.job_id)
+            updated = job_repo.update_job_embedding(job_id_int, vector)
+            
+            if not updated:
+                self.logger.warning(f"⚠️ [DB Update Info] Embedding was generated but NOT saved. Job ID {job_id_int} does not exist in DB.")
+            else:
+                self.logger.info(f"✅ [DB Update Info] Embedding saved successfully for Job ID {job_id_int}.")
+                
+        except ValueError:
+            self.logger.warning(f"Skipping DB update for non-integer Job ID: {request.job_id}")
         
         return vector
 
@@ -88,15 +145,10 @@ class JobService:
 {description_content}
 """
 
-        # 3. Context Section (Optional but helpful)
-        section_context = f"""
-# 근무 환경 및 기업 정보
-- 기업명: {request.company_name}
-- 근무지: {request.location}
-- 연봉: {request.salary_text}
-"""
+        # [Modify] 3. Context Section 제거 (Metadata Filtering으로 위임)
+        # SQL 필터(연봉, 지역 등)와 역할 분담을 위해 임베딩 텍스트에서 제외합니다.
         
         # 최종 조합
-        return f"{section_identity.strip()}\n\n{section_experience.strip()}\n\n{section_context.strip()}"
+        return f"{section_identity.strip()}\n\n{section_experience.strip()}"
 
 job_service = JobService()
