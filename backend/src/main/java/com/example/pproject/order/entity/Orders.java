@@ -147,4 +147,24 @@ public class Orders extends BaseTimeEntity {
         }
         this.status = OrderStatus.CANCELED;
     }
+
+    /**
+     * 결제 실패 처리
+     */
+    public void fail() {
+        if (this.status == OrderStatus.PAID) {
+            throw new IllegalStateException("이미 결제 완료된 주문은 실패 처리할 수 없습니다.");
+        }
+        this.status = OrderStatus.FAILED;
+    }
+
+    /**
+     * 주문명 조회 (상품명 위임)
+     */
+    public String getOrderName() {
+        if (this.product != null) {
+            return this.product.getName();
+        }
+        return "상품 정보 없음";
+    }
 }
