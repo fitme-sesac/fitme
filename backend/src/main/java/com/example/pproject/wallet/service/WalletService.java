@@ -278,29 +278,13 @@ public class WalletService {
 
         // 1. 지갑 잔액 증가
         wallet.charge(amount);
-        long balanceAfter = wallet.getBalance();
 
-        // 2. CreditLot 생성 및 저장
-        WalletCreditLot creditLot = WalletCreditLot.builder()
-                .wallet(wallet)
-                .grantedCredit(amount)
-                .price(price)
-                .paymentId(sourceRefId) // PAYMENT일 때만 의미 있음
-                .build();
+        // 2. CreditLot 생성 및 저장 (엔티티 팩토리 메서드 사용)
+        WalletCreditLot creditLot = wallet.createCreditLot(amount, price, sourceRefId);
         creditLotRepository.save(creditLot);
 
-        // 3. Ledger 기록
-        WalletLedger ledger = WalletLedger.builder()
-                .wallet(wallet)
-                .txType(TxType.CREDIT)
-                .sourceType(sourceType)
-                .sourceRefId(sourceRefId)
-                .amount(amount)
-                .balanceBefore(balanceBefore)
-                .balanceAfter(balanceAfter)
-                .idempotencyKey(idempotencyKey)
-                .memo(memo)
-                .build();
+        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
+        WalletLedger ledger = wallet.createLedger(TxType.CREDIT, sourceType, sourceRefId, amount, balanceBefore, idempotencyKey, memo);
         ledgerRepository.save(ledger);
     }
 
@@ -313,7 +297,6 @@ public class WalletService {
 
         // 1. 지갑 잔액 차감 (부족하면 예외)
         wallet.use(amount);
-        long balanceAfter = wallet.getBalance();
 
         // 2. LOT FIFO 차감 (Chunk 조회)
         long remaining = amount;
@@ -348,18 +331,8 @@ public class WalletService {
             }
         }
 
-        // 3. Ledger 기록
-        WalletLedger ledger = WalletLedger.builder()
-                .wallet(wallet)
-                .txType(TxType.DEBIT)
-                .sourceType(sourceType)
-                .sourceRefId(sourceRefId)
-                .amount(amount)
-                .balanceBefore(balanceBefore)
-                .balanceAfter(balanceAfter)
-                .idempotencyKey(idempotencyKey)
-                .memo(memo)
-                .build();
+        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, sourceType, sourceRefId, amount, balanceBefore, idempotencyKey, memo);
         ledgerRepository.save(ledger);
     }
 

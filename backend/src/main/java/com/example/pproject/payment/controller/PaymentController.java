@@ -1,5 +1,6 @@
 package com.example.pproject.payment.controller;
 
+import com.example.pproject.Constant.RoleType;
 import com.example.pproject.payment.dto.request.PaymentCancelRequest;
 import com.example.pproject.payment.dto.request.PaymentConfirmRequest;
 import com.example.pproject.payment.dto.request.PaymentCreateRequest;
@@ -70,15 +71,17 @@ public class PaymentController {
 
     /**
      * 4. 내 결제 목록 조회
+     * - roleType 파라미터를 통해 개인/기업 구분 (기본값: CANDIDATE)
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<PaymentResponse>> getMyPayments(
             @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(paymentService.getMyPayments(userId, pageable));
+        return ResponseEntity.ok(paymentService.getMyPayments(userId, roleType, pageable));
     }
 
     /**
@@ -90,7 +93,8 @@ public class PaymentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable String orderId
     ) {
-        return ResponseEntity.ok(paymentService.getPayment(orderId));
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.getPayment(userId, orderId));
     }
 
     /**
@@ -102,6 +106,7 @@ public class PaymentController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable String orderId
     ) {
-        return ResponseEntity.ok(paymentService.getPaymentCancels(orderId));
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.getPaymentCancels(userId, orderId));
     }
 }

@@ -186,6 +186,21 @@ public class Payment extends BaseTimeEntity {
         this.pgPayload = rawPayload;
         this.canceledAt = LocalDateTime.now();
     }
+
+    /**
+     * 결제 취소 이력 생성
+     */
+    public PaymentCancel createCancel(TossPaymentResponse tossResponse, String cancelReason, Money cancelAmount, String idempotencyKey, Map<String, Object> rawPayload) {
+        return PaymentCancel.builder()
+                .payment(this)
+                .tossTransactionKey(tossResponse.transactionKey())
+                .cancelStatus("DONE")
+                .cancelAmount(cancelAmount)
+                .cancelReason(cancelReason)
+                .idempotencyKey(idempotencyKey)
+                .rawCancel(rawPayload)
+                .build();
+    }
     
     public String getOrderName() {
         if (this.order != null && this.order.getProduct() != null) {

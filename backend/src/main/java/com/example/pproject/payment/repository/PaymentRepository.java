@@ -31,6 +31,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     // 주문 UID 중복 검사 (결제 생성 시)
     boolean existsByOrder_OrderUid(UUID orderUid);
 
-    // 내 결제 내역 조회 (페이징)
-    Page<Payment> findByOrder_BuyerMemberId(Long memberId, Pageable pageable);
+    // 내 결제 내역 조회 (페이징) - 개인 회원
+    Page<Payment> findByOrder_BuyerMemberId_Id(Long memberId, Pageable pageable);
+
+    // 내 결제 내역 조회 (페이징) - 기업 회원
+    Page<Payment> findByOrder_BuyerEmployerId_Id(Long employerId, Pageable pageable);
 }

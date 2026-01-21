@@ -1,8 +1,11 @@
 package com.example.pproject.wallet.entity;
 
 import com.example.pproject.Constant.RoleType;
+import com.example.pproject.Constant.SourceType;
+import com.example.pproject.Constant.TxType;
 import com.example.pproject.Constant.WalletStatus;
 import com.example.pproject.common.entity.BaseTimeEntity;
+import com.example.pproject.common.vo.Money;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -93,6 +96,37 @@ public class Wallet extends BaseTimeEntity {
         if (this.status != WalletStatus.INACTIVE) {
             this.status = WalletStatus.INACTIVE;
         }
+    }
+
+    // === 팩토리 메서드 (연관 엔티티 생성 위임) ===
+
+    /**
+     * 크레딧 충전용 Lot 생성
+     */
+    public WalletCreditLot createCreditLot(long amount, Money price, Long paymentId) {
+        return WalletCreditLot.builder()
+                .wallet(this)
+                .grantedCredit(amount)
+                .price(price)
+                .paymentId(paymentId)
+                .build();
+    }
+
+    /**
+     * 거래 원장(Ledger) 생성
+     */
+    public WalletLedger createLedger(TxType txType, SourceType sourceType, Long sourceRefId, long amount, long balanceBefore, String idempotencyKey, String memo) {
+        return WalletLedger.builder()
+                .wallet(this)
+                .txType(txType)
+                .sourceType(sourceType)
+                .sourceRefId(sourceRefId)
+                .amount(amount)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(this.balance) // 현재 잔액 (변경 후)
+                .idempotencyKey(idempotencyKey)
+                .memo(memo)
+                .build();
     }
 
     private void verifyActive() {

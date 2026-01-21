@@ -5,6 +5,8 @@ import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.employer.entity.EmployerEntity;
+import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.order.entity.Orders;
 import com.example.pproject.order.repository.OrderRepository;
 import com.example.pproject.payment.dto.request.PaymentCancelRequest;
@@ -22,6 +24,8 @@ import com.example.pproject.payment.port.PaymentPort;
 import com.example.pproject.payment.repository.PaymentCancelRepository;
 import com.example.pproject.payment.repository.PaymentRepository;
 import com.example.pproject.payment.repository.PgWebhookInboxRepository;
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.service.WalletService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +52,8 @@ public class PaymentService {
     private final PaymentCancelRepository paymentCancelRepository;
     private final PgWebhookInboxRepository pgWebhookInboxRepository;
     private final OrderRepository orderRepository;
+    private final UserRepository userRepository;
+    private final EmployerRepository employerRepository;
     private final PaymentPort paymentPort;
     private final WalletService walletService;
     private final ObjectMapper objectMapper;
@@ -64,13 +70,25 @@ public class PaymentService {
             throw new IllegalStateException("이미 존재하는 주문 ID입니다. 다시 시도해주세요.");
         }
 
-        Orders order = Orders.builder()
+        Orders.OrdersBuilder orderBuilder = Orders.builder()
                 .orderUid(orderUid)
-                .buyerType(RoleType.CANDIDATE)
-                .buyerMemberId(userId)
+                .buyerType(request.buyerType())
                 .orderAmount(Money.wons(request.amount()))
-                .status(OrderStatus.CREATED)
-                .build();
+                .status(OrderStatus.CREATED);
+
+        if (request.buyerType() == RoleType.CANDIDATE) {
+            UserEntity buyer = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+            orderBuilder.buyerMemberId(buyer);
+        } else if (request.buyerType() == RoleType.EMPLOYER) {
+            EmployerEntity employer = employerRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
+            orderBuilder.buyerEmployerId(employer);
+        } else {
+            throw new IllegalArgumentException("지원하지 않는 구매자 타입입니다.");
+        }
+
+        Orders order = orderBuilder.build();
         orderRepository.save(order);
 
         Payment payment = Payment.builder()
@@ -93,10 +111,8 @@ public class PaymentService {
             Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
             
-            // 본인 확인
-            if (!payment.getOrder().getBuyerMemberId().equals(userId)) {
-               throw new IllegalStateException("본인의 결제만 승인할 수 있습니다.");
-            }
+            // 본인 확인 (엔티티 로직 위임)
+            payment.getOrder().validateOwner(userId);
             
             payment.confirm(request.paymentKey());
             return null;
@@ -130,7 +146,7 @@ public class PaymentService {
             // 지갑 충전 로직
             walletService.chargeCredit(
                     userId,
-                    RoleType.CANDIDATE,
+                    payment.getOrder().getBuyerType(), // 주문 당시의 구매자 타입 사용
                     payment.getPaidAmount().getAmount().longValue(),
                     payment.getPaidAmount(),
                     payment.getPaymentId()
@@ -149,9 +165,9 @@ public class PaymentService {
         Payment paymentInfo = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
         
-        // 본인 확인 로직
-        if (paymentInfo.getOrder() != null && !paymentInfo.getOrder().getBuyerMemberId().equals(userId)) {
-           throw new IllegalStateException("본인의 결제만 취소할 수 있습니다.");
+        // 본인 확인 (엔티티 로직 위임)
+        if (paymentInfo.getOrder() != null) {
+            paymentInfo.getOrder().validateOwner(userId);
         }
         
         String paymentKey = paymentInfo.getPgPaymentKey();
@@ -174,15 +190,15 @@ public class PaymentService {
             Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
             payment.cancel(tossResponse, rawPayload);
 
-            PaymentCancel cancel = PaymentCancel.builder()
-                    .payment(payment)
-                    .tossTransactionKey(tossResponse.transactionKey())
-                    .cancelStatus("DONE")
-                    .cancelAmount(Money.wons(request.cancelAmount() != null ? request.cancelAmount() : payment.getPaidAmount().getAmount()))
-                    .cancelReason(request.cancelReason())
-                    .idempotencyKey(UUID.randomUUID().toString())
-                    .rawCancel(rawPayload)
-                    .build();
+            // PaymentCancel 생성 로직을 Payment 엔티티로 위임
+            PaymentCancel cancel = payment.createCancel(
+                    tossResponse,
+                    request.cancelReason(),
+                    Money.wons(request.cancelAmount() != null ? request.cancelAmount() : payment.getPaidAmount().getAmount()),
+                    UUID.randomUUID().toString(),
+                    rawPayload
+            );
+
             paymentCancelRepository.save(cancel);
             return null;
         });
@@ -250,10 +266,16 @@ public class PaymentService {
      * 5. 결제 단건 조회
      */
     @Transactional(readOnly = true)
-    public PaymentResponse getPayment(String orderId) {
+    public PaymentResponse getPayment(Long userId, String orderId) {
         UUID orderUid = UUID.fromString(orderId);
         Payment payment = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+        
+        // 본인 확인 (엔티티 로직 위임)
+        if (payment.getOrder() != null) {
+            payment.getOrder().validateOwner(userId);
+        }
+        
         return PaymentResponse.from(payment);
     }
 
@@ -261,19 +283,31 @@ public class PaymentService {
      * 6. 내 결제 목록 조회
      */
     @Transactional(readOnly = true)
-    public Page<PaymentResponse> getMyPayments(Long userId, Pageable pageable) {
-        return paymentRepository.findByOrder_BuyerMemberId(userId, pageable)
-                .map(PaymentResponse::from);
+    public Page<PaymentResponse> getMyPayments(Long userId, RoleType roleType, Pageable pageable) {
+        if (roleType == RoleType.CANDIDATE) {
+            return paymentRepository.findByOrder_BuyerMemberId_Id(userId, pageable)
+                    .map(PaymentResponse::from);
+        } else if (roleType == RoleType.EMPLOYER) {
+            return paymentRepository.findByOrder_BuyerEmployerId_Id(userId, pageable)
+                    .map(PaymentResponse::from);
+        } else {
+            throw new IllegalArgumentException("지원하지 않는 사용자 타입입니다.");
+        }
     }
 
     /**
      * 7. 결제 취소 이력 조회
      */
     @Transactional(readOnly = true)
-    public List<PaymentCancelResponse> getPaymentCancels(String orderId) {
+    public List<PaymentCancelResponse> getPaymentCancels(Long userId, String orderId) {
         UUID orderUid = UUID.fromString(orderId);
         Payment payment = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+        
+        // 본인 확인 (엔티티 로직 위임)
+        if (payment.getOrder() != null) {
+            payment.getOrder().validateOwner(userId);
+        }
         
         return paymentCancelRepository.findByPayment(payment).stream()
                 .map(PaymentCancelResponse::from)
