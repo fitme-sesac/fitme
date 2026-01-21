@@ -19,24 +19,35 @@ def test_job_embedding():
     
     # Mock Data (Text Description)
     payload_text = {
-        "job_id": 101,
-        "title": "백엔드 서비스 개발자 (Backend Developer)",
-        "stack": ["Java", "Spring Boot", "MySQL", "AWS"],
+        "job_id": 100,
+        "title": "Backend Developer",
+        "stack": ["TailwindCSS", "HuggingFace", "MySQL"],
         "industry": "핀테크 (FinTech)",
         "description": """
         [주요 업무]
-        - 대규모 트래픽 처리를 위한 서버 설계 및 개발
-        - 결제 및 정산 시스템 고도화
-        - 레거시 시스템 리팩토링 및 MSA 전환
+        • 이데아게임즈 주식회사의 핵심 백엔드 시스템 설계 및 개발
+        • RESTful API 및 마이크로서비스 아키텍처 구축
+        • 대용량 트래픽 처리를 위한 시스템 최적화
+        • 데이터베이스 설계 및 쿼리 최적화
+        • 코드 리뷰 및 기술 문서 작성
         
         [자격 요건]
-        - Java/Spring Boot 기반 백엔드 개발 경력 3년 이상
-        - RDBMS (MySQL) 및 NoSQL (Redis) 사용 경험
-        - 대용량 트래픽 처리 및 성능 최적화 경험
-        """,
-        "company_name": "토스뱅크",
-        "location": "서울 강남구",
-        "salary_text": "5,000만원 이상 (협의 가능)"
+        • 4년 이상 경력
+        • TailwindCSS, HuggingFace, MySQL 기술 스택 활용 경험
+        • 객체지향 프로그래밍 및 디자인 패턴 이해
+        • Git 기반 협업 경험
+        
+        [우대 사항]
+        • MSA(Microservice Architecture) 설계 및 운영 경험
+        • 대용량 트래픽 처리 경험
+        • CI/CD 파이프라인 구축 경험
+        • 오픈소스 기여 경험
+        
+        [근무 조건]
+        • 연봉: 8399만원
+        • 근무지: 부산광역시
+        • 마감일: 2026-09-11
+        """
     }
     
     # Mock Data (PDF Link Simulation)
@@ -48,10 +59,7 @@ def test_job_embedding():
         "title": "AI 모델링 엔지니어",
         "stack": ["Python", "PyTorch", "TensorFlow"],
         "industry": "인공지능 솔루션",
-        "description": pdf_path,
-        "company_name": "업스테이지",
-        "location": "경기도 판교",
-        "salary_text": "6,000만원 이상"
+        "description": pdf_path
     }
 
     print("\n[Case 1] 텍스트 기반 공고 테스트...")
