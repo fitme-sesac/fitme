@@ -1,6 +1,12 @@
 import json
 import os
 import sys
+import io
+
+# 터미널 한글 출력 설정
+sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
+
 from fastapi.testclient import TestClient
 
 # 프로젝트 루트 경로 추가

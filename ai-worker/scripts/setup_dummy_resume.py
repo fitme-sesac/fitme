@@ -53,10 +53,10 @@ def setup_dummy_resume_data():
                     logger.info(f"🛠️ Created new dummy member ID: {member_id}")
                 except Exception as e:
                     logger.error(f"❌ Failed to find or create member. Please ensure 'member' table exists and has data. Error: {e}")
-                    return
+                    return None, None
     except Exception as e:
         logger.error(f"DB Error checking member: {e}")
-        return
+        return None, None
 
     # 2. Insert Resume (Raw SQL)
     # User Provided Data
@@ -141,11 +141,8 @@ def setup_dummy_resume_data():
     try:
         with conn.cursor() as cur:
             # 2.1 Insert Main Resume
-            # re_stack list -> text conversion?? No, DDL says 'text', assume comma separated or JSON?
-            # User DDL: re_stack text. "사용자가 보유한 기술 스택 목록". Usually JSON string or comma separated.
-            # Schema uses List[str]. I will join with comma for DB storage if it's simple text column, or json.nums
-            # Given the context, comma separated is safer for simple text column unless it's jsonb.
-            re_stack_str = ", ".join(mock_request["basic_info"]["re_stack"])
+            # re_stack list -> array conversion. psycopg2 handles list as ARRAY.
+            re_stack_list = mock_request["basic_info"]["re_stack"]
             
             cur.execute("""
                 INSERT INTO resume (
@@ -166,7 +163,7 @@ def setup_dummy_resume_data():
                 mock_request["basic_info"]["preference"]["location"],
                 mock_request["basic_info"]["preference"]["salary"],
                 mock_request["basic_info"]["preference"]["employment_type"],
-                re_stack_str
+                re_stack_list
             ))
             resume_id = cur.fetchone()[0]
             logger.info(f"🛠️ [Insert] Resume created with ID: {resume_id}")
