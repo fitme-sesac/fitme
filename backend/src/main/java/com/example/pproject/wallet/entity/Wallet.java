@@ -1,8 +1,14 @@
 package com.example.pproject.wallet.entity;
 
 import com.example.pproject.Constant.RoleType;
+import com.example.pproject.Constant.SourceType;
+import com.example.pproject.Constant.TxType;
 import com.example.pproject.Constant.WalletStatus;
 import com.example.pproject.common.entity.BaseTimeEntity;
+import com.example.pproject.common.vo.Money;
+import com.example.pproject.employer.entity.EmployerEntity;
+import com.example.pproject.payment.entity.Payment;
+import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -40,11 +46,13 @@ public class Wallet extends BaseTimeEntity {
     @Column(name = "owner_type", nullable = false, length = 20)
     private RoleType ownerType;
 
-    @Column(name = "member_id")
-    private Long member;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id")
+    private UserEntity member;
 
-    @Column(name = "employer_id")
-    private Long employer;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "employer_id")
+    private EmployerEntity employer;
 
     @Column(name = "balance", nullable = false)
     private long balance;
@@ -54,7 +62,7 @@ public class Wallet extends BaseTimeEntity {
     private WalletStatus status;
 
     @Builder
-    public Wallet(RoleType ownerType, Long member, Long employer) {
+    public Wallet(RoleType ownerType, UserEntity member, EmployerEntity employer) {
         validateOwner(ownerType, member, employer);
         this.ownerType = ownerType;
         this.member = member;
@@ -95,13 +103,44 @@ public class Wallet extends BaseTimeEntity {
         }
     }
 
+    // === 팩토리 메서드 (연관 엔티티 생성 위임) ===
+
+    /**
+     * 크레딧 충전용 Lot 생성
+     */
+    public WalletCreditLot createCreditLot(long amount, Money price, Payment paymentId) {
+        return WalletCreditLot.builder()
+                .wallet(this)
+                .grantedCredit(amount)
+                .price(price)
+                .payment(paymentId)
+                .build();
+    }
+
+    /**
+     * 거래 원장(Ledger) 생성
+     */
+    public WalletLedger createLedger(TxType txType, SourceType sourceType, Long sourceRefId, long amount, long balanceBefore, String idempotencyKey, String memo) {
+        return WalletLedger.builder()
+                .wallet(this)
+                .txType(txType)
+                .sourceType(sourceType)
+                .sourceRefId(sourceRefId)
+                .amount(amount)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(this.balance) // 현재 잔액 (변경 후)
+                .idempotencyKey(idempotencyKey)
+                .memo(memo)
+                .build();
+    }
+
     private void verifyActive() {
         if (this.status != WalletStatus.ACTIVE) {
             throw new IllegalStateException("정지된 지갑은 사용할 수 없습니다.");
         }
     }
 
-    private void validateOwner(RoleType ownerType, Long member, Long employer) {
+    private void validateOwner(RoleType ownerType, UserEntity member, EmployerEntity employer) {
         Assert.notNull(ownerType, "지갑 소유자 타입은 필수입니다.");
 
         if (ownerType == RoleType.CANDIDATE) {

@@ -29,7 +29,7 @@ public class JobApplicationService {
     private final UserRepository userRepository;
 
     @Transactional
-    public Long apply(JobApplicationRequest request, Integer userId) {
+    public Long apply(JobApplicationRequest request, Long userId) {
         if (jobApplicationRepository.existsByJobIdAndMemberId(request.getJobId(), userId)) {
             throw new IllegalArgumentException("이미 지원한 공고입니다.");
         }
@@ -81,7 +81,7 @@ public class JobApplicationService {
         }
     }
 
-    public List<JobApplicationResponse> getMyApplications(Integer userId) {
+    public List<JobApplicationResponse> getMyApplications(Long userId) {
         return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(userId).stream()
                 .map(JobApplicationResponse::from)
                 .collect(Collectors.toList());

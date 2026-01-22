@@ -1,5 +1,6 @@
 package com.example.pproject.wallet.controller;
 
+import com.example.pproject.Constant.RoleType;
 import com.example.pproject.wallet.dto.WalletManualChargeRequest;
 import com.example.pproject.wallet.dto.WalletManualDeductRequest;
 import com.example.pproject.wallet.service.WalletService;
@@ -38,6 +39,30 @@ public class AdminWalletController {
             @RequestBody @Valid WalletManualDeductRequest request
     ) {
         walletService.manualDeduct(walletId, request.amount(), request.memo());
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * [관리자] 지갑 수동 생성
+     */
+    @PostMapping("/create")
+    public ResponseEntity<Long> createWallet(
+            @RequestParam Long userId,
+            @RequestParam RoleType roleType
+    ) {
+        Long walletId = walletService.createWallet(userId, roleType);
+        return ResponseEntity.ok(walletId);
+    }
+
+    /**
+     * [관리자] 지갑 상태 변경 (정지/재개)
+     */
+    @PostMapping("/{walletId}/status")
+    public ResponseEntity<Void> changeWalletStatus(
+            @PathVariable Long walletId,
+            @RequestParam boolean suspend
+    ) {
+        walletService.changeWalletStatus(walletId, suspend);
         return ResponseEntity.ok().build();
     }
 }

@@ -26,7 +26,7 @@ public class JobApplicationController {
     @PostMapping
     public ResponseEntity<Long> apply(@RequestBody @Valid JobApplicationRequest request,
                                       @AuthenticationPrincipal JwtUserPrincipal user) {
-        Long applicationId = jobApplicationService.apply(request, Integer.valueOf(user.getUserid()));
+        Long applicationId = jobApplicationService.apply(request, Long.valueOf(user.getUserid()));
         return ResponseEntity.ok(applicationId);
     }
 
@@ -41,6 +41,6 @@ public class JobApplicationController {
     @Operation(summary = "내 지원 현황 조회", description = "나의 지원 내역과 전형 상태를 조회합니다.")
     @GetMapping("/me")
     public ResponseEntity<List<JobApplicationResponse>> getMyApplications(@AuthenticationPrincipal JwtUserPrincipal user) {
-        return ResponseEntity.ok(jobApplicationService.getMyApplications(Integer.valueOf(user.getUserid())));
+        return ResponseEntity.ok(jobApplicationService.getMyApplications(Long.valueOf(user.getUserid())));
     }
 }

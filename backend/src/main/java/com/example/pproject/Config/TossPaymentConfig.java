@@ -1,4 +1,4 @@
-package com.example.pproject.payment.config;
+package com.example.pproject.Config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
