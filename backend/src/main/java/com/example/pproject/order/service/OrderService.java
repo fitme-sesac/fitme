@@ -46,8 +46,8 @@ public class OrderService {
     }
 
     private Orders createNewOrder(Long buyerId, RoleType buyerType, String productCode, String idempotencyKey) {
-        // 2. 상품 조회
-        Product product = productRepository.findByProductCode(productCode)
+        // 2. 상품 조회 (삭제된 상품 제외)
+        Product product = productRepository.findByProductCodeAndDeletedAtIsNull(productCode)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
 
         // 3. 구매자 조회 및 주문 생성

@@ -259,8 +259,8 @@ public class PaymentService {
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
         }
 
-        // 상품 조회
-        Product product = productRepository.findByProductCode(request.productCode())
+        // 상품 조회 (삭제된 상품 제외)
+        Product product = productRepository.findByProductCodeAndDeletedAtIsNull(request.productCode())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
 
         // 정적 팩토리 메서드 사용

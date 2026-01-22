@@ -9,16 +9,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
 import org.springframework.util.Assert;
 
 @Entity
 @Table(name = "product")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@SQLDelete(sql = "UPDATE product SET deleted_at = now() WHERE product_id = ?")
-@Where(clause = "deleted_at IS NULL")
 public class Product extends BaseSoftDeleteEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
