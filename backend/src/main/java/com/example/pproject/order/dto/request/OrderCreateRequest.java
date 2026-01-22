@@ -12,7 +12,7 @@ public record OrderCreateRequest(
         RoleType buyerType,
 
         @NotNull(message = "주문 금액은 필수입니다.")
-        @Min(value = 100, message = "주문 금액은 최소 100원 이상이어야 합니다.")
+        @Min(value = 1000, message = "주문 금액은 최소 1000원 이상이어야 합니다.")
         Long amount
 ) {
 }
