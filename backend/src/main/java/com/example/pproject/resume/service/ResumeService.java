@@ -257,7 +257,7 @@ public class ResumeService {
     }
 
     private UserEntity getUser(Integer userId) {
-        return userRepository.findById(userId)
+        return userRepository.findById(Long.valueOf(userId))
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
     }
     private Resume getResumeEntity(Long resumeId) {

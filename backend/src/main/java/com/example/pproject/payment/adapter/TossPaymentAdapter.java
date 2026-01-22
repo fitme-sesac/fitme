@@ -48,25 +48,53 @@ public class TossPaymentAdapter implements PaymentPort {
     // === Fallback Methods ===
 
     /**
-     * 서킷 브레이커가 열렸거나(Open), 재시도 횟수를 초과했을 때 실행되는 Fallback 메서드
+     * 서킷 브레이커 Open 또는 타임아웃/에러 발생 시 실행
+     * null을 반환하거나 특수 상태 객체를 반환하여 Service 계층에서 후처리(재시도/대기)를 할 수 있게 함.
      */
     public TossPaymentResponse fallbackConfirm(String paymentKey, String orderId, BigDecimal amount, Throwable t) {
         log.error("토스 결제 승인 요청 실패 (Fallback 실행). paymentKey={}, orderId={}, error={}", paymentKey, orderId, t.getMessage());
         
-        if (t instanceof CallNotPermittedException) {
-            throw new IllegalStateException("현재 결제 시스템이 불안정하여 잠시 후 다시 시도해주세요. (Circuit Open)");
-        }
-        
-        throw new IllegalStateException("결제 승인 요청 중 오류가 발생했습니다: " + t.getMessage());
+        // 서킷 브레이커가 열려있거나, 일시적 네트워크 오류인 경우
+        // "UNKNOWN" 상태의 응답을 만들어 반환 -> Service에서 이를 감지하고 "결제 대기" 상태로 처리
+        return new TossPaymentResponse(
+                paymentKey, // paymentKey
+                orderId,    // orderId
+                null,       // orderName
+                "UNKNOWN",  // status
+                null,       // transactionKey
+                null,       // lastTransactionKey
+                null,       // requestedAt
+                null,       // approvedAt
+                amount,     // totalAmount
+                null,       // balanceAmount
+                null,       // method
+                null,       // receipt
+                null,       // cancels
+                null,       // card
+                null        // virtualAccount
+        );
     }
 
     public TossPaymentResponse fallbackCancel(String paymentKey, String cancelReason, Throwable t) {
         log.error("토스 결제 취소 요청 실패 (Fallback 실행). paymentKey={}, reason={}, error={}", paymentKey, cancelReason, t.getMessage());
 
-        if (t instanceof CallNotPermittedException) {
-            throw new IllegalStateException("현재 결제 시스템이 불안정하여 잠시 후 다시 시도해주세요. (Circuit Open)");
-        }
-
-        throw new IllegalStateException("결제 취소 요청 중 오류가 발생했습니다: " + t.getMessage());
+        // 취소 실패 시에도 UNKNOWN 상태 반환 -> 추후 배치로 재시도하거나 수동 처리 유도
+        return new TossPaymentResponse(
+                paymentKey, // paymentKey
+                null,       // orderId
+                null,       // orderName
+                "UNKNOWN",  // status
+                null,       // transactionKey
+                null,       // lastTransactionKey
+                null,       // requestedAt
+                null,       // approvedAt
+                null,       // totalAmount
+                null,       // balanceAmount
+                null,       // method
+                null,       // receipt
+                null,       // cancels
+                null,       // card
+                null        // virtualAccount
+        );
     }
 }

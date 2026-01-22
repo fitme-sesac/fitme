@@ -31,7 +31,7 @@ public class UserEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "member_id")
-    private Integer id;
+    private Long id;
 
     @Column(name = "member_uid", nullable = false, unique = true)
     private UUID memberUid;

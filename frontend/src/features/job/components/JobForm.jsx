@@ -13,7 +13,7 @@ export default function JobForm({ job, onSubmit, loading }) {
     title: '',
     description: '',
     location: '',
-    salaryText: '',
+    salaryText: '', // 만원 단위로 입력받아 원 단위로 변환하여 저장
     stack: '',
     status: 'DRAFT',
   });
@@ -26,7 +26,8 @@ export default function JobForm({ job, onSubmit, loading }) {
         title: job.title || '',
         description: job.description || '',
         location: job.location || '',
-        salaryText: job.salaryText || '',
+        // salaryText가 숫자(원 단위)로 들어오면 만원 단위로 변환하여 표시
+        salaryText: job.salaryText ? Math.floor(job.salaryText / 10000).toString() : '',
         stack: job.stack || '',
         status: job.status || 'DRAFT',
       });
@@ -67,8 +68,12 @@ export default function JobForm({ job, onSubmit, loading }) {
 
     if (!validate()) return;
 
+    // 만원 단위 입력값을 원 단위로 변환
+    const salaryInWon = formData.salaryText ? parseInt(formData.salaryText, 10) * 10000 : null;
+
     const submitData = {
       ...formData,
+      salaryText: salaryInWon,
       status: saveAsDraft ? 'DRAFT' : formData.status,
     };
 
@@ -157,17 +162,28 @@ export default function JobForm({ job, onSubmit, loading }) {
 
           {/* 급여 */}
           <div className="mb-3">
-            <label htmlFor="salaryText" className="form-label">급여</label>
-            <input
-              type="text"
-              className="form-control"
-              id="salaryText"
-              name="salaryText"
-              value={formData.salaryText}
-              onChange={handleChange}
-              placeholder="예: 연봉 4,000만원~6,000만원 / 협의 후 결정"
-              maxLength={120}
-            />
+            <label htmlFor="salaryText" className="form-label">연봉 (만원)</label>
+            <div className="input-group">
+              <input
+                type="number"
+                className="form-control"
+                id="salaryText"
+                name="salaryText"
+                value={formData.salaryText}
+                onChange={handleChange}
+                placeholder="예: 5000"
+                min="0"
+                max="100000"
+              />
+              <span className="input-group-text">만원</span>
+            </div>
+            <div className="form-text">
+              {formData.salaryText && !isNaN(formData.salaryText) && (
+                <span className="text-primary">
+                  💰 {parseInt(formData.salaryText, 10).toLocaleString()}만원 = {(parseInt(formData.salaryText, 10) * 10000).toLocaleString()}원
+                </span>
+              )}
+            </div>
           </div>
 
           {/* 기술스택 */}

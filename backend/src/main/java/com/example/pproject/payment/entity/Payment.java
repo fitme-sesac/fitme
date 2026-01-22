@@ -4,6 +4,7 @@ import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.common.vo.Money;
+import com.example.pproject.order.entity.Orders;
 import com.example.pproject.payment.dto.toss.TossPaymentResponse;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -48,17 +49,10 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "payment_uid", nullable = false, updatable = false)
     private UUID paymentUid;
 
-    // Order와 연관관계 (N:1) - 추후 Order 엔티티 구현 시 주석 해제
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "order_id", nullable = false)
-//    private Order order;
-
-    // 임시 필드 (Order 엔티티 없을 때 사용)
-    @Column(name = "order_id")
-    private String orderId;
-
-    @Column(name = "order_name")
-    private String orderName;
+    // Orders와 연관관계 (N:1)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private Orders order;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "method", nullable = false, length = 20)
@@ -108,10 +102,9 @@ public class Payment extends BaseTimeEntity {
     private LocalDateTime canceledAt;
 
     @Builder
-    public Payment(String orderId, String orderName, PaymentMethod method, Money paidAmount) {
+    public Payment(Orders order, PaymentMethod method, Money paidAmount) {
         this.paymentUid = UUID.randomUUID();
-        this.orderId = orderId;
-        this.orderName = orderName;
+        this.order = order;
         this.method = method;
         this.paidAmount = paidAmount;
         this.appStatus = PaymentAppStatus.REQUESTED; // 초기 상태: REQUESTED
@@ -129,16 +122,7 @@ public class Payment extends BaseTimeEntity {
      * @throws IllegalStateException 결제 요청(REQUESTED) 상태가 아닐 경우
      */
     public void confirm(String pgPaymentKey) {
-        // 상태 전이 검증 (REQUESTED -> REQUESTED 유지 가능 여부 확인)
-        if (!this.appStatus.canTransitionTo(PaymentAppStatus.REQUESTED)) {
-             throw new IllegalStateException("현재 상태에서는 승인 요청(Confirm) 단계로 진행할 수 없습니다.");
-        }
-
-        // 실제로는 REQUESTED 상태에서만 confirm 가능
-        if (this.appStatus != PaymentAppStatus.REQUESTED) {
-             throw new IllegalStateException("결제 요청(REQUESTED) 상태에서만 승인 요청을 진행할 수 있습니다.");
-        }
-        
+        verifyConfirmableState();
         this.pgPaymentKey = pgPaymentKey;
     }
 
@@ -154,24 +138,15 @@ public class Payment extends BaseTimeEntity {
      * @throws IllegalStateException 요청 금액과 승인 금액이 일치하지 않을 경우
      */
     public void approve(TossPaymentResponse response, Map<String, Object> rawPayload) {
-        if (!this.appStatus.canTransitionTo(PaymentAppStatus.APPROVED)) {
-            throw new IllegalStateException("현재 상태에서는 승인 완료(APPROVED)로 변경할 수 없습니다.");
-        }
-
-        // 금액 검증
-        if (this.paidAmount.getAmount().compareTo(response.totalAmount()) != 0) {
-            throw new IllegalStateException("요청 금액과 승인 금액이 일치하지 않습니다.");
-        }
+        verifyApprovableState();
+        validateAmount(Money.wons(response.totalAmount()));
 
         this.appStatus = PaymentAppStatus.APPROVED;
         this.pgStatus = response.status();
         this.pgPaymentKey = response.paymentKey();
         this.pgTransactionId = response.transactionKey();
         this.pgPayload = rawPayload;
-        
-        if (response.approvedAt() != null) {
-            this.approvedAt = LocalDateTime.parse(response.approvedAt(), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        }
+        this.approvedAt = parseDateTime(response.approvedAt());
     }
 
     /**
@@ -184,13 +159,69 @@ public class Payment extends BaseTimeEntity {
      * @param rawPayload 토스 응답 원본 Map (저장용)
      */
     public void cancel(TossPaymentResponse response, Map<String, Object> rawPayload) {
-        if (!this.appStatus.canTransitionTo(PaymentAppStatus.CANCELED)) {
-             throw new IllegalStateException("현재 상태에서는 취소(CANCELED)로 변경할 수 없습니다.");
-        }
+        verifyCancelableState();
 
         this.appStatus = PaymentAppStatus.CANCELED; // 부분 취소 고려 시 로직 추가 필요
         this.pgStatus = response.status();
         this.pgPayload = rawPayload;
         this.canceledAt = LocalDateTime.now();
+    }
+
+    /**
+     * 결제 취소 이력 생성
+     */
+    public PaymentCancel createCancel(TossPaymentResponse tossResponse, String cancelReason, Money cancelAmount, String idempotencyKey, Map<String, Object> rawPayload) {
+        return PaymentCancel.builder()
+                .payment(this)
+                .tossTransactionKey(tossResponse.transactionKey())
+                .cancelStatus("DONE")
+                .cancelAmount(cancelAmount)
+                .cancelReason(cancelReason)
+                .idempotencyKey(idempotencyKey)
+                .rawCancel(rawPayload)
+                .build();
+    }
+
+    /**
+     * 결제 금액 검증
+     * @param amount 검증할 금액
+     * @throws IllegalStateException 금액이 일치하지 않을 경우
+     */
+    public void validateAmount(Money amount) {
+        if (amount != null && !this.paidAmount.equals(amount)) {
+            throw new IllegalStateException("결제 금액 불일치: 요청된 금액(" + amount + ")과 실제 결제 금액(" + this.paidAmount + ")이 다릅니다.");
+        }
+    }
+    
+    public String getOrderName() {
+        if (this.order != null && this.order.getProduct() != null) {
+            return this.order.getProduct().getName();
+        }
+        return "상품 정보 없음";
+    }
+
+    // === 내부 검증 로직 ===
+
+    private void verifyConfirmableState() {
+        if (this.appStatus != PaymentAppStatus.REQUESTED) {
+            throw new IllegalStateException("결제 요청(REQUESTED) 상태에서만 승인 요청을 진행할 수 있습니다.");
+        }
+    }
+
+    private void verifyApprovableState() {
+        if (!this.appStatus.canTransitionTo(PaymentAppStatus.APPROVED)) {
+            throw new IllegalStateException("현재 상태에서는 승인 완료(APPROVED)로 변경할 수 없습니다.");
+        }
+    }
+
+    private void verifyCancelableState() {
+        if (!this.appStatus.canTransitionTo(PaymentAppStatus.CANCELED)) {
+            throw new IllegalStateException("현재 상태에서는 취소(CANCELED)로 변경할 수 없습니다.");
+        }
+    }
+
+    private LocalDateTime parseDateTime(String dateTimeStr) {
+        if (dateTimeStr == null) return null;
+        return LocalDateTime.parse(dateTimeStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 }

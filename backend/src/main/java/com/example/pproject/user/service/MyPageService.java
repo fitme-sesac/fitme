@@ -51,7 +51,7 @@ public class MyPageService {
         UserResponseDTO userInfo = modelMapper.map(user, UserResponseDTO.class);
 
         // 3) [주소 연동] 대표 이력서에서 주소 정보 가져와서 DTO에 채우기
-        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(user.getId());
+        Optional<Resume> primaryResume = resumeRepository.findByUser_IdAndPrimaryTrue(user.getId());
 
         if (primaryResume.isPresent() && primaryResume.get().getProfile() != null) {
             ResumeProfile profile = primaryResume.get().getProfile();
@@ -60,8 +60,7 @@ public class MyPageService {
         }
 
         // 4) 지갑 잔액 조회
-        Long userDbId = Long.valueOf(user.getId());
-        long creditBalance = walletRepository.findByMember(userDbId)
+        long creditBalance = walletRepository.findByMember(user)
                 .map(Wallet::getBalance).orElse(0L);
 
         // 5) 통계 데이터 구성
@@ -105,7 +104,7 @@ public class MyPageService {
 
         // 2) [주소 정보 업데이트] 대표 이력서 찾아서 업데이트
         if (requestDTO.getAddress() != null) {
-            resumeRepository.findByUserIdAndPrimaryTrue(user.getId())
+            resumeRepository.findByUser_IdAndPrimaryTrue(user.getId())
                     .ifPresent(resume -> {
                         // 이력서에 프로필이 없으면 생성
                         if (resume.getProfile() == null) {
