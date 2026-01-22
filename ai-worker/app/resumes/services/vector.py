@@ -78,9 +78,10 @@ class VectorService:
         """
         텍스트를 임베딩 벡터로 변환합니다.
         """
-        print("\n" + "="*20 + " [Embedding Input Text Check] " + "="*20)
-        print(text)
-        print("="*66 + "\n")
+        if os.getenv("LANGCHAIN_TRACING_V2") == "true":       
+            logger.info("\n" + "="*20 + " [Embedding Input Text Check] " + "="*20)
+            logger.info(text)
+            logger.info("="*66 + "\n")
         return await self.embeddings.aembed_query(text)
 
 vector_service = VectorService()

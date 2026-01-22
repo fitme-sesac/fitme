@@ -36,8 +36,11 @@ class JobService:
             
         # 2. Schema Mapping (DB Dict -> Pydantic Request)
         # 2-1. Stack Parsing (CSV String -> List)
-        stack_raw = job_data.get('stack') or ""
-        stack_list = [s.strip() for s in stack_raw.split(',') if s.strip()]
+        stack_raw = job_data.get('stack') or []
+        if isinstance(stack_raw, list):
+            stack_list = stack_raw
+        else:
+            stack_list = [s.strip() for s in stack_raw.split(',') if s.strip()]
         
         # 2-2. Create Request Object
         # [Strict Validation] DB에 필수 정보가 없으면 에러를 발생시킵니다 (기본값 사용 X)
