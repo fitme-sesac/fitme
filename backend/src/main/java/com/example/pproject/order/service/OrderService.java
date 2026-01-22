@@ -79,6 +79,23 @@ public class OrderService {
     }
 
     /**
+     * 주문 조회
+     *
+     * @param orderUid 주문 고유 번호
+     * @param userId   요청자 ID (권한 검증용)
+     * @return 주문 엔티티
+     */
+    public Orders getOrder(UUID orderUid, Long userId) {
+        Orders order = orderRepository.findByOrderUid(orderUid)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
+
+        // 권한 검증
+        order.validateOwner(userId);
+
+        return order;
+    }
+
+    /**
      * 주문 완료 처리 (결제 성공 시 호출)
      *
      * @param orderUid      주문 고유 번호
