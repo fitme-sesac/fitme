@@ -149,12 +149,14 @@ def setup_dummy_resume_data():
                     member_id, title, is_primary, is_public, status, 
                     content, field, 
                     preference_location, preference_salary, employment_type,
-                    re_stack, summary_status
+                    re_stack, summary_status,
+                    career_years
                 ) VALUES (
                     %s, %s, true, true, 'ACTIVE', 
                     %s, 'RESUME',
                     %s, %s, %s,
-                    %s, 'PENDING'
+                    %s, 'PENDING',
+                    0
                 ) RETURNING resume_id
             """, (
                 member_id,
