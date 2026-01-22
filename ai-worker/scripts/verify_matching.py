@@ -28,7 +28,7 @@ def verify_matching(resume_id: int, top_k: int = 5):
             # 1. 이력서 임베딩 및 메타데이터 가져오기
             logger.info(f"🔍 Fetching embedding & metadata for Resume ID: {resume_id}")
             cur.execute("""
-                SELECT embedding, title, re_stack, preference_location 
+                SELECT embedding, title, re_stack, preference_location, career_years 
                 FROM resume 
                 WHERE resume_id = %s
             """, (resume_id,))
@@ -40,12 +40,14 @@ def verify_matching(resume_id: int, top_k: int = 5):
 
             resume_vector = resume_row[0]
             resume_title = resume_row[1]
-            resume_stack_raw = resume_row[2] or "" # "Java, Spring Boot"
-            resume_location = resume_row[3] or ""   # "서울 전체"
+            resume_stack_raw = resume_row[2] or []
+            resume_location = resume_row[3] or ""   
+            resume_career = resume_row[4] or 0 # Default to 0 (Newcomer)
 
             logger.info(f"✅ Resume Found: '{resume_title}'")
             logger.info(f"   - Stack: {resume_stack_raw}")
             logger.info(f"   - Location: {resume_location}")
+            logger.info(f"   - Career Years: {resume_career}")
 
             # 2. 필터링 조건 생성
             # 2.1 Location Filter: "서울 전체" -> "서울"로 검색
@@ -59,28 +61,39 @@ def verify_matching(resume_id: int, top_k: int = 5):
                 params.append(f"%{target_loc}%")
                 logger.info(f"   👉 Applying Location Filter: LIKE '{target_loc}%'")
 
-            # 2.2 Stack Filter: Resume Stack 중 하나라도 포함하면 매칭 (OR 조건)
-            # job_posting.stack이 "Python, Django" 텍스트라고 가정
+            # 2.2 Stack Filter: Overlap >= 2
+            # Use Postgres Array Intersection: cardinality(resume_stack & job_stack) >= 2
+            # Since resume_stack is constant for this query, easiest is to pass it as param.
+            # But wait, resume_stack in DB is text[]. In Python it is list.
+            # We can use '&&' operator for overlap check, but specifically for count >= 2.
+            
+            # Using array_length(ARRAY(SELECT unnest(jp.stack) INTERSECT SELECT unnest(%s::text[])), 1) >= 2
+            # Or simpler if pgvector/postgres has array functions.
+            # Standard Postgres: 
+            # (SELECT count(*) FROM (SELECT unnest(jp.stack) INTERSECT SELECT unnest(%s::text[])) t) >= 2
+            
             stack_filter = ""
-            if resume_stack_raw:
-                # [Fix] re_stack이 DB에서 TEXT[] 배열로 올 경우 파이썬 List로 반환됨.
-                if isinstance(resume_stack_raw, list):
-                    stacks = resume_stack_raw
-                else:
-                    # 기존 TEXT 타입일 경우에만 split
-                    stacks = [s.strip() for s in resume_stack_raw.split(",") if s.strip()]
-                
-                if stacks:
-                    # (jp.stack ILIKE '%Java%' OR jp.stack ILIKE '%Spring Boot%')
-                    stack_conditions = []
-                    for s in stacks:
-                        # [Fix] jp.stack is TEXT[]. Use array_to_string for ILIKE matching.
-                        stack_conditions.append("array_to_string(jp.stack, ',') ILIKE %s")
-                        params.append(f"%{s}%")
-                    
-                    if stack_conditions:
-                        stack_filter = f"AND ({' OR '.join(stack_conditions)})"
-                        logger.info(f"   👉 Applying Stack Filter: Any of {stacks}")
+            if resume_stack_raw and isinstance(resume_stack_raw, list):
+                # Pass resume stack as array for comparison
+                stack_filter = """
+                    AND (
+                        SELECT count(*) 
+                        FROM (
+                            SELECT unnest(jp.stack) 
+                            INTERSECT 
+                            SELECT unnest(%s::text[])
+                        ) t
+                    ) >= 2
+                """
+                params.append(resume_stack_raw) # psycopg2 handles list -> array
+                logger.info(f"   👉 Applying Stack Filter: Overlap >= 2 with {resume_stack_raw}")
+
+            # 2.3 Career Filter: resume.career >= job.required_experience (handle NULL as 0)
+            career_filter = """
+                AND %s >= COALESCE(jp.required_experience, 0)
+            """
+            params.append(resume_career)
+            logger.info(f"   👉 Applying Career Filter: Resume({resume_career}) >= Job(Req)")
 
             # 3. 유사도 검색 (Cosine Similarity + Filtering)
             logger.info(f"🏃 Running hybrid search (Filter + Vector) Top {top_k}...")
@@ -94,13 +107,15 @@ def verify_matching(resume_id: int, top_k: int = 5):
                     e.name as company_name,
                     jp.location,
                     jp.stack,
-                    1 - (jp.embedding <=> %s) as similarity
+                    1 - (jp.embedding <=> %s) as similarity,
+                    jp.required_experience
                 FROM job_posting jp
                 JOIN employer e ON jp.employer_id = e.employer_id
                 WHERE jp.embedding IS NOT NULL 
                   AND jp.deleted_at IS NULL
                   {location_filter}
                   {stack_filter}
+                  {career_filter}
                 ORDER BY similarity DESC
                 LIMIT %s
             """
@@ -138,6 +153,11 @@ def verify_matching(resume_id: int, top_k: int = 5):
         conn.close()
 
 if __name__ == "__main__":
-    # 방금 생성한 더미 이력서 ID
-    TARGET_RESUME_ID = 1 
-    verify_matching(TARGET_RESUME_ID, top_k=5)
+    import argparse
+    parser = argparse.ArgumentParser()
+    # Positional argument로 변경 (nargs='?'로 선택적 인자로 설정)
+    parser.add_argument("resume_id", type=int, nargs='?', default=2, help="Target Resume ID")
+    
+    args = parser.parse_args()
+    
+    verify_matching(args.resume_id, top_k=5)
