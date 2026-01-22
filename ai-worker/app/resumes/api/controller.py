@@ -30,7 +30,7 @@ async def process_resume(request: ResumeRequest):
 async def process_resume_by_id(resume_id: int):
     """
     [신규 로직] 이력서 ID 기반 처리 파이프라인 엔드포인트
-
+    
     DB에 저장된 이력서 데이터를 조회하여 AI 요약 및 임베딩을 수행합니다.
     """
     try:
@@ -38,13 +38,13 @@ async def process_resume_by_id(resume_id: int):
         resume_data = resume_repo.get_resume_by_id(resume_id)
         if not resume_data:
             raise HTTPException(status_code=404, detail=f"Resume {resume_id} not found.")
-
+            
         # 2. Request 객체로 변환
         request = ResumeRequest(**resume_data)
-
+        
         # 3. 파이프라인 실행
         return await _process_resume_pipeline(request)
-
+        
     except Exception as e:
         print(f"Error processing resume {resume_id}: {e}")
         # HTTPException은 그대로 다시 던짐
@@ -63,7 +63,7 @@ async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
         summary_result = await summary_service.generate_summary(request.model_dump(), request.basic_info.field, request.summary_type)
 
         # [NEW] 표시용 텍스트와 임베딩용 텍스트 분리
-        # 구조화된 객체(ResumeSummary, ResumeInsightReport)인 경우,
+        # 구조화된 객체(ResumeSummary, ResumeInsightReport)인 경우, 
         # 임베딩 시에는 검색에 불필요한 메타 데이터(매칭 정보 등)를 제거하고 Markdown 헤더를 적용하여 성능을 높입니다.
         if isinstance(summary_result, str):
             display_summary = summary_result
