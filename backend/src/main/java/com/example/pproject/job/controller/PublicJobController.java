@@ -5,7 +5,6 @@ import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.dto.JobFilterOptionsDTO;
 import com.example.pproject.job.dto.JobListResponseDTO;
 import com.example.pproject.job.service.JobService;
-import com.example.pproject.job.service.JobViewLogService;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,6 @@ import java.util.Map;
 public class PublicJobController {
 
     private final JobService jobService;
-    private final JobViewLogService jobViewLogService;
     private final UserRepository userRepository;
 
     /**
@@ -66,7 +64,7 @@ public class PublicJobController {
             Long memberId = getMemberIdFromPrincipal(principal);
             log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, memberId: {}",
                     page, size, keyword, stack, location, memberId);
-
+            
             JobListResponseDTO response;
             if (memberId != null) {
                 // 로그인 사용자: 매칭 정보 포함 시도
@@ -100,14 +98,7 @@ public class PublicJobController {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
             log.info("공개 채용공고 상세 조회 - jobId: {}, memberId: {}", jobId, memberId);
-
-            // 열람 로그 저장 (비동기적으로 처리하여 응답 속도에 영향 없음)
-            try {
-                jobViewLogService.logView(jobId, memberId);
-            } catch (Exception logError) {
-                log.warn("열람 로그 저장 실패: {}", logError.getMessage());
-            }
-
+            
             JobDTO job;
             if (memberId != null) {
                 // 로그인 사용자: 매칭 정보 포함 시도
@@ -131,7 +122,7 @@ public class PublicJobController {
             return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
-
+    
     /**
      * JWT Principal에서 memberId 추출
      * - 비로그인 또는 인증 실패 시 null 반환
@@ -142,44 +133,36 @@ public class PublicJobController {
             log.debug("Principal이 null입니다.");
             return null;
         }
-
+        
         String userid = principal.getUserid();
-        String email = principal.getEmail();
-
-        log.debug("JWT Principal - userid: {}, email: {}", userid, email);
-
+        if (userid == null || userid.isBlank()) {
+            log.debug("Principal의 userid가 null 또는 비어있습니다.");
+            return null;
+        }
+        
+        log.debug("JWT Principal - userid: {}", userid);
+        
         try {
             // 1. login_id로 조회 시도
-            if (userid != null && !userid.isBlank()) {
-                var userOpt = userRepository.findByUserid(userid);
-                if (userOpt.isPresent()) {
-                    Long memberId = userOpt.get().getId();
-                    log.debug("login_id로 회원 조회 성공 - memberId: {}", memberId);
-                    return memberId;
-                }
+            var userOpt = userRepository.findByUserid(userid);
+            if (userOpt.isPresent()) {
+                Long memberId = userOpt.get().getId();
+                log.debug("login_id로 회원 조회 성공 - memberId: {}", memberId);
+                return memberId;
             }
-
+            
             // 2. login_id로 못 찾으면 email로 시도 (소셜 로그인 사용자)
-            if (email != null && !email.isBlank()) {
-                var userOpt = userRepository.findByEmail(email);
+            // JWT subject가 email 형식일 수 있음
+            if (userid.contains("@")) {
+                userOpt = userRepository.findByEmail(userid);
                 if (userOpt.isPresent()) {
                     Long memberId = userOpt.get().getId();
                     log.debug("email로 회원 조회 성공 - memberId: {}", memberId);
                     return memberId;
                 }
             }
-
-            // 3. userid가 email 형식인 경우에도 시도 (하위 호환)
-            if (userid != null && userid.contains("@")) {
-                var userOpt = userRepository.findByEmail(userid);
-                if (userOpt.isPresent()) {
-                    Long memberId = userOpt.get().getId();
-                    log.debug("userid(email형식)로 회원 조회 성공 - memberId: {}", memberId);
-                    return memberId;
-                }
-            }
-
-            log.warn("회원을 찾을 수 없습니다 - userid: {}, email: {}", userid, email);
+            
+            log.warn("회원을 찾을 수 없습니다 - userid: {}", userid);
             return null;
         } catch (Exception e) {
             log.warn("memberId 조회 실패: {}", e.getMessage());

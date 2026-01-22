@@ -28,24 +28,8 @@ public class JobMatchInfoDTO {
     private int vectorMatchRate;
     
     /**
-     * 경력 매칭률 (0~100)
-     * 계산: 요구 경력 대비 보유 경력 비율
-     */
-    private int experienceMatchRate;
-    
-    /**
-     * 요구 경력 (년)
-     */
-    private Integer requiredExperience;
-    
-    /**
-     * 보유 경력 (년)
-     */
-    private Integer candidateExperience;
-    
-    /**
      * 종합 매칭률 (0~100)
-     * 계산: (기술 스택 매칭률 * 0.5) + (벡터 유사도 매칭률 * 0.3) + (경력 매칭률 * 0.2)
+     * 계산: (기술 스택 매칭률 * 0.6) + (벡터 유사도 매칭률 * 0.4)
      */
     private int overallMatchRate;
     

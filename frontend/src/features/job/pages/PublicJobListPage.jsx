@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { http } from '../../../api/http';
-import ScrapButton from '../components/ScrapButton';
 
 /**
  * 공개 채용공고 목록 페이지
@@ -24,31 +23,37 @@ export default function PublicJobListPage() {
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
   const [selectedStack, setSelectedStack] = useState(searchParams.get('stack') || '');
   const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
-  const [selectedExperience, setSelectedExperience] = useState(searchParams.get('experience') || '');
 
-  // 경력 필터 옵션
-  const experienceOptions = [
-    { label: '신입/무관', value: '0' },
-    { label: '1-3년', value: '1-3' },
-    { label: '3-5년', value: '3-5' },
-    { label: '5-10년', value: '5-10' },
-    { label: '10년+', value: '10' },
-  ];
+  // 동적 필터 옵션 (서버에서 로드)
+  const [filterOptions, setFilterOptions] = useState({
+    stacks: [],
+    locations: []
+  });
+  const [filterLoading, setFilterLoading] = useState(true);
 
-  // 인기 기술 스택 (영어, 한글 라벨)
-  const popularStacks = [
-    { en: 'Java', ko: '자바' },
-    { en: 'Python', ko: '파이썬' },
-    { en: 'JavaScript', ko: 'JS' },
-    { en: 'React', ko: '리액트' },
-    { en: 'Spring', ko: '스프링' },
-    { en: 'Node.js', ko: '노드' },
-    { en: 'TypeScript', ko: 'TS' },
-    { en: 'AWS', ko: '클라우드' },
-  ];
-  
-  // 주요 지역
-  const popularLocations = ['서울', '경기', '인천', '부산', '대구', '대전', '광주', '제주'];
+  // 필터 옵션 로드
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        setFilterLoading(true);
+        const res = await http.get('/api/public/jobs/filter-options');
+        setFilterOptions({
+          stacks: res.data.stacks || [],
+          locations: res.data.locations || []
+        });
+      } catch (err) {
+        console.error('필터 옵션 로드 실패:', err);
+        // 실패 시 기본값 사용
+        setFilterOptions({
+          stacks: ['Java', 'Python', 'JavaScript', 'React', 'Spring'],
+          locations: ['서울', '경기', '부산', '대전']
+        });
+      } finally {
+        setFilterLoading(false);
+      }
+    };
+    fetchFilterOptions();
+  }, []);
 
   useEffect(() => {
     const page = parseInt(searchParams.get('page') || '0', 10);
@@ -123,27 +128,7 @@ export default function PublicJobListPage() {
     setKeyword('');
     setSelectedStack('');
     setSelectedLocation('');
-    setSelectedExperience('');
     setSearchParams({});
-  };
-
-  const handleExperienceFilter = (exp) => {
-    setSelectedExperience(exp === selectedExperience ? '' : exp);
-    const params = new URLSearchParams(searchParams);
-    if (exp === selectedExperience) {
-      params.delete('experience');
-    } else {
-      params.set('experience', exp);
-    }
-    params.set('page', '0');
-    setSearchParams(params);
-  };
-
-  // 경력 요건 표시 함수
-  const formatExperience = (years) => {
-    if (years === null || years === undefined || years === 0) return '신입/무관';
-    if (years === 1) return '1년 이상';
-    return `${years}년 이상`;
   };
 
   return (
@@ -195,60 +180,57 @@ export default function PublicJobListPage() {
             <div className="mt-4">
               <div className="mb-3">
                 <small className="text-muted fw-semibold me-2">기술스택:</small>
-                {popularStacks.map((stack) => (
-                  <button
-                    key={stack.en}
-                    type="button"
-                    className={`btn btn-sm me-2 mb-2 ${
-                      selectedStack === stack.en 
-                        ? 'btn-primary' 
-                        : 'btn-outline-secondary'
-                    }`}
-                    onClick={() => handleStackFilter(stack.en)}
-                    title={`${stack.ko}로도 검색 가능`}
-                  >
-                    {stack.en}
-                  </button>
-                ))}
-              </div>
-              <div className="mb-3">
-                <small className="text-muted fw-semibold me-2">지역:</small>
-                {popularLocations.map((location) => (
-                  <button
-                    key={location}
-                    type="button"
-                    className={`btn btn-sm me-2 mb-2 ${
-                      selectedLocation === location 
-                        ? 'btn-primary' 
-                        : 'btn-outline-secondary'
-                    }`}
-                    onClick={() => handleLocationFilter(location)}
-                  >
-                    {location}
-                  </button>
-                ))}
+                {filterLoading ? (
+                  <span className="text-muted small">로딩 중...</span>
+                ) : filterOptions.stacks.length > 0 ? (
+                  filterOptions.stacks.slice(0, 12).map((stack) => (
+                    <button
+                      key={stack}
+                      type="button"
+                      className={`btn btn-sm me-2 mb-2 ${
+                        selectedStack === stack 
+                          ? 'btn-primary' 
+                          : 'btn-outline-secondary'
+                      }`}
+                      onClick={() => handleStackFilter(stack)}
+                    >
+                      {stack}
+                    </button>
+                  ))
+                ) : (
+                  <span className="text-muted small">등록된 기술스택이 없습니다</span>
+                )}
+                {filterOptions.stacks.length > 12 && (
+                  <span className="badge bg-light text-muted">+{filterOptions.stacks.length - 12}</span>
+                )}
               </div>
               <div>
-                <small className="text-muted fw-semibold me-2">경력:</small>
-                {experienceOptions.map((exp) => (
-                  <button
-                    key={exp.value}
-                    type="button"
-                    className={`btn btn-sm me-2 mb-2 ${
-                      selectedExperience === exp.value 
-                        ? 'btn-primary' 
-                        : 'btn-outline-secondary'
-                    }`}
-                    onClick={() => handleExperienceFilter(exp.value)}
-                  >
-                    {exp.label}
-                  </button>
-                ))}
+                <small className="text-muted fw-semibold me-2">지역:</small>
+                {filterLoading ? (
+                  <span className="text-muted small">로딩 중...</span>
+                ) : filterOptions.locations.length > 0 ? (
+                  filterOptions.locations.map((location) => (
+                    <button
+                      key={location}
+                      type="button"
+                      className={`btn btn-sm me-2 mb-2 ${
+                        selectedLocation === location 
+                          ? 'btn-primary' 
+                          : 'btn-outline-secondary'
+                      }`}
+                      onClick={() => handleLocationFilter(location)}
+                    >
+                      {location}
+                    </button>
+                  ))
+                ) : (
+                  <span className="text-muted small">등록된 지역이 없습니다</span>
+                )}
               </div>
             </div>
 
             {/* 활성 필터 표시 */}
-            {(keyword || selectedStack || selectedLocation || selectedExperience) && (
+            {(keyword || selectedStack || selectedLocation) && (
               <div className="mt-3 pt-3 border-top">
                 <small className="text-muted">적용된 필터: </small>
                 {keyword && (
@@ -286,17 +268,6 @@ export default function PublicJobListPage() {
                       className="btn-close btn-close-white ms-2" 
                       style={{ fontSize: '0.6rem' }}
                       onClick={() => handleLocationFilter(selectedLocation)}
-                    ></button>
-                  </span>
-                )}
-                {selectedExperience && (
-                  <span className="badge bg-warning text-dark me-2">
-                    경력: {experienceOptions.find(e => e.value === selectedExperience)?.label}
-                    <button 
-                      type="button" 
-                      className="btn-close ms-2" 
-                      style={{ fontSize: '0.6rem' }}
-                      onClick={() => handleExperienceFilter(selectedExperience)}
                     ></button>
                   </span>
                 )}
@@ -360,7 +331,7 @@ export default function PublicJobListPage() {
                   >
                     <div className="card h-100 shadow-sm border-0 job-card position-relative">
                       {/* 매칭률 뱃지 (로그인 사용자만 표시) */}
-                      {job.matchInfo && (
+                      {job.matchInfo ? (
                         <div className="position-absolute top-0 end-0 m-2">
                           <div 
                             className={`match-badge ${
@@ -370,8 +341,17 @@ export default function PublicJobListPage() {
                             }`}
                             title={`일치하는 스택: ${job.matchInfo.matchedStacks?.join(', ') || '없음'}`}
                           >
-                            <span className="match-rate">{job.matchInfo.matchRate || job.matchInfo.overallMatchRate || 0}%</span>
-                            <span className="match-label">일치</span>
+                            <span className="match-rate">{job.matchInfo.overallMatchRate || job.matchInfo.matchRate || 0}%</span>
+                            <span className="match-label">매칭</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="position-absolute top-0 end-0 m-2">
+                          <div 
+                            className="match-badge match-login-hint"
+                            title="로그인하면 나와의 매칭률을 확인할 수 있어요!"
+                          >
+                            <i className="bi bi-person-check" style={{ fontSize: '0.9rem' }}></i>
                           </div>
                         </div>
                       )}
@@ -431,7 +411,7 @@ export default function PublicJobListPage() {
                         {/* 기술 스택 */}
                         {job.stack && (
                           <div className="mb-3">
-                            {job.stack.split(',').filter(tech => tech.trim()).slice(0, 3).map((tech, idx) => (
+                            {job.stack.split(',').slice(0, 3).map((tech, idx) => (
                               <span 
                                 key={idx} 
                                 className="badge bg-light text-dark me-1 mb-1"
@@ -439,49 +419,37 @@ export default function PublicJobListPage() {
                                 {tech.trim()}
                               </span>
                             ))}
-                            {job.stack.split(',').filter(tech => tech.trim()).length > 3 && (
+                            {job.stack.split(',').length > 3 && (
                               <span className="badge bg-light text-muted">
-                                +{job.stack.split(',').filter(tech => tech.trim()).length - 3}
+                                +{job.stack.split(',').length - 3}
                               </span>
                             )}
                           </div>
                         )}
 
-                        {/* 급여 및 경력 정보 */}
-                        <div className="d-flex flex-wrap gap-2 mb-0">
-                          {job.salaryText && (
-                            <span className="text-success small fw-semibold">
-                              <i className="bi bi-currency-dollar me-1"></i>
-                              {job.salaryText}
-                            </span>
-                          )}
-                          {job.requiredExperience !== undefined && (
-                            <span className="text-primary small">
-                              <i className="bi bi-briefcase me-1"></i>
-                              {formatExperience(job.requiredExperience)}
-                            </span>
-                          )}
-                        </div>
+                        {/* 급여 정보 */}
+                        {(job.salaryDisplay || job.salaryText) && (
+                          <p className="mb-0 text-success small fw-semibold">
+                            <i className="bi bi-currency-dollar me-1"></i>
+                            {job.salaryDisplay || (job.salaryText && `${(job.salaryText / 10000).toLocaleString()}만원`)}
+                          </p>
+                        )}
                       </div>
 
                       {/* 카드 푸터 */}
                       <div className="card-footer bg-white border-top-0 pt-0">
-                        <div className="d-flex justify-content-between align-items-center">
-                          <div className="text-muted small">
-                            <span className="me-3">
-                              <i className="bi bi-eye me-1"></i>
-                              {job.viewCount || 0}
-                            </span>
-                            <span>
-                              <i className="bi bi-people me-1"></i>
-                              {job.applicationCount || 0}
-                            </span>
-                          </div>
-                          <ScrapButton 
-                            jobId={job.jobId} 
-                            size="sm"
-                            onToggle={(scraped) => console.log(`Job ${job.jobId} scraped:`, scraped)}
-                          />
+                        <div className="d-flex justify-content-between align-items-center text-muted small">
+                          <span>
+                            <i className="bi bi-eye me-1"></i>
+                            {job.viewCount || 0}
+                          </span>
+                          <span>
+                            <i className="bi bi-people me-1"></i>
+                            지원 {job.applicationCount || 0}
+                          </span>
+                          <span>
+                            {job.createdAt && new Date(job.createdAt).toLocaleDateString('ko-KR')}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -583,6 +551,14 @@ export default function PublicJobListPage() {
         }
         .match-low {
           background: linear-gradient(135deg, #6c757d, #adb5bd);
+        }
+        .match-login-hint {
+          background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+          color: #64748b;
+          cursor: pointer;
+        }
+        .match-login-hint:hover {
+          background: linear-gradient(135deg, #cbd5e1, #94a3b8);
         }
       `}</style>
     </main>

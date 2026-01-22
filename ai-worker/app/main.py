@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.core.config import settings
 from app.resumes.api.controller import router as resume_router
-from app.jobpostings.api.controller import router as job_router
+from app.jobs.api.controller import router as job_router
 import logging
 import os
 from logging.handlers import RotatingFileHandler
