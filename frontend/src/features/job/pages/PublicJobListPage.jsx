@@ -24,36 +24,20 @@ export default function PublicJobListPage() {
   const [selectedStack, setSelectedStack] = useState(searchParams.get('stack') || '');
   const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
 
-  // 동적 필터 옵션 (서버에서 로드)
-  const [filterOptions, setFilterOptions] = useState({
-    stacks: [],
-    locations: []
-  });
-  const [filterLoading, setFilterLoading] = useState(true);
-
-  // 필터 옵션 로드
-  useEffect(() => {
-    const fetchFilterOptions = async () => {
-      try {
-        setFilterLoading(true);
-        const res = await http.get('/api/public/jobs/filter-options');
-        setFilterOptions({
-          stacks: res.data.stacks || [],
-          locations: res.data.locations || []
-        });
-      } catch (err) {
-        console.error('필터 옵션 로드 실패:', err);
-        // 실패 시 기본값 사용
-        setFilterOptions({
-          stacks: ['Java', 'Python', 'JavaScript', 'React', 'Spring'],
-          locations: ['서울', '경기', '부산', '대전']
-        });
-      } finally {
-        setFilterLoading(false);
-      }
-    };
-    fetchFilterOptions();
-  }, []);
+  // 인기 기술 스택 (영어, 한글 라벨)
+  const popularStacks = [
+    { en: 'Java', ko: '자바' },
+    { en: 'Python', ko: '파이썬' },
+    { en: 'JavaScript', ko: 'JS' },
+    { en: 'React', ko: '리액트' },
+    { en: 'Spring', ko: '스프링' },
+    { en: 'Node.js', ko: '노드' },
+    { en: 'TypeScript', ko: 'TS' },
+    { en: 'AWS', ko: '클라우드' },
+  ];
+  
+  // 주요 지역
+  const popularLocations = ['서울', '경기', '인천', '부산', '대구', '대전', '광주', '제주'];
 
   useEffect(() => {
     const page = parseInt(searchParams.get('page') || '0', 10);
@@ -180,52 +164,38 @@ export default function PublicJobListPage() {
             <div className="mt-4">
               <div className="mb-3">
                 <small className="text-muted fw-semibold me-2">기술스택:</small>
-                {filterLoading ? (
-                  <span className="text-muted small">로딩 중...</span>
-                ) : filterOptions.stacks.length > 0 ? (
-                  filterOptions.stacks.slice(0, 12).map((stack) => (
-                    <button
-                      key={stack}
-                      type="button"
-                      className={`btn btn-sm me-2 mb-2 ${
-                        selectedStack === stack 
-                          ? 'btn-primary' 
-                          : 'btn-outline-secondary'
-                      }`}
-                      onClick={() => handleStackFilter(stack)}
-                    >
-                      {stack}
-                    </button>
-                  ))
-                ) : (
-                  <span className="text-muted small">등록된 기술스택이 없습니다</span>
-                )}
-                {filterOptions.stacks.length > 12 && (
-                  <span className="badge bg-light text-muted">+{filterOptions.stacks.length - 12}</span>
-                )}
+                {popularStacks.map((stack) => (
+                  <button
+                    key={stack.en}
+                    type="button"
+                    className={`btn btn-sm me-2 mb-2 ${
+                      selectedStack === stack.en 
+                        ? 'btn-primary' 
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => handleStackFilter(stack.en)}
+                    title={`${stack.ko}로도 검색 가능`}
+                  >
+                    {stack.en}
+                  </button>
+                ))}
               </div>
               <div>
                 <small className="text-muted fw-semibold me-2">지역:</small>
-                {filterLoading ? (
-                  <span className="text-muted small">로딩 중...</span>
-                ) : filterOptions.locations.length > 0 ? (
-                  filterOptions.locations.map((location) => (
-                    <button
-                      key={location}
-                      type="button"
-                      className={`btn btn-sm me-2 mb-2 ${
-                        selectedLocation === location 
-                          ? 'btn-primary' 
-                          : 'btn-outline-secondary'
-                      }`}
-                      onClick={() => handleLocationFilter(location)}
-                    >
-                      {location}
-                    </button>
-                  ))
-                ) : (
-                  <span className="text-muted small">등록된 지역이 없습니다</span>
-                )}
+                {popularLocations.map((location) => (
+                  <button
+                    key={location}
+                    type="button"
+                    className={`btn btn-sm me-2 mb-2 ${
+                      selectedLocation === location 
+                        ? 'btn-primary' 
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => handleLocationFilter(location)}
+                  >
+                    {location}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -331,7 +301,7 @@ export default function PublicJobListPage() {
                   >
                     <div className="card h-100 shadow-sm border-0 job-card position-relative">
                       {/* 매칭률 뱃지 (로그인 사용자만 표시) */}
-                      {job.matchInfo ? (
+                      {job.matchInfo && (
                         <div className="position-absolute top-0 end-0 m-2">
                           <div 
                             className={`match-badge ${
@@ -341,17 +311,8 @@ export default function PublicJobListPage() {
                             }`}
                             title={`일치하는 스택: ${job.matchInfo.matchedStacks?.join(', ') || '없음'}`}
                           >
-                            <span className="match-rate">{job.matchInfo.overallMatchRate || job.matchInfo.matchRate || 0}%</span>
-                            <span className="match-label">매칭</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="position-absolute top-0 end-0 m-2">
-                          <div 
-                            className="match-badge match-login-hint"
-                            title="로그인하면 나와의 매칭률을 확인할 수 있어요!"
-                          >
-                            <i className="bi bi-person-check" style={{ fontSize: '0.9rem' }}></i>
+                            <span className="match-rate">{job.matchInfo.matchRate || job.matchInfo.overallMatchRate || 0}%</span>
+                            <span className="match-label">일치</span>
                           </div>
                         </div>
                       )}
@@ -411,7 +372,7 @@ export default function PublicJobListPage() {
                         {/* 기술 스택 */}
                         {job.stack && (
                           <div className="mb-3">
-                            {job.stack.split(',').slice(0, 3).map((tech, idx) => (
+                            {job.stack.split(',').filter(tech => tech.trim()).slice(0, 3).map((tech, idx) => (
                               <span 
                                 key={idx} 
                                 className="badge bg-light text-dark me-1 mb-1"
@@ -419,19 +380,19 @@ export default function PublicJobListPage() {
                                 {tech.trim()}
                               </span>
                             ))}
-                            {job.stack.split(',').length > 3 && (
+                            {job.stack.split(',').filter(tech => tech.trim()).length > 3 && (
                               <span className="badge bg-light text-muted">
-                                +{job.stack.split(',').length - 3}
+                                +{job.stack.split(',').filter(tech => tech.trim()).length - 3}
                               </span>
                             )}
                           </div>
                         )}
 
                         {/* 급여 정보 */}
-                        {(job.salaryDisplay || job.salaryText) && (
+                        {job.salaryText && (
                           <p className="mb-0 text-success small fw-semibold">
                             <i className="bi bi-currency-dollar me-1"></i>
-                            {job.salaryDisplay || (job.salaryText && `${(job.salaryText / 10000).toLocaleString()}만원`)}
+                            {job.salaryText}
                           </p>
                         )}
                       </div>
@@ -551,14 +512,6 @@ export default function PublicJobListPage() {
         }
         .match-low {
           background: linear-gradient(135deg, #6c757d, #adb5bd);
-        }
-        .match-login-hint {
-          background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-          color: #64748b;
-          cursor: pointer;
-        }
-        .match-login-hint:hover {
-          background: linear-gradient(135deg, #cbd5e1, #94a3b8);
         }
       `}</style>
     </main>

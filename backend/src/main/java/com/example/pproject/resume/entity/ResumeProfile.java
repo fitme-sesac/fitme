@@ -1,6 +1,5 @@
 package com.example.pproject.resume.entity;
 
-import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -11,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "resume_profile")
-public class ResumeProfile extends BaseTimeEntity {
+public class ResumeProfile {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "profile_id")

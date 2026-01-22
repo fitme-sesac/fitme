@@ -205,12 +205,12 @@ export default function JobDetailPage() {
                   </div>
                 )}
 
-                {(job.salaryDisplay || job.salaryText) && (
+                {job.salaryText && (
                   <div className="mb-3">
                     <label className="text-muted small">급여</label>
                     <div>
                       <i className="bi bi-currency-dollar me-1"></i>
-                      {job.salaryDisplay || (job.salaryText && `${(job.salaryText / 10000).toLocaleString()}만원`)}
+                      {job.salaryText}
                     </div>
                   </div>
                 )}
@@ -220,12 +220,12 @@ export default function JobDetailPage() {
                     <label className="text-muted small">기술 스택</label>
                     <div>
                       <i className="bi bi-code-slash me-1"></i>
-                      {job.stack}
+                      {job.stack.split(',').filter(tech => tech.trim()).join(', ')}
                     </div>
                   </div>
                 )}
 
-                {!job.location && !job.salaryText && !job.salaryDisplay && !job.stack && (
+                {!job.location && !job.salaryText && !job.stack && (
                   <p className="text-muted mb-0">등록된 근무 조건이 없습니다.</p>
                 )}
               </div>
