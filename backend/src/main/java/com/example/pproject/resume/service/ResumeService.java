@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,10 +21,11 @@ public class ResumeService {
 
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
+    // ✅ [추가] 삭제 시 지원 내역 확인용
     private final JobApplicationRepository jobApplicationRepository;
 
     // 1. 내 이력서 목록 조회
-    public List<ResumeResponse> getResumes(Integer userId) {
+    public List<ResumeResponse> getResumes(Long userId) {
         return resumeRepository.findAllByUserId(userId).stream()
                 .map(ResumeResponse::from)
                 .collect(Collectors.toList());
@@ -39,7 +39,7 @@ public class ResumeService {
 
     // 3. 이력서 생성
     @Transactional
-    public Long createResume(ResumeRequest request, Integer userId) {
+    public Long createResume(ResumeRequest request, Long userId) {
         UserEntity user = getUser(userId);
         Resume resume = request.toEntity(user);
 
@@ -58,7 +58,7 @@ public class ResumeService {
 
     // 4. 이력서 수정
     @Transactional
-    public Long updateResume(Long resumeId, ResumeRequest request, Integer userId) {
+    public Long updateResume(Long resumeId, ResumeRequest request, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
 
@@ -66,9 +66,7 @@ public class ResumeService {
                 request.getTitle(), request.getTagline(), request.getContent(),
                 request.getPublicOption(), request.getField(),
                 request.getPreferenceLocation(), request.getPreferenceSalary(),
-                request.getEmploymentType(),
-                request.getReStack(),     // List<String>
-                request.getCareerYears(), // Integer
+                request.getEmploymentType(), request.getReStack(),
                 request.getSchool(), request.getSchoolState(), request.getSchoolClass()
         );
 
@@ -83,10 +81,11 @@ public class ResumeService {
 
     // 5. 이력서 삭제
     @Transactional
-    public void deleteResume(Long resumeId, Integer userId) {
+    public void deleteResume(Long resumeId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
 
+        // 지원 내역 존재 여부 확인
         boolean hasApplication = jobApplicationRepository.existsByResumeId(resumeId);
         if (hasApplication) {
             throw new IllegalStateException("이미 입사 지원에 사용된 이력서는 삭제할 수 없습니다.");
@@ -97,7 +96,7 @@ public class ResumeService {
 
     // 6. 이력서 복제
     @Transactional
-    public Long copyResume(Long resumeId, Integer userId) {
+    public Long copyResume(Long resumeId, Long userId) {
         Resume original = getResumeEntity(resumeId);
         validateOwner(original, userId);
 
@@ -110,8 +109,7 @@ public class ResumeService {
                 .preferenceLocation(original.getPreferenceLocation())
                 .preferenceSalary(original.getPreferenceSalary())
                 .employmentType(original.getEmploymentType())
-                .reStack(original.getReStack() != null ? new ArrayList<>(original.getReStack()) : new ArrayList<>()) // Deep Copy
-                .careerYears(original.getCareerYears()) // 연차 복사
+                .reStack(original.getReStack())
                 .school(original.getSchool())
                 .schoolState(original.getSchoolState())
                 .schoolClass(original.getSchoolClass())
@@ -127,110 +125,66 @@ public class ResumeService {
                     .build());
         }
 
-        // 하위 항목 복사
-        if (original.getCareers() != null) {
-            original.getCareers().forEach(c -> copy.getCareers().add(ResumeCareer.builder()
-                    .resume(copy)
-                    .companyName(c.getCompanyName())
-                    .department(c.getDepartment())
-                    .role(c.getRole())
-                    .startDate(c.getStartDate())
-                    .endDate(c.getEndDate())
-                    .current(c.getCurrent())
-                    .verified(c.getVerified())
-                    .build()));
-        }
-        if (original.getProjects() != null) {
-            original.getProjects().forEach(p -> copy.getProjects().add(ResumeProject.builder()
-                    .resume(copy)
-                    .title(p.getTitle())
-                    .description(p.getDescription())
-                    .techStack(p.getTechStack())
-                    .startDate(p.getStartDate())
-                    .endDate(p.getEndDate())
-                    .contributionPct(p.getContributionPct())
-                    .sortOrder(p.getSortOrder())
-                    .build()));
-        }
-        if (original.getCertificates() != null) {
-            original.getCertificates().forEach(c -> copy.getCertificates().add(ResumeCertificate.builder()
-                    .resume(copy)
-                    .name(c.getName())
-                    .issuer(c.getIssuer())
-                    .acquisitionDate(c.getAcquisitionDate())
-                    .verified(c.getVerified())
-                    .build()));
-        }
-        if (original.getLinks() != null) {
-            original.getLinks().forEach(l -> copy.getLinks().add(ResumeLink.builder()
-                    .resume(copy)
-                    .linkType(l.getLinkType())
-                    .url(l.getUrl())
-                    .build()));
-        }
-        // 첨부파일은 물리 파일 복사가 필요할 수 있으나, 여기서는 DB 메타데이터만 복사하거나 정책에 따라 제외
-        // (필요 시 Attachment 복사 로직 추가)
-
         return resumeRepository.save(copy).getId();
     }
 
     // 하위 항목 관리
     @Transactional
-    public void addCareer(Long resumeId, ResumeRequest.CareerDto dto, Integer userId) {
+    public void addCareer(Long resumeId, ResumeRequest.CareerDto dto, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getCareers().add(dto.toEntity(resume));
     }
     @Transactional
-    public void deleteCareer(Long resumeId, Long careerId, Integer userId) {
+    public void deleteCareer(Long resumeId, Long careerId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getCareers().removeIf(c -> c.getId().equals(careerId));
     }
     @Transactional
-    public void addProject(Long resumeId, ResumeRequest.ProjectDto dto, Integer userId) {
+    public void addProject(Long resumeId, ResumeRequest.ProjectDto dto, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getProjects().add(dto.toEntity(resume));
     }
     @Transactional
-    public void deleteProject(Long resumeId, Long projectId, Integer userId) {
+    public void deleteProject(Long resumeId, Long projectId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getProjects().removeIf(p -> p.getId().equals(projectId));
     }
     @Transactional
-    public void addCertificate(Long resumeId, ResumeRequest.CertificateDto dto, Integer userId) {
+    public void addCertificate(Long resumeId, ResumeRequest.CertificateDto dto, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getCertificates().add(dto.toEntity(resume));
     }
     @Transactional
-    public void deleteCertificate(Long resumeId, Long certId, Integer userId) {
+    public void deleteCertificate(Long resumeId, Long certId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getCertificates().removeIf(c -> c.getId().equals(certId));
     }
     @Transactional
-    public void addLink(Long resumeId, ResumeRequest.LinkDto dto, Integer userId) {
+    public void addLink(Long resumeId, ResumeRequest.LinkDto dto, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getLinks().add(dto.toEntity(resume));
     }
     @Transactional
-    public void deleteLink(Long resumeId, Long linkId, Integer userId) {
+    public void deleteLink(Long resumeId, Long linkId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getLinks().removeIf(l -> l.getId().equals(linkId));
     }
     @Transactional
-    public void addAttachment(Long resumeId, ResumeRequest.AttachmentDto dto, Integer userId) {
+    public void addAttachment(Long resumeId, ResumeRequest.AttachmentDto dto, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getAttachments().add(dto.toEntity(resume));
     }
     @Transactional
-    public void deleteAttachment(Long resumeId, Long attachmentId, Integer userId) {
+    public void deleteAttachment(Long resumeId, Long attachmentId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
         resume.getAttachments().removeIf(a -> a.getId().equals(attachmentId));
@@ -238,7 +192,7 @@ public class ResumeService {
 
     // 프로필 사진 업데이트
     @Transactional
-    public void updateProfileImage(Long resumeId, String photoUrl, Integer userId) {
+    public void updateProfileImage(Long resumeId, String photoUrl, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
 
@@ -256,15 +210,15 @@ public class ResumeService {
         }
     }
 
-    private UserEntity getUser(Integer userId) {
-        return userRepository.findById(Long.valueOf(userId))
+    private UserEntity getUser(Long userId) {
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
     }
     private Resume getResumeEntity(Long resumeId) {
         return resumeRepository.findById(resumeId)
                 .orElseThrow(() -> new IllegalArgumentException("Resume not found: " + resumeId));
     }
-    private void validateOwner(Resume resume, Integer userId) {
+    private void validateOwner(Resume resume, Long userId) {
         if (!resume.getUser().getId().equals(userId)) {
             throw new IllegalArgumentException("Unauthorized access to resume");
         }

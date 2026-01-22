@@ -1,6 +1,5 @@
 package com.example.pproject.payment.service;
 
-import com.example.pproject.Constant.OrderStatus;
 import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
@@ -24,6 +23,8 @@ import com.example.pproject.payment.port.PaymentPort;
 import com.example.pproject.payment.repository.PaymentCancelRepository;
 import com.example.pproject.payment.repository.PaymentRepository;
 import com.example.pproject.payment.repository.PgWebhookInboxRepository;
+import com.example.pproject.product.entity.Product;
+import com.example.pproject.product.repository.ProductRepository;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.service.WalletService;
@@ -54,6 +55,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final EmployerRepository employerRepository;
+    private final ProductRepository productRepository;
     private final PaymentPort paymentPort;
     private final WalletService walletService;
     private final ObjectMapper objectMapper;
@@ -257,13 +259,19 @@ public class PaymentService {
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
         }
 
+        // 상품 조회 (삭제된 상품 제외)
+        Product product = productRepository.findByProductCodeAndDeletedAtIsNull(request.productCode())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
+
         // 정적 팩토리 메서드 사용
         Orders order = Orders.createOrder(
                 orderUid,
                 request.buyerType(),
                 buyer,
                 employer,
-                Money.wons(request.amount())
+                product,
+                Money.wons(request.amount()),
+                request.idempotencyKey()
         );
 
         return orderRepository.save(order);
