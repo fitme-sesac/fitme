@@ -28,7 +28,7 @@ def verify_matching(resume_id: int, top_k: int = 5):
             # 1. 이력서 임베딩 및 메타데이터 가져오기
             logger.info(f"🔍 Fetching embedding & metadata for Resume ID: {resume_id}")
             cur.execute("""
-                SELECT embedding, title, re_stack, preference_location, career_years 
+                SELECT embedding, title, re_stack, preference_location 
                 FROM resume 
                 WHERE resume_id = %s
             """, (resume_id,))
@@ -40,20 +40,47 @@ def verify_matching(resume_id: int, top_k: int = 5):
 
             resume_vector = resume_row[0]
             resume_title = resume_row[1]
-            resume_stack_raw = resume_row[2] or []
-            resume_location = resume_row[3] or ""   
-            resume_career = resume_row[4] or 0 # Default to 0 (Newcomer)
+            resume_stack_raw = resume_row[2] or "" # "Java, Spring Boot"
+            resume_location = resume_row[3] or ""   # "서울 전체"
 
             logger.info(f"✅ Resume Found: '{resume_title}'")
             logger.info(f"   - Stack: {resume_stack_raw}")
             logger.info(f"   - Location: {resume_location}")
-            logger.info(f"   - Career Years: {resume_career}")
 
-            # 2. 필터링 조건 (User Request: 필터 제거 확인)
-            # 필터링 로직을 제거하고 벡터 유사도 검색만 수행합니다.
+            # 2. 필터링 조건 생성
+            # 2.1 Location Filter: "서울 전체" -> "서울"로 검색
+            location_filter = ""
+            params = [resume_vector]
             
-            # Params: [Embedding Vector, Limit]
-            params = [resume_vector, top_k]
+            if resume_location:
+                # "서울 전체" -> "서울" (단순화된 파싱 로직)
+                target_loc = resume_location.split(" ")[0] 
+                location_filter = "AND jp.location LIKE %s"
+                params.append(f"%{target_loc}%")
+                logger.info(f"   👉 Applying Location Filter: LIKE '{target_loc}%'")
+
+            # 2.2 Stack Filter: Resume Stack 중 하나라도 포함하면 매칭 (OR 조건)
+            # job_posting.stack이 "Python, Django" 텍스트라고 가정
+            stack_filter = ""
+            if resume_stack_raw:
+                # "Java, Spring Boot" -> ["Java", "Spring Boot"]
+                stacks = [s.strip() for s in resume_stack_raw.split(",") if s.strip()]
+                
+                if stacks:
+                    # (jp.stack ILIKE '%Java%' OR jp.stack ILIKE '%Spring Boot%')
+                    stack_conditions = []
+                    for s in stacks:
+                        stack_conditions.append("jp.stack ILIKE %s")
+                        params.append(f"%{s}%")
+                    
+                    if stack_conditions:
+                        stack_filter = f"AND ({' OR '.join(stack_conditions)})"
+                        logger.info(f"   👉 Applying Stack Filter: Any of {stacks}")
+
+            # 3. 유사도 검색 (Cosine Similarity + Filtering)
+            logger.info(f"🏃 Running hybrid search (Filter + Vector) Top {top_k}...")
+            
+            params.append(top_k) # Limit Param
             
             sql = f"""
                 SELECT 
@@ -62,12 +89,13 @@ def verify_matching(resume_id: int, top_k: int = 5):
                     e.name as company_name,
                     jp.location,
                     jp.stack,
-                    1 - (jp.embedding <=> %s) as similarity,
-                    jp.required_experience
+                    1 - (jp.embedding <=> %s) as similarity
                 FROM job_posting jp
                 JOIN employer e ON jp.employer_id = e.employer_id
                 WHERE jp.embedding IS NOT NULL 
                   AND jp.deleted_at IS NULL
+                  {location_filter}
+                  {stack_filter}
                 ORDER BY similarity DESC
                 LIMIT %s
             """
@@ -105,11 +133,6 @@ def verify_matching(resume_id: int, top_k: int = 5):
         conn.close()
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    # Positional argument로 변경 (nargs='?'로 선택적 인자로 설정)
-    parser.add_argument("resume_id", type=int, nargs='?', default=2, help="Target Resume ID")
-    
-    args = parser.parse_args()
-    
-    verify_matching(args.resume_id, top_k=5)
+    # 방금 생성한 더미 이력서 ID
+    TARGET_RESUME_ID = 5500 
+    verify_matching(TARGET_RESUME_ID, top_k=5)
