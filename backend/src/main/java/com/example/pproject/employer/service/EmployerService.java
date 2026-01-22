@@ -1,7 +1,6 @@
 package com.example.pproject.employer.service;
 
-import com.example.pproject.employer.dto.EmployerDashboardDTO;
-import com.example.pproject.employer.dto.EmployerProfileDTO;
+import com.example.pproject.employer.dto.*;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
@@ -12,9 +11,13 @@ import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,6 +31,7 @@ public class EmployerService {
     private final EmployerMemberRepository employerMemberRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -288,5 +292,417 @@ public class EmployerService {
                 .status(entity.getStatus())
                 .roleInCompany(roleInCompany)
                 .build();
+    }
+
+    // ===== 광고 통계 =====
+
+    /**
+     * 광고 통계 조회
+     */
+    public AdStatsDTO getAdStats(String userid) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            return AdStatsDTO.builder()
+                    .activeCampaigns(0)
+                    .totalClicks(0)
+                    .totalImpressions(0)
+                    .totalSpent(0)
+                    .ctr(0.0)
+                    .campaigns(List.of())
+                    .build();
+        }
+
+        try {
+            // 광고 캠페인 통계 조회
+            String sql = """
+                SELECT 
+                    ac.campaign_id,
+                    ac.job_id,
+                    jp.title as job_title,
+                    ac.status,
+                    ac.cpc_bid,
+                    ac.daily_budget,
+                    COALESCE((SELECT COUNT(*) FROM ad_click_event ace WHERE ace.campaign_id = ac.campaign_id), 0) as clicks
+                FROM ad_campaign ac
+                JOIN job_posting jp ON jp.job_id = ac.job_id
+                WHERE ac.employer_id = ?
+                ORDER BY ac.created_at DESC
+                LIMIT 10
+                """;
+
+            List<AdStatsDTO.CampaignDTO> campaigns = jdbcTemplate.query(sql,
+                    (rs, rowNum) -> AdStatsDTO.CampaignDTO.builder()
+                            .campaignId(rs.getLong("campaign_id"))
+                            .jobId(rs.getLong("job_id"))
+                            .jobTitle(rs.getString("job_title"))
+                            .status(rs.getString("status"))
+                            .cpcBid(rs.getInt("cpc_bid"))
+                            .dailyBudget(rs.getInt("daily_budget"))
+                            .clicks(rs.getInt("clicks"))
+                            .build(),
+                    employerId);
+
+            int activeCampaigns = (int) campaigns.stream().filter(c -> "ACTIVE".equals(c.getStatus())).count();
+            long totalClicks = campaigns.stream().mapToLong(AdStatsDTO.CampaignDTO::getClicks).sum();
+            long totalSpent = campaigns.stream().mapToLong(c -> (long) c.getClicks() * c.getCpcBid()).sum();
+
+            return AdStatsDTO.builder()
+                    .activeCampaigns(activeCampaigns)
+                    .totalClicks(totalClicks)
+                    .totalImpressions(totalClicks * 100) // 임시: 클릭 * 100 = 노출 (CTR 1% 가정)
+                    .totalSpent(totalSpent)
+                    .ctr(1.0)
+                    .campaigns(campaigns)
+                    .build();
+        } catch (Exception e) {
+            log.warn("광고 통계 조회 실패 (테이블 없음): {}", e.getMessage());
+            return AdStatsDTO.builder()
+                    .activeCampaigns(0)
+                    .totalClicks(0)
+                    .totalImpressions(0)
+                    .totalSpent(0)
+                    .ctr(0.0)
+                    .campaigns(List.of())
+                    .build();
+        }
+    }
+
+    // ===== 지원자 관리 =====
+
+    /**
+     * 지원자 목록 조회
+     */
+    public ApplicantListDTO getApplicants(String userid, String status) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            return ApplicantListDTO.builder()
+                    .applicants(List.of())
+                    .total(0)
+                    .build();
+        }
+
+        try {
+            StringBuilder sql = new StringBuilder("""
+                SELECT 
+                    ja.application_id,
+                    ja.job_id,
+                    jp.title as job_title,
+                    ja.member_id,
+                    m.name,
+                    m.email,
+                    m.phone,
+                    ja.resume_id,
+                    r.title as resume_title,
+                    ja.status,
+                    ja.applied_at,
+                    ja.viewed_at
+                FROM job_application ja
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN member m ON m.member_id = ja.member_id
+                LEFT JOIN resume r ON r.resume_id = ja.resume_id
+                WHERE jp.employer_id = ?
+                """);
+
+            List<Object> params = new ArrayList<>();
+            params.add(employerId);
+
+            if (status != null && !status.isBlank()) {
+                sql.append(" AND ja.status = ?");
+                params.add(status);
+            }
+
+            sql.append(" ORDER BY ja.applied_at DESC LIMIT 50");
+
+            List<ApplicantListDTO.ApplicantDTO> applicants = jdbcTemplate.query(sql.toString(),
+                    (rs, rowNum) -> ApplicantListDTO.ApplicantDTO.builder()
+                            .applicationId(rs.getLong("application_id"))
+                            .jobId(rs.getLong("job_id"))
+                            .jobTitle(rs.getString("job_title"))
+                            .memberId(rs.getLong("member_id"))
+                            .name(rs.getString("name"))
+                            .email(rs.getString("email"))
+                            .phone(rs.getString("phone"))
+                            .resumeId(rs.getLong("resume_id"))
+                            .resumeTitle(rs.getString("resume_title"))
+                            .status(rs.getString("status"))
+                            .appliedAt(rs.getTimestamp("applied_at") != null ? 
+                                    rs.getTimestamp("applied_at").toLocalDateTime().toString() : null)
+                            .viewedAt(rs.getTimestamp("viewed_at") != null ? 
+                                    rs.getTimestamp("viewed_at").toLocalDateTime().toString() : null)
+                            .build(),
+                    params.toArray());
+
+            return ApplicantListDTO.builder()
+                    .applicants(applicants)
+                    .total(applicants.size())
+                    .build();
+        } catch (Exception e) {
+            log.warn("지원자 목록 조회 실패: {}", e.getMessage());
+            return ApplicantListDTO.builder()
+                    .applicants(List.of())
+                    .total(0)
+                    .build();
+        }
+    }
+
+    /**
+     * 지원자 상태 변경
+     */
+    @Transactional
+    public void updateApplicantStatus(String userid, Long applicationId, String newStatus) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+
+        // 지원서가 해당 기업의 공고에 대한 것인지 확인
+        String checkSql = """
+            SELECT COUNT(*) FROM job_application ja
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            WHERE ja.application_id = ? AND jp.employer_id = ?
+            """;
+        
+        Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, applicationId, employerId);
+        if (count == null || count == 0) {
+            throw new IllegalStateException("해당 지원서에 대한 권한이 없습니다.");
+        }
+
+        // 상태 업데이트
+        String updateSql = "UPDATE job_application SET status = ?, updated_at = NOW() WHERE application_id = ?";
+        jdbcTemplate.update(updateSql, newStatus, applicationId);
+        
+        log.info("지원서 {} 상태 변경: {}", applicationId, newStatus);
+    }
+
+    // ===== 면접 일정 관리 =====
+
+    /**
+     * 면접 일정 목록 조회
+     */
+    public InterviewListDTO getInterviews(String userid, Integer year, Integer month) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            return InterviewListDTO.builder()
+                    .interviews(List.of())
+                    .total(0)
+                    .build();
+        }
+
+        // 기본값: 현재 년/월
+        int y = year != null ? year : LocalDateTime.now().getYear();
+        int m = month != null ? month : LocalDateTime.now().getMonthValue();
+
+        YearMonth ym = YearMonth.of(y, m);
+        LocalDateTime startDate = ym.atDay(1).atStartOfDay();
+        LocalDateTime endDate = ym.atEndOfMonth().atTime(23, 59, 59);
+
+        try {
+            String sql = """
+                SELECT 
+                    isc.interview_id,
+                    isc.application_id,
+                    ja.member_id as applicant_member_id,
+                    mb.name as applicant_name,
+                    mb.email as applicant_email,
+                    jp.title as job_title,
+                    isc.stage,
+                    isc.method,
+                    isc.location,
+                    isc.meeting_url,
+                    isc.start_at,
+                    isc.end_at,
+                    isc.status,
+                    isc.created_at,
+                    isc.updated_at
+                FROM interview_schedule isc
+                JOIN job_application ja ON ja.application_id = isc.application_id
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN member mb ON mb.member_id = ja.member_id
+                WHERE jp.employer_id = ?
+                  AND isc.start_at >= ? AND isc.start_at <= ?
+                ORDER BY isc.start_at ASC
+                """;
+
+            List<InterviewDTO> interviews = jdbcTemplate.query(sql,
+                    (rs, rowNum) -> InterviewDTO.builder()
+                            .interviewId(rs.getLong("interview_id"))
+                            .applicationId(rs.getLong("application_id"))
+                            .applicantMemberId(rs.getLong("applicant_member_id"))
+                            .applicantName(rs.getString("applicant_name"))
+                            .applicantEmail(rs.getString("applicant_email"))
+                            .jobTitle(rs.getString("job_title"))
+                            .stage(rs.getString("stage"))
+                            .method(rs.getString("method"))
+                            .location(rs.getString("location"))
+                            .meetingUrl(rs.getString("meeting_url"))
+                            .startAt(rs.getTimestamp("start_at") != null ? 
+                                    rs.getTimestamp("start_at").toLocalDateTime().toString() : null)
+                            .endAt(rs.getTimestamp("end_at") != null ? 
+                                    rs.getTimestamp("end_at").toLocalDateTime().toString() : null)
+                            .status(rs.getString("status"))
+                            .createdAt(rs.getTimestamp("created_at") != null ? 
+                                    rs.getTimestamp("created_at").toLocalDateTime().toString() : null)
+                            .build(),
+                    employerId, startDate, endDate);
+
+            return InterviewListDTO.builder()
+                    .interviews(interviews)
+                    .total(interviews.size())
+                    .year(y)
+                    .month(m)
+                    .build();
+        } catch (Exception e) {
+            log.warn("면접 일정 조회 실패: {}", e.getMessage());
+            return InterviewListDTO.builder()
+                    .interviews(List.of())
+                    .total(0)
+                    .year(y)
+                    .month(m)
+                    .build();
+        }
+    }
+
+    /**
+     * 면접 일정 등록
+     */
+    @Transactional
+    public InterviewDTO createInterview(String userid, InterviewDTO dto) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+
+        // 지원서가 해당 기업의 공고에 대한 것인지 확인
+        String checkSql = """
+            SELECT COUNT(*) FROM job_application ja
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            WHERE ja.application_id = ? AND jp.employer_id = ?
+            """;
+        
+        Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, dto.getApplicationId(), employerId);
+        if (count == null || count == 0) {
+            throw new IllegalStateException("해당 지원서에 대한 권한이 없습니다.");
+        }
+
+        // 면접 일정 생성
+        String insertSql = """
+            INSERT INTO interview_schedule 
+            (application_id, stage, method, location, meeting_url, start_at, end_at, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?::timestamp, ?::timestamp, 'PROPOSED', NOW(), NOW())
+            RETURNING interview_id
+            """;
+
+        Long interviewId = jdbcTemplate.queryForObject(insertSql, Long.class,
+                dto.getApplicationId(),
+                dto.getStage() != null ? dto.getStage() : "1ST",
+                dto.getMethod() != null ? dto.getMethod() : "ONSITE",
+                dto.getLocation(),
+                dto.getMeetingUrl(),
+                dto.getStartAt(),
+                dto.getEndAt());
+
+        // 지원서 상태 업데이트
+        jdbcTemplate.update("UPDATE job_application SET status = 'INTERVIEW', updated_at = NOW() WHERE application_id = ?",
+                dto.getApplicationId());
+
+        log.info("면접 일정 생성: {}", interviewId);
+
+        dto.setInterviewId(interviewId);
+        dto.setStatus("PROPOSED");
+        return dto;
+    }
+
+    /**
+     * 면접 일정 수정
+     */
+    @Transactional
+    public InterviewDTO updateInterview(String userid, Long interviewId, InterviewDTO dto) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+
+        // 권한 확인
+        String checkSql = """
+            SELECT COUNT(*) FROM interview_schedule isc
+            JOIN job_application ja ON ja.application_id = isc.application_id
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            WHERE isc.interview_id = ? AND jp.employer_id = ?
+            """;
+        
+        Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, interviewId, employerId);
+        if (count == null || count == 0) {
+            throw new IllegalStateException("해당 면접 일정에 대한 권한이 없습니다.");
+        }
+
+        // 업데이트
+        String updateSql = """
+            UPDATE interview_schedule SET
+                stage = ?,
+                method = ?,
+                location = ?,
+                meeting_url = ?,
+                start_at = ?::timestamp,
+                end_at = ?::timestamp,
+                updated_at = NOW()
+            WHERE interview_id = ?
+            """;
+
+        jdbcTemplate.update(updateSql,
+                dto.getStage(),
+                dto.getMethod(),
+                dto.getLocation(),
+                dto.getMeetingUrl(),
+                dto.getStartAt(),
+                dto.getEndAt(),
+                interviewId);
+
+        log.info("면접 일정 수정: {}", interviewId);
+
+        dto.setInterviewId(interviewId);
+        return dto;
+    }
+
+    /**
+     * 면접 일정 삭제
+     */
+    @Transactional
+    public void deleteInterview(String userid, Long interviewId) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+
+        // 권한 확인
+        String checkSql = """
+            SELECT COUNT(*) FROM interview_schedule isc
+            JOIN job_application ja ON ja.application_id = isc.application_id
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            WHERE isc.interview_id = ? AND jp.employer_id = ?
+            """;
+        
+        Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, interviewId, employerId);
+        if (count == null || count == 0) {
+            throw new IllegalStateException("해당 면접 일정에 대한 권한이 없습니다.");
+        }
+
+        // 삭제
+        jdbcTemplate.update("DELETE FROM interview_schedule WHERE interview_id = ?", interviewId);
+        log.info("면접 일정 삭제: {}", interviewId);
+    }
+
+    // ===== Helper Methods =====
+
+    /**
+     * userid로 employer_id 조회
+     */
+    private Long getEmployerIdByUserid(String userid) {
+        UserEntity user = userRepository.findByUserid(userid).orElse(null);
+        if (user == null) return null;
+        
+        return employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(user.getId().longValue())
+                .map(EmployerMemberEntity::getEmployerId)
+                .orElse(null);
     }
 }
