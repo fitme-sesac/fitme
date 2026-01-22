@@ -70,16 +70,19 @@ public class Orders extends BaseTimeEntity {
     /**
      * 주문 생성 (개인/기업 분기 처리 포함)
      */
-    public static Orders createOrder(UUID orderUid, RoleType buyerType, UserEntity buyer, EmployerEntity employer, Money amount) {
+    public static Orders createOrder(UUID orderUid, RoleType buyerType, UserEntity buyer, EmployerEntity employer, Product product, Money amount, String idempotencyKey) {
         Assert.notNull(orderUid, "주문 UID는 필수입니다.");
         Assert.notNull(buyerType, "구매자 타입은 필수입니다.");
+        Assert.notNull(product, "상품 정보는 필수입니다.");
         Assert.notNull(amount, "주문 금액은 필수입니다.");
 
         OrdersBuilder builder = Orders.builder()
                 .orderUid(orderUid)
                 .buyerType(buyerType)
+                .product(product)
                 .orderAmount(amount)
-                .status(OrderStatus.CREATED);
+                .status(OrderStatus.CREATED)
+                .idempotencyKey(idempotencyKey);
 
         if (buyerType == RoleType.CANDIDATE) {
             Assert.notNull(buyer, "개인 회원은 필수입니다.");
