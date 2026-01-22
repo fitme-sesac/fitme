@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,7 +22,6 @@ public class ResumeService {
 
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
-    // ✅ [추가] 삭제 시 지원 내역 확인용
     private final JobApplicationRepository jobApplicationRepository;
 
     // 1. 내 이력서 목록 조회
@@ -66,7 +66,9 @@ public class ResumeService {
                 request.getTitle(), request.getTagline(), request.getContent(),
                 request.getPublicOption(), request.getField(),
                 request.getPreferenceLocation(), request.getPreferenceSalary(),
-                request.getEmploymentType(), request.getReStack(),
+                request.getEmploymentType(),
+                request.getReStack(),     // List<String>
+                request.getCareerYears(), // Integer
                 request.getSchool(), request.getSchoolState(), request.getSchoolClass()
         );
 
@@ -85,7 +87,6 @@ public class ResumeService {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
 
-        // 지원 내역 존재 여부 확인
         boolean hasApplication = jobApplicationRepository.existsByResumeId(resumeId);
         if (hasApplication) {
             throw new IllegalStateException("이미 입사 지원에 사용된 이력서는 삭제할 수 없습니다.");
@@ -109,7 +110,8 @@ public class ResumeService {
                 .preferenceLocation(original.getPreferenceLocation())
                 .preferenceSalary(original.getPreferenceSalary())
                 .employmentType(original.getEmploymentType())
-                .reStack(original.getReStack())
+                .reStack(original.getReStack() != null ? new ArrayList<>(original.getReStack()) : new ArrayList<>()) // Deep Copy
+                .careerYears(original.getCareerYears()) // 연차 복사
                 .school(original.getSchool())
                 .schoolState(original.getSchoolState())
                 .schoolClass(original.getSchoolClass())
@@ -124,6 +126,50 @@ public class ResumeService {
                     .photoUrl(original.getProfile().getPhotoUrl())
                     .build());
         }
+
+        // 하위 항목 복사
+        if (original.getCareers() != null) {
+            original.getCareers().forEach(c -> copy.getCareers().add(ResumeCareer.builder()
+                    .resume(copy)
+                    .companyName(c.getCompanyName())
+                    .department(c.getDepartment())
+                    .role(c.getRole())
+                    .startDate(c.getStartDate())
+                    .endDate(c.getEndDate())
+                    .current(c.getCurrent())
+                    .verified(c.getVerified())
+                    .build()));
+        }
+        if (original.getProjects() != null) {
+            original.getProjects().forEach(p -> copy.getProjects().add(ResumeProject.builder()
+                    .resume(copy)
+                    .title(p.getTitle())
+                    .description(p.getDescription())
+                    .techStack(p.getTechStack())
+                    .startDate(p.getStartDate())
+                    .endDate(p.getEndDate())
+                    .contributionPct(p.getContributionPct())
+                    .sortOrder(p.getSortOrder())
+                    .build()));
+        }
+        if (original.getCertificates() != null) {
+            original.getCertificates().forEach(c -> copy.getCertificates().add(ResumeCertificate.builder()
+                    .resume(copy)
+                    .name(c.getName())
+                    .issuer(c.getIssuer())
+                    .acquisitionDate(c.getAcquisitionDate())
+                    .verified(c.getVerified())
+                    .build()));
+        }
+        if (original.getLinks() != null) {
+            original.getLinks().forEach(l -> copy.getLinks().add(ResumeLink.builder()
+                    .resume(copy)
+                    .linkType(l.getLinkType())
+                    .url(l.getUrl())
+                    .build()));
+        }
+        // 첨부파일은 물리 파일 복사가 필요할 수 있으나, 여기서는 DB 메타데이터만 복사하거나 정책에 따라 제외
+        // (필요 시 Attachment 복사 로직 추가)
 
         return resumeRepository.save(copy).getId();
     }
