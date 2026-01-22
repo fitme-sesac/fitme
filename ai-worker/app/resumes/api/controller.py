@@ -37,8 +37,15 @@ async def process_resume(request: ResumeRequest):
             display_summary = summary_result
             embedding_summary = summary_result
         else:
+            # 구조화된 객체인 경우 (화면용 vs 검색용 분리)
+            meta_title = request.basic_info.title or ""
+            meta_stack = ", ".join(request.basic_info.re_stack) if request.basic_info.re_stack else ""
+
+            # 1. 화면용: 사람이 읽기 좋게 포맷팅 (이유 포함 가능)
             display_summary = summary_result.to_formatted_string(include_reasoning=request.include_reasoning)
-            embedding_summary = summary_result.to_embedding_string()
+
+            # 2. 임베딩용: 검색 정확도를 위해 메타데이터(직무, 기술스택) 주입
+            embedding_summary = summary_result.to_embedding_string(title=meta_title, tech_stack=meta_stack)
 
         # 2. 임베딩 생성 (Embedding API 호출)
         # 검색 최적화된 텍스트(embedding_summary)를 벡터화합니다.

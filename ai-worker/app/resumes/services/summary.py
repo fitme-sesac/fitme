@@ -64,6 +64,11 @@ class SummaryService:
         if projects:
             projects_list = []
             for p in projects:
+                # [NEW] Java DTO에서 String 리스트로 오는 경우 처리
+                if isinstance(p, str):
+                    projects_list.append(f"- {p}")
+                    continue
+
                 # p는 dict 형태일 수도 있고 Pydantic model일 수도 있음. 
                 # ResumeRequest로 들어오면 Pydantic model이지만, dict로 변환되어 들어올 수도 있음.
                 # 안전하게 처리하기 위해 dict access 시도
@@ -83,6 +88,11 @@ class SummaryService:
         if careers:
             careers_list = []
             for c in careers:
+                # [NEW] Java DTO에서 String 리스트로 오는 경우 처리
+                if isinstance(c, str):
+                    careers_list.append(f"- {c}")
+                    continue
+
                 if hasattr(c, 'dict'): c = c.dict()
                 
                 c_text = f"""
@@ -210,32 +220,43 @@ class SummaryService:
         else: # SummaryType.STRUCTURED
             # [STRUCTURED 모드 개선] : Hybrid Schema (3-in-1 Integration) + Bullet Points (개조식)
             structured_instruction = """
-            [작성 가이드라인 - Hybrid Schema & Extreme Conciseness]
-            **모든 항목은 '최대 3개의 개조식(Bullet Points)'으로 제한하며, 수식어를 배제하고 핵심(Core)만 남겨라.**
+            [작성 가이드라인 - Dual Strategy (Display vs Embedding)]
             
-            1. professional_identity: [전문성+역량+기술] 통합. (최대 3줄)
-               - • 5년차 Java/Spring 백엔드 개발자 (대규모 트래픽 처리)
-               - • Main: Java, Spring Boot / Sub: AWS, Docker
-               - • 정보처리기사, MSA 설계 주도 경험
+            **전략 1. Display Fields (사람이 읽는 용도): 문맥(Context)과 설득력 있는 서사 중심**
+            **전략 2. Embedding Fields (기계 매칭 용도): 채용 공고(JD) 표준 용어 중심**
             
-            [상세 역량 - 핵심만 추출]
-            2. key_achievement: (최대 2개, 수치 중심)
-               - • [프로젝트명] TPS 49% 개선 (3700->5500), 주문 지연 해결
-               - • [시스템명] 재고 오류 0% 달성 (Redis Lock)
-            3. problem_solving: (Situation/Action/Result를 한 줄로 압축)
-               - • (확장성) 모놀리식 한계 → MSA/Kafka 도입 → 장애 전파 차단
-               - • (동시성) 재고 연산 오류 → Redis 비관적 락 적용 → 데이터 무결성 확보
-            4. credibility: (학력/자격증/수료 중 최상위 3개)
-               - • 정보처리기사 (2024.06)
-               - • XX 부트캠프 백엔드 최우수 수료
-            5. collaboration: (리더십/협업 툴 경험만)
-               - • 코드 리뷰 문화 정착 주도 (주 3회)
-               - • Swagger/Wiki 문서화로 커뮤니케이션 비용 30% 절감
-            6. matching_info:
-               - • 희망 연봉: 4,000만원
-               - • 근무지: 서울 강남/판교
+            1. professional_identity: (서사 중심) 후보자의 직무 정체성과 핵심 강점을 매력적인 문장으로 요약
+               - 예: "대규모 트래픽 처리 경험을 보유한 5년차 백엔드 개발자로서, 안정적인 시스템 설계를 주도합니다."
             
-            7. [중요] 분석 근거(ai_reasoning): **[Citation Rules]**를 철저히 준수하여 출처 표기.
+            2. key_achievement: (성과 중심) 프로젝트의 수치적 성과와 기여도를 구체적으로 명시
+               - 예: "결제 시스템 MSA 전환 프로젝트를 통해 TPS를 30% 개선하고 장애율을 0%로 낮춤"
+            
+            3. problem_solving: (과정 중심) 어떤 상황에서 어떤 기술로 문제를 해결했는지 인과관계 명시
+               - 예: "이벤트 발행 실패 문제를 해결하기 위해 Transactional Outbox 패턴을 도입하여 데이터 정합성 확보"
+
+            4. credibility: (팩트 중심) 학력, 자격증, 수상 내역 중 최상위 3개
+            5. collaboration: (태도 중심) 협업 스타일 및 리더십 경험
+            6. matching_info: 희망 연봉 및 근무지
+            
+            # [중요] universal_competencies (리스트): **매칭을 위한 '채용 공고(JD) 표준 용어'로 변환**
+            7. universal_competencies (리스트):
+               - 위 내용들을 채용 공고에 자주 등장하는 '일반화된 역량 키워드'로 변환하여 리스트로 나열하라.
+               - **[Critical Constraint 1 - Hallucination Prevention]**:
+                 - 반드시 **입력 데이터에 명시된 사실**에 기반해야 한다.
+                 - **도구의 단순 사용을 해당 도구가 속한 전체 카테고리(General Concept)로 과대포장하지 마라.**
+                 - 예: 단순히 "Docker로 Redis를 띄워봤다"고 해서 "컨테이너 오케스트레이션 및 배포 자동화"라고 쓰지 말 것. (그냥 "Docker 활용 경험" 정도가 적절)
+               
+               - **[Critical Constraint 2 - Attribution Check (Individual vs Team)]**:
+                 - **팀 프로젝트에서 사용된 기술이라도, 후보자가 '직접' 다루거나 기여했다는 명확한 서술이 없으면 역량으로 포함하지 마라.**
+                 - 예: 팀이 MSA를 도입했어도, 후보자가 단순히 API 하나만 개발했다면 "MSA 아키텍처 설계"라고 쓰지 말고 "MSA 환경에서의 API 개발 경험" 정도로 한정할 것.
+                 - 주체적인 기여(Designed, Implemented, Solved)가 확인된 것만 "설계", "구축", "운영" 등의 단어를 사용하라. 그 외에는 "사용 경험", "활용 경험"으로 낮춰 표현하라.
+
+            8. job_category: 
+               - 후보자의 경험과 기술 스택을 종합하여 **가장 적합한 표준 직무명(Standard Job Category)** 하나를 추출하라.
+               - 예: "Backend Developer", "Frontend Developer", "Data Scientist", "DevOps Engineer", "Mobile App Developer" 등.
+               - 너무 긴 설명형 문장이 아닌, 명확한 직무 카테고리 명사를 사용하라.
+
+            9. ai_reasoning: 분석 근거 (Page/Section Reference)
             """
             
             system_instruction = f"""{common_role}
