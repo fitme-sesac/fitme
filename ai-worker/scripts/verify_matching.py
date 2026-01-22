@@ -63,14 +63,19 @@ def verify_matching(resume_id: int, top_k: int = 5):
             # job_posting.stack이 "Python, Django" 텍스트라고 가정
             stack_filter = ""
             if resume_stack_raw:
-                # "Java, Spring Boot" -> ["Java", "Spring Boot"]
-                stacks = [s.strip() for s in resume_stack_raw.split(",") if s.strip()]
+                # [Fix] re_stack이 DB에서 TEXT[] 배열로 올 경우 파이썬 List로 반환됨.
+                if isinstance(resume_stack_raw, list):
+                    stacks = resume_stack_raw
+                else:
+                    # 기존 TEXT 타입일 경우에만 split
+                    stacks = [s.strip() for s in resume_stack_raw.split(",") if s.strip()]
                 
                 if stacks:
                     # (jp.stack ILIKE '%Java%' OR jp.stack ILIKE '%Spring Boot%')
                     stack_conditions = []
                     for s in stacks:
-                        stack_conditions.append("jp.stack ILIKE %s")
+                        # [Fix] jp.stack is TEXT[]. Use array_to_string for ILIKE matching.
+                        stack_conditions.append("array_to_string(jp.stack, ',') ILIKE %s")
                         params.append(f"%{s}%")
                     
                     if stack_conditions:
@@ -134,5 +139,5 @@ def verify_matching(resume_id: int, top_k: int = 5):
 
 if __name__ == "__main__":
     # 방금 생성한 더미 이력서 ID
-    TARGET_RESUME_ID = 5500 
+    TARGET_RESUME_ID = 1 
     verify_matching(TARGET_RESUME_ID, top_k=5)
