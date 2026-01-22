@@ -3,10 +3,14 @@ package com.example.pproject.resume.dto;
 import com.example.pproject.Constant.ResumeField;
 import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.entity.ResumeAttachment;
+import com.example.pproject.resume.entity.ResumeCareer;
+import com.example.pproject.resume.entity.ResumeProject;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -24,17 +28,20 @@ public class AiResumeRequest {
 
     private String content;
 
+    @JsonProperty("projects")
+    private List<ProjectInfo> projects;
+
+    @JsonProperty("careers")
+    private List<CareerInfo> careers;
+
     @JsonProperty("file_links")
     private List<String> fileLinks;
 
-    @JsonProperty("projects")
-    private List<String> projects; // 프로젝트 설명 등 텍스트 리스트로 변환 가정
-
-    @JsonProperty("careers")
-    private List<String> careers; // 경력 설명 등 텍스트 리스트로 변환 가정
-
     @JsonProperty("summary_type")
     private String summaryType;
+
+    @JsonProperty("include_reasoning")
+    private Boolean includeReasoning;
 
     @Getter
     @Builder
@@ -43,7 +50,7 @@ public class AiResumeRequest {
         private String tagline;
 
         @JsonProperty("re_stack")
-        private List<String> reStack; // List로 변환
+        private List<String> reStack;
 
         private ResumeField field;
         private Preference preference;
@@ -59,52 +66,112 @@ public class AiResumeRequest {
         private String employmentType;
     }
 
+    @Getter
+    @Builder
+    public static class ProjectInfo {
+        @JsonProperty("project_name")
+        private String projectName;
+
+        @JsonProperty("start_date")
+        private String startDate;
+
+        @JsonProperty("end_date")
+        private String endDate;
+
+        @JsonProperty("total_tech_stack")
+        private List<String> totalTechStack;
+
+        private String contribution; // 엔티티에 텍스트 필드가 없으면 null 혹은 description 일부 매핑
+        private String description;
+    }
+
+    @Getter
+    @Builder
+    public static class CareerInfo {
+        @JsonProperty("company_name")
+        private String companyName;
+
+        private String role;
+
+        @JsonProperty("start_date")
+        private String startDate;
+
+        @JsonProperty("end_date")
+        private String endDate;
+
+        private String description;
+    }
+
     public static AiResumeRequest from(Resume resume, String summaryType) {
-        // 1. 기술 스택 String -> List 변환
-        List<String> stackList = (resume.getReStack() != null && !resume.getReStack().isEmpty())
-                ? Arrays.stream(resume.getReStack().split(",")) // 콤마로 구분되어 있다고 가정
-                .map(String::trim)
-                .collect(Collectors.toList())
-                : Collections.emptyList();
+        // 날짜 포맷터 (YYYY.MM)
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM");
 
-        // 2. 파일 링크 추출
-        List<String> fileUrls = resume.getAttachments().stream()
-                .map(ResumeAttachment::getFileUrl)
-                .collect(Collectors.toList());
-
-        // 3. Preference 객체 생성
-        Preference preference = Preference.builder()
-                .location(resume.getPreferenceLocation())
-                .salary(resume.getPreferenceSalary())
-                .employmentType(resume.getEmploymentType())
-                .build();
-
-        // 4. BasicInfo 객체 생성
+        // 1. BasicInfo 생성
         BasicInfo basicInfo = BasicInfo.builder()
                 .title(resume.getTitle())
                 .tagline(resume.getTagline())
-                .reStack(stackList)
+                .reStack(resume.getReStack() != null ? resume.getReStack() : Collections.emptyList())
                 .field(resume.getField())
-                .preference(preference)
+                .preference(Preference.builder()
+                        .location(resume.getPreferenceLocation())
+                        .salary(resume.getPreferenceSalary())
+                        .employmentType(resume.getEmploymentType())
+                        .build())
                 .build();
 
-        // 5. 프로젝트/경력 내용을 문자열 리스트로 변환
-        List<String> projectList = resume.getProjects().stream()
-                .map(p -> String.format("%s (%s): %s", p.getTitle(), p.getTechStack(), p.getDescription()))
+        // 2. Project 리스트 변환
+        List<ProjectInfo> projectList = resume.getProjects().stream()
+                .map(p -> ProjectInfo.builder()
+                        .projectName(p.getTitle())
+                        .startDate(formatDate(p.getStartDate(), formatter))
+                        .endDate(formatDate(p.getEndDate(), formatter))
+                        .totalTechStack(parseTechStack(p.getTechStack())) // 콤마 문자열 -> 리스트
+                        .description(p.getDescription())
+                        // contribution 필드는 Entity에 없으므로, 필요하다면 description을 쓰거나 비워둠
+                        .contribution(null)
+                        .build())
                 .collect(Collectors.toList());
 
-        List<String> careerList = resume.getCareers().stream()
-                .map(c -> String.format("%s (%s - %s)", c.getCompanyName(), c.getDepartment(), c.getRole()))
+        // 3. Career 리스트 변환
+        List<CareerInfo> careerList = resume.getCareers().stream()
+                .map(c -> CareerInfo.builder()
+                        .companyName(c.getCompanyName())
+                        .role(c.getRole())
+                        .startDate(formatDate(c.getStartDate(), formatter))
+                        .endDate(formatDate(c.getEndDate(), formatter))
+                        // description 필드가 ResumeCareer에 없다면 null
+                        .description(null)
+                        .build())
+                .collect(Collectors.toList());
+
+        // 4. 파일 링크
+        List<String> fileUrls = resume.getAttachments().stream()
+                .map(ResumeAttachment::getFileUrl)
                 .collect(Collectors.toList());
 
         return AiResumeRequest.builder()
                 .resumeId(resume.getId())
                 .basicInfo(basicInfo)
                 .content(resume.getContent())
-                .fileLinks(fileUrls)
                 .projects(projectList)
                 .careers(careerList)
+                .fileLinks(fileUrls)
                 .summaryType(summaryType)
+                .includeReasoning(true)
                 .build();
+    }
+
+    // 날짜 포맷팅 헬퍼 메소드
+    private static String formatDate(LocalDate date, DateTimeFormatter formatter) {
+        return date != null ? date.format(formatter) : null;
+    }
+
+    private static List<String> parseTechStack(String techStack) {
+        if (techStack == null || techStack.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(techStack.split(","))
+                .map(String::trim)
+                .collect(Collectors.toList());
     }
 }

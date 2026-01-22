@@ -14,7 +14,7 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     // 특정 유저의 대표 이력서 조회
     Optional<Resume> findByUserIdAndPrimaryTrue(Integer userId);
 
-    Optional<Resume> findByMemberIdAndIsPrimaryTrue(Long memberId); // 대표 이력서 찾기
+    // 특정 유저의 최근 수정된 이력서 조회 (AI 첨삭 등에서 활용 가능)
+    Optional<Resume> findFirstByUserIdOrderByLastModifiedAtDesc(Integer userId);
 
-    Optional<Resume> findFirstByMemberIdOrderByUpdatedAtDesc(Long memberId); // 최근 이력서 찾기
 }

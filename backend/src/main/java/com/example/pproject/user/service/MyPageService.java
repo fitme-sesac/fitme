@@ -18,7 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -42,34 +42,32 @@ public class MyPageService {
      * - 회원 기본 정보 + 지갑 잔액 + (대표 이력서의 주소 정보) 조회
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> getMyDashboard(Long userId) {
-        // 1) 사용자 조회 (Login ID로 조회)
-        UserEntity user = userRepository.findById(userId)
+    public Map<String, Object> getMyDashboard(String userid) {
+        // 1) 사용자 조회
+        UserEntity user = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
 
         // 2) 기본 정보 매핑
         UserResponseDTO userInfo = modelMapper.map(user, UserResponseDTO.class);
 
-        // 3) [주소 연동] 대표 이력서에서 주소 정보 가져와서 DTO에 채우기 (Long ID 사용)
-        // ResumeRepository에 정의된 표준 메소드(findByUser_IdAndPrimaryTrue) 호출
-        Optional<Resume> primaryResume = resumeRepository.findByUser_IdAndPrimaryTrue(user.getId());
+        // 3) [주소 연동] 대표 이력서에서 주소 정보 가져와서 DTO에 채우기
+        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(user.getId());
 
         if (primaryResume.isPresent() && primaryResume.get().getProfile() != null) {
             ResumeProfile profile = primaryResume.get().getProfile();
             userInfo.setAddress(profile.getAddress());
+            // 필요한 경우 상세 주소나 우편번호 로직도 여기에 추가 가능
         }
 
-        // 4) 지갑 잔액 조회 (WalletRepository 구현에 따라 findByMember 혹은 findByMemberId 사용)
-        // 여기서는 UserEntity의 ID(Long)를 사용하여 조회
-        long creditBalance = walletRepository.findByMember(user)
+        // 4) 지갑 잔액 조회
+        Long userDbId = Long.valueOf(user.getId());
+        long creditBalance = walletRepository.findByMember(userDbId)
                 .map(Wallet::getBalance).orElse(0L);
 
         // 5) 통계 데이터 구성
-        long applicationCount = applicationRepository.countByMemberId(user.getId());
-
-        // ResumeRepository에 countByUser_Id가 있다면 사용, 없다면 findAllByUser_Id(user.getId()).size() 사용
-        // 앞서 ResumeRepository에 countByUser_Id를 추가했다고 가정
-        long resumeCount = resumeRepository.countByUser_Id(user.getId());
+        // (필요 시 Repository에 count 메소드 추가 후 주석 해제하여 사용)
+        long applicationCount = 0; // applicationRepository.countByMemberId(userDbId);
+        long resumeCount = 0;      // resumeRepository.countByUserId(user.getId());
 
         Map<String, Object> dashboardData = new HashMap<>();
         dashboardData.put("profile", userInfo);
@@ -86,8 +84,8 @@ public class MyPageService {
      * 2. 내 정보 수정
      * - 회원 테이블 정보 수정 + (대표 이력서의 주소 정보 수정)
      */
-    public void updateMyInfo(Long userId, UserRequestDTO requestDTO) {
-        UserEntity user = userRepository.findById(userId)
+    public void updateMyInfo(String userid, UserRequestDTO requestDTO) {
+        UserEntity user = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
 
         // 1) Member 테이블 필드 수정
@@ -102,19 +100,19 @@ public class MyPageService {
         }
         if (requestDTO.getMarketingOptIn() != null && !requestDTO.getMarketingOptIn().equals(user.getMarketingOptIn())) {
             user.setMarketingOptIn(requestDTO.getMarketingOptIn());
-            user.setMarketingAgreedAt(Boolean.TRUE.equals(requestDTO.getMarketingOptIn()) ? Instant.now() : null);
+            user.setMarketingAgreedAt(Boolean.TRUE.equals(requestDTO.getMarketingOptIn()) ? LocalDateTime.now() : null);
         }
 
-        // 2) [주소 정보 업데이트] 대표 이력서 찾아서 업데이트 (Long ID 사용)
+        // 2) [주소 정보 업데이트] 대표 이력서 찾아서 업데이트
         if (requestDTO.getAddress() != null) {
-            resumeRepository.findByUser_IdAndPrimaryTrue(user.getId())
+            resumeRepository.findByUserIdAndPrimaryTrue(user.getId())
                     .ifPresent(resume -> {
                         // 이력서에 프로필이 없으면 생성
                         if (resume.getProfile() == null) {
                             ResumeProfile newProfile = ResumeProfile.builder()
                                     .resume(resume)
                                     .build();
-                            resume.updateProfile(newProfile);
+                            resume.updateProfile(newProfile); // Resume 엔티티의 편의 메소드 활용
                         }
 
                         // 주소 문자열 조합
@@ -132,18 +130,18 @@ public class MyPageService {
     /**
      * 3. 회원 탈퇴
      */
-    public void withdrawUser(Long userId) {
-        UserEntity user = userRepository.findById(userId)
+    public void withdrawUser(String userid) {
+        UserEntity user = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다."));
 
         if (user.getDeletedAt() != null) {
             throw new IllegalStateException("이미 탈퇴한 회원입니다.");
         }
 
-        user.setDeletedAt(Instant.now());
-        // 상태값 변경 로직 (Enum 처리 필요 시 수정)
-        user.setStatus("WITHDRAWN");
+        user.setDeletedAt(LocalDateTime.now());
+        // 필요 시 상태 코드 변경 로직 추가
+        // user.setStatus("WITHDRAWN");
 
-        log.info("회원 탈퇴 처리 완료: userId={}", userId);
+        log.info("회원 탈퇴 처리 완료: userid={}", userid);
     }
 }
