@@ -64,7 +64,7 @@ public class PublicJobController {
             Long memberId = getMemberIdFromPrincipal(principal);
             log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, memberId: {}",
                     page, size, keyword, stack, location, memberId);
-            
+
             JobListResponseDTO response;
             if (memberId != null) {
                 // 로그인 사용자: 매칭 정보 포함 시도
@@ -98,7 +98,7 @@ public class PublicJobController {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
             log.info("공개 채용공고 상세 조회 - jobId: {}, memberId: {}", jobId, memberId);
-            
+
             JobDTO job;
             if (memberId != null) {
                 // 로그인 사용자: 매칭 정보 포함 시도
@@ -122,7 +122,7 @@ public class PublicJobController {
             return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }
-    
+
     /**
      * JWT Principal에서 memberId 추출
      * - 비로그인 또는 인증 실패 시 null 반환
@@ -133,36 +133,44 @@ public class PublicJobController {
             log.debug("Principal이 null입니다.");
             return null;
         }
-        
+
         String userid = principal.getUserid();
-        if (userid == null || userid.isBlank()) {
-            log.debug("Principal의 userid가 null 또는 비어있습니다.");
-            return null;
-        }
-        
-        log.debug("JWT Principal - userid: {}", userid);
-        
+        String email = principal.getEmail();
+
+        log.debug("JWT Principal - userid: {}, email: {}", userid, email);
+
         try {
             // 1. login_id로 조회 시도
-            var userOpt = userRepository.findByUserid(userid);
-            if (userOpt.isPresent()) {
-                Long memberId = userOpt.get().getId();
-                log.debug("login_id로 회원 조회 성공 - memberId: {}", memberId);
-                return memberId;
+            if (userid != null && !userid.isBlank()) {
+                var userOpt = userRepository.findByUserid(userid);
+                if (userOpt.isPresent()) {
+                    Long memberId = userOpt.get().getId();
+                    log.debug("login_id로 회원 조회 성공 - memberId: {}", memberId);
+                    return memberId;
+                }
             }
-            
+
             // 2. login_id로 못 찾으면 email로 시도 (소셜 로그인 사용자)
-            // JWT subject가 email 형식일 수 있음
-            if (userid.contains("@")) {
-                userOpt = userRepository.findByEmail(userid);
+            if (email != null && !email.isBlank()) {
+                var userOpt = userRepository.findByEmail(email);
                 if (userOpt.isPresent()) {
                     Long memberId = userOpt.get().getId();
                     log.debug("email로 회원 조회 성공 - memberId: {}", memberId);
                     return memberId;
                 }
             }
-            
-            log.warn("회원을 찾을 수 없습니다 - userid: {}", userid);
+
+            // 3. userid가 email 형식인 경우에도 시도 (하위 호환)
+            if (userid != null && userid.contains("@")) {
+                var userOpt = userRepository.findByEmail(userid);
+                if (userOpt.isPresent()) {
+                    Long memberId = userOpt.get().getId();
+                    log.debug("userid(email형식)로 회원 조회 성공 - memberId: {}", memberId);
+                    return memberId;
+                }
+            }
+
+            log.warn("회원을 찾을 수 없습니다 - userid: {}, email: {}", userid, email);
             return null;
         } catch (Exception e) {
             log.warn("memberId 조회 실패: {}", e.getMessage());

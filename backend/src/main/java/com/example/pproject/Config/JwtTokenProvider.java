@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class JwtTokenProvider {
 
     @Value("${jwt.secret}")
-    private String secret;   // 최소 32자 이상 권장
+    private String secret; // 최소 32자 이상 권장
 
     @Getter
     @Value("${jwt.access-token-validity-seconds:1800}")
@@ -90,43 +90,44 @@ public class JwtTokenProvider {
         }
 
         String displayName = claims.get("displayName", String.class);
+        String email = claims.get("email", String.class);
 
-        // 무상태 화면 표시를 위해 최소 정보만 가진 principal 사용
-        JwtUserPrincipal principal = new JwtUserPrincipal(username, displayName, authorities);
+        // 무상태 화면 표시를 위해 최소 정보만 가진 principal 사용 (email 포함)
+        JwtUserPrincipal principal = new JwtUserPrincipal(username, displayName, email, authorities);
         return new UsernamePasswordAuthenticationToken(principal, token, authorities);
     }
 
-    
+    /**
+     * 임시 플로우 토큰 생성 (예: 소셜 최초 가입 화면 전달용)
+     * 
+     * @param flowType        플로우 종류 (예: OAUTH2_REGISTER)
+     * @param claims          추가로 담을 데이터 (예: name, email)
+     * @param validitySeconds 만료(초)
+     */
+    public String createFlowToken(String flowType, Map<String, Object> claims, long validitySeconds) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + validitySeconds * 1000);
 
-/**
- * 임시 플로우 토큰 생성 (예: 소셜 최초 가입 화면 전달용)
- * @param flowType 플로우 종류 (예: OAUTH2_REGISTER)
- * @param claims   추가로 담을 데이터 (예: name, email)
- * @param validitySeconds 만료(초)
- */
-public String createFlowToken(String flowType, Map<String, Object> claims, long validitySeconds) {
-    Date now = new Date();
-    Date expiry = new Date(now.getTime() + validitySeconds * 1000);
+        JwtBuilder builder = Jwts.builder()
+                .setSubject("FLOW")
+                .claim("flowType", flowType)
+                .setIssuedAt(now)
+                .setExpiration(expiry);
 
-    JwtBuilder builder = Jwts.builder()
-            .setSubject("FLOW")
-            .claim("flowType", flowType)
-            .setIssuedAt(now)
-            .setExpiration(expiry);
-
-    if (claims != null && !claims.isEmpty()) {
-        builder.claim("claims", claims);
+        if (claims != null && !claims.isEmpty()) {
+            builder.claim("claims", claims);
+        }
+        return builder.signWith(key, SignatureAlgorithm.HS256).compact();
     }
-    return builder.signWith(key, SignatureAlgorithm.HS256).compact();
-}
 
-/**
- * 토큰에서 Claims 추출 (검증/파싱 실패 시 예외 발생)
- */
-public Claims getClaims(String token) {
-    return parseClaims(token);
-}
-// 토큰 유효성 검사
+    /**
+     * 토큰에서 Claims 추출 (검증/파싱 실패 시 예외 발생)
+     */
+    public Claims getClaims(String token) {
+        return parseClaims(token);
+    }
+
+    // 토큰 유효성 검사
     public boolean validateToken(String token) {
         try {
             parseClaims(token);

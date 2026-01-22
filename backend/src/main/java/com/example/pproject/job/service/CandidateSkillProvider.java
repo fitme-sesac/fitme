@@ -15,4 +15,12 @@ public interface CandidateSkillProvider {
      * @return 기술 스택 Set (없으면 빈 Set)
      */
     Set<String> getSkillsByMemberId(Long memberId);
+    
+    /**
+     * 특정 이력서의 기술 스택 조회
+     * 
+     * @param resumeId 이력서 ID
+     * @return 기술 스택 Set (없으면 빈 Set)
+     */
+    Set<String> getSkillsByResumeId(Long resumeId);
 }
