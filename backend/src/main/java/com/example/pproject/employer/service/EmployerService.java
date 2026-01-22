@@ -1,5 +1,6 @@
 package com.example.pproject.employer.service;
 
+import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
@@ -288,7 +289,7 @@ public class EmployerService {
                 .description(entity.getDescription())
                 .culture(entity.getCulture())
                 .benefits(entity.getBenefits())
-                .techStack(entity.getTechStack())
+                .techStack(ArrayStringUtil.cleanArrayString(entity.getTechStack())) // {} 제거
                 .contactEmail(entity.getContactEmail())
                 .contactPhone(entity.getContactPhone())
                 .websiteUrl(entity.getWebsiteUrl())

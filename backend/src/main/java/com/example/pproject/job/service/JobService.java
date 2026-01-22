@@ -20,6 +20,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.pproject.common.util.ArrayStringUtil;
+
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -370,30 +372,63 @@ public class JobService {
     // ===== 공개 채용공고 조회 (인증 없이 접근 가능) =====
 
     /**
+     * 채용공고 필터 옵션 조회 (사용 가능한 스택/지역 목록)
+     */
+    public JobFilterOptionsDTO getFilterOptions() {
+        List<String> stacks = jobRepository.findDistinctStacks();
+        List<String> locations = jobRepository.findDistinctLocations();
+        
+        // null 값 제거 및 빈 문자열 제거
+        stacks = stacks.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+        
+        locations = locations.stream()
+                .filter(l -> l != null && !l.trim().isEmpty())
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+        
+        log.info("필터 옵션 조회 - 스택: {}개, 지역: {}개", stacks.size(), locations.size());
+        
+        return JobFilterOptionsDTO.builder()
+                .stacks(stacks)
+                .locations(locations)
+                .build();
+    }
+
+    /**
      * 공개 채용공고 목록 조회 (status='OPEN')
      * - 대소문자 구분 없이 검색
      * - 한글 기술스택 검색 지원 (자바 → Java)
      */
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location) {
         Page<JobEntity> jobPage;
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // JPQL 쿼리용 (정렬 포함)
+        PageRequest pageRequestWithSort = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // 네이티브 쿼리용 (정렬은 쿼리 내부에서 처리하므로 제외)
+        PageRequest pageRequestNoSort = PageRequest.of(page, size);
 
         if (keyword != null && !keyword.isBlank()) {
-            // 키워드 검색 (한글 → 영어 변환 포함)
+            // 키워드 검색 (한글 → 영어 변환 포함) - 네이티브 쿼리 사용
             String searchKeyword = convertKoreanToEnglish(keyword.trim());
             log.info("검색 키워드 변환: '{}' → '{}'", keyword.trim(), searchKeyword);
-            jobPage = jobRepository.searchPublicJobs(searchKeyword, pageRequest);
+            jobPage = jobRepository.searchPublicJobs(searchKeyword, pageRequestNoSort);
         } else if (stack != null && !stack.isBlank()) {
-            // 스택 필터 (한글 → 영어 변환 포함)
+            // 스택 필터 (한글 → 영어 변환 포함) - 네이티브 쿼리 사용
             String searchStack = convertKoreanToEnglish(stack.trim());
             log.info("스택 필터 변환: '{}' → '{}'", stack.trim(), searchStack);
-            jobPage = jobRepository.findPublicJobsByStack(searchStack, pageRequest);
+            jobPage = jobRepository.findPublicJobsByStack(searchStack, pageRequestNoSort);
         } else if (location != null && !location.isBlank()) {
-            // 지역 필터
-            jobPage = jobRepository.findPublicJobsByLocation(location.trim(), pageRequest);
+            // 지역 필터 - JPQL 쿼리 사용
+            jobPage = jobRepository.findPublicJobsByLocation(location.trim(), pageRequestWithSort);
         } else {
-            // 전체 조회
-            jobPage = jobRepository.findPublicJobs(pageRequest);
+            // 전체 조회 - JPQL 쿼리 사용
+            jobPage = jobRepository.findPublicJobs(pageRequestWithSort);
         }
 
         List<JobDTO> jobs = jobPage.getContent().stream()
@@ -475,7 +510,7 @@ public class JobService {
                 .status(job.getStatus())
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
-                .stack(job.getStack())
+                .stack(ArrayStringUtil.cleanArrayString(job.getStack())) // {} 제거
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)
@@ -557,7 +592,7 @@ public class JobService {
                 .status(job.getStatus())
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
-                .stack(job.getStack())
+                .stack(ArrayStringUtil.cleanArrayString(job.getStack())) // {} 제거
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)
@@ -570,8 +605,9 @@ public class JobService {
     // ===== 기술 스택 매칭 기능 =====
 
     /**
-     * 공개 채용공고 목록 조회 (매칭 정보 포함)
+     * 공개 채용공고 목록 조회 (매칭 정보 포함, 매칭률 순 정렬)
      * - 로그인한 지원자의 경우 각 공고에 대한 매칭률 포함
+     * - 매칭률이 높은 공고가 상단에 표시됨
      */
     public JobListResponseDTO getPublicJobsWithMatch(int page, int size, String keyword, 
                                                       String stack, String location, Long memberId) {
@@ -615,7 +651,15 @@ public class JobService {
                     }
                     return job;
                 })
+                // 매칭률 높은 순으로 정렬 (매칭 정보가 없으면 0으로 처리)
+                .sorted((j1, j2) -> {
+                    int rate1 = j1.getMatchInfo() != null ? j1.getMatchInfo().getOverallMatchRate() : 0;
+                    int rate2 = j2.getMatchInfo() != null ? j2.getMatchInfo().getOverallMatchRate() : 0;
+                    return Integer.compare(rate2, rate1); // 내림차순
+                })
                 .collect(Collectors.toList());
+        
+        log.info("매칭률 정렬 완료 - 로그인 사용자(memberId: {}), 공고 {}건", memberId, jobsWithMatch.size());
         
         return JobListResponseDTO.builder()
                 .jobs(jobsWithMatch)

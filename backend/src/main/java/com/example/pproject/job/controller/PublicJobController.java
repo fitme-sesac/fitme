@@ -2,6 +2,7 @@ package com.example.pproject.job.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.job.dto.JobDTO;
+import com.example.pproject.job.dto.JobFilterOptionsDTO;
 import com.example.pproject.job.dto.JobListResponseDTO;
 import com.example.pproject.job.service.JobService;
 import com.example.pproject.user.repository.UserRepository;
@@ -27,6 +28,23 @@ public class PublicJobController {
 
     private final JobService jobService;
     private final UserRepository userRepository;
+
+    /**
+     * 필터 옵션 조회
+     * - 사용 가능한 기술 스택 목록
+     * - 사용 가능한 지역 목록 (시/도 단위)
+     */
+    @GetMapping("/filter-options")
+    public ResponseEntity<?> getFilterOptions() {
+        try {
+            log.info("필터 옵션 조회 요청");
+            JobFilterOptionsDTO options = jobService.getFilterOptions();
+            return ResponseEntity.ok(options);
+        } catch (Exception e) {
+            log.error("필터 옵션 조회 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
+        }
+    }
 
     /**
      * 공개 채용공고 목록 조회
