@@ -3,7 +3,6 @@ package com.example.pproject.payment.dto.response;
 import com.example.pproject.Constant.WebhookProcessStatus;
 import com.example.pproject.payment.entity.PgWebhookInbox;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -13,8 +12,8 @@ public record PgWebhookInboxResponse(
         WebhookProcessStatus processStatus,
         Integer retryCount,
         String lastError,
-        Instant receivedAt,
-        Instant processedAt,
+        LocalDateTime receivedAt,
+        LocalDateTime processedAt,
         Map<String, Object> payload
 ) {
     public static PgWebhookInboxResponse from(PgWebhookInbox inbox) {

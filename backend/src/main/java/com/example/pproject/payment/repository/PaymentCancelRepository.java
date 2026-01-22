@@ -8,9 +8,6 @@ import java.util.List;
 
 public interface PaymentCancelRepository extends JpaRepository<PaymentCancel, Long> {
 
-    // 멱등키 존재 여부 확인 (중복 취소 방지)
-    boolean existsByIdempotencyKey(String idempotencyKey);
-
     // 특정 결제의 취소 이력 조회
     List<PaymentCancel> findByPayment(Payment payment);
 }

@@ -3,7 +3,7 @@ package com.example.pproject.order.dto.response;
 import com.example.pproject.Constant.OrderStatus;
 import com.example.pproject.order.entity.Orders;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record OrderResponse(
@@ -12,8 +12,8 @@ public record OrderResponse(
         String productName,
         Long amount,
         OrderStatus status,
-        Instant createdAt,
-        Instant updatedAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
     public static OrderResponse from(Orders order) {
         return new OrderResponse(
