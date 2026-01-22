@@ -195,4 +195,10 @@ public class Resume extends BaseSoftDeleteEntity {
         this.summaryStatus = SummaryStatus.COMPLETED;
         this.lastModifiedAt = LocalDateTime.now();
     }
+
+    // AI 분석 상태 업데이트
+    public void updateSummaryStatus(SummaryStatus status) {
+        this.summaryStatus = status;
+        this.lastModifiedAt = LocalDateTime.now();
+    }
 }

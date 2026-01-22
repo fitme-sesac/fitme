@@ -18,7 +18,7 @@ public class JobUpdateDTO {
     
     // ERD 기준 필드
     private String location;
-    private String salaryText;
+    private Long salaryText;  // BIGINT - 연봉 (원 단위)
     private String stack;
     private String requiredQuestions;
 }

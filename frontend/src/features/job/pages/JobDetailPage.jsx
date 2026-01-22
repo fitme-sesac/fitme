@@ -220,7 +220,7 @@ export default function JobDetailPage() {
                     <label className="text-muted small">기술 스택</label>
                     <div>
                       <i className="bi bi-code-slash me-1"></i>
-                      {job.stack}
+                      {job.stack.split(',').filter(tech => tech.trim()).join(', ')}
                     </div>
                   </div>
                 )}

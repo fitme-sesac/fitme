@@ -26,7 +26,7 @@ public class JobApplicationController {
     @PostMapping
     public ResponseEntity<Long> apply(@RequestBody @Valid JobApplicationRequest request,
                                       @AuthenticationPrincipal JwtUserPrincipal user) {
-        Long applicationId = jobApplicationService.apply(request, Integer.valueOf(user.getUserid()));
+        Long applicationId = jobApplicationService.apply(request, Long.valueOf(user.getUserid()));
         return ResponseEntity.ok(applicationId);
     }
 
