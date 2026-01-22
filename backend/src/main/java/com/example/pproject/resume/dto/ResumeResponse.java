@@ -33,7 +33,10 @@ public class ResumeResponse {
     private String preferenceLocation;
     private String preferenceSalary;
     private String employmentType;
-    private String reStack;
+
+    private List<String> reStack;
+
+    private Integer careerYears;
 
     private String school;
     private String schoolState;
@@ -63,7 +66,8 @@ public class ResumeResponse {
                 .preferenceLocation(resume.getPreferenceLocation())
                 .preferenceSalary(resume.getPreferenceSalary())
                 .employmentType(resume.getEmploymentType())
-                .reStack(resume.getReStack())
+                .reStack(resume.getReStack())       // List 그대로 매핑
+                .careerYears(resume.getCareerYears()) // 연차 매핑
                 .school(resume.getSchool())
                 .schoolState(resume.getSchoolState())
                 .schoolClass(resume.getSchoolClass())
