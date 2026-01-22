@@ -2,10 +2,8 @@ package com.example.pproject.application.repository;
 
 import com.example.pproject.application.entity.JobApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-import java.util.List;
 
-@Repository
+import java.util.List;
 
 public interface JobApplicationRepository extends JpaRepository<JobApplication, Long> {
 
@@ -17,4 +15,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
 
     // 이력서 삭제 시 참조 확인
     boolean existsByResumeId(Long resumeId);
+
+    // 특정 유저의 지원 내역 개수 조회
+    long countByMemberId(Long memberId);
 }

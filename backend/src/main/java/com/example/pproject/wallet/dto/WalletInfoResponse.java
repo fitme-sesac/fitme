@@ -3,7 +3,7 @@ package com.example.pproject.wallet.dto;
 import com.example.pproject.Constant.WalletStatus;
 import com.example.pproject.wallet.entity.Wallet;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * [응답 DTO] 내 지갑 정보
@@ -13,7 +13,7 @@ public record WalletInfoResponse(
         Long walletId,
         Long balance,
         WalletStatus status,
-        LocalDateTime lastUpdated
+        Instant lastUpdated
 ) {
     public static WalletInfoResponse from(Wallet wallet) {
         return new WalletInfoResponse(

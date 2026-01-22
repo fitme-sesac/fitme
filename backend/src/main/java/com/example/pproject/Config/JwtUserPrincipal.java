@@ -14,21 +14,38 @@ import java.util.Collections;
  */
 public class JwtUserPrincipal implements UserDetails {
 
+    // [추가] DB PK (기존 생성자 호환을 위해 final 제외)
+    private Long id;
+
     private final String userid;
     private final String displayName;
     private final String email;
     private final Collection<? extends GrantedAuthority> authorities;
 
+    // [기존 생성자 1] - 변경 없음
     public JwtUserPrincipal(String userid, String displayName, Collection<? extends GrantedAuthority> authorities) {
         this(userid, displayName, null, authorities);
     }
 
+    // [기존 생성자 2] - 변경 없음
     public JwtUserPrincipal(String userid, String displayName, String email,
-            Collection<? extends GrantedAuthority> authorities) {
+                            Collection<? extends GrantedAuthority> authorities) {
         this.userid = userid;
         this.displayName = displayName;
         this.email = email;
         this.authorities = authorities == null ? Collections.emptyList() : authorities;
+    }
+
+    // [추가] ID를 포함하는 새로운 생성자 (기존 생성자 재사용)
+    public JwtUserPrincipal(Long id, String userid, String displayName, String email,
+                            Collection<? extends GrantedAuthority> authorities) {
+        this(userid, displayName, email, authorities); // 기존 로직 태움
+        this.id = id; // ID만 추가 세팅
+    }
+
+    // [추가] Getter
+    public Long getId() {
+        return id;
     }
 
     public String getUserid() {

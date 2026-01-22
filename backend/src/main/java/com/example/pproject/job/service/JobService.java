@@ -22,7 +22,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -335,7 +335,7 @@ public class JobService {
 
         String jobTitle = job.getTitle(); // 삭제 전 제목 저장
 
-        job.setDeletedAt(LocalDateTime.now());
+        job.setDeletedAt(Instant.now());
         job.setStatus("CLOSED");
         jobRepository.save(job);
         log.info("채용공고 삭제: {}", jobTitle);
@@ -1064,7 +1064,7 @@ public class JobService {
             }
             
             // 지원자의 대표 이력서 벡터 조회
-            Optional<Resume> resumeOpt = resumeRepository.findByMemberIdAndPrimaryTrue(memberId);
+            Optional<Resume> resumeOpt = resumeRepository.findByUser_IdAndPrimaryTrue(memberId);
             if (resumeOpt.isEmpty()) {
                 log.debug("회원 {}의 대표 이력서가 없습니다.", memberId);
                 return 0;
