@@ -24,6 +24,38 @@ async def process_resume(request: ResumeRequest):
     Returns:
         AIProcessResult: 처리 결과 (summary, vector_status 포함)
     """
+    return await _process_resume_pipeline(request)
+
+@router.post("/{resume_id}/summary", response_model=AIProcessResult)
+async def process_resume_by_id(resume_id: int):
+    """
+    [신규 로직] 이력서 ID 기반 처리 파이프라인 엔드포인트
+    
+    DB에 저장된 이력서 데이터를 조회하여 AI 요약 및 임베딩을 수행합니다.
+    """
+    try:
+        # 1. DB에서 데이터 조회
+        resume_data = resume_repo.get_resume_by_id(resume_id)
+        if not resume_data:
+            raise HTTPException(status_code=404, detail=f"Resume {resume_id} not found.")
+            
+        # 2. Request 객체로 변환
+        request = ResumeRequest(**resume_data)
+        
+        # 3. 파이프라인 실행
+        return await _process_resume_pipeline(request)
+        
+    except Exception as e:
+        print(f"Error processing resume {resume_id}: {e}")
+        # HTTPException은 그대로 다시 던짐
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
+    """
+    내부 처리 파이프라인 (공통 로직)
+    """
     try:
         # 1. AI 요약 생성 (LLM 호출)
         # LangChain Output Parser를 통해 구조화된 텍스트가 반환됩니다.
@@ -64,4 +96,5 @@ async def process_resume(request: ResumeRequest):
         )
     except Exception as e:
         print(f"Error processing resume {request.resume_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 이미 500 에러를 던지고 있다면 그대로 두거나 처리
+        raise e
