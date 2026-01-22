@@ -43,6 +43,10 @@ public class AiResumeRequest {
     @JsonProperty("include_reasoning")
     private Boolean includeReasoning;
 
+    // ★ 채용공고 정보 추가 (채용공고에 맞춤 첨삭 시 사용)
+    @JsonProperty("target_job")
+    private TargetJobInfo targetJob;
+
     @Getter
     @Builder
     public static class BasicInfo {
@@ -102,7 +106,61 @@ public class AiResumeRequest {
         private String description;
     }
 
+    /**
+     * 타겟 채용공고 정보 (AI가 채용공고에 맞춤 첨삭을 위해 사용)
+     */
+    @Getter
+    @Builder
+    public static class TargetJobInfo {
+        @JsonProperty("job_id")
+        private Long jobId;
+
+        private String title;
+        private String description;
+
+        @JsonProperty("required_skills")
+        private List<String> requiredSkills;
+
+        private String location;
+
+        @JsonProperty("salary_text")
+        private String salaryText;
+
+        @JsonProperty("company_name")
+        private String companyName;
+    }
+
+    /**
+     * 이력서만 사용하는 기본 변환 (기존 호환성 유지)
+     */
     public static AiResumeRequest from(Resume resume, String summaryType) {
+        return from(resume, summaryType, null, null);
+    }
+
+    /**
+     * 채용공고 정보를 포함한 변환 (맞춤 첨삭용)
+     */
+    public static AiResumeRequest from(Resume resume, String summaryType, 
+                                       Long jobId, String jobTitle, String jobDescription, 
+                                       List<String> requiredSkills, String location, 
+                                       String salaryText, String companyName) {
+        TargetJobInfo targetJob = TargetJobInfo.builder()
+                .jobId(jobId)
+                .title(jobTitle)
+                .description(jobDescription)
+                .requiredSkills(requiredSkills)
+                .location(location)
+                .salaryText(salaryText)
+                .companyName(companyName)
+                .build();
+        return from(resume, summaryType, targetJob, null);
+    }
+
+    /**
+     * 메인 변환 메서드 (내부용)
+     */
+    private static AiResumeRequest from(Resume resume, String summaryType, 
+                                        TargetJobInfo targetJob, Void unused) {
         // 날짜 포맷터 (YYYY.MM)
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM");
 
@@ -158,6 +216,7 @@ public class AiResumeRequest {
                 .fileLinks(fileUrls)
                 .summaryType(summaryType)
                 .includeReasoning(true)
+                .targetJob(targetJob) // 채용공고 정보 포함
                 .build();
     }
 

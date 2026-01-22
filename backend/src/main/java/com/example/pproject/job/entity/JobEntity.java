@@ -44,8 +44,8 @@ public class JobEntity {
     @Column(name = "location", length = 120)
     private String location;
 
-    @Column(name = "salary_text", length = 120)
-    private String salaryText;
+    @Column(name = "salary_text")
+    private Long salaryText;
 
     // JSONB 타입 - Hibernate 6 방식
     @JdbcTypeCode(SqlTypes.JSON)
@@ -64,6 +64,11 @@ public class JobEntity {
 
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
+
+    // AI 벡터 임베딩 (이력서와의 유사도 계산용)
+    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    private java.util.List<Double> embedding;
 
     // 광고 입찰가
     @Column(name = "ad_bid_credit", nullable = false)
