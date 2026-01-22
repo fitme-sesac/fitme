@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 
 @Controller
@@ -189,15 +190,15 @@ public class UserController {
             }
 
             userDTO.setPhone(normalizedPhone);
-            userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
+            userDTO.setPhoneVerifiedAt(Instant.now());
 
             applyPolicyNoticeIdsOrThrow(userDTO);
-            userDTO.setTermsAgreedAt(java.time.LocalDateTime.now());
-            userDTO.setPrivacyAgreedAt(java.time.LocalDateTime.now());
-            userDTO.setPolicyAgreedAt(java.time.LocalDateTime.now());
+            userDTO.setTermsAgreedAt(Instant.now());
+            userDTO.setPrivacyAgreedAt(Instant.now());
+            userDTO.setPolicyAgreedAt(Instant.now());
 
             if (Boolean.TRUE.equals(userDTO.getMarketingOptIn())) {
-                userDTO.setMarketingAgreedAt(java.time.LocalDateTime.now());
+                userDTO.setMarketingAgreedAt(Instant.now());
             } else {
                 userDTO.setMarketingOptIn(false);
                 userDTO.setMarketingAgreedAt(null);
@@ -320,15 +321,15 @@ public class UserController {
             String provider = flowClaims.get("provider") == null ? "OTHER" : flowClaims.get("provider").toString();
             userDTO.setSocialType(SocialType.from(provider));
             userDTO.setPhone(normalizedPhone);
-            userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
+            userDTO.setPhoneVerifiedAt(Instant.now());
 
             applyPolicyNoticeIdsOrThrow(userDTO);
-            userDTO.setTermsAgreedAt(java.time.LocalDateTime.now());
-            userDTO.setPrivacyAgreedAt(java.time.LocalDateTime.now());
-            userDTO.setPolicyAgreedAt(java.time.LocalDateTime.now());
+            userDTO.setTermsAgreedAt(Instant.now());
+            userDTO.setPrivacyAgreedAt(Instant.now());
+            userDTO.setPolicyAgreedAt(Instant.now());
 
             if (Boolean.TRUE.equals(userDTO.getMarketingOptIn())) {
-                userDTO.setMarketingAgreedAt(java.time.LocalDateTime.now());
+                userDTO.setMarketingAgreedAt(Instant.now());
             } else {
                 userDTO.setMarketingOptIn(false);
                 userDTO.setMarketingAgreedAt(null);

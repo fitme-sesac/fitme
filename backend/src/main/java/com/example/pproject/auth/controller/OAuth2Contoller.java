@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
@@ -109,12 +110,12 @@ public class OAuth2Contoller {
         SocialType st = SocialType.from(provider);
         userDTO.setSocialType(st == null ? SocialType.OTHER : st);
         userDTO.setPhone(normalizedPhone);
-        userDTO.setPhoneVerifiedAt(java.time.LocalDateTime.now());
-        userDTO.setTermsAgreedAt(java.time.LocalDateTime.now());
-        userDTO.setPrivacyAgreedAt(java.time.LocalDateTime.now());
-        userDTO.setPolicyAgreedAt(java.time.LocalDateTime.now());
+        userDTO.setPhoneVerifiedAt(Instant.now());
+        userDTO.setTermsAgreedAt(Instant.now());
+        userDTO.setPrivacyAgreedAt(Instant.now());
+        userDTO.setPolicyAgreedAt(Instant.now());
         if (Boolean.TRUE.equals(userDTO.getMarketingOptIn())) {
-            userDTO.setMarketingAgreedAt(java.time.LocalDateTime.now());
+            userDTO.setMarketingAgreedAt(Instant.now());
         } else {
             userDTO.setMarketingOptIn(false);
             userDTO.setMarketingAgreedAt(null);
@@ -133,7 +134,7 @@ public class OAuth2Contoller {
     private String enc(String value) {
         if (value == null) return "";
         try {
-            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
+            return URLEncoder.encode(value, StandardCharsets.UTF_8);
         } catch (Exception e) {
             return "";
         }

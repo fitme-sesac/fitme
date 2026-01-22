@@ -7,7 +7,7 @@ import com.example.pproject.user.entity.convert.SocialTypeConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -73,7 +73,7 @@ public class UserEntity {
     private String phone;
 
     @Column(name = "phone_verified_at")
-    private LocalDateTime phoneVerifiedAt;
+    private Instant phoneVerifiedAt;
 
     // =========================================================
     // 권한/상태
@@ -91,16 +91,16 @@ public class UserEntity {
     // 보안/로그인 상태
     // =========================================================
     @Column(name = "last_login_at")
-    private LocalDateTime lastLoginAt;
+    private Instant lastLoginAt;
 
     @Column(name = "password_changed_at")
-    private LocalDateTime passwordChangedAt;
+    private Instant passwordChangedAt;
 
     @Column(name = "failed_login_count", nullable = false)
     private Integer failedLoginCount;
 
     @Column(name = "locked_until")
-    private LocalDateTime lockedUntil;
+    private Instant lockedUntil;
 
     // =========================================================
     // 정책 동의(테이블 추가 없이 member 컬럼에 저장)
@@ -108,22 +108,22 @@ public class UserEntity {
     @Column(name = "terms_notice_id")
     private Long termsNoticeId;
     @Column(name = "terms_agreed_at")
-    private LocalDateTime termsAgreedAt;
+    private Instant termsAgreedAt;
 
     @Column(name = "privacy_notice_id")
     private Long privacyNoticeId;
     @Column(name = "privacy_agreed_at")
-    private LocalDateTime privacyAgreedAt;
+    private Instant privacyAgreedAt;
 
     @Column(name = "policy_notice_id")
     private Long policyNoticeId;
     @Column(name = "policy_agreed_at")
-    private LocalDateTime policyAgreedAt;
+    private Instant policyAgreedAt;
 
     @Column(name = "marketing_opt_in", nullable = false)
     private Boolean marketingOptIn;
     @Column(name = "marketing_agreed_at")
-    private LocalDateTime marketingAgreedAt;
+    private Instant marketingAgreedAt;
 
     @Column(name = "consent_ip", length = 45)
     private String consentIp;
@@ -135,13 +135,13 @@ public class UserEntity {
     // 감사/삭제
     // =========================================================
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     // =========================================================
     // 레거시(기존 프론트/DTO 호환) - DDL에 없는 컬럼은 제거
@@ -170,13 +170,13 @@ public class UserEntity {
             // 요구 DDL 기본값(예: ACTIVE). 실제 가입 플로우에서 정책 동의 후 ACTIVE 세팅 권장.
             status = "ACTIVE";
         }
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
     }
 
     @PreUpdate
     void preUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = Instant.now();
     }
 }
