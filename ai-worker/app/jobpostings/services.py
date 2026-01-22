@@ -57,6 +57,7 @@ class JobService:
         # generate_embedding 내부에서 update_job_embedding을 호출함
         return await self.generate_embedding(request)
 
+
     async def generate_embedding(self, request: JobEmbeddingRequest) -> List[float]:
         """
         Job Request -> Symmetric Text -> Vector 변환
@@ -139,16 +140,64 @@ class JobService:
 - 필수 기술: {stack_str}
 - 산업 분야: {request.industry}
 """
-        # 2. Experience Section
-        section_experience = f"""
-# 주요 업무 및 자격 요건 (핵심 프로젝트 및 문제 해결)
-{description_content}
-"""
-
-        # [Modify] 3. Context Section 제거 (Metadata Filtering으로 위임)
-        # SQL 필터(연봉, 지역 등)와 역할 분담을 위해 임베딩 텍스트에서 제외합니다.
+        # [Refinement v3] Symmetric Tag Structure
+        # User Feedback: [Role: ...] [Tech: ...] [Competency: ...] 구조가 매칭에 유리함
         
-        # 최종 조합
-        return f"{section_identity.strip()}\n\n{section_experience.strip()}"
+        # 2. Experience Section (Cleaned)
+        # ... (기존 섹션 파싱 로직 유지) ...
+        # [Refinement v2] 섹션 기반 파싱 (Section-Aware Parsing)
+        valid_headers = ["주요 업무", "자격 요건", "우대 사항", "기술 스택", "담당 업무", "필수 요건"]
+        ignore_headers = ["근무 조건", "근무조건", "복리 후생", "복리후생", "접수 방법", "전형 절차", "채용 절차", "안내 사항"]
+        
+        lines = description_content.split('\n')
+        parsed_content = []
+        current_section = "DEFAULT" 
+        is_skipping_section = False
+        
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and "]" in stripped:
+                header_name = stripped.replace("[", "").replace("]", "").strip()
+                if any(v in header_name for v in valid_headers):
+                    is_skipping_section = False
+                    current_section = header_name
+                    # 헤더 포맷 통일 (선택사항, 일단 원본 유지)
+                    parsed_content.append(line)
+                    continue
+                elif any(i in header_name for i in ignore_headers):
+                    is_skipping_section = True
+                    continue # Remove header too
+                else:
+                    is_skipping_section = False
+                    parsed_content.append(line)
+                    continue
+            
+            if not is_skipping_section:
+                inner_skip_keywords = ["연봉:", "근무지:", "마감일:", "복리후생", "고용 형태:"]
+                if any(k in stripped for k in inner_skip_keywords): continue
+                parsed_content.append(line)
+
+        clean_description = "\n".join(parsed_content).strip()
+        if len(clean_description) < 10:
+             clean_lines = []
+             simple_skip = ["연봉:", "근무지:", "마감일:", "고용 형태:"]
+             for line in description_content.split('\n'):
+                 if any(k in line for k in simple_skip): continue
+                 clean_lines.append(line)
+             clean_description = "\n".join(clean_lines)
+
+        # 3. Final Symmetric Text Construction
+        # Resume Side: [Role: ...] [Tech: ...] [Competency] ...
+        # Job Side: [Role: title] [Tech: stack] [Competency: description]
+        
+        tech_stack_str = ", ".join(request.stack) if request.stack else "N/A"
+        
+        section_symmetric = f"""
+[Role: {request.title}]
+[Tech: {tech_stack_str}]
+[Competency]
+{clean_description}
+"""
+        return section_symmetric
 
 job_service = JobService()
