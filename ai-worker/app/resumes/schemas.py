@@ -7,10 +7,16 @@ class Preference(BaseModel):
     salary: str = Field(description="희망 연봉")
     employment_type: str = Field(description="고용 형태")
 
+class Education(BaseModel):
+    status: str = Field(description="학적 상태 (예: 졸업, 재학, 휴학)")
+    major: str = Field(description="전공 (예: 컴퓨터공학, 비전공)")
+    school_name: Optional[str] = Field(default=None, description="학교명 (선택)")
+
 class BasicInfo(BaseModel):
     title: str = Field(description="한줄 소개")
     re_stack: List[str] = Field(description="종합 보유 기술 (나의 정체성)")
     field: str = Field(description="데이터 타입 (RESUME 또는 SELF_INTRO)")
+    education: Optional[Education] = Field(default=None, description="학력 정보")
     preference: Preference
 
 class SummaryType(str, Enum):

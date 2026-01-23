@@ -35,7 +35,7 @@ async def process_resume_by_id(resume_id: int):
         with conn.cursor() as cur:
             # 1. Fetch Resume Basic Info
             cur.execute("""
-                SELECT title, re_stack, content, preference_location, preference_salary, employment_type
+                SELECT title, re_stack, content, preference_location, preference_salary, employment_type, school_state, school_class
                 FROM resume 
                 WHERE resume_id = %s
             """, (resume_id,))
@@ -45,12 +45,21 @@ async def process_resume_by_id(resume_id: int):
                 logger.error(f"❌ Resume ID {resume_id} not found.")
                 return
 
+            # Education Mapping
+            education_data = None
+            if resume_row[6] or resume_row[7]:
+                education_data = {
+                    "status": resume_row[6] or "",
+                    "major": resume_row[7] or ""
+                }
+
             raw_data = {
                 "content": resume_row[2],
                 "file_links": [], # DB doesn't store file links in a simple column yet, assuming empty or need separate table
                 "basic_info": {
                     "title": resume_row[0],
                     "re_stack": resume_row[1] or [],
+                    "education": education_data,
                     "preference": {
                         "location": resume_row[3],
                         "salary": resume_row[4],

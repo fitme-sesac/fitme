@@ -50,7 +50,7 @@ class ResumeRepository:
             with conn.cursor() as cur:
                 # 1. Fetch Resume Basic Info
                 cur.execute("""
-                    SELECT title, re_stack, content, preference_location, preference_salary, employment_type
+                    SELECT title, re_stack, content, preference_location, preference_salary, employment_type, school_state, school_class
                     FROM resume 
                     WHERE resume_id = %s
                 """, (resume_id,))
@@ -58,6 +58,14 @@ class ResumeRepository:
                 
                 if not resume_row:
                     return None
+
+                # Education Mapping
+                education_data = None
+                if resume_row[6] or resume_row[7]: # school_state or school_class exists
+                    education_data = {
+                        "status": resume_row[6] or "",
+                        "major": resume_row[7] or ""
+                    }
 
                 data = {
                     "resume_id": resume_id,
@@ -67,6 +75,7 @@ class ResumeRepository:
                         "title": resume_row[0],
                         "re_stack": resume_row[1] or [],
                         "field": "RESUME", # Default value as it's from resume table
+                        "education": education_data,
                         "preference": {
                             "location": resume_row[3] or "",
                             "salary": resume_row[4] or "",
