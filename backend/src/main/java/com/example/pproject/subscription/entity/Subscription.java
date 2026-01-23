@@ -32,6 +32,7 @@ public class Subscription extends BaseTimeEntity {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private SubscriptionStatus status;
 
