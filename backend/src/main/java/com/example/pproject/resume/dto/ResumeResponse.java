@@ -2,6 +2,7 @@ package com.example.pproject.resume.dto;
 
 import com.example.pproject.Constant.*;
 import com.example.pproject.resume.entity.*;
+import com.example.pproject.common.util.ArrayStringUtil;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -63,7 +64,8 @@ public class ResumeResponse {
                 .preferenceLocation(resume.getPreferenceLocation())
                 .preferenceSalary(resume.getPreferenceSalary())
                 .employmentType(resume.getEmploymentType())
-                .reStack(resume.getReStack())
+                .reStack(resume.getReStack() != null ? 
+                    ArrayStringUtil.cleanArrayString(String.join(",", resume.getReStack())) : null)
                 .school(resume.getSchool())
                 .schoolState(resume.getSchoolState())
                 .schoolClass(resume.getSchoolClass())
@@ -88,7 +90,7 @@ public class ResumeResponse {
     @Getter @Builder public static class ProjectDto {
         private Long id; private String title; private LocalDate startDate; private LocalDate endDate;
         private BigDecimal contributionPct; private String techStack; private String description; private Integer sortOrder;
-        public static ProjectDto from(ResumeProject p) { return ProjectDto.builder().id(p.getId()).title(p.getTitle()).startDate(p.getStartDate()).endDate(p.getEndDate()).contributionPct(p.getContributionPct()).techStack(p.getTechStack()).description(p.getDescription()).sortOrder(p.getSortOrder()).build(); }
+        public static ProjectDto from(ResumeProject p) { return ProjectDto.builder().id(p.getId()).title(p.getTitle()).startDate(p.getStartDate()).endDate(p.getEndDate()).contributionPct(p.getContributionPct()).techStack(ArrayStringUtil.cleanArrayString(p.getTechStack())).description(p.getDescription()).sortOrder(p.getSortOrder()).build(); }
     }
     @Getter @Builder public static class CertificateDto {
         private Long id; private String name; private String issuer; private LocalDate acquisitionDate; private Boolean verified;

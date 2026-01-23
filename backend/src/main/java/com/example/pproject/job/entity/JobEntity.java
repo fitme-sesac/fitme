@@ -5,7 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -44,8 +44,8 @@ public class JobEntity {
     @Column(name = "location", length = 120)
     private String location;
 
-    @Column(name = "salary_text", length = 120)
-    private String salaryText;
+    @Column(name = "salary_text")
+    private Long salaryText;
 
     // JSONB 타입 - Hibernate 6 방식
     @JdbcTypeCode(SqlTypes.JSON)
@@ -65,19 +65,24 @@ public class JobEntity {
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
 
+    // AI 벡터 임베딩 (이력서와의 유사도 계산용)
+    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    private java.util.List<Double> embedding;
+
     // 광고 입찰가
     @Column(name = "ad_bid_credit", nullable = false)
     private Integer adBidCredit;
 
     // 감사
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     // ====== 앱에서 사용할 가상 필드 (DB에 없음) ======
     @Transient
@@ -92,14 +97,14 @@ public class JobEntity {
         if (applicationCount == null) applicationCount = 0;
         if (adBidCredit == null) adBidCredit = 0;
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
     }
 
     @PreUpdate
     void preUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = Instant.now();
     }
 
     /**

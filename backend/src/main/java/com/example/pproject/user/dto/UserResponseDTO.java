@@ -4,7 +4,7 @@ import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.SocialType;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 @Getter
 @Setter
 @ToString
@@ -16,7 +16,7 @@ public class UserResponseDTO {
     // ✅ member 테이블 구조(요구사항) 기준
     // - 기존 코드 호환을 위해 userid/username/birthday 필드는 유지
     // =========================
-    private Integer id;                // (member_id) 일련번호
+    private Long id;                // (member_id) 일련번호
 
     private String userid;             // (login_id) 아이디(일반 가입). 소셜 가입은 NULL 가능
     private String email;              // 이메일
@@ -28,14 +28,14 @@ public class UserResponseDTO {
 
     // ✅ 정책 동의 저장 컬럼(서버 세팅 권장)
     private Long termsNoticeId;
-    private LocalDateTime termsAgreedAt;
+    private Instant termsAgreedAt;
     private Long privacyNoticeId;
-    private LocalDateTime privacyAgreedAt;
+    private Instant privacyAgreedAt;
     private Long policyNoticeId;
-    private LocalDateTime policyAgreedAt;
+    private Instant policyAgreedAt;
 
     private Boolean marketingOptIn;
-    private LocalDateTime marketingAgreedAt;
+    private Instant marketingAgreedAt;
 
     private RoleType roleType;         // 권한(추후 enum 재정의 가능)
     private SocialType socialType;     // 소셜 타입(추후 auth_provider로 정리)
@@ -46,5 +46,5 @@ public class UserResponseDTO {
     private String detailAddress;
     private String extraAddress;
 
-    private LocalDateTime modDate;     // 레거시 호환용
+    private Instant modDate;     // 레거시 호환용
 }

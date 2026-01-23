@@ -1,0 +1,64 @@
+/* 알림 벨 컨테이너 */
+.notification-bell-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* 알림 벨 버튼 */
+.notification-bell-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    font-size: 1.25rem;
+    transition: color 0.2s ease;
+    border-radius: 50%;
+}
+
+.notification-bell-button:hover {
+    color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+.notification-bell-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+}
+
+/* 알림 배지 */
+.notification-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background-color: #dc3545;
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 600;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
