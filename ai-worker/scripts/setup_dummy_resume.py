@@ -177,7 +177,8 @@ def setup_dummy_resume_data():
                 s_date = f"{p['start_date'].replace('.', '-')}-01"
                 e_date = f"{p['end_date'].replace('.', '-')}-01" if p['end_date'] else None
                 
-                tech_stack_str = ", ".join(p["total_tech_stack"])
+                # tech_stack_str = ", ".join(p["total_tech_stack"])
+                tech_stack_list = p["total_tech_stack"]
                 
                 # Description + Contribution combined for description column? 
                 # User DDL has 'description' and 'contribution_pct' (numeric). 
@@ -192,7 +193,7 @@ def setup_dummy_resume_data():
                         %s, %s, %s, %s, %s, %s
                     )
                 """, (
-                    resume_id, p["project_name"], s_date, e_date, tech_stack_str, full_desc
+                    resume_id, p["project_name"], s_date, e_date, tech_stack_list, full_desc
                 ))
             logger.info(f"   - inserted {len(mock_request['projects'])} projects")
 
