@@ -1,5 +1,6 @@
 package com.example.pproject.payment.service;
 
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
@@ -289,10 +290,10 @@ public class PaymentService {
         UserEntity buyer = null;
         EmployerEntity employer = null;
 
-        if (request.buyerType() == RoleType.CANDIDATE) {
+        if (request.buyerType() == BuyerType.MEMBER) {
             buyer = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
-        } else if (request.buyerType() == RoleType.EMPLOYER) {
+        } else if (request.buyerType() == BuyerType.EMPLOYER) {
             employer = employerRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
         }
@@ -452,7 +453,7 @@ public class PaymentService {
         payment.approve(tossResponse, rawPayload);
 
         // 지갑 충전 로직
-        Long userId = payment.getOrder().getBuyerType() == RoleType.CANDIDATE 
+        Long userId = payment.getOrder().getBuyerType() == BuyerType.MEMBER
                 ? payment.getOrder().getBuyerMember().getId()
                 : payment.getOrder().getBuyerEmployer().getId();
 

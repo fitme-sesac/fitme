@@ -2,21 +2,22 @@ package com.example.pproject.subscription.entity;
 
 import com.example.pproject.Constant.CreditStatus;
 import com.example.pproject.Constant.PaymentStatus;
-import com.example.pproject.common.entity.BaseTimeEntity;
 import com.example.pproject.payment.entity.Payment;
 import com.example.pproject.wallet.entity.WalletLedger;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "subscription_billing_cycle")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
-public class SubscriptionBillingCycle extends BaseTimeEntity {
+public class SubscriptionBillingCycle {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,4 +49,8 @@ public class SubscriptionBillingCycle extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "credit_status")
     private CreditStatus creditStatus;
+
+    @CreatedDate
+    @Column(name = "created_at")
+    private Instant createdAt;
 }
