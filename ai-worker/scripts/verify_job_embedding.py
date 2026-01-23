@@ -105,13 +105,17 @@ def verify_job_embedding():
     # SCENARIO A: DB 조회 방식 (ID만 전달 -> 서버가 DB Join해서 데이터 확보 -> 업데이트)
     # ==============================================================================
     print("🅰️  [Scenario A] DB 조회 방식 (POST /jobs/{id}/embedding)")
-    # [Option 1] 매번 새로운 더미 데이터 생성 (기본)
-    # job_id_a = setup_dummy_job("(Target: DB Lookup)")
-
-    # [Option 2] 기존 DB에 있는 **특정 공고**를 테스트하고 싶으면 아래에 ID를 적고 주석을 푸세요!
-    job_id_a = 1  # <-- User Requested Job ID 1
-    # if job_id_a is None:
-    #      job_id_a = get_existing_job_id() # ID 입력을 안 했으면 그냥 가장 최신거 가져옴
+    
+    # 기본값은 1번, 실행 시 인자가 있으면 그 ID 사용
+    target_id = 1
+    if len(sys.argv) > 1:
+        try:
+            target_id = int(sys.argv[1])
+        except ValueError:
+            print(f"⚠️ Invalid ID argument: {sys.argv[1]}, defaulting to 1")
+            
+    job_id_a = target_id
+    print(f"   👉 Target Job ID: {job_id_a}")
 
     if job_id_a:
         try:

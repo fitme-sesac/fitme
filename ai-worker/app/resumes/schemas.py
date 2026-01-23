@@ -94,34 +94,34 @@ class ResumeSummary(BaseModel):
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
         """
-        [임베딩 전용 포맷 - Semantic Narrative]
-        매칭 정확도를 위해 태그(Role, Tech) 형식이 아닌, 문맥이 살아있는 서술형 텍스트를 반환합니다.
-        LLM이 생성한 'searchable_narrative'를 그대로 사용합니다.
+        [임베딩 전용 포맷 - Symmetric Structure (Revert to Tag/List)]
+        매칭 정확도를 위해 서술형(Narrative)보다 구조화된 리스트(Bullet Points)를 우선시합니다.
         
-        Fallback: 만약 searchable_narrative가 비어있다면 기존 방식대로 조합합니다.
+        Priority:
+        1. Universal Competencies (JD 표준 용어 리스트)
+        2. Structured Fields (Professional Identity, Key Achievement, etc.)
         """
-        if self.searchable_narrative:
-            return self.searchable_narrative
-            
-        # Fallback Logic (기존 필드 조합)
-        # 만약 universal_competencies가 존재하면 이를 우선 사용
+        
+        # 1. Competency Block Construction
         if self.universal_competencies:
+            # JD 표준 용어 리스트가 있으면 최우선 사용
             competency_block = "\n".join([f"- {c}" for c in self.universal_competencies])
         else:
-            # Fallback
+            # Fallback: 기존 구조화 필드 사용
             competency_block = (
-                f"{self.professional_identity}\n"
-                f"{self.key_achievement}\n"
-                f"{self.problem_solving}"
+                f"- Professional Identity: {self.professional_identity}\n"
+                f"- Key Achievements: {self.key_achievement}\n"
+                f"- Problem Solving: {self.problem_solving}"
             )
             
         # Role: job_category가 있으면 그것을 사용, 없으면 user input title 사용
         role_text = self.job_category if self.job_category else title
 
+        # Final Construction (Tag Style)
         return (
-            f"직무: {role_text}\n"
-            f"보유 기술 스택: {tech_stack}\n"
-            f"핵심 역량 및 성과:\n{competency_block}" # 태그형식을 최대한 배제하고 문장형에 가깝게
+            f"[Role] {role_text}\n"
+            f"[Tech Stack] {tech_stack}\n"
+            f"[Competencies]\n{competency_block}"
         )
 
 # 2. (신규) 인사이트 보고서형 요약

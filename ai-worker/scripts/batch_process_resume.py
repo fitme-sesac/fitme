@@ -127,7 +127,18 @@ async def process_resume_by_id(resume_id: int):
         # This will now use the Korean job_category if extracted
         embedding_text = result_obj.to_embedding_string(title=meta_title, tech_stack=meta_stack)
         
-        logger.info(f"📝 Generated Embedding Text Preview:\n{embedding_text[:300]}...")
+        # [DEBUG] Print full embedding text to verify format
+        print("\n" + "="*40 + " [Generated Embedding Text (Current)] " + "="*40)
+        print(embedding_text)
+        print("="*106 + "\n")
+        
+        # [DEBUG] Show Previous Narrative Version (if available)
+        if result_obj.searchable_narrative:
+            print("\n" + "="*40 + " [Previous Narrative Version (Hidden)] " + "="*40)
+            print(result_obj.searchable_narrative)
+            print("="*106 + "\n")
+
+        logger.info(f"📝 Generated Embedding Text Length: {len(embedding_text)}")
 
         # 5. Generate Vector
         vector = await vector_service.generate_vector(embedding_text)
