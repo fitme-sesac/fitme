@@ -70,6 +70,9 @@ class ResumeSummary(BaseModel):
     # [Start] Embed-Only Field
     universal_competencies: List[str] = Field(default=[], description="[Embed Only] 매칭을 위해 이력서 내용을 채용 공고(JD) 표준 용어로 변환한 보편적 역량 키워드 리스트 (예: '대규모 트래픽 분산 처리', 'MSA 아키텍처 설계')")
     job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리 (예: 'Backend Developer', 'Data Scientist', 'Frontend Developer'). 후보자의 경력과 기술을 바탕으로 가장 적합한 표준 직무명 하나만 추출")
+    
+    # [NEW] Semantic Search Narrative (검색 최적화 서술문)
+    searchable_narrative: str = Field(default="", description="[Embed Only] 채용 공고(JD)와의 매칭 정확도를 높이기 위해, 지원자의 직무 정체성, 핵심 기술, 주요 성과, 학력 정보를 통합하여 '주어+기술+행동+성과' 구조의 완결된 서술형 문장(Narrative)으로 요약한 텍스트.")
     # [End] Embed-Only Field
     
     # [System] 분석 근거
@@ -91,16 +94,16 @@ class ResumeSummary(BaseModel):
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
         """
-        [임베딩 전용 포맷 - Symmetric Tag Structure]
-        매칭 정확도를 높이기 위해 Job Embedding과 대칭되는 Tag 구조로 변환합니다.
+        [임베딩 전용 포맷 - Semantic Narrative]
+        매칭 정확도를 위해 태그(Role, Tech) 형식이 아닌, 문맥이 살아있는 서술형 텍스트를 반환합니다.
+        LLM이 생성한 'searchable_narrative'를 그대로 사용합니다.
         
-        Format:
-        [Role: {job_category if exists else title}]
-        [Tech: {tech_stack}]
-        [Competency]
-        - {competency_1}
-        ...
+        Fallback: 만약 searchable_narrative가 비어있다면 기존 방식대로 조합합니다.
         """
+        if self.searchable_narrative:
+            return self.searchable_narrative
+            
+        # Fallback Logic (기존 필드 조합)
         # 만약 universal_competencies가 존재하면 이를 우선 사용
         if self.universal_competencies:
             competency_block = "\n".join([f"- {c}" for c in self.universal_competencies])
@@ -116,10 +119,9 @@ class ResumeSummary(BaseModel):
         role_text = self.job_category if self.job_category else title
 
         return (
-            f"[Role: {role_text}]\n"
-            f"[Tech: {tech_stack}]\n"
-            f"[Competency]\n"
-            f"{competency_block}"
+            f"직무: {role_text}\n"
+            f"보유 기술 스택: {tech_stack}\n"
+            f"핵심 역량 및 성과:\n{competency_block}" # 태그형식을 최대한 배제하고 문장형에 가깝게
         )
 
 # 2. (신규) 인사이트 보고서형 요약
