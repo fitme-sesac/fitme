@@ -59,22 +59,22 @@ class AIProcessResult(BaseModel):
 class ResumeSummary(BaseModel):
     # [Merged] 전문성 + 검증된 역량 + 기술 스택 -> 'Professional Identity'
     professional_identity: str = Field(description="[전문성 요약 + 검증된 역량 + 핵심 기술 스택]을 모두 통합하여, 후보자의 직무 정체성과 주력 기술을 3~5줄로 포괄적으로 정의")
-    
+
     # [Restored] 상세 역량 분석 필드들
     key_achievement: str = Field(description="핵심 프로젝트 성과: 가장 기여도가 높은 프로젝트의 실질적 결과 (contribution_pct 활용)")
     problem_solving: str = Field(description="문제 해결 능력: ai_description 분석을 통한 기술적 깊이 (Method -> Result 구조)")
     credibility: str = Field(description="대외 신뢰도: 자격증 및 교육 수료 등을 통한 역량 강조")
     collaboration: str = Field(description="협업 및 가치관: 후보자가 추구하는 개발 문화와 태도, 팀원과의 협업 능력")
     matching_info: str = Field(description="채용 매칭 정보: 희망 근무지 및 고용 형태 등")
-    
+
     # [Start] Embed-Only Field
     universal_competencies: List[str] = Field(default=[], description="[Embed Only] 매칭을 위해 이력서 내용을 채용 공고(JD) 표준 용어로 변환한 보편적 역량 키워드 리스트 (예: '대규모 트래픽 분산 처리', 'MSA 아키텍처 설계')")
     job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리 (예: 'Backend Developer', 'Data Scientist', 'Frontend Developer'). 후보자의 경력과 기술을 바탕으로 가장 적합한 표준 직무명 하나만 추출")
-    
+
     # [NEW] Semantic Search Narrative (검색 최적화 서술문)
     searchable_narrative: str = Field(default="", description="[Embed Only] 채용 공고(JD)와의 매칭 정확도를 높이기 위해, 지원자의 직무 정체성, 핵심 기술, 주요 성과, 학력 정보를 통합하여 '주어+기술+행동+성과' 구조의 완결된 서술형 문장(Narrative)으로 요약한 텍스트.")
     # [End] Embed-Only Field
-    
+
     # [System] 분석 근거
     ai_reasoning: List[str] = Field(description="분석 근거: 각 항목을 작성하기 위해 참고한 문서의 페이지 번호나 섹션 출처 (리스트 형태)")
 
@@ -96,12 +96,12 @@ class ResumeSummary(BaseModel):
         """
         [임베딩 전용 포맷 - Symmetric Structure (Revert to Tag/List)]
         매칭 정확도를 위해 서술형(Narrative)보다 구조화된 리스트(Bullet Points)를 우선시합니다.
-        
+
         Priority:
         1. Universal Competencies (JD 표준 용어 리스트)
         2. Structured Fields (Professional Identity, Key Achievement, etc.)
         """
-        
+
         # 1. Competency Block Construction
         if self.universal_competencies:
             # JD 표준 용어 리스트가 있으면 최우선 사용
@@ -113,7 +113,7 @@ class ResumeSummary(BaseModel):
                 f"- Key Achievements: {self.key_achievement}\n"
                 f"- Problem Solving: {self.problem_solving}"
             )
-            
+
         # Role: job_category가 있으면 그것을 사용, 없으면 user input title 사용
         role_text = self.job_category if self.job_category else title
 
@@ -139,7 +139,7 @@ class ResumeInsightReport(BaseModel):
 
     def to_formatted_string(self, include_reasoning: bool = False) -> str:
         achievements_str = "\n".join([f"  • {item}" for item in self.technical_achievements])
-        
+
         base_text = (
             f"### {self.headline}\n\n"
             f"**[전문가 프로필]**\n{self.professional_profile}\n\n"
@@ -149,11 +149,11 @@ class ResumeInsightReport(BaseModel):
             f"--- \n"
             f"**[추가 정보]**\n- 협업/가치관: {self.soft_skills}\n- 매칭 정보: {self.matching_info}"
         )
-        
+
         if include_reasoning:
             reasoning_str = "\n".join(self.ai_reasoning)
             base_text += f"\n\n**[AI 분석 근거]**\n{reasoning_str}"
-            
+
         return base_text
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
@@ -161,9 +161,9 @@ class ResumeInsightReport(BaseModel):
         [임베딩 전용 포맷 - Symmetric Tag Structure]
         """
         achievements_str = ", ".join(self.technical_achievements)
-        
+
         role_text = self.job_category if self.job_category else title
-        
+
         return (
             f"[Role: {role_text}]\n"
             f"[Tech: {tech_stack}]\n"

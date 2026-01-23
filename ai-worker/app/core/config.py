@@ -5,18 +5,24 @@ class Settings(BaseSettings):
     # App
     APP_TITLE: str = "AI Worker Service"
     APP_VERSION: str = "1.0.0"
-    
+
     # OpenAI
-    OPENAI_API_KEY: str
+    # NOTE: 기본값은 "change_me"(로컬/도커 구동용). 실제 호출 시에는 반드시 환경변수로 교체.
+    OPENAI_API_KEY: str = "change_me"
     OPENAI_MODEL_NAME: str = "gpt-5-mini"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    
+
     # Database
-    DB_HOST: str
-    DB_PORT: str
-    DB_NAME: str
-    DB_USER: str
-    DB_PASSWORD: str
+    DB_HOST: str = "localhost"
+    DB_PORT: str = "5432"
+    DB_NAME: str = "fitme_project"
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = "change_me"
+
+    # Redis
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_PASSWORD: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

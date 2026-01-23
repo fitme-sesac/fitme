@@ -28,11 +28,11 @@ class SummaryService:
         self.json_parser = PydanticOutputParser(pydantic_object=ResumeSummary)
         self.report_parser = PydanticOutputParser(pydantic_object=ResumeInsightReport)
         self.text_parser = StrOutputParser()
-        
+
         # PDF Handler 초기화
         tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
         poppler_path = r"C:\Program Files\Release-25.12.0-0\poppler-25.12.0\Library\bin"
-        
+
         self.pdf_handler = PDFHandler(tesseract_cmd_path=tesseract_path, poppler_path=poppler_path)
 
     async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> Union[str, ResumeSummary, ResumeInsightReport]:
@@ -42,14 +42,14 @@ class SummaryService:
         type: RESUME 또는 SELF_INTRO (데이터의 성격)
         summary_type: STRUCTURED, TEXT, REPORT
         """
-        
+
         input_content = data.get("content", "")
         file_links = data.get("file_links", [])
         basic_info = data.get("basic_info", {})
         projects = data.get("projects", [])
         careers = data.get("careers", [])
         include_reasoning = data.get("include_reasoning", False)
-        
+
         # Basic Info를 텍스트로 변환
         basic_info_text = ""
         if basic_info:
@@ -60,7 +60,7 @@ class SummaryService:
                 # Pydantic Model or Dict handle
                 if hasattr(edu_info, 'dict'): edu_dict = edu_info.dict()
                 else: edu_dict = edu_info
-                
+
                 status = edu_dict.get('status', '')
                 major = edu_dict.get('major', '')
                 school = edu_dict.get('school_name', '')
@@ -84,11 +84,11 @@ class SummaryService:
                     projects_list.append(f"- {p}")
                     continue
 
-                # p는 dict 형태일 수도 있고 Pydantic model일 수도 있음. 
+                # p는 dict 형태일 수도 있고 Pydantic model일 수도 있음.
                 # ResumeRequest로 들어오면 Pydantic model이지만, dict로 변환되어 들어올 수도 있음.
                 # 안전하게 처리하기 위해 dict access 시도
                 if hasattr(p, 'dict'): p = p.dict()
-                
+
                 p_text = f"""
                 - Project Name: {p.get('project_name', '')} ({p.get('start_date','')} ~ {p.get('end_date','')})
                 - Tech Stack: {', '.join(p.get('total_tech_stack', []))}
@@ -109,7 +109,7 @@ class SummaryService:
                     continue
 
                 if hasattr(c, 'dict'): c = c.dict()
-                
+
                 c_text = f"""
                 - Company: {c.get('company_name', '')} ({c.get('role', '')})
                 - Period: {c.get('start_date', '')} ~ {c.get('end_date', '')}
@@ -117,31 +117,31 @@ class SummaryService:
                 """
                 careers_list.append(c_text)
             careers_text = "\n".join(careers_list)
-        
+
         # PDF 파일 처리
         file_content_parts = []
         is_ocr_data = False
-        
+
         if file_links:
             for idx, file_link in enumerate(file_links):
                 try:
                     if file_link.startswith("http"):
                         print(f"URL Download not implemented yet: {file_link}")
                         continue
-                    
+
                     print(f"Extracting text from PDF ({idx+1}/{len(file_links)}): {file_link}")
                     pdf_result = self.pdf_handler.extract_text(file_link)
-                    
+
                     pdf_internal_text = pdf_result["masked_text"]
                     extracted = f"[File {idx+1}: {os.path.basename(file_link)}]\n{pdf_internal_text}"
                     file_content_parts.append(extracted)
                     is_ocr_data = True
-                    
+
                 except Exception as e:
                     print(f"PDF Processing Failed for {file_link}: {e}")
-        
+
         file_content = "\n\n".join(file_content_parts)
-        
+
         # LLM 입력 데이터 구성
         final_input_text = f"""
         [Candidate Basic Info]
@@ -162,7 +162,7 @@ class SummaryService:
 
         # [Common System Instruction]
         common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘."
-        
+
         common_constraints = """
         [Constraints]
         1. 보안 준수(Critical): **개인 식별 정보(PII)는 '이름', '나이', '성별', '거주지', '사진'을 포함하여 일체 제외한다.** 
@@ -206,10 +206,10 @@ class SummaryService:
         """
             parser = self.text_parser
             format_instructions = ""
-            
+
             parser = self.text_parser
             format_instructions = ""
-            
+
         elif summary_type == SummaryType.REPORT:
             # [NEW] 인사이트 보고서 모드 (User Request: 0.1초 승부)
             report_instruction = """
@@ -222,7 +222,7 @@ class SummaryService:
             5. Reasoning (출처 명시 필수): ai_reasoning 필드에 **[Citation Rules]**에 따라 출처를 명확히 표기하라.
                - 뭉뚱그려 "프로젝트 경험을 통해..."라고 쓰지 말고, 정확히어떤 프로젝트인지, 어떤 섹션인지 지목하라.
             """
-            
+
             system_instruction = f"""{common_role}
             {common_constraints}
             {report_instruction}
@@ -231,7 +231,7 @@ class SummaryService:
             """
             parser = self.report_parser
             format_instructions = parser.get_format_instructions()
-            
+
         else: # SummaryType.STRUCTURED
             # [STRUCTURED 모드 개선] : Hybrid Schema (3-in-1 Integration) + Bullet Points (개조식)
             structured_instruction = """
@@ -283,7 +283,7 @@ class SummaryService:
 
             10. ai_reasoning: 분석 근거 (Page/Section Reference)
             """
-            
+
             system_instruction = f"""{common_role}
             {common_constraints}
             {structured_instruction}
@@ -308,7 +308,7 @@ class SummaryService:
         
         * 경고: 위 5개 외의 모호한 출처(예: "전반적인 내용", "입력 데이터")는 사용하지 말 것.
         """
-        
+
         # [Global Reinforcement]
         # 모든 모드 공통으로 마지막에 PII 금지 사항을 강력하게 재주입 (Recency Bias 활용)
         pii_reinforcement = """
@@ -333,30 +333,30 @@ class SummaryService:
             이 자기소개서에서 후보자의 '개발 철학', '학습 의지', '협업 태도'를 분석해줘. 
             단순한 경험 나열이 아닌, 시련을 극복한 과정(Troubleshooting)을 통해 드러난 잠재력을 강조해라.
             """
-            
+
         prompt_template = ChatPromptTemplate.from_messages([
             ("system", system_instruction),
             ("user", f"{instruction}\n\nData:\n{{input_text}}")
         ])
-        
+
         # 포맷 지침 주입
         if summary_type in [SummaryType.STRUCTURED, SummaryType.REPORT]:
-             prompt = prompt_template.partial(format_instructions=format_instructions)
+            prompt = prompt_template.partial(format_instructions=format_instructions)
         else:
-             prompt = prompt_template
+            prompt = prompt_template
 
         # [Chain 실행]
         chain = prompt | self.llm | parser
-        
+
         try:
             result = await chain.ainvoke({"input_text": final_input_text})
-            
+
             if summary_type == SummaryType.STRUCTURED or summary_type == SummaryType.REPORT:
                 # Controller에서 용도(Display vs Embedding)에 따라 다르게 포맷팅할 수 있도록 객체 자체를 반환
                 return result
             else:
                 return result
-                
+
         except Exception as e:
             print(f"Output Parsing Failed: {e}")
             raise e

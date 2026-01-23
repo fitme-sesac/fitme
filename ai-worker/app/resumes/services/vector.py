@@ -36,13 +36,13 @@ class VectorService:
         tracing = os.getenv("LANGCHAIN_TRACING_V2")
         project = os.getenv("LANGCHAIN_PROJECT")
         api_key_exists = "O" if os.getenv("LANGCHAIN_API_KEY") else "X"
-        
+
         print(f"\n[VectorService Init] Tracing: {tracing}, Project: {project}, API_KEY: {api_key_exists}")
-        
+
         if not settings.OPENAI_API_KEY:
             print("❌ OpenAI API Key is MISSING in settings! Check .env file.")
         else:
-            masked = settings.OPENAI_API_KEY[:5] + "..." 
+            masked = settings.OPENAI_API_KEY[:5] + "..."
             print(f"[OK] OpenAI API Key loaded. Key: {masked}")
 
         try:
@@ -56,7 +56,7 @@ class VectorService:
         except (pydantic.ValidationError, getattr(openai, 'OpenAIError', Exception), Exception) as e:
             # 2. 실패 시 예외 처리: 모델명 오타, 권한 부족, 구형 토큰 등 다양한 원인 대응
             logger.warning(
-                f"주력 모델 '{settings.OPENAI_EMBEDDING_MODEL}' 초기화 실패. 백업 모델로 전환합니다.", 
+                f"주력 모델 '{settings.OPENAI_EMBEDDING_MODEL}' 초기화 실패. 백업 모델로 전환합니다.",
                 exc_info=True
             )
             try:
@@ -78,7 +78,7 @@ class VectorService:
         """
         텍스트를 임베딩 벡터로 변환합니다.
         """
-        if os.getenv("LANGCHAIN_TRACING_V2") == "true":       
+        if os.getenv("LANGCHAIN_TRACING_V2") == "true":
             logger.info("\n" + "="*20 + " [Embedding Input Text Check] " + "="*20)
             logger.info(text)
             logger.info("="*66 + "\n")
