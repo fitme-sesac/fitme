@@ -253,8 +253,8 @@ class SummaryService:
 
             8. job_category: 
                - 후보자의 경험과 기술 스택을 종합하여 **가장 적합한 표준 직무명(Standard Job Category)** 하나를 추출하라.
-               - 예: "Backend Developer", "Frontend Developer", "Data Scientist", "DevOps Engineer", "Mobile App Developer" 등.
-               - 너무 긴 설명형 문장이 아닌, 명확한 직무 카테고리 명사를 사용하라.
+               - 예: "백엔드 개발자", "프론트엔드 개발자", "데이터 사이언티스트", "데브옵스 엔지니어", "모바일 앱 개발자" 등.
+               - 너무 긴 설명형 문장이 아닌, 명확한 직무 카테고리 명사를 **반드시 한국어**로 사용하라.
 
             9. ai_reasoning: 분석 근거 (Page/Section Reference)
             """

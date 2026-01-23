@@ -35,7 +35,7 @@ async def process_resume_by_id(resume_id: int):
         with conn.cursor() as cur:
             # 1. Fetch Resume Basic Info
             cur.execute("""
-                SELECT title, re_stack, content, preference_location, preference_salary, employment_type, school_state, school_class
+                SELECT title, re_stack, content, preference_location, preference_salary, employment_type
                 FROM resume 
                 WHERE resume_id = %s
             """, (resume_id,))
@@ -45,21 +45,12 @@ async def process_resume_by_id(resume_id: int):
                 logger.error(f"❌ Resume ID {resume_id} not found.")
                 return
 
-            # Education Mapping
-            education_data = None
-            if resume_row[6] or resume_row[7]:
-                education_data = {
-                    "status": resume_row[6] or "",
-                    "major": resume_row[7] or ""
-                }
-
             raw_data = {
                 "content": resume_row[2],
                 "file_links": [], # DB doesn't store file links in a simple column yet, assuming empty or need separate table
                 "basic_info": {
                     "title": resume_row[0],
                     "re_stack": resume_row[1] or [],
-                    "education": education_data,
                     "preference": {
                         "location": resume_row[3],
                         "salary": resume_row[4],
@@ -127,18 +118,7 @@ async def process_resume_by_id(resume_id: int):
         # This will now use the Korean job_category if extracted
         embedding_text = result_obj.to_embedding_string(title=meta_title, tech_stack=meta_stack)
         
-        # [DEBUG] Print full embedding text to verify format
-        print("\n" + "="*40 + " [Generated Embedding Text (Current)] " + "="*40)
-        print(embedding_text)
-        print("="*106 + "\n")
-        
-        # [DEBUG] Show Previous Narrative Version (if available)
-        if result_obj.searchable_narrative:
-            print("\n" + "="*40 + " [Previous Narrative Version (Hidden)] " + "="*40)
-            print(result_obj.searchable_narrative)
-            print("="*106 + "\n")
-
-        logger.info(f"📝 Generated Embedding Text Length: {len(embedding_text)}")
+        logger.info(f"📝 Generated Embedding Text Preview:\n{embedding_text[:300]}...")
 
         # 5. Generate Vector
         vector = await vector_service.generate_vector(embedding_text)
