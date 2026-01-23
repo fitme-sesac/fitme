@@ -1,0 +1,13 @@
+* text=auto
+
+# Always LF (safe for Docker/Linux)
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+*.dockerignore text eol=lf
+*.sql text eol=lf
+*.py text eol=lf
+*.ts text eol=lf
+*.java text eol=lf
+.gitignore text eol=lf

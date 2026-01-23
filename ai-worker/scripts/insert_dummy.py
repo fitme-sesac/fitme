@@ -51,24 +51,14 @@ try:
         print("🛠️ 테스트용 더미 데이터를 생성합니다...")
         
         try:
-            # 유효한 member_id 조회
-            cur.execute("SELECT member_id FROM member LIMIT 1")
-            member_row = cur.fetchone()
-            
-            if not member_row:
-                raise Exception("'member' 테이블에 회원이 한 명도 없습니다. 먼저 회원을 생성해야 합니다.")
-            
-            target_member_id = member_row[0]
-            print(f"👉 기존 회원(ID: {target_member_id})을 찾았습니다. 이 회원의 ID로 이력서를 생성합니다.")
-
-            # 필수 필드만 채워서 삽입 (동적으로 찾은 member_id 사용)
+            # 필수 필드만 채워서 삽입 (member_id는 1로 가정)
             cur.execute("""
                 INSERT INTO resume (
                     resume_id, member_id, title, field, status, created_at, updated_at
                 ) VALUES (
-                    1, %s, 'AI 테스트용 이력서', 'RESUME', 'ACTIVE', NOW(), NOW()
+                    1, 1, 'AI 테스트용 이력서', 'RESUME', 'ACTIVE', NOW(), NOW()
                 )
-            """, (target_member_id,))
+            """)
             print("✅ 더미 데이터(ID: 1)가 성공적으로 추가되었습니다!")
             print("Tip: 이제 'python test_api.py'를 실행하면 DB에 결과가 저장될 겁니다.")
             
