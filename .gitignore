@@ -93,9 +93,10 @@ coverage/
 ########################################
 .env
 .env.*
-!.env.example
-!.env.docker.example
-
+!.env*.example
+**/.env
+**/.env.*
+!.env*.example
 
 ########################################
 # Docker local data (bind-mount 쓰는 경우만)
