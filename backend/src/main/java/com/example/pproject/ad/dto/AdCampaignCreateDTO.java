@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -16,6 +16,6 @@ public class AdCampaignCreateDTO {
     private Long jobId;
     private Integer cpcBid;
     private Integer dailyBudget;
-    private Instant startAt;
-    private Instant endAt;
+    private LocalDate startDate; // 예: "2026-01-24"
+    private LocalDate endDate;   // 예: "2026-01-31"
 }

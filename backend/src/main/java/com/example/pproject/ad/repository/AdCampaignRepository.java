@@ -13,18 +13,20 @@ import java.util.Optional;
 @Repository
 public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Long> {
 
-    // 기업별 광고 캠페인 목록 (삭제되지 않은 것)
-    @Query("SELECT a FROM AdCampaignEntity a WHERE a.employerId = :employerId AND a.deletedAt IS NULL ORDER BY a.createdAt DESC")
+    // 기업별 광고 캠페인 목록
+    @Query("SELECT a FROM AdCampaignEntity a WHERE a.employerId = :employerId ORDER BY a.createdAt DESC")
     Page<AdCampaignEntity> findByEmployerIdAndNotDeleted(@Param("employerId") Long employerId, Pageable pageable);
 
-    // 활성 상태인 광고 찾기 (Status='ACTIVE', 기간 내, 삭제 안됨)
-    // 실제 광고 집행 로직에서 사용될 수 있음
-    @Query("SELECT a FROM AdCampaignEntity a WHERE a.status = 'ACTIVE' AND a.deletedAt IS NULL " +
+    // 활성 상태인 광고 찾기 (Status='ACTIVE', 기간 내)
+    @Query("SELECT a FROM AdCampaignEntity a WHERE a.status = 'ACTIVE' " +
             "AND (a.startAt IS NULL OR a.startAt <= CURRENT_TIMESTAMP) " +
             "AND (a.endAt IS NULL OR a.endAt >= CURRENT_TIMESTAMP)")
     Page<AdCampaignEntity> findActiveAds(Pageable pageable);
 
-    // ID로 삭제되지 않은 캠페인 조회
-    @Query("SELECT a FROM AdCampaignEntity a WHERE a.id = :id AND a.deletedAt IS NULL")
+    // ID로 캠페인 조회
+    @Query("SELECT a FROM AdCampaignEntity a WHERE a.id = :id")
     Optional<AdCampaignEntity> findByIdAndNotDeleted(@Param("id") Long id);
+
+    // 특정 job_id로 활성 상태(ENDED가 아닌) 캠페인이 존재하는지 확인
+    boolean existsByJobIdAndStatusNot(Long jobId, String status);
 }
