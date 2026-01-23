@@ -102,3 +102,11 @@ coverage/
 # Docker local data (bind-mount 쓰는 경우만)
 ########################################
 docker-data/
+
+########################################
+# Gradle Wrapper (must be committed)
+########################################
+!gradlew
+!gradlew.bat
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.properties
