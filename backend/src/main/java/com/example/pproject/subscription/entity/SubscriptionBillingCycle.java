@@ -10,7 +10,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "subscription_billing_cycle")
@@ -28,7 +28,7 @@ public class SubscriptionBillingCycle extends BaseTimeEntity {
     private Subscription subscription;
 
     @Column(name = "billing_month")
-    private LocalDateTime billingMonth;
+    private LocalDate billingMonth;
 
     @ManyToOne
     @JoinColumn(name = "payment_id")
