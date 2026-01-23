@@ -53,9 +53,24 @@ class SummaryService:
         # Basic Info를 텍스트로 변환
         basic_info_text = ""
         if basic_info:
+            # Education Text Handling
+            edu_info = basic_info.get('education')
+            edu_text = "Not Specified"
+            if edu_info:
+                # Pydantic Model or Dict handle
+                if hasattr(edu_info, 'dict'): edu_dict = edu_info.dict()
+                else: edu_dict = edu_info
+                
+                status = edu_dict.get('status', '')
+                major = edu_dict.get('major', '')
+                school = edu_dict.get('school_name', '')
+                edu_text = f"{status}, {major}"
+                if school: edu_text += f" ({school})"
+
             basic_info_text = f"""
             - Title: {basic_info.get('title', '')}
             - Tech Stack: {', '.join(basic_info.get('re_stack', []))}
+            - Education: {edu_text}
             - Preference: {basic_info.get('preference', {})}
             """
 
@@ -234,7 +249,9 @@ class SummaryService:
             3. problem_solving: (과정 중심) 어떤 상황에서 어떤 기술로 문제를 해결했는지 인과관계 명시
                - 예: "이벤트 발행 실패 문제를 해결하기 위해 Transactional Outbox 패턴을 도입하여 데이터 정합성 확보"
 
-            4. credibility: (팩트 중심) 학력, 자격증, 수상 내역 중 최상위 3개
+            4. credibility: (팩트 중심) 학력(전공/비전공 여부, 학위), 자격증, 수상 내역 중 최상위 3개
+               - **[학력 강조]**: 컴퓨터공학 등 직무 연관 전공이 확인될 경우 반드시 "전공 지식 보유" 또는 "컴퓨터공학 학사" 등으로 명시하여 대외 신뢰도를 높여라.
+               
             5. collaboration: (태도 중심) 협업 스타일 및 리더십 경험
             6. matching_info: 희망 연봉 및 근무지
             
