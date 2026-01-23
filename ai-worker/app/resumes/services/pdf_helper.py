@@ -49,8 +49,15 @@ class PDFHandler:
         
         # 외부 도구 경로 설정 (OCR 및 이미지 변환용)
         # 윈도우 환경에서는 설치 경로를 명시해야 할 수 있음.
-        if tesseract_cmd_path:
+        if tesseract_cmd_path and pytesseract:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd_path
+        elif tesseract_cmd_path is None and pytesseract:
+            # 설정된 경로가 없더라도 pytesseract가 임포트되었다면, 
+            # 시스템 PATH에서 찾을 수 있는지 확인하거나 기본값 사용
+            pass
+        elif not pytesseract:
+            self.logger.warning("pytesseract library is not installed. OCR features will be disabled.")
+
         self.poppler_path = poppler_path
 
     def extract_text(self, file_path: str) -> dict:
