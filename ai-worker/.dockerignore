@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.idea/
+.git/
+
+# logs
+logs/
+*.log
+
+# secrets
+.env
+.env.*
