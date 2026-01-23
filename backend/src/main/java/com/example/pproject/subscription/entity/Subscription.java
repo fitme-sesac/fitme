@@ -11,6 +11,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -37,13 +38,13 @@ public class Subscription extends BaseTimeEntity {
     private SubscriptionStatus status;
 
     @Column(name = "started_at")
-    private LocalDateTime staredAt;
+    private Instant staredAt;
 
     @Column(name = "next_billing_at")
-    private LocalDateTime nextBillingAt;
+    private Instant nextBillingAt;
 
     @Column(name = "ended_at")
-    private LocalDateTime endedAt;
+    private Instant endedAt;
 
     @Column(name = "customer_key")
     private String customerKey;
