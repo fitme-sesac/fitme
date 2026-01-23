@@ -207,40 +207,43 @@ class JobService:
                 # v2에서는 Unknown은 과감히 버리거나, 맨 뒤에 기타로 붙임. 여기서는 RESP로 가정.
                 responsibilities.append(cleaned_text)
 
-        # --- 2. Narrative Reconstruction ---
-        narrative_parts = []
+        # --- 2. Structured Re-construction (Revert to v1) ---
+        # "Narrative" -> "Structured Tags"
+        parts = []
         
-        # 2-1. Intro
-        narrative_parts.append(f"이 포지션은 {request.title} 채용 공고입니다.")
+        # 2-1. Title & Stack
+        parts.append(f"[Role] {request.title}")
+        parts.append(f"[Industry] {request.industry}")
         
-        # 2-2. Responsibility
-        if responsibilities:
-            # "A. B. C. 역할을 수행합니다."
-            resp_text = " ".join(responsibilities)
-            narrative_parts.append(f"{resp_text} 역할을 수행합니다.")
-            
-        # 2-3. Tech & Requirement
-        # "해당 개발자는 {Stack} 기반의 시스템을 개발합니다."
         if request.stack:
             stack_str = ", ".join(request.stack) if isinstance(request.stack, list) else str(request.stack)
-            narrative_parts.append(f"{stack_str} 기술 스택 활용 경험이 요구됩니다.")
+            parts.append(f"[Tech Stack] {stack_str}")
             
+        # 2-2. Responsibilities
+        if responsibilities:
+            parts.append("[Responsibilities]")
+            for item in responsibilities:
+                parts.append(f"- {item}")
+                
+        # 2-3. Requirements
         if requirements:
-            req_text = " ".join(requirements)
-            narrative_parts.append(f"{req_text}")
-            
-        # 2-4. Experience
+            parts.append("[Requirements]")
+            for item in requirements:
+                parts.append(f"- {item}")
+                
+        # 2-4. Experience (Explicit Field)
         req_exp = request.required_experience
         if req_exp is not None and req_exp > 0:
-            narrative_parts.append(f"관련 경력 {req_exp}년 이상이 필수이며, 신입 지원은 불가합니다.")
+             parts.append(f"[Experience] Minimum {req_exp} years required")
         else:
-             narrative_parts.append("신입 또는 관련 프로젝트 경험 보유자 지원 가능합니다.")
+             parts.append("[Experience] Newcomers welcome")
 
-        # 2-5. Preference
+        # 2-5. Preferences
         if preferences:
-            pref_text = " ".join(preferences)
-            narrative_parts.append(f"{pref_text} 우대합니다.")
+            parts.append("[Preferred]")
+            for item in preferences:
+                parts.append(f"- {item}")
             
-        return "\n\n".join(narrative_parts)
+        return "\n".join(parts)
 
 job_service = JobService()
