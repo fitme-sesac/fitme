@@ -1,5 +1,6 @@
 package com.example.pproject.wallet.service;
 
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.Constant.SourceType;
 import com.example.pproject.Constant.TxType;
@@ -144,7 +145,7 @@ public class WalletService {
      * @param payment   결제 엔티티 (멱등성 키로 사용)
      */
     @Transactional
-    public void chargeCredit(Long userId, RoleType roleType, long amount, Money price, Payment payment) {
+    public void chargeCredit(Long userId, BuyerType roleType, long amount, Money price, Payment payment) {
 
         // 1. 락 획득
         Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
@@ -171,16 +172,16 @@ public class WalletService {
      * </p>
      *
      * @param userId     사용자 ID
-     * @param roleType   사용자 역할
+     * @param buyerType   사용자 역할
      * @param amount     사용할 크레딧 양
      * @param orderId    주문 ID (멱등성 키로 사용)
      * @param sourceType 사용처 (AI, AD_CLICK 등)
      */
     @Transactional
-    public void useCredit(Long userId, RoleType roleType, long amount, String orderId, SourceType sourceType) {
+    public void useCredit(Long userId, BuyerType buyerType, long amount, String orderId, SourceType sourceType) {
 
         // 1. 락 획득
-        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
 
         // 2. 락 획득 후 멱등성 체크
         if (ledgerRepository.existsByIdempotencyKey(orderId)) {
@@ -378,11 +379,11 @@ public class WalletService {
     /**
      * 사용자 ID와 역할로 지갑을 조회하며 비관적 락을 겁니다. (수정용)
      */
-    private Wallet findWalletByOwnerWithLock(Long userId, RoleType roleType) {
-        if (roleType == RoleType.CANDIDATE) {
+    private Wallet findWalletByOwnerWithLock(Long userId, BuyerType buyerType) {
+        if (buyerType == BuyerType.MEMBER) {
             return walletRepository.findByMemberWithLock(userId)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
-        } else if (roleType == RoleType.EMPLOYER) {
+        } else if (buyerType == BuyerType.EMPLOYER) {
             return walletRepository.findByEmployerWithLock(userId)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
         } else {

@@ -1,5 +1,6 @@
 package com.example.pproject.order.entity;
 
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.OrderStatus;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.entity.BaseTimeEntity;
@@ -37,7 +38,7 @@ public class Orders extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "buyer_type", nullable = false, length = 20)
-    private RoleType buyerType; // 구매자 타입
+    private BuyerType buyerType; // 구매자 타입
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buyer_member_id")
@@ -48,7 +49,7 @@ public class Orders extends BaseTimeEntity {
     private EmployerEntity buyerEmployer; // 구매자(기업)
     
     @ManyToOne
-    @JoinColumn(name = "product_id")
+    @JoinColumn(name = "product_id", nullable = false)
     private Product product; // 상품 정보
     
     @Embedded
@@ -70,7 +71,7 @@ public class Orders extends BaseTimeEntity {
     /**
      * 주문 생성 (개인/기업 분기 처리 포함)
      */
-    public static Orders createOrder(UUID orderUid, RoleType buyerType, UserEntity buyer, EmployerEntity employer, Product product, Money amount, String idempotencyKey) {
+    public static Orders createOrder(UUID orderUid, BuyerType buyerType, UserEntity buyer, EmployerEntity employer, Product product, Money amount, String idempotencyKey) {
         Assert.notNull(orderUid, "주문 UID는 필수입니다.");
         Assert.notNull(buyerType, "구매자 타입은 필수입니다.");
         Assert.notNull(product, "상품 정보는 필수입니다.");
@@ -84,10 +85,10 @@ public class Orders extends BaseTimeEntity {
                 .status(OrderStatus.CREATED)
                 .idempotencyKey(idempotencyKey);
 
-        if (buyerType == RoleType.CANDIDATE) {
+        if (buyerType == BuyerType.MEMBER) {
             Assert.notNull(buyer, "개인 회원은 필수입니다.");
             builder.buyerMember(buyer);
-        } else if (buyerType == RoleType.EMPLOYER) {
+        } else if (buyerType == BuyerType.EMPLOYER) {
             Assert.notNull(employer, "기업 회원은 필수입니다.");
             builder.buyerEmployer(employer);
         } else {
@@ -105,11 +106,11 @@ public class Orders extends BaseTimeEntity {
      * @throws IllegalStateException 본인의 주문이 아닐 경우 예외 발생
      */
     public void validateOwner(Long userId) {
-        if (this.buyerType == RoleType.CANDIDATE) {
+        if (this.buyerType == BuyerType.MEMBER) {
             if (this.buyerMember == null || !this.buyerMember.getId().equals(userId)) {
                 throw new IllegalStateException("본인의 주문 내역만 접근할 수 있습니다.");
             }
-        } else if (this.buyerType == RoleType.EMPLOYER) {
+        } else if (this.buyerType == BuyerType.EMPLOYER) {
             if (this.buyerEmployer == null || !this.buyerEmployer.getId().equals(userId)) {
                 throw new IllegalStateException("본인의 기업 주문 내역만 접근할 수 있습니다.");
             }

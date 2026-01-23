@@ -11,6 +11,7 @@ import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -66,10 +67,10 @@ public class PgWebhookInbox {
 
     @CreatedDate
     @Column(name = "received_at", nullable = false, updatable = false)
-    private LocalDateTime receivedAt;   // 수신 시간
+    private Instant receivedAt;   // 수신 시간
 
     @Column(name = "processed_at")
-    private LocalDateTime processedAt;  // 처리 시간
+    private Instant processedAt;  // 처리 시간
 
     @Builder
     public PgWebhookInbox(String pgEventId, String eventType, Payment payment, Map<String, Object> payload) {
@@ -102,7 +103,7 @@ public class PgWebhookInbox {
      */
     public void markAsProcessed() {
         this.processStatus = WebhookProcessStatus.PROCESSED;
-        this.processedAt = LocalDateTime.now();
+        this.processedAt = Instant.now();
     }
 
     /**
