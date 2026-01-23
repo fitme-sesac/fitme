@@ -1,5 +1,6 @@
 package com.example.pproject.wallet.repository;
 
+import com.example.pproject.payment.entity.Payment;
 import com.example.pproject.wallet.entity.Wallet;
 import com.example.pproject.wallet.entity.WalletCreditLot;
 import jakarta.persistence.LockModeType;
@@ -21,5 +22,5 @@ public interface WalletCreditLotRepository extends JpaRepository<WalletCreditLot
     List<WalletCreditLot> findByWalletAndRemainingCreditGreaterThanOrderByCreatedAtAsc(Wallet wallet, Long remainingCredit);
 
     // (권장) 결제 멱등성 체크
-    boolean existsByPaymentId(Long paymentId);
+    boolean existsByPayment(Payment paymentId);
 }

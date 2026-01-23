@@ -1,5 +1,6 @@
 package com.example.pproject.payment.dto.toss;
 
+import com.example.pproject.payment.dto.webhook.TossWebhookRequest;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.math.BigDecimal;
@@ -37,4 +38,27 @@ public record TossPaymentResponse(
             String cancelReason,
             OffsetDateTime canceledAt
     ) {}
+
+    /**
+     * 웹훅 요청을 결제 응답 DTO로 변환하는 팩토리 메서드
+     */
+    public static TossPaymentResponse from(TossWebhookRequest request, String orderName) {
+        return new TossPaymentResponse(
+                request.data().paymentKey(),
+                request.data().orderId(),
+                orderName,
+                request.data().status(),
+                request.data().transactionKey(),
+                null, // lastTransactionKey
+                request.data().requestedAt(),
+                request.data().approvedAt(),
+                request.data().totalAmount(),
+                request.data().balanceAmount(),
+                request.data().method(),
+                null, // receipt
+                null, // cancels
+                null, // card
+                null  // virtualAccount
+        );
+    }
 }
