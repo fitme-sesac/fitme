@@ -14,6 +14,7 @@ import com.example.pproject.payment.dto.request.PaymentCreateRequest;
 import com.example.pproject.payment.dto.response.PaymentCancelResponse;
 import com.example.pproject.payment.dto.response.PaymentResponse;
 import com.example.pproject.payment.dto.response.PgWebhookInboxResponse;
+import com.example.pproject.payment.dto.toss.TossBillingResponse;
 import com.example.pproject.payment.dto.toss.TossPaymentResponse;
 import com.example.pproject.payment.dto.webhook.TossWebhookRequest;
 import com.example.pproject.payment.entity.Payment;
@@ -233,6 +234,43 @@ public class PaymentService {
         
         TossWebhookRequest request = objectMapper.convertValue(inbox.getPayload(), TossWebhookRequest.class);
         processWebhookLogic(request, inbox);
+    }
+
+    /**
+     * 10. 빌링키 발급
+     */
+    public TossBillingResponse issueBillingKey(String authKey, String customerKey) {
+        return paymentPort.issueBillingKey(authKey, customerKey);
+    }
+
+    /**
+     * 11. 빌링키 결제 (자동 결제)
+     */
+    public PaymentResponse payWithBillingKey(Long userId, String billingKey, PaymentCreateRequest request) {
+        UUID orderUid = UUID.randomUUID();
+        checkOrderUidDuplicate(orderUid);
+
+        // 1. 주문 및 결제 정보 생성 (READY 상태)
+        // 트랜잭션 분리: 외부 API 호출 전 DB 커밋을 위해
+        Payment payment = transactionTemplate.execute(status -> {
+            Orders order = createAndSaveOrder(userId, request, orderUid);
+            Payment p = Payment.builder()
+                    .order(order)
+                    .method(PaymentMethod.CARD) // 빌링키 결제도 카드로 간주
+                    .paidAmount(Money.wons(request.amount()))
+                    .build();
+            return paymentRepository.save(p);
+        });
+
+        // 2. 외부 PG사 빌링키 결제 승인 요청
+        TossPaymentResponse tossResponse = paymentPort.confirmBilling(
+                billingKey,
+                orderUid.toString(),
+                request.amount()
+        );
+
+        // 3. 결과 처리 (트랜잭션 분리)
+        return transactionTemplate.execute(status -> completeConfirm(orderUid, userId, tossResponse));
     }
 
     // =================================================================================
