@@ -304,14 +304,26 @@ public class PaymentService {
         // 승인 성공 처리
         payment.approve(tossResponse, rawPayload);
 
-        // 지갑 충전 로직
-        walletService.chargeCredit(
-                userId,
-                payment.getOrder().getBuyerType(),
-                payment.getPaidAmount().getAmount().longValue(),
-                payment.getPaidAmount(),
-                payment
-        );
+        try {
+            // 지갑 충전 로직
+            walletService.chargeCredit(
+                    userId,
+                    payment.getOrder().getBuyerType(),
+                    payment.getPaidAmount().getAmount().longValue(),
+                    payment.getPaidAmount(),
+                    payment
+            );
+        } catch (Exception e) {
+            log.error("지갑 충전 실패로 인한 결제 취소 진행. orderId={}, error={}", orderUid, e.getMessage());
+            // 보상 트랜잭션: 토스 결제 취소
+            try {
+                paymentPort.cancel(tossResponse.paymentKey(), "시스템 오류로 인한 자동 취소 (지갑 충전 실패)");
+            } catch (Exception cancelEx) {
+                log.error("결제 취소 실패 (심각). 수동 확인 필요. paymentKey={}", tossResponse.paymentKey(), cancelEx);
+                // TODO: 관리자 알림 발송 (Slack, Email 등)
+            }
+            throw new IllegalStateException("결제 처리 중 오류가 발생하여 취소되었습니다.");
+        }
 
         return PaymentResponse.from(payment);
     }
