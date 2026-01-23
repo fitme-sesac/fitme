@@ -29,6 +29,9 @@ import JobDetailPage from "./features/job/pages/JobDetailPage";
 import PublicJobListPage from "./features/job/pages/PublicJobListPage";
 import PublicJobDetailPage from "./features/job/pages/PublicJobDetailPage";
 
+// 알림(Notification) 페이지
+import NotificationPage from "./features/notification/pages/NotificationPage";
+
 /**
  * React 라우트에 없는 경로는 기존 백엔드(8080)가 처리하도록 위임.
  * (React로 안 옮긴 기존 페이지/기능을 깨지지 않게 유지)
@@ -127,6 +130,9 @@ export default function App() {
           <Route path="/employer/jobs/create" element={<JobCreatePage />} />
           <Route path="/employer/jobs/:jobId" element={<JobDetailPage />} />
           <Route path="/employer/jobs/:jobId/edit" element={<JobEditPage />} />
+
+          {/* ===== 알림(Notification) 라우트 ===== */}
+          <Route path="/notifications" element={<NotificationPage />} />
 
           {/* 나머지 경로는 백엔드가 처리 */}
           <Route path="*" element={<BackendFallback />} />

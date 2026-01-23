@@ -1,6 +1,5 @@
 package com.example.pproject.payment.service;
 
-import com.example.pproject.Constant.OrderStatus;
 import com.example.pproject.Constant.PaymentAppStatus;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
@@ -24,6 +23,8 @@ import com.example.pproject.payment.port.PaymentPort;
 import com.example.pproject.payment.repository.PaymentCancelRepository;
 import com.example.pproject.payment.repository.PaymentRepository;
 import com.example.pproject.payment.repository.PgWebhookInboxRepository;
+import com.example.pproject.product.entity.Product;
+import com.example.pproject.product.repository.ProductRepository;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.service.WalletService;
@@ -54,6 +55,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final EmployerRepository employerRepository;
+    private final ProductRepository productRepository;
     private final PaymentPort paymentPort;
     private final WalletService walletService;
     private final ObjectMapper objectMapper;
@@ -257,13 +259,19 @@ public class PaymentService {
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
         }
 
+        // 상품 조회 (삭제된 상품 제외)
+        Product product = productRepository.findByProductCodeAndDeletedAtIsNull(request.productCode())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
+
         // 정적 팩토리 메서드 사용
         Orders order = Orders.createOrder(
                 orderUid,
                 request.buyerType(),
                 buyer,
                 employer,
-                Money.wons(request.amount())
+                product,
+                Money.wons(request.amount()),
+                request.idempotencyKey()
         );
 
         return orderRepository.save(order);
@@ -296,14 +304,26 @@ public class PaymentService {
         // 승인 성공 처리
         payment.approve(tossResponse, rawPayload);
 
-        // 지갑 충전 로직
-        walletService.chargeCredit(
-                userId,
-                payment.getOrder().getBuyerType(),
-                payment.getPaidAmount().getAmount().longValue(),
-                payment.getPaidAmount(),
-                payment
-        );
+        try {
+            // 지갑 충전 로직
+            walletService.chargeCredit(
+                    userId,
+                    payment.getOrder().getBuyerType(),
+                    payment.getPaidAmount().getAmount().longValue(),
+                    payment.getPaidAmount(),
+                    payment
+            );
+        } catch (Exception e) {
+            log.error("지갑 충전 실패로 인한 결제 취소 진행. orderId={}, error={}", orderUid, e.getMessage());
+            // 보상 트랜잭션: 토스 결제 취소
+            try {
+                paymentPort.cancel(tossResponse.paymentKey(), "시스템 오류로 인한 자동 취소 (지갑 충전 실패)");
+            } catch (Exception cancelEx) {
+                log.error("결제 취소 실패 (심각). 수동 확인 필요. paymentKey={}", tossResponse.paymentKey(), cancelEx);
+                // TODO: 관리자 알림 발송 (Slack, Email 등)
+            }
+            throw new IllegalStateException("결제 처리 중 오류가 발생하여 취소되었습니다.");
+        }
 
         return PaymentResponse.from(payment);
     }

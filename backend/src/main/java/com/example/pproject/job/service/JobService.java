@@ -22,7 +22,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,9 +39,6 @@ public class JobService {
     private final OutboxEventProducer outboxEventProducer;
     private final ResumeRepository resumeRepository;
     private final ResumeSkillService resumeSkillService;
-    
-    // Resume 모듈에서 구현 필요 - Optional로 주입받아 없으면 매칭 기능 비활성화
-    private final Optional<CandidateSkillProvider> candidateSkillProvider;
 
     /**
      * 한글-영어 기술스택 매핑 (양방향)
@@ -338,7 +335,7 @@ public class JobService {
 
         String jobTitle = job.getTitle(); // 삭제 전 제목 저장
 
-        job.setDeletedAt(LocalDateTime.now());
+        job.setDeletedAt(Instant.now());
         job.setStatus("CLOSED");
         jobRepository.save(job);
         log.info("채용공고 삭제: {}", jobTitle);
@@ -642,20 +639,26 @@ public class JobService {
         JobListResponseDTO baseResponse = getPublicJobs(page, size, keyword, stack, location);
         
         // memberId가 없거나 CandidateSkillProvider가 없으면 매칭 정보 없이 반환
-        if (memberId == null || candidateSkillProvider.isEmpty()) {
+        if (memberId == null) {
             return baseResponse;
         }
         
         // 지원자의 기술 스택 조회 (예외 발생 시 빈 Set 사용)
         Set<String> candidateSkills;
         try {
-            candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
+            candidateSkills = resumeSkillService.getSkillsByMemberId(memberId);
             if (candidateSkills == null) {
                 candidateSkills = Collections.emptySet();
             }
+            log.debug("지원자 기술 스택 조회 성공 (memberId: {}): {}", memberId, candidateSkills);
         } catch (Exception e) {
             log.warn("지원자 기술 스택 조회 실패 (memberId: {}): {}", memberId, e.getMessage());
             candidateSkills = Collections.emptySet();
+        }
+        
+        if (candidateSkills.isEmpty()) {
+            log.debug("지원자에게 등록된 기술 스택이 없습니다 (memberId: {}). 매칭 정보 없이 반환합니다.", memberId);
+            return baseResponse;
         }
         
         // final 변수로 복사 (stream 내부에서 사용하기 위해)
@@ -706,7 +709,7 @@ public class JobService {
         JobDTO job = getPublicJob(jobId);
         
         // memberId가 없거나 CandidateSkillProvider가 없으면 매칭 정보 없이 반환
-        if (memberId == null || candidateSkillProvider.isEmpty()) {
+        if (memberId == null) {
             return job;
         }
         
@@ -714,20 +717,26 @@ public class JobService {
             // 지원자의 기술 스택 조회
             Set<String> candidateSkills;
             try {
-                candidateSkills = candidateSkillProvider.get().getSkillsByMemberId(memberId);
+                candidateSkills = resumeSkillService.getSkillsByMemberId(memberId);
                 if (candidateSkills == null) {
                     candidateSkills = Collections.emptySet();
                 }
+                log.debug("[상세] 지원자 기술 스택 (memberId: {}): {}", memberId, candidateSkills);
             } catch (Exception e) {
                 log.warn("지원자 기술 스택 조회 실패 (memberId: {}): {}", memberId, e.getMessage());
                 candidateSkills = Collections.emptySet();
             }
             
-            // 공고 엔티티 조회 (벡터 정보 포함) - 벡터 매칭은 일단 비활성화
-            // JobEntity jobEntity = jobRepository.findById(jobId).orElse(null);
+            if (candidateSkills.isEmpty()) {
+                log.debug("[상세] 지원자에게 등록된 기술 스택이 없습니다 (memberId: {})", memberId);
+                return job;
+            }
+            
+            log.debug("[상세] 공고 기술 스택 (jobId: {}): {}", jobId, job.getStack());
             
             // 숙련도 맵 조회
             Map<String, Integer> proficiencyMap = resumeSkillService.getSkillProficiencyMap(memberId);
+            log.debug("[상세] 지원자 숙련도 맵: {}", proficiencyMap);
             
             // 매칭 정보 계산 (숙련도 기반, 벡터 매칭은 비활성화)
             JobMatchInfoDTO matchInfo = calculateMatchInfoWithProficiency(
@@ -739,6 +748,8 @@ public class JobService {
                     false
             );
             job.setMatchInfo(matchInfo);
+            log.debug("[상세] 매칭 결과 - 매칭률: {}%, 매칭 스택: {}", 
+                    matchInfo.getOverallMatchRate(), matchInfo.getMatchedStacks());
         } catch (Exception e) {
             log.warn("매칭 정보 계산 실패 (jobId: {}, memberId: {}): {}", jobId, memberId, e.getMessage());
             // 매칭 정보 없이 반환
@@ -924,9 +935,6 @@ public class JobService {
         List<String> missingStacks = new ArrayList<>();
         List<JobMatchInfoDTO.SkillMatchDetail> skillDetails = new ArrayList<>();
         
-        double weightedMatchSum = 0;
-        double totalWeight = requiredStacks.size();
-        
         for (String required : requiredStacks) {
             String normalizedRequired = required.toLowerCase().trim();
             
@@ -955,9 +963,6 @@ public class JobService {
                     }
                 }
                 if (proficiency == 0) proficiency = 1; // 기본값
-                
-                // 가중치 반영 (숙련도 1=33%, 2=67%, 3=100%)
-                weightedMatchSum += (proficiency / 3.0);
             } else {
                 missingStacks.add(required);
             }
@@ -966,8 +971,8 @@ public class JobService {
             skillDetails.add(JobMatchInfoDTO.SkillMatchDetail.of(required, matched, proficiency));
         }
         
-        // 기술 스택 매칭률 계산 (가중치 적용)
-        int stackMatchRate = (int) Math.round((weightedMatchSum / totalWeight) * 100);
+        // 기술 스택 매칭률 계산 (매칭된 스택 수 / 요구 스택 수)
+        int stackMatchRate = (int) Math.round((matchedStacks.size() / (double) requiredStacks.size()) * 100);
         
         // 벡터 유사도 매칭률 (필요시)
         int vectorMatchRate = 0;
@@ -1059,7 +1064,7 @@ public class JobService {
             }
             
             // 지원자의 대표 이력서 벡터 조회
-            Optional<Resume> resumeOpt = resumeRepository.findByMemberIdAndPrimaryTrue(memberId);
+            Optional<Resume> resumeOpt = resumeRepository.findByUser_IdAndPrimaryTrue(memberId);
             if (resumeOpt.isEmpty()) {
                 log.debug("회원 {}의 대표 이력서가 없습니다.", memberId);
                 return 0;
@@ -1129,10 +1134,18 @@ public class JobService {
             return Collections.emptyList();
         }
         
+        // PostgreSQL 배열 형식 처리: {AWS, Vue.js, ""} -> AWS, Vue.js
+        // 중괄호 제거
+        String cleaned = stackString.replaceAll("^\\{|\\}$", "");
+        
         // 다양한 구분자 지원: 쉼표, 슬래시, 세미콜론, 파이프
-        return Arrays.stream(stackString.split("[,/;|]"))
+        return Arrays.stream(cleaned.split("[,/;|]"))
                 .map(String::trim)
-                .filter(s -> !s.isEmpty())
+                // 따옴표 제거 ("Vue.js" -> Vue.js)
+                .map(s -> s.replaceAll("^\"|\"$", ""))
+                .map(String::trim)
+                // 빈 문자열, 공백만 있는 문자열 필터링
+                .filter(s -> !s.isEmpty() && !s.isBlank())
                 .collect(Collectors.toList());
     }
 

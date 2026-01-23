@@ -77,9 +77,9 @@ public class ResumeSkillService implements CandidateSkillProvider {
      * 대표 이력서 찾기 (없으면 최근 수정된 이력서)
      */
     private Optional<Resume> findPrimaryResume(Integer memberId) {
-        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
+        Optional<Resume> primaryResume = resumeRepository.findByUser_IdAndPrimaryTrue(Long.valueOf(memberId));
         if (primaryResume.isEmpty()) {
-            primaryResume = resumeRepository.findFirstByUserIdOrderByLastModifiedAtDesc(memberId);
+            primaryResume = resumeRepository.findFirstByUser_IdOrderByLastModifiedAtDesc(Long.valueOf(memberId));
         }
         return primaryResume;
     }

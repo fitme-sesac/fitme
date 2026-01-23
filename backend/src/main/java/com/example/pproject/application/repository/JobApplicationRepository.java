@@ -15,4 +15,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
 
     // 이력서 삭제 시 참조 확인
     boolean existsByResumeId(Long resumeId);
+
+    // 특정 유저의 지원 내역 개수 조회
+    long countByMemberId(Long memberId);
 }
