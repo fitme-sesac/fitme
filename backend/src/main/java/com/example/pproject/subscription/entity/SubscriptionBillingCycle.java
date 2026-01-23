@@ -41,9 +41,11 @@ public class SubscriptionBillingCycle extends BaseTimeEntity {
     @JoinColumn(name = "ledger_id")
     private WalletLedger walletLedger;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "payment_status")
     private PaymentStatus paymentStatus;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "credit_status")
     private CreditStatus creditStatus;
 }
