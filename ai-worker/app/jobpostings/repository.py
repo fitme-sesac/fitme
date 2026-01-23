@@ -26,6 +26,7 @@ class JobRepository:
                         jp.summary, 
                         jp.location, 
                         jp.status,
+                        jp.required_experience,
                         e.industry
                     FROM job_posting jp
                     JOIN employer e ON jp.employer_id = e.employer_id

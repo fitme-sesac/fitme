@@ -49,56 +49,11 @@ def verify_matching(resume_id: int, top_k: int = 5):
             logger.info(f"   - Location: {resume_location}")
             logger.info(f"   - Career Years: {resume_career}")
 
-            # 2. 필터링 조건 생성
-            # 2.1 Location Filter: "서울 전체" -> "서울"로 검색
-            location_filter = ""
-            params = [resume_vector]
+            # 2. 필터링 조건 (User Request: 필터 제거 확인)
+            # 필터링 로직을 제거하고 벡터 유사도 검색만 수행합니다.
             
-            if resume_location:
-                # "서울 전체" -> "서울" (단순화된 파싱 로직)
-                target_loc = resume_location.split(" ")[0] 
-                location_filter = "AND jp.location LIKE %s"
-                params.append(f"%{target_loc}%")
-                logger.info(f"   👉 Applying Location Filter: LIKE '{target_loc}%'")
-
-            # 2.2 Stack Filter: Overlap >= 2
-            # Use Postgres Array Intersection: cardinality(resume_stack & job_stack) >= 2
-            # Since resume_stack is constant for this query, easiest is to pass it as param.
-            # But wait, resume_stack in DB is text[]. In Python it is list.
-            # We can use '&&' operator for overlap check, but specifically for count >= 2.
-            
-            # Using array_length(ARRAY(SELECT unnest(jp.stack) INTERSECT SELECT unnest(%s::text[])), 1) >= 2
-            # Or simpler if pgvector/postgres has array functions.
-            # Standard Postgres: 
-            # (SELECT count(*) FROM (SELECT unnest(jp.stack) INTERSECT SELECT unnest(%s::text[])) t) >= 2
-            
-            stack_filter = ""
-            if resume_stack_raw and isinstance(resume_stack_raw, list):
-                # Pass resume stack as array for comparison
-                stack_filter = """
-                    AND (
-                        SELECT count(*) 
-                        FROM (
-                            SELECT unnest(jp.stack) 
-                            INTERSECT 
-                            SELECT unnest(%s::text[])
-                        ) t
-                    ) >= 2
-                """
-                params.append(resume_stack_raw) # psycopg2 handles list -> array
-                logger.info(f"   👉 Applying Stack Filter: Overlap >= 2 with {resume_stack_raw}")
-
-            # 2.3 Career Filter: resume.career >= job.required_experience (handle NULL as 0)
-            career_filter = """
-                AND %s >= COALESCE(jp.required_experience, 0)
-            """
-            params.append(resume_career)
-            logger.info(f"   👉 Applying Career Filter: Resume({resume_career}) >= Job(Req)")
-
-            # 3. 유사도 검색 (Cosine Similarity + Filtering)
-            logger.info(f"🏃 Running hybrid search (Filter + Vector) Top {top_k}...")
-            
-            params.append(top_k) # Limit Param
+            # Params: [Embedding Vector, Limit]
+            params = [resume_vector, top_k]
             
             sql = f"""
                 SELECT 
@@ -113,9 +68,6 @@ def verify_matching(resume_id: int, top_k: int = 5):
                 JOIN employer e ON jp.employer_id = e.employer_id
                 WHERE jp.embedding IS NOT NULL 
                   AND jp.deleted_at IS NULL
-                  {location_filter}
-                  {stack_filter}
-                  {career_filter}
                 ORDER BY similarity DESC
                 LIMIT %s
             """
