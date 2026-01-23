@@ -106,10 +106,10 @@ def verify_job_embedding():
     # ==============================================================================
     print("🅰️  [Scenario A] DB 조회 방식 (POST /jobs/{id}/embedding)")
     # [Option 1] 매번 새로운 더미 데이터 생성 (기본)
-    job_id_a = setup_dummy_job("(Target: DB Lookup)")
+    # job_id_a = setup_dummy_job("(Target: DB Lookup)")
 
     # [Option 2] 기존 DB에 있는 **특정 공고**를 테스트하고 싶으면 아래에 ID를 적고 주석을 푸세요!
-    # job_id_a = 123  # <-- 여기에 테스트하고 싶은 실제 Job ID를 입력하세요.
+    job_id_a = 1  # <-- User Requested Job ID 1
     # if job_id_a is None:
     #      job_id_a = get_existing_job_id() # ID 입력을 안 했으면 그냥 가장 최신거 가져옴
 
