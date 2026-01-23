@@ -25,6 +25,12 @@ public record PaymentCreateRequest(
         
         // 구매자 타입 (CANDIDATE / EMPLOYER) - 필수
         @NotNull(message = "구매자 타입은 필수입니다.")
-        RoleType buyerType
+        RoleType buyerType,
+
+        @NotBlank(message = "상품 코드는 필수입니다.")
+        String productCode,
+
+        // 멱등성 키 (선택)
+        String idempotencyKey
 ) {
 }

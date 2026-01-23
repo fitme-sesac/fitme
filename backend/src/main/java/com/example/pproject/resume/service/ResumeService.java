@@ -111,9 +111,13 @@ public class ResumeService {
                 .field(original.getField())
                 .tagline(original.getTagline())
                 .content(original.getContent())
-                // 리스트 복사 시 새 ArrayList로 생성하여 참조 분리
-                .reStack(original.getReStack() != null ? new ArrayList<>(original.getReStack()) : new ArrayList<>())
-                .careerYears(original.getCareerYears())
+                .preferenceLocation(original.getPreferenceLocation())
+                .preferenceSalary(original.getPreferenceSalary())
+                .employmentType(original.getEmploymentType())
+                .reStack(original.getReStack())
+                .school(original.getSchool())
+                .schoolState(original.getSchoolState())
+                .schoolClass(original.getSchoolClass())
                 .primary(false)
                 .publicOption(false)
                 .build();

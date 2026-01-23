@@ -70,16 +70,19 @@ public class Orders extends BaseTimeEntity {
     /**
      * 주문 생성 (개인/기업 분기 처리 포함)
      */
-    public static Orders createOrder(UUID orderUid, RoleType buyerType, UserEntity buyer, EmployerEntity employer, Money amount) {
+    public static Orders createOrder(UUID orderUid, RoleType buyerType, UserEntity buyer, EmployerEntity employer, Product product, Money amount, String idempotencyKey) {
         Assert.notNull(orderUid, "주문 UID는 필수입니다.");
         Assert.notNull(buyerType, "구매자 타입은 필수입니다.");
+        Assert.notNull(product, "상품 정보는 필수입니다.");
         Assert.notNull(amount, "주문 금액은 필수입니다.");
 
         OrdersBuilder builder = Orders.builder()
                 .orderUid(orderUid)
                 .buyerType(buyerType)
+                .product(product)
                 .orderAmount(amount)
-                .status(OrderStatus.CREATED);
+                .status(OrderStatus.CREATED)
+                .idempotencyKey(idempotencyKey);
 
         if (buyerType == RoleType.CANDIDATE) {
             Assert.notNull(buyer, "개인 회원은 필수입니다.");
@@ -118,10 +121,18 @@ public class Orders extends BaseTimeEntity {
      * 결제 요청 금액이 주문 금액과 일치하는지 확인합니다.
      */
     public void validatePaymentAmount(Money paymentAmount) {
-        if (paymentAmount == null || !this.orderAmount.equals(paymentAmount)) {
+        if (paymentAmount == null) {
+            throw new IllegalArgumentException("결제 금액 정보가 없습니다.");
+        }
+        
+        // 1. 통화 일치 여부 확인 (Money 내부 로직 활용)
+        this.orderAmount.checkCurrency(paymentAmount);
+
+        // 2. 금액 일치 여부 확인 (BigDecimal compareTo 사용 권장)
+        if (this.orderAmount.getAmount().compareTo(paymentAmount.getAmount()) != 0) {
             throw new IllegalStateException(
                     String.format("주문 금액(%s)과 결제 금액(%s)이 일치하지 않습니다.",
-                            this.orderAmount, paymentAmount)
+                            this.orderAmount.getAmount(), paymentAmount.getAmount())
             );
         }
     }

@@ -16,7 +16,7 @@ public class UserResponseDTO {
     // ✅ member 테이블 구조(요구사항) 기준
     // - 기존 코드 호환을 위해 userid/username/birthday 필드는 유지
     // =========================
-    private Integer id;                // (member_id) 일련번호
+    private Long id;                // (member_id) 일련번호
 
     private String userid;             // (login_id) 아이디(일반 가입). 소셜 가입은 NULL 가능
     private String email;              // 이메일
