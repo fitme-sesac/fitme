@@ -32,10 +32,6 @@ class ResumeRepository:
                     WHERE resume_id = %s
                 """
                 cur.execute(sql, (summary, vector, id))
-                
-                # [오류 처리 강화] 업데이트된 행이 없다면 ID가 없는 것이므로 예외 발생
-                if cur.rowcount == 0:
-                    raise Exception(f"Update failed: Resume ID {id} does not exist in database.")
             
             # 트랜잭션 커밋 (영구 저장)
             conn.commit()
