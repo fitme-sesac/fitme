@@ -1,5 +1,6 @@
 package com.example.pproject.payment.port;
 
+import com.example.pproject.payment.dto.toss.TossBillingResponse;
 import com.example.pproject.payment.dto.toss.TossPaymentResponse;
 
 import java.math.BigDecimal;
@@ -27,4 +28,21 @@ public interface PaymentPort {
      * @return 취소 결과
      */
     TossPaymentResponse cancel(String paymentKey, String cancelReason);
+
+    /**
+     * 빌링키 발급 요청
+     * @param authKey 인증 키 (토스 위젯/창에서 발급)
+     * @param customerKey 고객 식별 키
+     * @return 빌링키 발급 결과
+     */
+    TossBillingResponse issueBillingKey(String authKey, String customerKey);
+
+    /**
+     * 빌링키 결제 승인 요청 (자동 결제)
+     * @param billingKey 발급받은 빌링키
+     * @param orderId 주문 ID
+     * @param amount 결제 금액
+     * @return 결제 승인 결과
+     */
+    TossPaymentResponse confirmBilling(String billingKey, String orderId, BigDecimal amount);
 }
