@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.core.config import settings
 from app.resumes.api.controller import router as resume_router
-from app.jobs.api.controller import router as job_router
+from app.chatbot.router import router as chatbot_router
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -35,4 +35,4 @@ def health_check():
 
 # Register Routers
 app.include_router(resume_router)
-app.include_router(job_router)
+app.include_router(chatbot_router)
