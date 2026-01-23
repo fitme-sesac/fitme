@@ -1,6 +1,7 @@
 package com.example.pproject.notice.repository;
 
 import com.example.pproject.notice.entity.Notice;
+import com.example.pproject.notice.entity.Notice.NoticeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,62 +9,65 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface NoticeRepository extends JpaRepository<Notice, Long> {
 
-    /**
-     * 활성 공지사항 목록 조회 (삭제 제외)
-     */
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.status = 'ACTIVE' ORDER BY n.createdAt DESC")
-    Page<Notice> findAllActive(Pageable pageable);
+    // ==================== 기본 조회 ====================
 
     /**
-     * 공지사항 타입별 조회
+     * 활성 공지만 조회 (공개된 것만) - 일반 사용자용
      */
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.status = 'ACTIVE' AND n.noticeType = :type ORDER BY n.createdAt DESC")
-    Page<Notice> findByNoticeType(@Param("type") Notice.NoticeType type, Pageable pageable);
+    @Query("SELECT n FROM Notice n WHERE n.status = 'ACTIVE' AND n.isPublic = true ORDER BY n.createdAt DESC")
+    Page<Notice> findAllActivePublic(Pageable pageable);
+
+    // ==================== 검색 ====================
 
     /**
-     * 중요 공지사항 조회
+     * 제목+본문 검색 (공개된 것만) - 일반 사용자용
      */
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.status = 'ACTIVE' AND n.isImportant = true ORDER BY n.createdAt DESC")
-    Page<Notice> findImportantNotices(Pageable pageable);
+    @Query("SELECT n FROM Notice n WHERE n.status = 'ACTIVE' AND n.isPublic = true AND (n.title LIKE %:keyword% OR n.body LIKE %:keyword%) ORDER BY n.createdAt DESC")
+    Page<Notice> searchPublic(@Param("keyword") String keyword, Pageable pageable);
 
     /**
-     * 제목으로 검색
+     * 제목+본문 검색 (관리자용 - 상태/공개여부 무관)
      */
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.status = 'ACTIVE' AND n.title LIKE %:keyword% ORDER BY n.createdAt DESC")
-    Page<Notice> searchByTitle(@Param("keyword") String keyword, Pageable pageable);
+    @Query("SELECT n FROM Notice n WHERE n.title LIKE %:keyword% OR n.body LIKE %:keyword% ORDER BY n.createdAt DESC")
+    Page<Notice> searchAll(@Param("keyword") String keyword, Pageable pageable);
+
+    // ==================== 정책 및 타입별 조회 ====================
 
     /**
-     * ID로 공지사항 조회 (삭제 제외)
+     * 특정 타입의 활성 공지 목록 (공개된 것만)
      */
-    @Query("SELECT n FROM Notice n WHERE n.id = :id AND n.deletedAt IS NULL")
-    Optional<Notice> findByIdAndNotDeleted(@Param("id") Long id);
+    @Query("SELECT n FROM Notice n WHERE n.noticeType = :type AND n.status = 'ACTIVE' AND n.isPublic = true ORDER BY n.createdAt DESC")
+    Page<Notice> findByTypePublic(@Param("type") NoticeType type, Pageable pageable);
 
     /**
-     * 공개 공지사항 목록 (사용자용)
+     * [약관 조회용] 특정 타입의 유일한 활성 정책 (공개된 것만) - 일반 사용자용
      */
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.status = 'ACTIVE' AND n.isPublic = true ORDER BY n.isImportant DESC, n.createdAt DESC")
-    Page<Notice> findAllPublic(Pageable pageable);
+    @Query("SELECT n FROM Notice n WHERE n.noticeType = :type AND n.status = 'ACTIVE' AND n.isPublic = true")
+    Optional<Notice> findActivePolicy(@Param("type") NoticeType type);
 
     /**
-     * 정책 동의서 목록 조회
+     * [약관 교체용 - 중요] 공개 여부와 상관없이 현재 'ACTIVE' 상태인 정책 조회
+     * 이유: DB 유니크 제약조건(uq_notice_active_policy_per_type) 충돌 방지를 위해
+     * 새 약관 등록 전 반드시 기존 ACTIVE 건을 찾아 내려야 함.
      */
-    // 1. [추가] 중복 정책 방지를 위한 존재 여부 확인
-    boolean existsByNoticeTypeAndStatus(Notice.NoticeType noticeType, Notice.NoticeStatus status);
-    // 2. [수정] 정책 동의서 목록 조회 (모든 정책 타입 포함)
-    // 변경: POLICY, TERMS, PRIVACY 타입을 모두 포함하도록 IN 절 사용
-    @Query("SELECT n FROM Notice n WHERE n.deletedAt IS NULL AND n.noticeType IN ('POLICY', 'TERMS', 'PRIVACY') ORDER BY n.createdAt DESC")
-    Page<Notice> findPolicies(Pageable pageable);
+    @Query("SELECT n FROM Notice n WHERE n.noticeType = :type AND n.status = 'ACTIVE'")
+    Optional<Notice> findActivePolicyForRotation(@Param("type") NoticeType type);
+
+    // ==================== 통계용 (최적화) ====================
+
+    @Query("SELECT COUNT(n) FROM Notice n WHERE n.status = 'ACTIVE'")
+    long countActive();
 
     /**
-     * 완전 삭제 대상 조회 (purgeAfter가 현재 시간 이전)
+     * 타입별 게시물 수 조회 (GROUP BY 최적화)
+     * 결과 예: [[OPS, 10], [TERMS, 1], ...]
      */
-    @Query("SELECT n FROM Notice n WHERE n.status = 'PENDING_DELETE' AND n.purgeAfter IS NOT NULL AND n.purgeAfter <= :now")
-    List<Notice> findPurgeTargets(@Param("now") LocalDateTime now);
+    @Query("SELECT n.noticeType, COUNT(n) FROM Notice n GROUP BY n.noticeType")
+    List<Object[]> countNoticesGroupByType();
 }

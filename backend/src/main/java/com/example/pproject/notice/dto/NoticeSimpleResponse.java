@@ -14,25 +14,17 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class NoticeListResponse {
+public class NoticeSimpleResponse {
 
     private Long id;
     private String title;
-    private NoticeType noticeType;
-    private NoticeStatus status;
-    private Boolean isPublic;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
-    public static NoticeListResponse from(Notice notice) {
-        return NoticeListResponse.builder()
+    public static NoticeSimpleResponse from(Notice notice) {
+        return NoticeSimpleResponse.builder()
                 .id(notice.getId())
                 .title(notice.getTitle())
-                .noticeType(notice.getNoticeType())
-                .status(notice.getStatus())
-                .isPublic(notice.getIsPublic())
                 .createdAt(notice.getCreatedAt())
-                .updatedAt(notice.getUpdatedAt())
                 .build();
     }
 }
