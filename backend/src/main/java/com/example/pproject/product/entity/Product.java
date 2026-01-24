@@ -1,5 +1,6 @@
 package com.example.pproject.product.entity;
 
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.ProductType;
 import com.example.pproject.Constant.SaleStatus;
 import com.example.pproject.common.entity.BaseSoftDeleteEntity;
@@ -21,7 +22,8 @@ import org.springframework.util.Assert;
 @Where(clause = "deleted_at IS NULL")
 public class Product extends BaseSoftDeleteEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "product_id")
     private Long productId;
 
@@ -43,7 +45,6 @@ public class Product extends BaseSoftDeleteEntity {
     })
     private Money price;
 
-
     @Enumerated(EnumType.STRING)
     @Column(name = "product_type")
     private ProductType productType;
@@ -55,7 +56,8 @@ public class Product extends BaseSoftDeleteEntity {
     private String planTier;
 
     @Builder
-    public Product(String productCode, String name, Money price, ProductType productType, Integer creditAmount, String planTier) {
+    public Product(String productCode, String name, Money price, ProductType productType, Integer creditAmount,
+            String planTier) {
 
         // 1. 공통 필수값 검증
         Assert.hasText(productCode, "상품 코드는 필수입니다.");
@@ -79,6 +81,41 @@ public class Product extends BaseSoftDeleteEntity {
         this.creditAmount = creditAmount;
         this.planTier = planTier;
         this.saleStatus = SaleStatus.ON_SALE;
+    }
+
+    // === 구매자 자격 검증 (Buyer Eligibility) ===
+
+    /**
+     * 특정 구매자 유형이 이 상품을 구매할 수 있는지 확인
+     *
+     * @param buyerType 구매자 유형
+     * @return 구매 가능 여부
+     */
+    public boolean isAvailableFor(BuyerType buyerType) {
+        if (this.productType == ProductType.SUBSCRIPTION) {
+            return buyerType == BuyerType.EMPLOYER;
+        }
+        // ONE_TIME 상품은 누구나 구매 가능
+        return true;
+    }
+
+    /**
+     * 구매자 자격 검증 (구매 불가 시 예외 발생)
+     *
+     * @param buyerType 구매자 유형
+     * @throws IllegalStateException 구매 자격이 없는 경우
+     */
+    public void validateBuyerEligibility(BuyerType buyerType) {
+        if (!isAvailableFor(buyerType)) {
+            throw new IllegalStateException("구독 상품은 기업 회원만 구매할 수 있습니다.");
+        }
+    }
+
+    /**
+     * 구독 상품인지 확인
+     */
+    public boolean isSubscription() {
+        return this.productType == ProductType.SUBSCRIPTION;
     }
 
     // === 비즈니스 로직 (State Transition Logic) ===
