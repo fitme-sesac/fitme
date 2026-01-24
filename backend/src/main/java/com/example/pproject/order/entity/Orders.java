@@ -16,12 +16,10 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "orders",
-    uniqueConstraints = {
+@Table(name = "orders", uniqueConstraints = {
         @UniqueConstraint(name = "uq_orders_uid", columnNames = "order_uid"),
         @UniqueConstraint(name = "uq_orders_idempotency_key", columnNames = "idempotency_key")
-    }
-)
+})
 @Getter
 @Builder
 @AllArgsConstructor
@@ -43,15 +41,15 @@ public class Orders extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buyer_member_id")
     private UserEntity buyerMember; // 구매자(개인)
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buyer_employer_id")
     private EmployerEntity buyerEmployer; // 구매자(기업)
-    
+
     @ManyToOne
     @JoinColumn(name = "product_id", nullable = false)
     private Product product; // 상품 정보
-    
+
     @Embedded
     @AttributeOverrides({
             @AttributeOverride(name = "amount", column = @Column(name = "order_amount", nullable = false)),
@@ -62,7 +60,7 @@ public class Orders extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private OrderStatus status; // 주문 상태
-    
+
     @Column(name = "idempotency_key")
     private String idempotencyKey; // 멱등성 키
 
@@ -71,11 +69,15 @@ public class Orders extends BaseTimeEntity {
     /**
      * 주문 생성 (개인/기업 분기 처리 포함)
      */
-    public static Orders createOrder(UUID orderUid, BuyerType buyerType, UserEntity buyer, EmployerEntity employer, Product product, Money amount, String idempotencyKey) {
+    public static Orders createOrder(UUID orderUid, BuyerType buyerType, UserEntity buyer, EmployerEntity employer,
+            Product product, Money amount, String idempotencyKey) {
         Assert.notNull(orderUid, "주문 UID는 필수입니다.");
         Assert.notNull(buyerType, "구매자 타입은 필수입니다.");
         Assert.notNull(product, "상품 정보는 필수입니다.");
         Assert.notNull(amount, "주문 금액은 필수입니다.");
+
+        // 구매자 자격 검증 (구독 상품은 기업 회원만 구매 가능)
+        product.validateBuyerEligibility(buyerType);
 
         OrdersBuilder builder = Orders.builder()
                 .orderUid(orderUid)
@@ -102,6 +104,7 @@ public class Orders extends BaseTimeEntity {
 
     /**
      * 주문 소유자 검증
+     * 
      * @param userId 요청한 사용자의 ID (PK)
      * @throws IllegalStateException 본인의 주문이 아닐 경우 예외 발생
      */
@@ -125,7 +128,7 @@ public class Orders extends BaseTimeEntity {
         if (paymentAmount == null) {
             throw new IllegalArgumentException("결제 금액 정보가 없습니다.");
         }
-        
+
         // 1. 통화 일치 여부 확인 (Money 내부 로직 활용)
         this.orderAmount.checkCurrency(paymentAmount);
 
@@ -133,8 +136,7 @@ public class Orders extends BaseTimeEntity {
         if (this.orderAmount.getAmount().compareTo(paymentAmount.getAmount()) != 0) {
             throw new IllegalStateException(
                     String.format("주문 금액(%s)과 결제 금액(%s)이 일치하지 않습니다.",
-                            this.orderAmount.getAmount(), paymentAmount.getAmount())
-            );
+                            this.orderAmount.getAmount(), paymentAmount.getAmount()));
         }
     }
 
