@@ -59,6 +59,45 @@ public class Subscription extends BaseTimeEntity {
     private String cardNumber;
 
     // ===========================================
+    // 정적 팩토리 메서드 (Static Factory Method)
+    // ===========================================
+
+    /**
+     * 구독 생성
+     *
+     * @param employer    고용주 (필수)
+     * @param product     상품 (필수)
+     * @param customerKey 고객 키 (필수)
+     * @param billingKey  빌링 키 (필수)
+     * @return 새로운 구독 (ACTIVE 상태)
+     */
+    public static Subscription create(EmployerEntity employer, Product product,
+            String customerKey, String billingKey) {
+        if (employer == null) {
+            throw new IllegalArgumentException("고용주 정보는 필수입니다.");
+        }
+        if (product == null) {
+            throw new IllegalArgumentException("상품 정보는 필수입니다.");
+        }
+        if (customerKey == null || customerKey.isBlank()) {
+            throw new IllegalArgumentException("고객키는 필수입니다.");
+        }
+        if (billingKey == null || billingKey.isBlank()) {
+            throw new IllegalArgumentException("빌링키는 필수입니다.");
+        }
+
+        Subscription subscription = new Subscription();
+        subscription.employer = employer;
+        subscription.product = product;
+        subscription.customerKey = customerKey;
+        subscription.billingKey = billingKey;
+        subscription.status = SubscriptionStatus.ACTIVE;
+        subscription.startedAt = Instant.now();
+        subscription.nextBillingAt = Instant.now().plus(BILLING_CYCLE_DAYS, ChronoUnit.DAYS);
+        return subscription;
+    }
+
+    // ===========================================
     // 헬퍼 메서드 (Private Helpers)
     // ===========================================
 
@@ -171,8 +210,12 @@ public class Subscription extends BaseTimeEntity {
      * 구독 활성화
      */
     public void activate() {
+        // 멱등성: 이미 활성 상태면 무시
+        if (this.status == SubscriptionStatus.ACTIVE) {
+            return;
+        }
         if (!canActivate()) {
-            throw new IllegalStateException("구독을 활성화할 수 없습니다. 이미 활성 상태이거나 빌링 정보가 없습니다.");
+            throw new IllegalStateException("구독을 활성화할 수 없습니다. 빌링 정보가 없습니다.");
         }
         this.status = SubscriptionStatus.ACTIVE;
         this.startedAt = Instant.now();
@@ -183,6 +226,10 @@ public class Subscription extends BaseTimeEntity {
      * 결제 실패로 인한 구독 중단
      */
     public void markPaymentFailed() {
+        // 멱등성: 이미 결제 실패 상태면 무시
+        if (this.status == SubscriptionStatus.PAYMENT_FAILED) {
+            return;
+        }
         if (!canMarkPaymentFailed()) {
             throw new IllegalStateException("활성 상태의 구독만 결제 실패 처리할 수 있습니다.");
         }
@@ -193,8 +240,9 @@ public class Subscription extends BaseTimeEntity {
      * 구독 취소
      */
     public void cancel() {
-        if (!canCancel()) {
-            throw new IllegalStateException("이미 취소된 구독입니다.");
+        // 멱등성: 이미 취소 상태면 무시
+        if (this.status == SubscriptionStatus.CANCELED) {
+            return;
         }
         this.status = SubscriptionStatus.CANCELED;
         this.endedAt = Instant.now();
@@ -204,10 +252,64 @@ public class Subscription extends BaseTimeEntity {
      * 구독 재개 (결제 실패 상태에서 복구)
      */
     public void resume() {
+        // 멱등성: 이미 활성 상태면 무시
+        if (this.status == SubscriptionStatus.ACTIVE) {
+            return;
+        }
         if (!canResume()) {
             throw new IllegalStateException("재개할 수 없습니다. 결제 실패 상태가 아니거나 빌링 정보가 없습니다.");
         }
         this.status = SubscriptionStatus.ACTIVE;
+    }
+
+    /**
+     * 빌링 정보 업데이트
+     *
+     * @param billingKey  빌링 키
+     * @param customerKey 고객 키
+     * @param cardCompany 카드사
+     * @param cardNumber  카드번호
+     */
+    public void updateBillingInfo(String billingKey, String customerKey,
+            String cardCompany, String cardNumber) {
+        if (billingKey == null || billingKey.isBlank()) {
+            throw new IllegalArgumentException("빌링키는 필수입니다.");
+        }
+        if (customerKey == null || customerKey.isBlank()) {
+            throw new IllegalArgumentException("고객키는 필수입니다.");
+        }
+        this.billingKey = billingKey;
+        this.customerKey = customerKey;
+        this.cardCompany = cardCompany;
+        this.cardNumber = cardNumber;
+    }
+
+    /**
+     * 다음 결제일 설정 (빌링 주기 후)
+     */
+    public void scheduleNextBilling() {
+        this.nextBillingAt = Instant.now().plus(BILLING_CYCLE_DAYS, ChronoUnit.DAYS);
+    }
+
+    // ===========================================
+    // 상태 확인 메서드 (Query Methods)
+    // ===========================================
+
+    /**
+     * 활성 상태인지 확인
+     */
+    public boolean isActive() {
+        return this.status == SubscriptionStatus.ACTIVE;
+    }
+
+    /**
+     * 만료되었는지 확인
+     */
+    public boolean isExpired() {
+        if (this.endedAt == null) {
+            return false;
+        }
+        return Instant.now().isAfter(this.endedAt);
     }
 
     /**
@@ -231,27 +333,13 @@ public class Subscription extends BaseTimeEntity {
     }
 
     /**
-     * 다음 결제일 설정 (빌링 주기 후)
+     * 결제 준비 완료 여부 확인 (Batch Reader용)
+     * 결제 가능 + 결제일 도래
+     *
+     * @param now 현재 시간
      */
-    public void scheduleNextBilling() {
-        this.nextBillingAt = Instant.now().plus(BILLING_CYCLE_DAYS, ChronoUnit.DAYS);
-    }
-
-    /**
-     * 활성 상태인지 확인
-     */
-    public boolean isActive() {
-        return this.status == SubscriptionStatus.ACTIVE;
-    }
-
-    /**
-     * 만료되었는지 확인
-     */
-    public boolean isExpired() {
-        if (this.endedAt == null) {
-            return false;
-        }
-        return Instant.now().isAfter(this.endedAt);
+    public boolean isReadyForBilling(Instant now) {
+        return isBillable() && isDueToBill(now);
     }
 
 }
