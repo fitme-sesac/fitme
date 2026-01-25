@@ -3,14 +3,18 @@ package com.example.pproject.ad.service;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.ad.dto.AdCampaignCreateDTO;
 import com.example.pproject.ad.dto.AdCampaignResponseDTO;
+import com.example.pproject.ad.dto.AdServeResponseDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
 import com.example.pproject.ad.repository.AdCampaignRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
+import com.example.pproject.resume.entity.Resume;
+import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.wallet.entity.Wallet;
 import com.example.pproject.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +23,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -28,6 +34,7 @@ public class AdCampaignService {
 
     private final AdCampaignRepository adCampaignRepository;
     private final EmployerRepository employerRepository;
+    private final ResumeRepository resumeRepository;
     private final WalletService walletService;
 
     /**
@@ -97,6 +104,69 @@ public class AdCampaignService {
 
         entity.setStatus(status);
         return AdCampaignResponseDTO.fromEntity(entity);
+    }
+
+    /**
+     * [광고 노출용] 현재 활성 상태인 광고 목록 조회
+     * - ACTIVE 상태이고, 현재 시간이 start_at ~ end_at 사이인 광고
+     * - CPC 입찰가 높은 순으로 정렬 (경매 방식)
+     */
+    public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable) {
+        return adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+    }
+
+    /**
+     * [유사도 기반 광고 매칭]
+     * - 사용자의 대표 이력서 embedding을 가져와서
+     * - 활성 광고의 채용공고와 유사도 계산
+     * - 하이브리드 스코어 (similarity * 0.7 + bid * 0.3) 순으로 정렬
+     * - 유사도 0.5 미만인 광고는 제외
+     * 
+     * @param resumeEmbedding 사용자 이력서의 embedding 벡터
+     * @param limit           가져올 광고 개수
+     * @return 유사도 기반 정렬된 광고 매칭 결과
+     */
+    private static final double MIN_SIMILARITY_THRESHOLD = 0.5;
+
+    public List<Object[]> getAdsWithSimilarity(List<Double> resumeEmbedding, int limit) {
+        // embedding을 PostgreSQL vector 형식 문자열로 변환: [0.1, 0.2, ...] 형태
+        String embeddingStr = resumeEmbedding.toString();
+
+        return adCampaignRepository.findActiveAdsWithSimilarity(embeddingStr, MIN_SIMILARITY_THRESHOLD, limit);
+    }
+
+    /**
+     * [로그인 사용자용 광고 조회]
+     * - 사용자의 대표 이력서를 조회하고, embedding이 있으면 유사도 기반 매칭
+     * - embedding이 없으면 입찰가 순으로 fallback
+     * 
+     * @param memberId 사용자 ID
+     * @param limit    가져올 광고 개수
+     * @return 광고 목록 (DTO)
+     */
+    public List<AdServeResponseDTO> getAdsForMember(Long memberId, int limit) {
+        // 1. 사용자의 대표 이력서 조회
+        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
+
+        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
+            // 대표 이력서나 embedding이 없으면 입찰가 순으로 fallback
+            log.info("No primary resume or embedding for memberId: {}. Falling back to bid-based.", memberId);
+
+            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit));
+
+            return activeAds.getContent().stream()
+                    .map(AdServeResponseDTO::fromEntity)
+                    .toList();
+        }
+
+        // 2. 유사도 기반 광고 매칭
+        List<Double> userEmbedding = primaryResume.get().getEmbedding();
+        List<Object[]> matchResults = getAdsWithSimilarity(userEmbedding, limit);
+
+        // 3. DTO로 변환
+        return matchResults.stream()
+                .map(AdServeResponseDTO::fromQueryResult)
+                .toList();
     }
 
     // =======================================================
