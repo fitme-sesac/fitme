@@ -58,21 +58,8 @@ public class Product extends BaseSoftDeleteEntity {
     @Builder
     public Product(String productCode, String name, Money price, ProductType productType, Integer creditAmount,
             String planTier) {
-
-        // 1. 공통 필수값 검증
-        Assert.hasText(productCode, "상품 코드는 필수입니다.");
-        Assert.hasText(name, "상품명은 필수입니다.");
-        Assert.notNull(price, "가격은 필수입니다.");
-        Assert.notNull(productType, "상품 유형은 필수입니다.");
-
-        if (productType == ProductType.SUBSCRIPTION) {
-            Assert.hasText(planTier, "구독 상품은 플랜 등급(planTier)이 필수입니다.");
-        }
-        if (productType == ProductType.ONE_TIME) {
-            if (creditAmount == null || creditAmount <= 0) {
-                throw new IllegalArgumentException("단건 상품은 크레딧 제공량이 필수입니다.");
-            }
-        }
+        validateCommonFields(productCode, name, price, productType);
+        validateProductTypeSpecificFields(productType, creditAmount, planTier);
 
         this.productCode = productCode;
         this.name = name;
@@ -83,7 +70,31 @@ public class Product extends BaseSoftDeleteEntity {
         this.saleStatus = SaleStatus.ON_SALE;
     }
 
-    // === 구매자 자격 검증 (Buyer Eligibility) ===
+    // ===========================================
+    // 생성자 검증 로직 (Constructor Validation)
+    // ===========================================
+
+    private void validateCommonFields(String productCode, String name, Money price, ProductType productType) {
+        Assert.hasText(productCode, "상품 코드는 필수입니다.");
+        Assert.hasText(name, "상품명은 필수입니다.");
+        Assert.notNull(price, "가격은 필수입니다.");
+        Assert.notNull(productType, "상품 유형은 필수입니다.");
+    }
+
+    private void validateProductTypeSpecificFields(ProductType productType, Integer creditAmount, String planTier) {
+        if (productType == ProductType.SUBSCRIPTION) {
+            Assert.hasText(planTier, "구독 상품은 플랜 등급(planTier)이 필수입니다.");
+        }
+        if (productType == ProductType.ONE_TIME) {
+            if (creditAmount == null || creditAmount <= 0) {
+                throw new IllegalArgumentException("단건 상품은 크레딧 제공량이 필수입니다.");
+            }
+        }
+    }
+
+    // ===========================================
+    // 구매자 자격 검증 (Buyer Eligibility)
+    // ===========================================
 
     /**
      * 특정 구매자 유형이 이 상품을 구매할 수 있는지 확인
@@ -111,6 +122,97 @@ public class Product extends BaseSoftDeleteEntity {
         }
     }
 
+    // ===========================================
+    // 상태 전이 가능 여부 확인 (State Transition Guards)
+    // ===========================================
+
+    /**
+     * 일시정지 가능 여부 확인
+     */
+    public boolean canPause() {
+        return this.saleStatus == SaleStatus.ON_SALE;
+    }
+
+    /**
+     * 재개 가능 여부 확인
+     */
+    public boolean canResume() {
+        return this.saleStatus == SaleStatus.PAUSED;
+    }
+
+    /**
+     * 판매 종료 가능 여부 확인
+     */
+    public boolean canStop() {
+        return this.saleStatus != SaleStatus.STOPPED;
+    }
+
+    /**
+     * 가격 변경 가능 여부 확인
+     */
+    public boolean canChangePrice() {
+        return this.saleStatus != SaleStatus.STOPPED;
+    }
+
+    // ===========================================
+    // 비즈니스 로직 (State Transition Logic)
+    // ===========================================
+
+    /**
+     * 상품 가격 변경
+     */
+    public void changePrice(Money newPrice) {
+        if (!canChangePrice()) {
+            throw new IllegalStateException("판매가 종료된 상품은 가격을 변경할 수 없습니다.");
+        }
+        Assert.notNull(newPrice, "변경할 가격은 필수입니다.");
+        this.price.checkCurrency(newPrice);
+        this.price = newPrice;
+    }
+
+    /**
+     * 상품 일시정지
+     */
+    public void pause() {
+        // 멱등성: 이미 일시정지 상태면 무시
+        if (this.saleStatus == SaleStatus.PAUSED) {
+            return;
+        }
+        if (!canPause()) {
+            throw new IllegalStateException("판매 중인 상품만 일시정지할 수 있습니다.");
+        }
+        this.saleStatus = SaleStatus.PAUSED;
+    }
+
+    /**
+     * 상품 판매 재개
+     */
+    public void resume() {
+        // 멱등성: 이미 판매 중이면 무시
+        if (this.saleStatus == SaleStatus.ON_SALE) {
+            return;
+        }
+        if (!canResume()) {
+            throw new IllegalStateException("일시정지된 상품만 재개할 수 있습니다.");
+        }
+        this.saleStatus = SaleStatus.ON_SALE;
+    }
+
+    /**
+     * 상품 판매 종료
+     */
+    public void stop() {
+        // 멱등성: 이미 STOPPED인 경우 무시
+        if (this.saleStatus == SaleStatus.STOPPED) {
+            return;
+        }
+        this.saleStatus = SaleStatus.STOPPED;
+    }
+
+    // ===========================================
+    // 상태 확인 메서드 (Query Methods)
+    // ===========================================
+
     /**
      * 구독 상품인지 확인
      */
@@ -118,47 +220,38 @@ public class Product extends BaseSoftDeleteEntity {
         return this.productType == ProductType.SUBSCRIPTION;
     }
 
-    // === 비즈니스 로직 (State Transition Logic) ===
-
-    public void changePrice(Money newPrice) {
-        verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
-        Assert.notNull(newPrice, "변경할 가격은 필수입니다.");
-
-        this.price.checkCurrency(newPrice);
-        this.price = newPrice;
+    /**
+     * 단건 상품인지 확인
+     */
+    public boolean isOneTime() {
+        return this.productType == ProductType.ONE_TIME;
     }
 
-    public void pause() {
-        verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
-        if (this.saleStatus == SaleStatus.PAUSED) {
-
-            throw new IllegalStateException("이미 일시 정지된 상품입니다.");
-        }
-        this.saleStatus = SaleStatus.PAUSED;
+    /**
+     * 판매 중인지 확인
+     */
+    public boolean isOnSale() {
+        return this.saleStatus == SaleStatus.ON_SALE;
     }
 
-    public void resume() {
-        verifyActiveOrPaused(); // STOPPED 상태인지 공통 검증
-        if (this.saleStatus == SaleStatus.ON_SALE) {
-            throw new IllegalStateException("이미 판매 중인 상품입니다.");
-        }
-        this.saleStatus = SaleStatus.ON_SALE;
+    /**
+     * 일시정지 상태인지 확인
+     */
+    public boolean isPaused() {
+        return this.saleStatus == SaleStatus.PAUSED;
     }
 
-    public void stop() {
-        // 이미 STOPPED인 경우 굳이 에러낼 필요 없음 (멱등성)
-        if (this.saleStatus == SaleStatus.STOPPED) {
-            return;
-        }
-        this.saleStatus = SaleStatus.STOPPED;
+    /**
+     * 판매 종료 상태인지 확인
+     */
+    public boolean isStopped() {
+        return this.saleStatus == SaleStatus.STOPPED;
     }
 
-    // === 내부 헬퍼 메서드 ===
-
-    // "판매 종료(STOPPED) 상태에서는 아무것도 못한다"는 규칙을 한곳에서 관리
-    private void verifyActiveOrPaused() {
-        if (this.saleStatus == SaleStatus.STOPPED) {
-            throw new IllegalStateException("판매가 종료된 상품은 상태를 변경할 수 없습니다.");
-        }
+    /**
+     * 구매 가능한 상태인지 확인 (판매 중인 경우)
+     */
+    public boolean isPurchasable() {
+        return isOnSale();
     }
 }
