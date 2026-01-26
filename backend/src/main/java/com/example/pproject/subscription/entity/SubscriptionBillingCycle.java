@@ -224,6 +224,26 @@ public class SubscriptionBillingCycle {
         this.creditStatus = CreditStatus.REVOKED;
     }
 
+    /**
+     * 결제 상태 변경 (관리자용)
+     */
+    public void updatePaymentStatus(PaymentStatus newStatus) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("변경할 결제 상태는 필수입니다.");
+        }
+        this.paymentStatus = newStatus;
+    }
+
+    /**
+     * 크레딧 상태 변경 (관리자용)
+     */
+    public void updateCreditStatus(CreditStatus newStatus) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("변경할 크레딧 상태는 필수입니다.");
+        }
+        this.creditStatus = newStatus;
+    }
+
     // ===========================================
     // 상태 확인 메서드 (Query Methods)
     // ===========================================

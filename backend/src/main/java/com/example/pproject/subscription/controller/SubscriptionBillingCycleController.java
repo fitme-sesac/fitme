@@ -27,4 +27,13 @@ public class SubscriptionBillingCycleController {
         List<SubscriptionBillingCycleResponse> responses = billingCycleService.getBillingCycles(subscriptionId);
         return ResponseEntity.ok(responses);
     }
+
+    /**
+     * 특정 결제 주기 상세 조회
+     */
+    @GetMapping("/{cycleId}")
+    public ResponseEntity<SubscriptionBillingCycleResponse> getBillingCycle(@PathVariable Long cycleId) {
+        SubscriptionBillingCycleResponse response = billingCycleService.getBillingCycle(cycleId);
+        return ResponseEntity.ok(response);
+    }
 }

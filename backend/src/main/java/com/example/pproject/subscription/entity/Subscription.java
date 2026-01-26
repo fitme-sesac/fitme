@@ -324,6 +324,23 @@ public class Subscription extends BaseTimeEntity {
         }
     }
 
+    /**
+     * 예약된 상품 변경 취소
+     */
+    public void cancelScheduledProductChange() {
+        this.nextProduct = null;
+    }
+
+    /**
+     * 구독 상태 변경 (관리자용)
+     */
+    public void updateStatus(SubscriptionStatus newStatus) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("변경할 상태는 필수입니다.");
+        }
+        this.status = newStatus;
+    }
+
     // ===========================================
     // 상태 확인 메서드 (Query Methods)
     // ===========================================

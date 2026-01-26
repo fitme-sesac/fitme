@@ -1,7 +1,11 @@
 package com.example.pproject.subscription.controller;
 
+import com.example.pproject.Constant.CreditStatus;
+import com.example.pproject.Constant.PaymentStatus;
+import com.example.pproject.Constant.SubscriptionStatus;
 import com.example.pproject.payment.entity.Payment;
 import com.example.pproject.subscription.dto.SubscriptionBillingCycleResponse;
+import com.example.pproject.subscription.dto.SubscriptionResponse;
 import com.example.pproject.subscription.service.SubscriptionBillingCycleService;
 import com.example.pproject.subscription.service.SubscriptionService;
 import com.example.pproject.wallet.entity.WalletLedger;
@@ -11,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/admin/api/subscriptions")
@@ -23,6 +28,26 @@ public class AdminSubscriptionController {
     // =============================================================================================
     // [구독 관리] - SubscriptionService
     // =============================================================================================
+
+    /**
+     * 모든 구독 목록 조회
+     */
+    @GetMapping
+    public ResponseEntity<List<SubscriptionResponse>> getAllSubscriptions() {
+        List<SubscriptionResponse> responses = subscriptionService.getAllSubscriptions();
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 구독 상태 강제 변경
+     */
+    @PutMapping("/{subscriptionId}/status")
+    public ResponseEntity<Void> updateSubscriptionStatus(
+            @PathVariable Long subscriptionId,
+            @RequestParam SubscriptionStatus newStatus) {
+        subscriptionService.updateSubscriptionStatus(subscriptionId, newStatus);
+        return ResponseEntity.ok().build();
+    }
 
     /**
      * 구독 강제 활성화
@@ -74,6 +99,15 @@ public class AdminSubscriptionController {
     // =============================================================================================
 
     /**
+     * 모든 결제 주기 목록 조회
+     */
+    @GetMapping("/billing-cycles")
+    public ResponseEntity<List<SubscriptionBillingCycleResponse>> getAllBillingCycles() {
+        List<SubscriptionBillingCycleResponse> responses = billingCycleService.getAllBillingCycles();
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
      * 월별 빌링 사이클 생성 (청구서 생성)
      */
     @PostMapping("/billing-cycles/create")
@@ -105,6 +139,17 @@ public class AdminSubscriptionController {
     }
 
     /**
+     * 결제 상태 강제 변경
+     */
+    @PutMapping("/billing-cycles/{cycleId}/payment-status")
+    public ResponseEntity<Void> updatePaymentStatus(
+            @PathVariable Long cycleId,
+            @RequestParam PaymentStatus newStatus) {
+        billingCycleService.updatePaymentStatus(cycleId, newStatus);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
      * 크레딧 지급
      */
     @PostMapping("/billing-cycles/{cycleId}/grant-credit")
@@ -122,6 +167,17 @@ public class AdminSubscriptionController {
     @PostMapping("/billing-cycles/{cycleId}/revoke-credit")
     public ResponseEntity<Void> revokeCredit(@PathVariable Long cycleId) {
         billingCycleService.revokeCredit(cycleId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 크레딧 상태 강제 변경
+     */
+    @PutMapping("/billing-cycles/{cycleId}/credit-status")
+    public ResponseEntity<Void> updateCreditStatus(
+            @PathVariable Long cycleId,
+            @RequestParam CreditStatus newStatus) {
+        billingCycleService.updateCreditStatus(cycleId, newStatus);
         return ResponseEntity.ok().build();
     }
 }

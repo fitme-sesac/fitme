@@ -1,5 +1,6 @@
 package com.example.pproject.subscription.service;
 
+import com.example.pproject.Constant.SubscriptionStatus;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.product.entity.Product;
@@ -27,7 +28,7 @@ public class SubscriptionService {
     private final ProductRepository productRepository;
 
     // =============================================================================================
-    // [일반 유저 기능] - 구독 신청, 조회, 취소, 정보 변경 등
+    // [일반 유저 기능]
     // =============================================================================================
 
     /**
@@ -41,10 +42,6 @@ public class SubscriptionService {
         Product product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
 
-        // 기존 활성 구독 확인 (중복 구독 방지 정책이 있다면 추가)
-        // Optional<Subscription> existing = subscriptionRepository.findByEmployer_Id(request.employerId());
-        // if (existing.isPresent() && existing.get().isActive()) { ... }
-
         Subscription subscription = Subscription.create(
                 employer,
                 product,
@@ -52,7 +49,6 @@ public class SubscriptionService {
                 request.billingKey()
         );
 
-        // 생성 시점 검증
         subscription.validateBillingInfo();
         subscription.validateDateConsistency();
 
@@ -115,7 +111,6 @@ public class SubscriptionService {
                 request.cardNumber()
         );
         
-        // 업데이트 후 검증
         subscription.validateBillingInfo();
         subscription.validateCardInfo();
     }
@@ -134,12 +129,50 @@ public class SubscriptionService {
         subscription.scheduleProductChange(newProduct);
     }
 
+    /**
+     * [일반 유저] 예약된 상품 변경 정보 조회
+     */
+    public SubscriptionResponse getScheduledProductChange(Long subscriptionId) {
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독상품입니다."));
+        return SubscriptionResponse.from(subscription);
+    }
+
+    /**
+     * [일반 유저] 예약된 상품 변경 취소
+     */
+    @Transactional
+    public void cancelScheduledProductChange(Long subscriptionId) {
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독상품입니다."));
+        subscription.cancelScheduledProductChange();
+    }
+
     // =============================================================================================
-    // [관리자/시스템 기능] - 강제 활성화, 결제 실패 처리, 배치 작업 등
+    // [관리자/시스템 기능]
     // =============================================================================================
 
     /**
-     * [관리자] 구독 강제 활성화 (관리자 권한 필요)
+     * [관리자] 모든 구독 목록 조회
+     */
+    public List<SubscriptionResponse> getAllSubscriptions() {
+        return subscriptionRepository.findAll().stream()
+                .map(SubscriptionResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * [관리자] 구독 상태 강제 변경
+     */
+    @Transactional
+    public void updateSubscriptionStatus(Long subscriptionId, SubscriptionStatus newStatus) {
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독상품입니다."));
+        subscription.updateStatus(newStatus);
+    }
+
+    /**
+     * [관리자] 구독 강제 활성화
      */
     @Transactional
     public void activateSubscription(Long subscriptionId) {

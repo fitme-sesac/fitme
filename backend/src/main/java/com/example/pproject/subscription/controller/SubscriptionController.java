@@ -88,4 +88,22 @@ public class SubscriptionController {
         subscriptionService.scheduleProductChange(subscriptionId, request);
         return ResponseEntity.ok().build();
     }
+
+    /**
+     * 예약된 상품 변경 정보 조회
+     */
+    @GetMapping("/{subscriptionId}/scheduled-product-change")
+    public ResponseEntity<SubscriptionResponse> getScheduledProductChange(@PathVariable Long subscriptionId) {
+        SubscriptionResponse response = subscriptionService.getScheduledProductChange(subscriptionId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 예약된 상품 변경 취소
+     */
+    @PostMapping("/{subscriptionId}/cancel-scheduled-product-change")
+    public ResponseEntity<Void> cancelScheduledProductChange(@PathVariable Long subscriptionId) {
+        subscriptionService.cancelScheduledProductChange(subscriptionId);
+        return ResponseEntity.ok().build();
+    }
 }
