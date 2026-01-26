@@ -3,7 +3,7 @@ package com.example.pproject.wallet.dto;
 import com.example.pproject.Constant.TxType;
 import com.example.pproject.wallet.entity.WalletLedger;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 /**
  * [응답 DTO] 지갑 거래 내역(원장)
@@ -15,7 +15,7 @@ public record WalletLedgerResponse(
         Long amount,          // 변동 금액
         Long balanceAfter,    // 변동 후 잔액
         String memo,
-        Instant occurredAt
+        LocalDateTime occurredAt
 ) {
     public static WalletLedgerResponse from(WalletLedger ledger) {
         return new WalletLedgerResponse(

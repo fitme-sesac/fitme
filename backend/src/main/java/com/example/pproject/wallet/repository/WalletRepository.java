@@ -29,11 +29,11 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
 
     // 멤버 ID로 지갑 조회 + 비관적 락
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select w from Wallet w where w.member.id = :memberId")
+    @Query("select w from Wallet w where w.member = :memberId")
     Optional<Wallet> findByMemberWithLock(@Param("memberId") Long memberId);
 
     // 고용주 ID로 지갑 조회 + 비관적 락
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select w from Wallet w where w.employer.id = :employerId")
+    @Query("select w from Wallet w where w.employer = :employerId")
     Optional<Wallet> findByEmployerWithLock(@Param("employerId") Long employerId);
 }

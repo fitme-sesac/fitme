@@ -1,6 +1,5 @@
 package com.example.pproject.payment.controller;
 
-import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.payment.dto.request.PaymentCancelRequest;
 import com.example.pproject.payment.dto.request.PaymentConfirmRequest;
@@ -8,6 +7,7 @@ import com.example.pproject.payment.dto.request.PaymentCreateRequest;
 import com.example.pproject.payment.dto.response.PaymentCancelResponse;
 import com.example.pproject.payment.dto.response.PaymentResponse;
 import com.example.pproject.payment.service.PaymentService;
+import com.example.pproject.user.entity.UserEntity;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,6 +17,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,10 +35,11 @@ public class PaymentController {
     @PostMapping("/request")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PaymentResponse> createPayment(
-            @AuthenticationPrincipal JwtUserPrincipal principal,
-            @RequestBody @Valid PaymentCreateRequest request) {
-        String userid = principal.getUserid();
-        return ResponseEntity.ok(paymentService.createPaymentByUserid(userid, request));
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid PaymentCreateRequest request
+    ) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.createPayment(userId, request));
     }
 
     /**
@@ -46,10 +48,11 @@ public class PaymentController {
     @PostMapping("/confirm")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PaymentResponse> confirmPayment(
-            @AuthenticationPrincipal JwtUserPrincipal principal,
-            @RequestBody @Valid PaymentConfirmRequest request) {
-        String userid = principal.getUserid();
-        return ResponseEntity.ok(paymentService.confirmPaymentByUserid(userid, request));
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody @Valid PaymentConfirmRequest request
+    ) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.confirmPayment(userId, request));
     }
 
     /**
@@ -58,11 +61,12 @@ public class PaymentController {
     @PostMapping("/{orderId}/cancel")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> cancelPayment(
-            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable String orderId,
-            @RequestBody @Valid PaymentCancelRequest request) {
-        String userid = principal.getUserid();
-        paymentService.cancelPaymentByUserid(userid, orderId, request);
+            @RequestBody @Valid PaymentCancelRequest request
+    ) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        paymentService.cancelPayment(userId, orderId, request);
         return ResponseEntity.ok().build();
     }
 
@@ -73,11 +77,12 @@ public class PaymentController {
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<PaymentResponse>> getMyPayments(
-            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        String userid = principal.getUserid();
-        return ResponseEntity.ok(paymentService.getMyPaymentsByUserid(userid, roleType, pageable));
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.getMyPayments(userId, roleType, pageable));
     }
 
     /**
@@ -86,10 +91,11 @@ public class PaymentController {
     @GetMapping("/{orderId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PaymentResponse> getPayment(
-            @AuthenticationPrincipal JwtUserPrincipal principal,
-            @PathVariable String orderId) {
-        String userid = principal.getUserid();
-        return ResponseEntity.ok(paymentService.getPaymentByUserid(userid, orderId));
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable String orderId
+    ) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.getPayment(userId, orderId));
     }
 
     /**
@@ -98,9 +104,10 @@ public class PaymentController {
     @GetMapping("/{orderId}/cancels")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<PaymentCancelResponse>> getPaymentCancels(
-            @AuthenticationPrincipal JwtUserPrincipal principal,
-            @PathVariable String orderId) {
-        String userid = principal.getUserid();
-        return ResponseEntity.ok(paymentService.getPaymentCancelsByUserid(userid, orderId));
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable String orderId
+    ) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(paymentService.getPaymentCancels(userId, orderId));
     }
 }

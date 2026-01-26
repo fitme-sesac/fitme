@@ -1,6 +1,6 @@
 package com.example.pproject.wallet.controller;
 
-import com.example.pproject.Constant.BuyerType;
+import com.example.pproject.Constant.RoleType;
 import com.example.pproject.wallet.dto.WalletManualChargeRequest;
 import com.example.pproject.wallet.dto.WalletManualDeductRequest;
 import com.example.pproject.wallet.service.WalletService;
@@ -24,7 +24,8 @@ public class AdminWalletController {
     @PostMapping("/{walletId}/manual-charge")
     public ResponseEntity<Void> manualCharge(
             @PathVariable Long walletId,
-            @RequestBody @Valid WalletManualChargeRequest request) {
+            @RequestBody @Valid WalletManualChargeRequest request
+    ) {
         walletService.manualCharge(walletId, request.amount(), request.memo());
         return ResponseEntity.ok().build();
     }
@@ -35,7 +36,8 @@ public class AdminWalletController {
     @PostMapping("/{walletId}/manual-deduct")
     public ResponseEntity<Void> manualDeduct(
             @PathVariable Long walletId,
-            @RequestBody @Valid WalletManualDeductRequest request) {
+            @RequestBody @Valid WalletManualDeductRequest request
+    ) {
         walletService.manualDeduct(walletId, request.amount(), request.memo());
         return ResponseEntity.ok().build();
     }
@@ -46,8 +48,9 @@ public class AdminWalletController {
     @PostMapping("/create")
     public ResponseEntity<Long> createWallet(
             @RequestParam Long userId,
-            @RequestParam BuyerType buyerType) {
-        Long walletId = walletService.createWallet(userId, buyerType);
+            @RequestParam RoleType roleType
+    ) {
+        Long walletId = walletService.createWallet(userId, roleType);
         return ResponseEntity.ok(walletId);
     }
 
@@ -57,7 +60,8 @@ public class AdminWalletController {
     @PostMapping("/{walletId}/status")
     public ResponseEntity<Void> changeWalletStatus(
             @PathVariable Long walletId,
-            @RequestParam boolean suspend) {
+            @RequestParam boolean suspend
+    ) {
         walletService.changeWalletStatus(walletId, suspend);
         return ResponseEntity.ok().build();
     }
