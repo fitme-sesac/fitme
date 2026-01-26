@@ -36,8 +36,8 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> createPayment(
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @RequestBody @Valid PaymentCreateRequest request) {
-        Long userId = principal.getId();
-        return ResponseEntity.ok(paymentService.createPayment(userId, request));
+        String userid = principal.getUserid();
+        return ResponseEntity.ok(paymentService.createPaymentByUserid(userid, request));
     }
 
     /**
@@ -48,8 +48,8 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> confirmPayment(
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @RequestBody @Valid PaymentConfirmRequest request) {
-        Long userId = principal.getId();
-        return ResponseEntity.ok(paymentService.confirmPayment(userId, request));
+        String userid = principal.getUserid();
+        return ResponseEntity.ok(paymentService.confirmPaymentByUserid(userid, request));
     }
 
     /**
@@ -61,8 +61,8 @@ public class PaymentController {
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable String orderId,
             @RequestBody @Valid PaymentCancelRequest request) {
-        Long userId = principal.getId();
-        paymentService.cancelPayment(userId, orderId, request);
+        String userid = principal.getUserid();
+        paymentService.cancelPaymentByUserid(userid, orderId, request);
         return ResponseEntity.ok().build();
     }
 
@@ -76,8 +76,8 @@ public class PaymentController {
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long userId = principal.getId();
-        return ResponseEntity.ok(paymentService.getMyPayments(userId, roleType, pageable));
+        String userid = principal.getUserid();
+        return ResponseEntity.ok(paymentService.getMyPaymentsByUserid(userid, roleType, pageable));
     }
 
     /**
@@ -88,8 +88,8 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> getPayment(
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable String orderId) {
-        Long userId = principal.getId();
-        return ResponseEntity.ok(paymentService.getPayment(userId, orderId));
+        String userid = principal.getUserid();
+        return ResponseEntity.ok(paymentService.getPaymentByUserid(userid, orderId));
     }
 
     /**
@@ -100,7 +100,7 @@ public class PaymentController {
     public ResponseEntity<List<PaymentCancelResponse>> getPaymentCancels(
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable String orderId) {
-        Long userId = principal.getId();
-        return ResponseEntity.ok(paymentService.getPaymentCancels(userId, orderId));
+        String userid = principal.getUserid();
+        return ResponseEntity.ok(paymentService.getPaymentCancelsByUserid(userid, orderId));
     }
 }

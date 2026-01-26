@@ -64,8 +64,6 @@ public class Orders extends BaseTimeEntity {
     @Column(name = "idempotency_key")
     private String idempotencyKey; // 멱등성 키
 
-    // === 팩토리 메서드 ===
-
     /**
      * 주문 생성 (개인/기업 분기 처리 포함)
      */
@@ -79,13 +77,18 @@ public class Orders extends BaseTimeEntity {
         // 구매자 자격 검증 (구독 상품은 기업 회원만 구매 가능)
         product.validateBuyerEligibility(buyerType);
 
+        // idempotencyKey가 없으면 자동 생성
+        String finalIdempotencyKey = (idempotencyKey == null || idempotencyKey.isBlank())
+                ? UUID.randomUUID().toString()
+                : idempotencyKey;
+
         OrdersBuilder builder = Orders.builder()
                 .orderUid(orderUid)
                 .buyerType(buyerType)
                 .product(product)
                 .orderAmount(amount)
                 .status(OrderStatus.CREATED)
-                .idempotencyKey(idempotencyKey);
+                .idempotencyKey(finalIdempotencyKey);
 
         if (buyerType == BuyerType.MEMBER) {
             Assert.notNull(buyer, "개인 회원은 필수입니다.");

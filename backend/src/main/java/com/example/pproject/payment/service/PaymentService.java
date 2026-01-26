@@ -98,8 +98,7 @@ public class PaymentService {
         TossPaymentResponse tossResponse = paymentPort.confirm(
                 request.paymentKey(),
                 request.orderId(),
-                request.amount()
-        );
+                request.amount());
 
         // 3. 결과 처리 (트랜잭션 분리)
         return transactionTemplate.execute(status -> completeConfirm(orderUid, userId, tossResponse));
@@ -118,8 +117,7 @@ public class PaymentService {
         // 2. 외부 PG사 취소 요청
         TossPaymentResponse tossResponse = paymentPort.cancel(
                 paymentKey,
-                request.cancelReason()
-        );
+                request.cancelReason());
 
         // 3. 결과 처리 (트랜잭션 분리)
         transactionTemplate.execute(status -> {
@@ -172,12 +170,12 @@ public class PaymentService {
         UUID orderUid = UUID.fromString(orderId);
         Payment payment = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
-        
+
         // 본인 확인 (엔티티 로직 위임)
         if (payment.getOrder() != null) {
             payment.getOrder().validateOwner(userId);
         }
-        
+
         return PaymentResponse.from(payment);
     }
 
@@ -205,12 +203,12 @@ public class PaymentService {
         UUID orderUid = UUID.fromString(orderId);
         Payment payment = paymentRepository.findByOrder_OrderUid(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
-        
+
         // 본인 확인 (엔티티 로직 위임)
         if (payment.getOrder() != null) {
             payment.getOrder().validateOwner(userId);
         }
-        
+
         return paymentCancelRepository.findByPayment(payment).stream()
                 .map(PaymentCancelResponse::from)
                 .collect(Collectors.toList());
@@ -232,7 +230,7 @@ public class PaymentService {
     public void retryWebhook(Long inboxId) {
         PgWebhookInbox inbox = pgWebhookInboxRepository.findById(inboxId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 웹훅입니다."));
-        
+
         TossWebhookRequest request = objectMapper.convertValue(inbox.getPayload(), TossWebhookRequest.class);
         processWebhookLogic(request, inbox);
     }
@@ -267,8 +265,7 @@ public class PaymentService {
         TossPaymentResponse tossResponse = paymentPort.confirmBilling(
                 billingKey,
                 orderUid.toString(),
-                request.amount()
-        );
+                request.amount());
 
         // 3. 결과 처리 (트랜잭션 분리)
         return transactionTemplate.execute(status -> completeConfirm(orderUid, userId, tossResponse));
@@ -310,8 +307,7 @@ public class PaymentService {
                 employer,
                 product,
                 Money.wons(request.amount()),
-                request.idempotencyKey()
-        );
+                request.idempotencyKey());
 
         return orderRepository.save(order);
     }
@@ -338,7 +334,8 @@ public class PaymentService {
             throw new IllegalStateException("결제 시스템 응답이 지연되고 있습니다. 잠시 후 결제 내역을 확인해주세요.");
         }
 
-        Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
+        Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {
+        });
 
         // 승인 성공 처리
         payment.approve(tossResponse, rawPayload);
@@ -350,8 +347,7 @@ public class PaymentService {
                     payment.getOrder().getBuyerType(),
                     payment.getPaidAmount().getAmount().longValue(),
                     payment.getPaidAmount(),
-                    payment
-            );
+                    payment);
         } catch (Exception e) {
             log.error("지갑 충전 실패로 인한 결제 취소 진행. orderId={}, error={}", orderUid, e.getMessage());
             // 보상 트랜잭션: 토스 결제 취소
@@ -389,17 +385,18 @@ public class PaymentService {
             throw new IllegalStateException("결제 취소 요청이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
         }
 
-        Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {});
+        Map<String, Object> rawPayload = objectMapper.convertValue(tossResponse, new TypeReference<>() {
+        });
         payment.cancel(tossResponse, rawPayload);
 
         // PaymentCancel 생성 로직을 Payment 엔티티로 위임
         PaymentCancel cancel = payment.createCancel(
                 tossResponse,
                 request.cancelReason(),
-                Money.wons(request.cancelAmount() != null ? request.cancelAmount() : payment.getPaidAmount().getAmount()),
+                Money.wons(
+                        request.cancelAmount() != null ? request.cancelAmount() : payment.getPaidAmount().getAmount()),
                 UUID.randomUUID().toString(),
-                rawPayload
-        );
+                rawPayload);
 
         paymentCancelRepository.save(cancel);
     }
@@ -418,15 +415,15 @@ public class PaymentService {
 
     // 웹훅 Inbox 엔티티 생성
     private PgWebhookInbox createWebhookInbox(TossWebhookRequest request, Payment payment) {
-        Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<>() {});
+        Map<String, Object> payload = objectMapper.convertValue(request, new TypeReference<>() {
+        });
 
         // 정적 팩토리 메서드 사용
         return PgWebhookInbox.create(
                 UUID.randomUUID().toString(),
                 request.eventType(),
                 payment,
-                payload
-        );
+                payload);
     }
 
     // 웹훅 비즈니스 로직 실행 (결제 완료 처리 등)
@@ -436,11 +433,12 @@ public class PaymentService {
             // 웹훅으로 결제 완료 처리 (승인 API 응답을 못 받았을 경우 대비)
             if (payment != null && payment.getAppStatus() == PaymentAppStatus.REQUESTED) {
                 log.info("웹훅을 통한 결제 승인 처리: {}", payment.getPaymentUid());
-                
+
                 // DTO 변환 로직을 DTO 내부 팩토리 메서드로 위임
                 TossPaymentResponse tossResponse = TossPaymentResponse.from(request, payment.getOrderName());
-                
-                Map<String, Object> rawPayload = objectMapper.convertValue(request, new TypeReference<>() {});
+
+                Map<String, Object> rawPayload = objectMapper.convertValue(request, new TypeReference<>() {
+                });
 
                 processPaymentApproval(payment, tossResponse, rawPayload);
             }
@@ -448,7 +446,8 @@ public class PaymentService {
     }
 
     // 결제 승인 및 지갑 충전 처리
-    private void processPaymentApproval(Payment payment, TossPaymentResponse tossResponse, Map<String, Object> rawPayload) {
+    private void processPaymentApproval(Payment payment, TossPaymentResponse tossResponse,
+            Map<String, Object> rawPayload) {
         // 승인 처리 (엔티티 내부에서 상태 및 금액 검증 수행)
         payment.approve(tossResponse, rawPayload);
 
@@ -462,7 +461,71 @@ public class PaymentService {
                 payment.getOrder().getBuyerType(),
                 payment.getPaidAmount().getAmount().longValue(),
                 payment.getPaidAmount(),
-                payment
-        );
+                payment);
+    }
+
+    // =====================================================
+    // userid(문자열) 기반 래퍼 메서드들 (JWT에 ID가 없을 때 사용)
+    // =====================================================
+
+    /**
+     * userid로 사용자 ID(Long) 조회
+     */
+    private Long getUserIdByUserid(String userid) {
+        return userRepository.findByUserid(userid)
+                .map(UserEntity::getId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + userid));
+    }
+
+    /**
+     * 1. 결제 생성 (userid 기반)
+     */
+    @Transactional
+    public PaymentResponse createPaymentByUserid(String userid, PaymentCreateRequest request) {
+        Long userId = getUserIdByUserid(userid);
+        return createPayment(userId, request);
+    }
+
+    /**
+     * 2. 결제 승인 (userid 기반)
+     */
+    public PaymentResponse confirmPaymentByUserid(String userid, PaymentConfirmRequest request) {
+        Long userId = getUserIdByUserid(userid);
+        return confirmPayment(userId, request);
+    }
+
+    /**
+     * 3. 결제 취소 (userid 기반)
+     */
+    public void cancelPaymentByUserid(String userid, String orderId, PaymentCancelRequest request) {
+        Long userId = getUserIdByUserid(userid);
+        cancelPayment(userId, orderId, request);
+    }
+
+    /**
+     * 5. 결제 단건 조회 (userid 기반)
+     */
+    @Transactional(readOnly = true)
+    public PaymentResponse getPaymentByUserid(String userid, String orderId) {
+        Long userId = getUserIdByUserid(userid);
+        return getPayment(userId, orderId);
+    }
+
+    /**
+     * 6. 내 결제 목록 조회 (userid 기반)
+     */
+    @Transactional(readOnly = true)
+    public Page<PaymentResponse> getMyPaymentsByUserid(String userid, RoleType roleType, Pageable pageable) {
+        Long userId = getUserIdByUserid(userid);
+        return getMyPayments(userId, roleType, pageable);
+    }
+
+    /**
+     * 7. 결제 취소 이력 조회 (userid 기반)
+     */
+    @Transactional(readOnly = true)
+    public List<PaymentCancelResponse> getPaymentCancelsByUserid(String userid, String orderId) {
+        Long userId = getUserIdByUserid(userid);
+        return getPaymentCancels(userId, orderId);
     }
 }
