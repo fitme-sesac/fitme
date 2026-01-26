@@ -32,6 +32,11 @@ import PublicJobDetailPage from "./features/job/pages/PublicJobDetailPage";
 // 알림(Notification) 페이지
 import NotificationPage from "./features/notification/pages/NotificationPage";
 
+// 결제(Payment) 관련 페이지
+import ProductSelectionPage from "./features/payment/pages/ProductSelectionPage";
+import PaymentSuccessPage from "./features/payment/pages/PaymentSuccessPage";
+// import PaymentFailPage from "./features/payment/pages/PaymentFailPage";
+
 /**
  * React 라우트에 없는 경로는 기존 백엔드(8080)가 처리하도록 위임.
  * (React로 안 옮긴 기존 페이지/기능을 깨지지 않게 유지)
@@ -124,7 +129,7 @@ export default function App() {
           <Route path="/employer/dashboard" element={<EmployerDashboardPage />} />
           <Route path="/employer/profile" element={<EmployerProfilePage />} />
           <Route path="/employer" element={<EmployerDashboardPage />} />
-          
+
           {/* ===== 채용공고(Job) 관련 라우트 (기업회원용) ===== */}
           <Route path="/employer/jobs" element={<JobListPage />} />
           <Route path="/employer/jobs/create" element={<JobCreatePage />} />
@@ -133,6 +138,11 @@ export default function App() {
 
           {/* ===== 알림(Notification) 라우트 ===== */}
           <Route path="/notifications" element={<NotificationPage />} />
+
+          {/* ===== 결제(Payment) 관련 라우트 ===== */}
+          <Route path="/products" element={<ProductSelectionPage />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          {/*<Route path="/payment/fail" element={<PaymentFailPage />} />*/}
 
           {/* 나머지 경로는 백엔드가 처리 */}
           <Route path="*" element={<BackendFallback />} />

@@ -10,9 +10,11 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.util.Assert;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -38,7 +40,7 @@ import java.util.Map;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-public class PaymentCancel extends BaseTimeEntity {
+public class PaymentCancel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -68,7 +70,7 @@ public class PaymentCancel extends BaseTimeEntity {
     private String cancelReason;
 
     @Column(name = "canceled_at")
-    private LocalDateTime canceledAt;
+    private Instant canceledAt;
 
     @Column(name = "idempotency_key", nullable = false, length = 100)
     private String idempotencyKey;
@@ -78,8 +80,12 @@ public class PaymentCancel extends BaseTimeEntity {
     @Column(name = "raw_cancel", columnDefinition = "jsonb")
     private Map<String, Object> rawCancel;
 
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
     @Builder
-    public PaymentCancel(Payment payment, String tossTransactionKey, String cancelStatus, Money cancelAmount, String cancelReason, LocalDateTime canceledAt, String idempotencyKey, Map<String, Object> rawCancel) {
+    public PaymentCancel(Payment payment, String tossTransactionKey, String cancelStatus, Money cancelAmount, String cancelReason, Instant canceledAt, String idempotencyKey, Map<String, Object> rawCancel, Instant createdAt) {
         Assert.notNull(payment, "결제 정보는 필수입니다.");
         Assert.hasText(tossTransactionKey, "토스 거래 키는 필수입니다.");
         Assert.notNull(cancelAmount, "취소 금액은 필수입니다.");
@@ -91,8 +97,9 @@ public class PaymentCancel extends BaseTimeEntity {
         this.cancelStatus = cancelStatus;
         this.cancelAmount = cancelAmount;
         this.cancelReason = cancelReason;
-        this.canceledAt = canceledAt != null ? canceledAt : LocalDateTime.now();
+        this.canceledAt = canceledAt != null ? canceledAt : Instant.now();
         this.idempotencyKey = idempotencyKey;
         this.rawCancel = rawCancel;
+        this.createdAt = createdAt != null ? createdAt : Instant.now();
     }
 }

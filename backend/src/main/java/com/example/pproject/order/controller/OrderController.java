@@ -1,6 +1,7 @@
 package com.example.pproject.order.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.vo.Money;
 import com.example.pproject.order.dto.request.OrderCreateRequest;
@@ -45,12 +46,12 @@ public class OrderController {
         String buyerName = "";
         String buyerEmail = "";
 
-        if (request.buyerType() == RoleType.CANDIDATE) {
+        if (request.buyerType() == BuyerType.MEMBER) {
             if (order.getBuyerMember() != null) {
                 buyerName = order.getBuyerMember().getUsername();
                 buyerEmail = order.getBuyerMember().getEmail();
             }
-        } else if (request.buyerType() == RoleType.EMPLOYER) {
+        } else if (request.buyerType() == BuyerType.EMPLOYER) {
             if (order.getBuyerEmployer() != null) {
                 buyerName = order.getBuyerEmployer().getName();
                 buyerEmail = order.getBuyerEmployer().getContactEmail();
