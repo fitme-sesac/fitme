@@ -82,7 +82,8 @@ public class AiResumeService {
                     .orElse(null);
             
             if (job != null) {
-                List<String> requiredSkills = parseStack(job.getStack());
+                // job.getStack()이 이미 List<String>이므로 직접 사용
+                List<String> requiredSkills = job.getStack() != null ? job.getStack() : Collections.emptyList();
                 aiRequestPayload = AiResumeRequest.from(
                         resume, 
                         summaryType,
