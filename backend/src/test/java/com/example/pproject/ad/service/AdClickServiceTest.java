@@ -1,6 +1,6 @@
 package com.example.pproject.ad.service;
 
-import com.example.pproject.Constant.RoleType;
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.SourceType;
 import com.example.pproject.ad.dto.AdClickEventCreateDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
@@ -69,7 +69,7 @@ class AdClickServiceTest {
 
                 // 3. [Then]
                 verify(walletService).useCredit(
-                                eq(10L), eq(RoleType.EMPLOYER), eq(50L), anyString(), eq(SourceType.AD_CLICK));
+                                eq(10L), eq(BuyerType.EMPLOYER), eq(50L), anyString(), eq(SourceType.AD_CLICK));
                 verify(adClickEventRepository).save(any(AdClickEventEntity.class));
         }
 
@@ -131,7 +131,7 @@ class AdClickServiceTest {
 
                 // 3. [Then]
                 verify(walletService).useCredit(
-                                eq(10L), eq(RoleType.EMPLOYER), eq(50L), anyString(), eq(SourceType.AD_CLICK));
+                                eq(10L), eq(BuyerType.EMPLOYER), eq(50L), anyString(), eq(SourceType.AD_CLICK));
                 verify(adClickEventRepository).save(any(AdClickEventEntity.class));
         }
 

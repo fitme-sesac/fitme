@@ -1,6 +1,6 @@
 package com.example.pproject.ad.service;
 
-import com.example.pproject.Constant.RoleType;
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.SourceType;
 import com.example.pproject.ad.dto.AdClickEventCreateDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
@@ -74,7 +74,7 @@ public class AdClickService {
         try {
             walletService.useCredit(
                     employerId,
-                    RoleType.EMPLOYER,
+                    BuyerType.EMPLOYER,
                     cpcBid,
                     orderId,
                     SourceType.AD_CLICK);
