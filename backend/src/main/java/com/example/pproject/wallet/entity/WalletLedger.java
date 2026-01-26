@@ -8,10 +8,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.util.Assert;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,7 +24,7 @@ import java.time.LocalDateTime;
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WalletLedger {
+public class WalletLedger extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -64,11 +62,7 @@ public class WalletLedger {
     private String memo;
 
     @Column(name = "occurred_at", nullable = false, updatable = false)
-    private Instant occurredAt;
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    private LocalDateTime occurredAt;
 
     @Builder
     public WalletLedger(
@@ -81,8 +75,7 @@ public class WalletLedger {
             long balanceAfter,
             String idempotencyKey,
             String memo,
-            Instant occurredAt,
-            Instant createdAt
+            LocalDateTime occurredAt
     ) {
         Assert.notNull(wallet, "지갑 정보는 필수입니다.");
         Assert.notNull(txType, "거래 유형은 필수입니다.");
@@ -99,8 +92,7 @@ public class WalletLedger {
         this.balanceAfter = balanceAfter;
         this.idempotencyKey = idempotencyKey;
         this.memo = memo;
-        this.occurredAt = (occurredAt != null) ? occurredAt : Instant.now();
-        this.createdAt = (createdAt != null) ? createdAt : Instant.now();
+        this.occurredAt = (occurredAt != null) ? occurredAt : LocalDateTime.now();
     }
 
     private void validateBalanceConsistency(TxType txType, long amount, long balanceBefore, long balanceAfter) {

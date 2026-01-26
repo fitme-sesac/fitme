@@ -1,6 +1,5 @@
 package com.example.pproject.payment.dto.request;
 
-import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
 import jakarta.validation.constraints.Min;
@@ -26,7 +25,7 @@ public record PaymentCreateRequest(
         
         // 구매자 타입 (CANDIDATE / EMPLOYER) - 필수
         @NotNull(message = "구매자 타입은 필수입니다.")
-        BuyerType buyerType,
+        RoleType buyerType,
 
         @NotBlank(message = "상품 코드는 필수입니다.")
         String productCode,

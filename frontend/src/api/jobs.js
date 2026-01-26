@@ -85,24 +85,3 @@ export async function applyToJob(jobId, application) {
   const response = await http.post(`/api/jobs/${jobId}/apply`, application);
   return response.data;
 }
-
-/**
- * 스크랩한 공고 목록 조회 (로그인 필요)
- * ERD: job_scrap JOIN job_posting
- * @returns {Promise<JobScrap[]>}
- */
-export async function getMyScrapedJobs() {
-  const response = await http.get("/api/jobs/scrapped");
-  return response.data;
-}
-
-/**
- * 스크랩 여부 확인
- * @param {number} jobId - 채용공고 ID
- * @returns {Promise<{scrapped: boolean}>}
- */
-export async function checkScrapStatus(jobId) {
-  const response = await http.get(`/api/jobs/${jobId}/scrap`);
-  return response.data;
-}
-

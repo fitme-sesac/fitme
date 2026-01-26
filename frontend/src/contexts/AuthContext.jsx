@@ -48,9 +48,9 @@ export function AuthProvider({ children }) {
       return { data: response, error: null };
     } catch (error) {
       console.error('Sign up failed:', error);
-      return {
-        data: null,
-        error: error.response?.data?.error || error.message || "회원가입에 실패했습니다."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || error.message || "회원가입에 실패했습니다." 
       };
     }
   };
@@ -73,9 +73,9 @@ export function AuthProvider({ children }) {
       return { data: response.data, error: null };
     } catch (error) {
       console.error('Sign in failed:', error);
-      return {
-        data: null,
-        error: error.response?.data?.error || "로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || "로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요." 
       };
     }
   };
@@ -113,9 +113,9 @@ export function AuthProvider({ children }) {
       const response = await authApi.findUserId(name, phone);
       return { data: response, error: null };
     } catch (error) {
-      return {
-        data: null,
-        error: error.response?.data?.error || "아이디 찾기에 실패했습니다."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || "아이디 찾기에 실패했습니다." 
       };
     }
   };
@@ -126,9 +126,9 @@ export function AuthProvider({ children }) {
       const response = await authApi.findPassword(loginId, phone);
       return { data: response, error: null };
     } catch (error) {
-      return {
-        data: null,
-        error: error.response?.data?.error || "비밀번호 찾기에 실패했습니다."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || "비밀번호 찾기에 실패했습니다." 
       };
     }
   };
@@ -139,9 +139,9 @@ export function AuthProvider({ children }) {
       const response = await authApi.changePassword(currentPassword, newPassword);
       return { data: response, error: null };
     } catch (error) {
-      return {
-        data: null,
-        error: error.response?.data?.error || "비밀번호 변경에 실패했습니다."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || "비밀번호 변경에 실패했습니다." 
       };
     }
   };
@@ -152,9 +152,9 @@ export function AuthProvider({ children }) {
       const response = await authApi.requestPhoneVerification(phone);
       return { data: response, error: null };
     } catch (error) {
-      return {
-        data: null,
-        error: error.response?.data?.error || "인증번호 발송에 실패했습니다."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || "인증번호 발송에 실패했습니다." 
       };
     }
   };
@@ -165,30 +165,17 @@ export function AuthProvider({ children }) {
       const response = await authApi.verifyPhone(phone, code);
       return { data: response, error: null };
     } catch (error) {
-      return {
-        data: null,
-        error: error.response?.data?.error || "인증에 실패했습니다."
+      return { 
+        data: null, 
+        error: error.response?.data?.error || "인증에 실패했습니다." 
       };
     }
   };
-
-  // page-making-friend 호환용 프로퍼티
-  const isCompany = user?.role === 'EMPLOYER';
-  const isAdmin = ['SERVICEADMIN', 'APPROVEADMIN', 'MASTER'].includes(user?.role);
-  const userRole = user?.role || null;
-  const profile = user ? {
-    display_name: user.user_metadata?.display_name || user.email,
-    user_type: user.role === 'EMPLOYER' ? 'company' : 'job_seeker',
-  } : null;
 
   const value = {
     user,
     loading,
     isAuthenticated: !!user,
-    isCompany,  // 기업 회원 여부
-    isAdmin,    // 관리자 여부
-    userRole,   // 원본 역할 문자열
-    profile,    // page-making-friend 호환용
     signUp,
     signIn,
     signOut,

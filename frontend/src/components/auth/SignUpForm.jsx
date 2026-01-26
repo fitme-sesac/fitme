@@ -19,12 +19,12 @@ const signUpSchema = z.object({
   path: ["confirmPassword"],
 });
 
-export function SignUpForm({ initialUserType }) {
+export function SignUpForm() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [userType, setUserType] = useState(initialUserType === "company" ? "company" : "job_seeker");
+  const [userType, setUserType] = useState("job_seeker");
   const [isLoading, setIsLoading] = useState(false);
   const { signUp } = useAuth();
   const { toast } = useToast();

@@ -1,6 +1,5 @@
 package com.example.pproject.wallet.controller;
 
-import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.payment.entity.Payment;
 import com.example.pproject.payment.repository.PaymentRepository;
@@ -104,12 +103,12 @@ public class WalletController {
     ) {
         Long userId = Long.parseLong(userDetails.getUsername());
         // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
-        BuyerType buyerType = BuyerType.MEMBER;
+        RoleType roleType = RoleType.CANDIDATE;
 
         Payment payment = paymentRepository.findById(request.paymentId())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
 
-        walletService.chargeCredit(userId, buyerType, request.amount(), request.toMoney(), payment);
+        walletService.chargeCredit(userId, roleType, request.amount(), request.toMoney(), payment);
         return ResponseEntity.ok().build();
     }
 
@@ -124,9 +123,9 @@ public class WalletController {
     ) {
         Long userId = Long.parseLong(userDetails.getUsername());
         // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
-        BuyerType buyerType = BuyerType.MEMBER;
+        RoleType roleType = RoleType.CANDIDATE;
 
-        walletService.useCredit(userId, buyerType, request.amount(), request.orderId(), request.sourceType());
+        walletService.useCredit(userId, roleType, request.amount(), request.orderId(), request.sourceType());
         return ResponseEntity.ok().build();
     }
 }

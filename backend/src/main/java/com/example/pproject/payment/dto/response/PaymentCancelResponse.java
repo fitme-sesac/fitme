@@ -3,7 +3,6 @@ package com.example.pproject.payment.dto.response;
 import com.example.pproject.payment.entity.PaymentCancel;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 public record PaymentCancelResponse(
@@ -11,7 +10,7 @@ public record PaymentCancelResponse(
         BigDecimal cancelAmount,
         String cancelReason,
         String cancelStatus,
-        Instant canceledAt,
+        LocalDateTime canceledAt,
         String transactionKey
 ) {
     public static PaymentCancelResponse from(PaymentCancel cancel) {
