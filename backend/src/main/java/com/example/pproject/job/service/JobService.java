@@ -215,7 +215,7 @@ public class JobService {
                 .status(dto.getStatus() != null ? dto.getStatus() : "DRAFT")
                 .location(dto.getLocation())
                 .salaryText(dto.getSalaryText())
-                .stack(dto.getStack())
+                .stack(ArrayStringUtil.stringToList(dto.getStack()))
                 .requiredQuestions(dto.getRequiredQuestions())
                 .build();
 
@@ -268,7 +268,7 @@ public class JobService {
         if (dto.getStatus() != null) job.setStatus(dto.getStatus());
         if (dto.getLocation() != null) job.setLocation(dto.getLocation());
         if (dto.getSalaryText() != null) job.setSalaryText(dto.getSalaryText());
-        if (dto.getStack() != null) job.setStack(dto.getStack());
+        if (dto.getStack() != null) job.setStack(ArrayStringUtil.stringToList(dto.getStack()));
         if (dto.getRequiredQuestions() != null) job.setRequiredQuestions(dto.getRequiredQuestions());
 
         jobRepository.save(job);
@@ -509,7 +509,7 @@ public class JobService {
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
-                .stack(ArrayStringUtil.cleanArrayString(job.getStack()))
+                .stack(ArrayStringUtil.listToString(job.getStack()))
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)
@@ -592,7 +592,7 @@ public class JobService {
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
-                .stack(ArrayStringUtil.cleanArrayString(job.getStack()))
+                .stack(ArrayStringUtil.listToString(job.getStack()))
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)

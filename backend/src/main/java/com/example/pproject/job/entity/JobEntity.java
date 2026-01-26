@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -59,8 +60,14 @@ public class JobEntity {
     @Column(name = "apply_count", nullable = false)
     private Integer applicationCount;
 
-    @Column(name = "stack", length = 80)
-    private String stack;
+    /**
+     * 기술 스택 (TEXT[] 배열)
+     * - ERD: stack TEXT[] NULL
+     * - Hibernate 6: @JdbcTypeCode(SqlTypes.ARRAY)
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "stack", columnDefinition = "TEXT[]")
+    private List<String> stack;
 
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
