@@ -32,7 +32,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) throws IOException, ServletException {
+            Authentication authentication) throws IOException, ServletException {
 
         Object principal = authentication.getPrincipal();
 
@@ -67,9 +67,9 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
                 putIfPresent(claims, "name", oauth2User.getAttribute("name"));
 
                 // ✅ 프리필 통일 키: gender/birthday/phone
-                putIfPresent(claims, "gender", oauth2User.getAttribute("gender"));     // MALE/FEMALE/UNDISCLOSED
+                putIfPresent(claims, "gender", oauth2User.getAttribute("gender")); // MALE/FEMALE/UNDISCLOSED
                 putIfPresent(claims, "birthday", oauth2User.getAttribute("birthday")); // YYYY-MM-DD
-                putIfPresent(claims, "phone", oauth2User.getAttribute("phone"));       // digits
+                putIfPresent(claims, "phone", oauth2User.getAttribute("phone")); // digits
 
                 String tmp = jwtTokenProvider.createFlowToken("OAUTH2_REGISTER", claims, 600);
                 CookieUtils.addHttpOnlyCookie(request, response, "OAUTH2_TMP", tmp, 600, "Lax");
@@ -94,8 +94,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
             Authentication authForToken = new UsernamePasswordAuthenticationToken(
                     ue.getUserid(),
                     null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + ue.getRoleType().name()))
-            );
+                    List.of(new SimpleGrantedAuthority("ROLE_" + ue.getRoleType().name())));
 
             String accessToken = jwtTokenProvider.createAccessToken(authForToken, displayName, email);
             CookieUtils.addHttpOnlyCookie(
@@ -104,8 +103,7 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
                     "ACCESS_TOKEN",
                     accessToken,
                     jwtTokenProvider.getAccessTokenValiditySeconds(),
-                    "Lax"
-            );
+                    "Lax");
 
             response.sendRedirect(frontBaseUrl + "/");
             return;
@@ -132,16 +130,17 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
                 "ACCESS_TOKEN",
                 accessToken,
                 jwtTokenProvider.getAccessTokenValiditySeconds(),
-                "Lax"
-        );
+                "Lax");
 
         response.sendRedirect(frontBaseUrl + "/");
     }
 
     private void putIfPresent(Map<String, Object> out, String key, Object value) {
-        if (value == null) return;
+        if (value == null)
+            return;
         String s = String.valueOf(value).trim();
-        if (s.isBlank()) return;
+        if (s.isBlank())
+            return;
         out.put(key, s);
     }
 }

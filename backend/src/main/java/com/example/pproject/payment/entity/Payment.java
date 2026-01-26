@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class Payment extends BaseTimeEntity {
     private LocalDateTime approvedAt;
 
     @Column(name = "canceled_at")
-    private LocalDateTime canceledAt;
+    private Instant canceledAt;
 
     @Builder
     public Payment(Orders order, PaymentMethod method, Money paidAmount) {
@@ -164,7 +165,7 @@ public class Payment extends BaseTimeEntity {
         this.appStatus = PaymentAppStatus.CANCELED; // 부분 취소 고려 시 로직 추가 필요
         this.pgStatus = response.status();
         this.pgPayload = rawPayload;
-        this.canceledAt = LocalDateTime.now();
+        this.canceledAt = Instant.now();
     }
 
     /**
