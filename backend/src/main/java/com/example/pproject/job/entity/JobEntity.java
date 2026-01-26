@@ -59,8 +59,9 @@ public class JobEntity {
     @Column(name = "apply_count", nullable = false)
     private Integer applicationCount;
 
-    @Column(name = "stack", length = 80)
-    private String stack;
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "stack", columnDefinition = "text[]")
+    private String[] stack;
 
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;

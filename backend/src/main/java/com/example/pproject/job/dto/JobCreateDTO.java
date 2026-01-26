@@ -11,14 +11,17 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class JobCreateDTO {
-    
+
     private String title;
     private String description;
     private String status; // DRAFT, OPEN
-    
+
     // ERD 기준 필드
     private String location;
     private Long salaryText;  // BIGINT - 연봉 (원 단위)
-    private String stack;
+
+    // ✅ text[] 대응
+    private String[] stack;
+
     private String requiredQuestions; // JSON 문자열
 }

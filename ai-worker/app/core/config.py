@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     OPENAI_MODEL_NAME: str = "gpt-5-mini"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # 챗봇 전용
+    CHATBOT_OPENAI_MODEL_NAME: str = "gpt-4o-mini"
+    CHATBOT_OPENAI_TEMPERATURE: float = 0.0
+
     # Database
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
