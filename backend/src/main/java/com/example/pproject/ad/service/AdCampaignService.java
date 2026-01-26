@@ -3,6 +3,7 @@ package com.example.pproject.ad.service;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.ad.dto.AdCampaignCreateDTO;
 import com.example.pproject.ad.dto.AdCampaignResponseDTO;
+import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.dto.AdServeResponseDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
 import com.example.pproject.ad.repository.AdCampaignRepository;
@@ -94,6 +95,33 @@ public class AdCampaignService {
     public AdCampaignResponseDTO getCampaign(Long id) {
         AdCampaignEntity entity = adCampaignRepository.findByIdAndNotDeleted(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found or deleted. ID: " + id));
+        return AdCampaignResponseDTO.fromEntity(entity);
+    }
+
+    /**
+     * 캠페인 정보 수정 (부분 업데이트)
+     * - null인 필드는 수정하지 않음
+     */
+    @Transactional
+    public AdCampaignResponseDTO updateCampaign(Long id, AdCampaignUpdateDTO dto) {
+        AdCampaignEntity entity = adCampaignRepository.findByIdAndNotDeleted(id)
+                .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found. ID: " + id));
+
+        // 부분 업데이트 (null이 아닌 필드만 수정)
+        if (dto.getCpcBid() != null) {
+            entity.setCpcBid(dto.getCpcBid());
+        }
+        if (dto.getDailyBudget() != null) {
+            entity.setDailyBudget(dto.getDailyBudget());
+        }
+        if (dto.getStartDate() != null) {
+            entity.setStartAt(toStartOfDay(dto.getStartDate()));
+        }
+        if (dto.getEndDate() != null) {
+            entity.setEndAt(toEndOfDay(dto.getEndDate()));
+        }
+
+        log.info("광고 캠페인 수정 완료. CampaignId: {}", id);
         return AdCampaignResponseDTO.fromEntity(entity);
     }
 

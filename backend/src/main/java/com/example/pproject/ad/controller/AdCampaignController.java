@@ -2,6 +2,7 @@ package com.example.pproject.ad.controller;
 
 import com.example.pproject.ad.dto.AdCampaignCreateDTO;
 import com.example.pproject.ad.dto.AdCampaignResponseDTO;
+import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.service.AdCampaignService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,15 @@ public class AdCampaignController {
     @GetMapping("/{id}")
     public ResponseEntity<AdCampaignResponseDTO> getCampaign(@PathVariable Long id) {
         AdCampaignResponseDTO response = adCampaignService.getCampaign(id);
+        return ResponseEntity.ok(response);
+    }
+
+    // 캠페인 정보 수정 (부분 업데이트)
+    @PatchMapping("/{id}")
+    public ResponseEntity<AdCampaignResponseDTO> updateCampaign(
+            @PathVariable Long id,
+            @RequestBody AdCampaignUpdateDTO dto) {
+        AdCampaignResponseDTO response = adCampaignService.updateCampaign(id, dto);
         return ResponseEntity.ok(response);
     }
 
