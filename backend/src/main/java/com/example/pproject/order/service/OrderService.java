@@ -1,5 +1,6 @@
 package com.example.pproject.order.service;
 
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.vo.Money;
 import com.example.pproject.employer.entity.EmployerEntity;
@@ -36,7 +37,7 @@ public class OrderService {
      * @return 생성된(또는 기존) 주문 엔티티
      */
     @Transactional
-    public Orders createOrder(Long buyerId, RoleType buyerType, String productCode, String idempotencyKey) {
+    public Orders createOrder(Long buyerId, BuyerType buyerType, String productCode, String idempotencyKey) {
         // 1. 멱등성 검사: 이미 처리된 요청이면 기존 주문 반환
         if (idempotencyKey != null) {
             return orderRepository.findByIdempotencyKey(idempotencyKey)
@@ -45,7 +46,7 @@ public class OrderService {
         return createNewOrder(buyerId, buyerType, productCode, null);
     }
 
-    private Orders createNewOrder(Long buyerId, RoleType buyerType, String productCode, String idempotencyKey) {
+    private Orders createNewOrder(Long buyerId, BuyerType buyerType, String productCode, String idempotencyKey) {
         // 2. 상품 조회 (삭제된 상품 제외)
         Product product = productRepository.findByProductCodeAndDeletedAtIsNull(productCode)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
@@ -54,10 +55,10 @@ public class OrderService {
         UserEntity buyer = null;
         EmployerEntity employer = null;
 
-        if (buyerType == RoleType.CANDIDATE) {
+        if (buyerType == BuyerType.MEMBER) {
             buyer = userRepository.findById(buyerId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
-        } else if (buyerType == RoleType.EMPLOYER) {
+        } else if (buyerType == BuyerType.EMPLOYER) {
             employer = employerRepository.findByIdAndDeletedAtIsNull(buyerId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업 회원입니다."));
         } else {

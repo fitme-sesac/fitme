@@ -40,7 +40,7 @@ public class WalletCreditLot extends BaseTimeEntity {
     // 결제 기반 충전이면 보통 NOT NULL이 더 안전하지만
     // 관리자 지급 등도 고려하면 nullable 유지 가능
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payment_id")
+    @JoinColumn(name = "payment_id", nullable = false)
     private Payment payment;
 
     @Column(name = "granted_credit", nullable = false)
