@@ -105,7 +105,7 @@ export default function PaymentSuccessPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <span style={{ color: '#666' }}>결제 금액</span>
                             <span style={{ fontWeight: 'bold', color: '#3182f6' }}>
-                                {Number(paymentResult.paidAmount).toLocaleString()}원
+                                {Number(paymentResult.totalAmount).toLocaleString()}원
                             </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
