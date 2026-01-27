@@ -37,6 +37,7 @@ public class AdCampaignService {
     private final EmployerRepository employerRepository;
     private final ResumeRepository resumeRepository;
     private final WalletService walletService;
+    private final AdGuardService adGuardService;
 
     /**
      * 광고주(Employer)가 입력한 정보를 바탕으로 실제 광고를 생성
@@ -119,6 +120,12 @@ public class AdCampaignService {
         }
         if (dto.getEndDate() != null) {
             entity.setEndAt(toEndOfDay(dto.getEndDate()));
+        }
+
+        // [Redis Cache Update] 중요 정보(입찰가) 변경 시 캐시 갱신 (사용자 기획 반영)
+        // AdGuardService의 cacheAdInfo 호출
+        if (dto.getCpcBid() != null) {
+            adGuardService.cacheAdInfo(entity.getId(), entity.getJobId(), entity.getEmployerId(), entity.getCpcBid());
         }
 
         log.info("광고 캠페인 수정 완료. CampaignId: {}", id);

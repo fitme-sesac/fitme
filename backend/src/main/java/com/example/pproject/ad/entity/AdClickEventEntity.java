@@ -43,6 +43,10 @@ public class AdClickEventEntity {
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
+    // 클릭 당시의 과금액 (CPC) - 정산용 Source of Truth
+    @Column(name = "click_cost", nullable = false)
+    private Integer cost;
+
     @PrePersist
     void prePersist() {
         if (occurredAt == null) {
