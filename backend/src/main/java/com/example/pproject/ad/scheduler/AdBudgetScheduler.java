@@ -146,10 +146,8 @@ public class AdBudgetScheduler {
             activeCampaigns.stream()
                     .filter(c -> c.getEmployerId().equals(empId))
                     .forEach(c -> {
-                        // 남은 예산(Redis Key) 설정
-                        adGuardService.setDailyBudget(c.getId(), c.getDailyBudget());
-                        // 광고 정보(입찰가 등) 캐싱
-                        adGuardService.cacheAdInfo(c.getId(), c.getJobId(), c.getEmployerId(), c.getCpcBid());
+                        // Redis Guard 충전 및 메타데이터 설정 (Unified Hash)
+                        adGuardService.setDailyBudget(c.getId(), c.getDailyBudget(), c.getCpcBid(), "ACTIVE");
                     });
 
             log.info("   -> [Redis Charge] Employer ID: {} 관련 캠페인 Redis 세팅 완료", empId);

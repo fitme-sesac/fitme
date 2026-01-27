@@ -122,10 +122,9 @@ public class AdCampaignService {
             entity.setEndAt(toEndOfDay(dto.getEndDate()));
         }
 
-        // [Redis Cache Update] 중요 정보(입찰가) 변경 시 캐시 갱신 (사용자 기획 반영)
-        // AdGuardService의 cacheAdInfo 호출
+        // [Redis Cache Update] 중요 정보(입찰가) 변경 시 캐시 갱신
         if (dto.getCpcBid() != null) {
-            adGuardService.cacheAdInfo(entity.getId(), entity.getJobId(), entity.getEmployerId(), entity.getCpcBid());
+            adGuardService.updateCpc(entity.getId(), entity.getCpcBid());
         }
 
         log.info("광고 캠페인 수정 완료. CampaignId: {}", id);
@@ -138,16 +137,34 @@ public class AdCampaignService {
                 .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found. ID: " + id));
 
         entity.setStatus(status);
+
+        // [New] Redis 상태 동기화 (Active Set 자동 관리)
+        adGuardService.updateStatus(id, status);
+
         return AdCampaignResponseDTO.fromEntity(entity);
     }
 
     /**
-     * [광고 노출용] 현재 활성 상태인 광고 목록 조회
+     * [광고 노출용] 현재 활성 상태인 광고 목록 조회 (Redis Active Set 기반)
      * - ACTIVE 상태이고, 현재 시간이 start_at ~ end_at 사이인 광고
+     * - [NEW] Redis Active Set에 포함된(예산이 있는) 광고만 DB에서 조회
      * - CPC 입찰가 높은 순으로 정렬 (경매 방식)
      */
     public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable) {
-        return adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+        // 1. Redis에서 현재 활성 캠페인 ID 목록 조회 (예산 있는 것들)
+        java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
+
+        if (activeIdsStr == null || activeIdsStr.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        // 2. String -> Long 변환
+        List<Long> activeIds = activeIdsStr.stream()
+                .map(Long::valueOf)
+                .toList();
+
+        // 3. DB 조회 (ID 필터링)
+        return adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
     }
 
     /**
@@ -164,10 +181,23 @@ public class AdCampaignService {
     private static final double MIN_SIMILARITY_THRESHOLD = 0.5;
 
     public List<Object[]> getAdsWithSimilarity(List<Double> resumeEmbedding, int limit) {
-        // embedding을 PostgreSQL vector 형식 문자열로 변환: [0.1, 0.2, ...] 형태
+        // 1. Redis에서 현재 활성 캠페인 ID 목록 조회
+        java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
+
+        if (activeIdsStr == null || activeIdsStr.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        List<Long> activeIds = activeIdsStr.stream()
+                .map(Long::valueOf)
+                .toList();
+
+        // 2. embedding을 PostgreSQL vector 형식 문자열로 변환: [0.1, 0.2, ...] 형태
         String embeddingStr = resumeEmbedding.toString();
 
-        return adCampaignRepository.findActiveAdsWithSimilarity(embeddingStr, MIN_SIMILARITY_THRESHOLD, limit);
+        // 3. DB 조회 (ID 필터링 포함)
+        return adCampaignRepository.findActiveAdsWithSimilarityAndIds(activeIds, embeddingStr, MIN_SIMILARITY_THRESHOLD,
+                limit);
     }
 
     /**
