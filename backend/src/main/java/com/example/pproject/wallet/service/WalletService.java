@@ -230,7 +230,7 @@ public class WalletService {
     /**
      * [관리자] 지갑을 수동으로 생성합니다.
      *
-     * @param userId   사용자 ID
+     * @param userId    사용자 ID
      * @param buyerType 사용자 역할
      * @return 생성된 지갑 ID
      * @throws IllegalStateException 이미 지갑이 존재하는 경우
@@ -355,37 +355,44 @@ public class WalletService {
     }
 
     /**
-     * [Phase 2] 광고 예산 정산 (실사용 + 예약해제)
+     * [Phase 2] 광고 클릭 이벤트 배치 정산 및 환불 (Batch Settlement)
+     * - 어제 사용한 금액(usedAmount)만큼 차감하고, 남은 예약금을 환불합니다.
      */
     @Transactional
-    public void settleBudget(Long employerId, long usedAmount, long releasedReservation, String idempotencyKey) {
-        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
-
+    public void settleDailyUsage(Long employerId, long usedAmount, String idempotencyKey) {
+        // 이미 처리된 정산인지 확인
         if (ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
             return;
         }
 
-        long balanceBefore = wallet.getBalance();
+        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+        long balanceBefore = wallet.getBalance(); // 사실상 balance 변화는 없음 (reserved 내부 처리) -> 아님, 환불 시 증가함.
 
-        // 1. 정산 (잔액 차감 및 예약 해제)
-        wallet.settle(usedAmount, releasedReservation);
-
-        // 2. 실사용액만큼 LOT 차감
+        // 1. 실제 사용분 처리 (예약금 소멸)
         if (usedAmount > 0) {
-            consumeCreditLots(wallet, usedAmount);
+            wallet.deductReserved(usedAmount);
+            consumeCreditLots(wallet, usedAmount); // 사용된 크레딧 소멸
         }
 
-        // 3. Ledger 기록
-        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, usedAmount, balanceBefore,
-                idempotencyKey, "광고 예산 정산");
-        ledgerRepository.save(ledger);
-    }
-
-    // 일일 정산용 예약금 리셋
-    @Transactional
-    public void resetDailyReservation(Long employerId) {
-        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+        // 2. 남은 예약금 환불 (Balance 복구)
+        long refunded = wallet.getReservedBalance(); // 남은 거 다 환불
         wallet.releaseAllReservation();
+
+        // 3. Ledger (정산 및 환불 로그)
+        String memo = String.format("일일 정산 (사용: %d, 환불: %d)", usedAmount, refunded);
+
+        // 사용 내역 기록 (DEBIT)
+        if (usedAmount > 0) {
+            WalletLedger usageLedger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, usedAmount,
+                    balanceBefore,
+                    idempotencyKey + "_USAGE", memo);
+            ledgerRepository.save(usageLedger);
+        }
+
+        // 환불 내역은 별도 기록 필요 없음? -> Balance가 늘어나니까 CREDIT인지?
+        // 아님. 원래 내 돈이었으니 그냥 내부 이동임.
+        // 하지만 Balance가 늘어나는 것 처럼 보이니 헷갈릴 수 있음.
+        // 여기선 "사용 내역"만 명확히 남기면 됨. (환불은 내부 처리)
     }
 
     /**
