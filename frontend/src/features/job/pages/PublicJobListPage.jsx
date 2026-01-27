@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { http } from '../../../api/http';
+import ScrapButton from '../components/ScrapButton';
 
 /**
  * 공개 채용공고 목록 페이지
@@ -23,6 +24,16 @@ export default function PublicJobListPage() {
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
   const [selectedStack, setSelectedStack] = useState(searchParams.get('stack') || '');
   const [selectedLocation, setSelectedLocation] = useState(searchParams.get('location') || '');
+  const [selectedExperience, setSelectedExperience] = useState(searchParams.get('experience') || '');
+
+  // 경력 필터 옵션
+  const experienceOptions = [
+    { label: '신입/무관', value: '0' },
+    { label: '1-3년', value: '1-3' },
+    { label: '3-5년', value: '3-5' },
+    { label: '5-10년', value: '5-10' },
+    { label: '10년+', value: '10' },
+  ];
 
   // 인기 기술 스택 (영어, 한글 라벨)
   const popularStacks = [
@@ -112,7 +123,27 @@ export default function PublicJobListPage() {
     setKeyword('');
     setSelectedStack('');
     setSelectedLocation('');
+    setSelectedExperience('');
     setSearchParams({});
+  };
+
+  const handleExperienceFilter = (exp) => {
+    setSelectedExperience(exp === selectedExperience ? '' : exp);
+    const params = new URLSearchParams(searchParams);
+    if (exp === selectedExperience) {
+      params.delete('experience');
+    } else {
+      params.set('experience', exp);
+    }
+    params.set('page', '0');
+    setSearchParams(params);
+  };
+
+  // 경력 요건 표시 함수
+  const formatExperience = (years) => {
+    if (years === null || years === undefined || years === 0) return '신입/무관';
+    if (years === 1) return '1년 이상';
+    return `${years}년 이상`;
   };
 
   return (
@@ -180,7 +211,7 @@ export default function PublicJobListPage() {
                   </button>
                 ))}
               </div>
-              <div>
+              <div className="mb-3">
                 <small className="text-muted fw-semibold me-2">지역:</small>
                 {popularLocations.map((location) => (
                   <button
@@ -197,10 +228,27 @@ export default function PublicJobListPage() {
                   </button>
                 ))}
               </div>
+              <div>
+                <small className="text-muted fw-semibold me-2">경력:</small>
+                {experienceOptions.map((exp) => (
+                  <button
+                    key={exp.value}
+                    type="button"
+                    className={`btn btn-sm me-2 mb-2 ${
+                      selectedExperience === exp.value 
+                        ? 'btn-primary' 
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => handleExperienceFilter(exp.value)}
+                  >
+                    {exp.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 활성 필터 표시 */}
-            {(keyword || selectedStack || selectedLocation) && (
+            {(keyword || selectedStack || selectedLocation || selectedExperience) && (
               <div className="mt-3 pt-3 border-top">
                 <small className="text-muted">적용된 필터: </small>
                 {keyword && (
@@ -238,6 +286,17 @@ export default function PublicJobListPage() {
                       className="btn-close btn-close-white ms-2" 
                       style={{ fontSize: '0.6rem' }}
                       onClick={() => handleLocationFilter(selectedLocation)}
+                    ></button>
+                  </span>
+                )}
+                {selectedExperience && (
+                  <span className="badge bg-warning text-dark me-2">
+                    경력: {experienceOptions.find(e => e.value === selectedExperience)?.label}
+                    <button 
+                      type="button" 
+                      className="btn-close ms-2" 
+                      style={{ fontSize: '0.6rem' }}
+                      onClick={() => handleExperienceFilter(selectedExperience)}
                     ></button>
                   </span>
                 )}
@@ -388,29 +447,41 @@ export default function PublicJobListPage() {
                           </div>
                         )}
 
-                        {/* 급여 정보 */}
-                        {job.salaryText && (
-                          <p className="mb-0 text-success small fw-semibold">
-                            <i className="bi bi-currency-dollar me-1"></i>
-                            {job.salaryText}
-                          </p>
-                        )}
+                        {/* 급여 및 경력 정보 */}
+                        <div className="d-flex flex-wrap gap-2 mb-0">
+                          {job.salaryText && (
+                            <span className="text-success small fw-semibold">
+                              <i className="bi bi-currency-dollar me-1"></i>
+                              {job.salaryText}
+                            </span>
+                          )}
+                          {job.requiredExperience !== undefined && (
+                            <span className="text-primary small">
+                              <i className="bi bi-briefcase me-1"></i>
+                              {formatExperience(job.requiredExperience)}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* 카드 푸터 */}
                       <div className="card-footer bg-white border-top-0 pt-0">
-                        <div className="d-flex justify-content-between align-items-center text-muted small">
-                          <span>
-                            <i className="bi bi-eye me-1"></i>
-                            {job.viewCount || 0}
-                          </span>
-                          <span>
-                            <i className="bi bi-people me-1"></i>
-                            지원 {job.applicationCount || 0}
-                          </span>
-                          <span>
-                            {job.createdAt && new Date(job.createdAt).toLocaleDateString('ko-KR')}
-                          </span>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <div className="text-muted small">
+                            <span className="me-3">
+                              <i className="bi bi-eye me-1"></i>
+                              {job.viewCount || 0}
+                            </span>
+                            <span>
+                              <i className="bi bi-people me-1"></i>
+                              {job.applicationCount || 0}
+                            </span>
+                          </div>
+                          <ScrapButton 
+                            jobId={job.jobId} 
+                            size="sm"
+                            onToggle={(scraped) => console.log(`Job ${job.jobId} scraped:`, scraped)}
+                          />
                         </div>
                       </div>
                     </div>
