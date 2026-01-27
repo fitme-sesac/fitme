@@ -55,25 +55,6 @@ public class JobScrapService {
         return true;
     }
 
-    /** 스크랩 추가 (이미 스크랩된 경우 무시) */
-    @Transactional
-    public void addScrap(Long jobId, Long memberId) {
-        if (jobScrapRepository.existsByMemberIdAndJobId(memberId, jobId)) return;
-        JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
-                .orElseThrow(() -> new IllegalArgumentException("채용공고를 찾을 수 없습니다."));
-        JobScrap scrap = JobScrap.builder().memberId(memberId).job(job).build();
-        jobScrapRepository.save(scrap);
-        log.info("스크랩 추가: memberId={}, jobId={}", memberId, jobId);
-    }
-
-    /** 스크랩 해제 */
-    @Transactional
-    public void deleteScrap(Long jobId, Long memberId) {
-        if (!jobScrapRepository.existsByMemberIdAndJobId(memberId, jobId)) return;
-        jobScrapRepository.deleteByMemberIdAndJobId(memberId, jobId);
-        log.info("스크랩 삭제: memberId={}, jobId={}", memberId, jobId);
-    }
-
     /**
      * 스크랩 여부 확인
      */
