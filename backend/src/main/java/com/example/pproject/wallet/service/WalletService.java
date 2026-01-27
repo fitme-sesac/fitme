@@ -231,7 +231,7 @@ public class WalletService {
      * [관리자] 지갑을 수동으로 생성합니다.
      *
      * @param userId   사용자 ID
-     * @param roleType 사용자 역할
+     * @param buyerType 사용자 역할
      * @return 생성된 지갑 ID
      * @throws IllegalStateException 이미 지갑이 존재하는 경우
      */
@@ -323,7 +323,75 @@ public class WalletService {
         // 1. 지갑 잔액 차감 (부족하면 예외)
         wallet.use(amount);
 
-        // 2. LOT FIFO 차감 (Chunk 조회)
+        // 2. LOT FIFO 차감
+        consumeCreditLots(wallet, amount);
+
+        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, sourceType, sourceRefId, amount, balanceBefore,
+                idempotencyKey, memo);
+        ledgerRepository.save(ledger);
+    }
+
+    /**
+     * [Phase 2] 광고 예산 예약 (하루치)
+     */
+    @Transactional
+    public void holdBudget(Long employerId, long amount, String idempotencyKey) {
+        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+
+        if (ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
+            return;
+        }
+
+        long balanceBefore = wallet.getBalance();
+
+        // 1. 예약 (가용잔액 체크 포함)
+        wallet.hold(amount);
+
+        // 2. Ledger 기록 (TxType: DEBIT, 금액은 찍히지만 잔액 변동은 없음 - 예약 로그)
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, 0L, balanceBefore,
+                idempotencyKey, "광고 예산 예약 (HOLD: " + amount + ")");
+        ledgerRepository.save(ledger);
+    }
+
+    /**
+     * [Phase 2] 광고 예산 정산 (실사용 + 예약해제)
+     */
+    @Transactional
+    public void settleBudget(Long employerId, long usedAmount, long releasedReservation, String idempotencyKey) {
+        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+
+        if (ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
+            return;
+        }
+
+        long balanceBefore = wallet.getBalance();
+
+        // 1. 정산 (잔액 차감 및 예약 해제)
+        wallet.settle(usedAmount, releasedReservation);
+
+        // 2. 실사용액만큼 LOT 차감
+        if (usedAmount > 0) {
+            consumeCreditLots(wallet, usedAmount);
+        }
+
+        // 3. Ledger 기록
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, usedAmount, balanceBefore,
+                idempotencyKey, "광고 예산 정산");
+        ledgerRepository.save(ledger);
+    }
+
+    // 일일 정산용 예약금 리셋
+    @Transactional
+    public void resetDailyReservation(Long employerId) {
+        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+        wallet.releaseAllReservation();
+    }
+
+    /**
+     * CreditLot FIFO 차감 로직 (공통로직으로 분리했음)
+     */
+    private void consumeCreditLots(Wallet wallet, long amount) {
         long remaining = amount;
 
         while (remaining > 0) {
@@ -356,11 +424,6 @@ public class WalletService {
                 throw new IllegalStateException("데이터 정합성 오류: LOT 차감이 진행되지 않습니다.");
             }
         }
-
-        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
-        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, sourceType, sourceRefId, amount, balanceBefore,
-                idempotencyKey, memo);
-        ledgerRepository.save(ledger);
     }
 
     /**
