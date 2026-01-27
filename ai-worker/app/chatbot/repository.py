@@ -1,4 +1,3 @@
-# app/chatbot/repository.py
 from __future__ import annotations
 
 import functools
@@ -74,10 +73,6 @@ def _relation_exists(relname: str, relkind: Optional[str] = None) -> bool:
 
 @functools.lru_cache(maxsize=8)
 def _has_pg_trgm() -> bool:
-    """
-    pg_trgm 설치 여부.
-    - stack_vocab fuzzy lookup을 위해 similarity(), % 연산자(opclass)가 필요.
-    """
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -94,12 +89,14 @@ def _has_pg_trgm() -> bool:
 _SPACE_RE = re.compile(r"\s+")
 _SEP_RE = re.compile(r"\s*[,/|]\s*")
 
+
 def _normalize_token(s: str, max_len: int = 50) -> str:
     s = (s or "").strip().lower()
     s = _SPACE_RE.sub(" ", s)
     if len(s) > max_len:
         s = s[:max_len]
     return s
+
 
 def _normalize_kw_list(xs: List[str], max_items: int = 30, max_len: int = 50) -> List[str]:
     out: List[str] = []
@@ -120,27 +117,19 @@ def _normalize_kw_list(xs: List[str], max_items: int = 30, max_len: int = 50) ->
 # -----------------------------
 
 def _stack_alias_tables_ready() -> bool:
-    # stack_alias는 테이블, stack_vocab은 MV(권장). 없으면 기능을 degrade.
     return _relation_exists("stack_alias", relkind="r") or _relation_exists("stack_alias", relkind=None)
+
 
 def _stack_vocab_ready() -> bool:
     return _relation_exists("stack_vocab", relkind="m") or _relation_exists("stack_vocab", relkind=None)
 
-def _resolve_stack_token(
-        cur,
-        raw: str,
-        *,
-        trigram_threshold: float = 0.45,
-) -> Tuple[str, Optional[dict]]:
-    """
-    raw -> canonical (lowercase)
-    correction dict: {"from": raw, "to": canonical, "via": "...", "sim": ...}
-    """
+
+def _resolve_stack_token(cur, raw: str, *, trigram_threshold: float = 0.45) -> Tuple[str, Optional[dict]]:
     q = _normalize_token(raw)
     if not q:
         return q, None
 
-    # 1) exact alias mapping: alias -> canonical
+    # 1) exact alias mapping
     if _stack_alias_tables_ready():
         cur.execute("SELECT canonical FROM stack_alias WHERE alias = %s LIMIT 1", (q,))
         row = cur.fetchone()
@@ -150,13 +139,8 @@ def _resolve_stack_token(
                 return canon, {"from": raw, "to": canon, "via": "alias_exact"}
             return canon, None
 
-    # 2) if user already typed canonical-ish, accept as-is
-    # (단, alias table이 있어도 canonical 자체를 alias로 넣지 않았을 수 있음)
-    # -> 아래에서 fuzzy까지 보고, 없으면 q 그대로 사용
-
-    # 3) fuzzy lookup using stack_vocab (pg_trgm required)
+    # 2) fuzzy lookup
     if _has_pg_trgm() and _stack_vocab_ready():
-        # token % q  : trigram "similar" operator (uses gin_trgm_ops index)
         cur.execute(
             """
             SELECT token, similarity(token, %s) AS sim
@@ -172,7 +156,6 @@ def _resolve_stack_token(
             tok = _normalize_token(str(row[0]))
             sim = float(row[1] or 0.0)
             if tok and sim >= trigram_threshold:
-                # tok itself may be an alias -> canonicalize again
                 if _stack_alias_tables_ready():
                     cur.execute("SELECT canonical FROM stack_alias WHERE alias = %s LIMIT 1", (tok,))
                     r2 = cur.fetchone()
@@ -186,20 +169,14 @@ def _resolve_stack_token(
                     return tok, {"from": raw, "to": tok, "via": "vocab_trgm", "sim": sim}
                 return tok, None
 
-    # fallback: keep normalized user token
     return q, None
 
 
 def _expand_aliases_for_canon(cur, canon_tokens: List[str], max_alias_per_canon: int = 50) -> Dict[str, List[str]]:
-    """
-    canon -> [alias1, alias2, ...] (including canon itself)
-    """
     out: Dict[str, List[str]] = {c: [c] for c in canon_tokens if c}
-
     if not canon_tokens or not _stack_alias_tables_ready():
         return out
 
-    # aliases where canonical in canon_tokens
     cur.execute(
         """
         SELECT canonical, alias
@@ -218,7 +195,6 @@ def _expand_aliases_for_canon(cur, canon_tokens: List[str], max_alias_per_canon:
         if a not in lst:
             lst.append(a)
         if len(lst) > max_alias_per_canon:
-            # cap
             out[c] = lst[:max_alias_per_canon]
 
     return out
@@ -229,18 +205,12 @@ def _expand_aliases_for_canon(cur, canon_tokens: List[str], max_alias_per_canon:
 # -----------------------------
 
 def _keyword_group_predicate(alias: Optional[str] = None) -> List[str]:
-    """
-    One keyword matches if it appears in ANY of these fields (OR group).
-    preds contain a placeholder %(kw)s which will be replaced with param keys.
-    """
     prefix = f"{alias}." if alias else ""
-
     preds = [
         f"{prefix}title ILIKE %(kw)s",
         f"{prefix}description ILIKE %(kw)s",
     ]
 
-    # stack is text[]: tokenize each element by separators and match any token
     if _column_exists("job_posting", "stack"):
         preds.insert(
             0,
@@ -251,7 +221,7 @@ def _keyword_group_predicate(alias: Optional[str] = None) -> List[str]:
               CROSS JOIN LATERAL regexp_split_to_table(coalesce(st.item, ''), '\\s*[,/|]\\s*') AS tok
               WHERE tok ILIKE %(kw)s
             )
-            """.strip()
+            """.strip(),
         )
     return preds
 
@@ -262,14 +232,9 @@ def _build_keywords_where_and_params_v2(
         alias: Optional[str] = None,
         param_offset: int = 0,
 ) -> Tuple[List[str], Dict[str, Any]]:
-    """
-    keywords_all_groups: AND across groups. Each group is OR across its variants.
-    keywords_any_groups: OR across groups. Each group is OR across its variants.
-    """
     where_parts: List[str] = []
     params: Dict[str, Any] = {}
     preds = _keyword_group_predicate(alias=alias)
-
     idx = param_offset
 
     def _group_sql_for_variants(variants: List[str]) -> str:
@@ -304,18 +269,59 @@ def _build_keywords_where_and_params_v2(
     return where_parts, params
 
 
-def _salary_min_predicate(min_salary_m만원: int, salary_col: str = "salary_text") -> str:
-    digits = f"NULLIF(regexp_replace({salary_col}, '[^0-9]', '', 'g'), '')::bigint"
-    return f"""
-    (
-      {salary_col} IS NOT NULL AND
-      (
-        {digits} >= %(min_salary_m)s
-        OR
-        {digits} >= (%(min_salary_m)s * 10000)
-      )
-    )
+# -----------------------------
+# Salary predicates (VARCHAR salary_text only)
+# -----------------------------
+
+def _salary_amount_m_expr(part_sql: str) -> str:
     """
+    part_sql(text) -> 만원 단위 bigint
+    지원:
+    - 1억2천 => 12000
+    - 8천(만원) => 8000
+    - 8000/8,000/8000만원 => 8000
+    - 80,000,000원 => 8000
+    """
+    eok = f"NULLIF((regexp_match({part_sql}, '(\\d+)\\s*억'))[1], '')::bigint"
+    thou_after_eok = f"NULLIF((regexp_match({part_sql}, '억\\s*(\\d+)\\s*천'))[1], '')::bigint"
+    thou_only = f"NULLIF((regexp_match({part_sql}, '(\\d+)\\s*천'))[1], '')::bigint"
+    digits = f"NULLIF(regexp_replace({part_sql}, '[^0-9]', '', 'g'), '')::bigint"
+
+    return f"""
+    CASE
+      WHEN {part_sql} ~ '억' THEN COALESCE({eok},0)*10000 + COALESCE({thou_after_eok},0)*1000
+      WHEN {part_sql} ~ '천' THEN COALESCE({thou_only},0)*1000
+      WHEN {digits} IS NULL THEN NULL
+      WHEN {digits} >= 1000000 THEN ({digits} / 10000)  -- 원 단위 -> 만원
+      ELSE {digits}                                     -- 만원 단위
+    END
+    """
+
+
+def _salary_bounds_m_expr(salary_col: str) -> tuple[str, str]:
+    col = f"COALESCE(({salary_col})::text, '')"
+    parts = f"(regexp_split_to_array({col}, '\\s*[~∼〜\\-–]\\s*'))"
+    p1 = f"COALESCE({parts}[1], '')"
+    p2 = f"COALESCE({parts}[2], '')"
+
+    lo_raw = _salary_amount_m_expr(p1)
+    hi_raw = f"COALESCE({_salary_amount_m_expr(p2)}, {lo_raw})"
+
+    lo = f"LEAST(({lo_raw}), ({hi_raw}))"
+    hi = f"GREATEST(({lo_raw}), ({hi_raw}))"
+    return lo, hi
+
+
+def _salary_min_predicate(min_salary_m만원: int, salary_col: str = "salary_text") -> str:
+    lo, hi = _salary_bounds_m_expr(salary_col)
+    # 최소연봉: 범위 상단이 min 이상이면 포함(겹침 기준)
+    return f"(({lo}) IS NOT NULL AND ({hi}) >= %(min_salary_m)s)"
+
+
+def _salary_between_predicate(min_salary_m만원: int, max_salary_m만원: int, salary_col: str = "salary_text") -> str:
+    lo, hi = _salary_bounds_m_expr(salary_col)
+    # 구간: [lo,hi] 와 [min,max]가 겹치면 포함
+    return f"(({lo}) IS NOT NULL AND ({lo}) <= %(max_salary_m)s AND ({hi}) >= %(min_salary_m)s)"
 
 
 # -----------------------------
@@ -332,18 +338,10 @@ class JobStatsRepository:
             trigram_threshold: float = 0.45,
             max_items: int = 30,
     ) -> Tuple[List[List[str]], List[List[str]], List[dict]]:
-        """
-        Returns:
-          - keywords_all_groups: [[variants...], ...]
-          - keywords_any_groups: [[variants...], ...]
-          - corrections: list[dict]
-        """
         all_n = _normalize_kw_list(keywords_all or [], max_items=max_items)
         any_n = _normalize_kw_list(keywords_any or [], max_items=max_items)
 
         corrections: List[dict] = []
-
-        # resolve each token -> canonical
         all_canon: List[str] = []
         any_canon: List[str] = []
 
@@ -361,11 +359,9 @@ class JobStatsRepository:
             if corr:
                 corrections.append(corr)
 
-        # expand canonical -> aliases
         canon_set = list(dict.fromkeys([*all_canon, *any_canon]))
         canon_to_aliases = _expand_aliases_for_canon(cur, canon_set)
 
-        # build groups (variants per keyword)
         all_groups: List[List[str]] = []
         for c in all_canon:
             all_groups.append(canon_to_aliases.get(c, [c]))
@@ -386,8 +382,8 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             min_salary_m만원: Optional[int] = None,
+            max_salary_m만원: Optional[int] = None,
     ) -> Dict[str, Any]:
-        # job_role은 "힌트"로 OR에 추가
         kw_all = keywords_all or []
         kw_any = (keywords_any or [])
         if job_role:
@@ -396,7 +392,6 @@ class JobStatsRepository:
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
-                # resolve + expand (alias/typo)
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
 
                 where = [
@@ -412,13 +407,15 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(
-                    all_groups, any_groups, alias=None, param_offset=0
-                )
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias=None, param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
-                if min_salary_m만원 is not None:
+                if min_salary_m만원 is not None and max_salary_m만원 is not None:
+                    where.append(_salary_between_predicate(int(min_salary_m만원), int(max_salary_m만원), salary_col="salary_text"))
+                    params["min_salary_m"] = int(min_salary_m만원)
+                    params["max_salary_m"] = int(max_salary_m만원)
+                elif min_salary_m만원 is not None:
                     where.append(_salary_min_predicate(int(min_salary_m만원), salary_col="salary_text"))
                     params["min_salary_m"] = int(min_salary_m만원)
 
@@ -437,12 +434,12 @@ class JobStatsRepository:
                     "end_date": str(end_date),
                     "regions_any": regions_any or [],
                     "admin_areas_any": admin_areas_any or [],
-                    # canonical/expanded 결과를 “노출용”으로 남겨두면 answer 단계에서 문구 만들기 쉬움
                     "keywords_all": [g[0] for g in all_groups] if all_groups else [],
                     "keywords_any": [g[0] for g in any_groups] if any_groups else [],
                     "job_role": job_role,
                     "min_salary_m만원": min_salary_m만원,
-                    "stack_corrections": stack_corr,  # ✅ 추가
+                    "max_salary_m만원": max_salary_m만원,
+                    "stack_corrections": stack_corr,
                 }
         finally:
             conn.close()
@@ -480,9 +477,7 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(
-                    all_groups, any_groups, alias=None, param_offset=0
-                )
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias=None, param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
@@ -510,7 +505,7 @@ class JobStatsRepository:
                     "keywords_all": [g[0] for g in all_groups] if all_groups else [],
                     "keywords_any": [g[0] for g in any_groups] if any_groups else [],
                     "job_role": job_role,
-                    "stack_corrections": stack_corr,  # ✅ 추가
+                    "stack_corrections": stack_corr,
                 }
         finally:
             conn.close()
@@ -526,6 +521,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             min_salary_m만원: Optional[int] = None,
+            max_salary_m만원: Optional[int] = None,
             limit: int = 5,
             random: bool = False,
             job_ids_scope: Optional[List[int]] = None,
@@ -557,13 +553,15 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(
-                    all_groups, any_groups, alias="jp", param_offset=0
-                )
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
-                if min_salary_m만원 is not None:
+                if min_salary_m만원 is not None and max_salary_m만원 is not None:
+                    where.append(_salary_between_predicate(int(min_salary_m만원), int(max_salary_m만원), salary_col="jp.salary_text"))
+                    params["min_salary_m"] = int(min_salary_m만원)
+                    params["max_salary_m"] = int(max_salary_m만원)
+                elif min_salary_m만원 is not None:
                     where.append(_salary_min_predicate(int(min_salary_m만원), salary_col="jp.salary_text"))
                     params["min_salary_m"] = int(min_salary_m만원)
 
@@ -597,10 +595,8 @@ class JobStatsRepository:
 
                 items = []
                 for r in rows:
-                    # jp.stack is text[] -> psycopg2 typically returns list[str]
                     st = r[5]
                     if isinstance(st, list):
-                        # 요소 내부에 "Java, Spring" 같은게 들어올 수 있으니 보기 좋게 평탄화
                         flat: List[str] = []
                         for item in st:
                             s = (item or "").strip()
@@ -635,11 +631,12 @@ class JobStatsRepository:
                     "keywords_any": [g[0] for g in any_groups] if any_groups else [],
                     "job_role": job_role,
                     "min_salary_m만원": min_salary_m만원,
+                    "max_salary_m만원": max_salary_m만원,
                     "limit": lim,
                     "random": bool(random),
                     "scoped": bool(job_ids_scope),
                     "scope_size": len(job_ids_scope or []),
-                    "stack_corrections": stack_corr,  # ✅ 추가
+                    "stack_corrections": stack_corr,
                 }
         finally:
             conn.close()
@@ -675,8 +672,6 @@ class JobStatsRepository:
 
         apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
-        # job_role도 "힌트"로 keyword-any처럼 적용(원문 그대로)
-        # -> resolve/expand를 타게 해서 한/영 섞여도 최대한 잡힘
         kw_all: List[str] = []
         kw_any: List[str] = [job_role] if job_role else []
 
@@ -685,16 +680,13 @@ class JobStatsRepository:
             with conn.cursor() as cur:
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(
-                    all_groups, any_groups, alias="jp", param_offset=0
-                )
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
                 lim = max(1, min(50, int(limit)))
                 params["lim"] = lim
 
-                # stack(text[]) -> unnest -> split -> count
                 sql = f"""
                     WITH tokens AS (
                       SELECT
@@ -723,7 +715,7 @@ class JobStatsRepository:
                     "admin_areas_any": admin_areas_any or [],
                     "job_role": job_role,
                     "limit": lim,
-                    "stack_corrections": stack_corr,  # ✅ 추가
+                    "stack_corrections": stack_corr,
                 }
         finally:
             conn.close()

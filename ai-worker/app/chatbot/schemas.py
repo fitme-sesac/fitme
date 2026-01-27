@@ -1,11 +1,10 @@
-# app/chatbot/schemas.py
 from __future__ import annotations
 
 from datetime import date
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatbotIntent(str, Enum):
@@ -17,11 +16,10 @@ class ChatbotIntent(str, Enum):
 
 
 class ChatbotParsedSpec(BaseModel):
-    intent: ChatbotIntent = Field(..., description="User intent")
+    intent: ChatbotIntent
 
-    # half-open [start_date, end_date)
-    start_date: Optional[date] = Field(default=None, description="inclusive")
-    end_date: Optional[date] = Field(default=None, description="exclusive")
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
     keywords_all: List[str] = Field(default_factory=list, max_length=30)
     keywords_any: List[str] = Field(default_factory=list, max_length=30)
@@ -29,15 +27,24 @@ class ChatbotParsedSpec(BaseModel):
     regions_any: List[str] = Field(default_factory=list, max_length=10)
     admin_areas_any: List[str] = Field(default_factory=list, max_length=10)
 
-    # ✅ 직군은 Enum 하드코딩 대신 free-form 문자열로 (확장성)
     job_role: Optional[str] = Field(default=None, max_length=40)
 
+    # salary (만원 단위)
     min_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
+    max_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)  # ✅ 추가
 
     limit: Optional[int] = Field(default=None, ge=1, le=20)
-    random: Optional[bool] = Field(default=None)
-
+    random: Optional[bool] = None
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+
+    @field_validator("keywords_all", "keywords_any", "regions_any", "admin_areas_any", mode="before")
+    @classmethod
+    def none_to_empty_list(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v]
+        return v
 
 
 class ChatbotQueryRequest(BaseModel):

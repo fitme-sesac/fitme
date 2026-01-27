@@ -1,11 +1,12 @@
-# app/chatbot/services/agent.py
 from __future__ import annotations
 
-import re
+import calendar
+import json
 import logging
+import re
 import uuid
-from datetime import date, datetime,timedelta
-from typing import Any, Dict, Optional, TypedDict, List
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, TypedDict
 
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -16,24 +17,154 @@ from zoneinfo import ZoneInfo
 from app.chatbot.repository import job_stats_repo
 from app.chatbot.schemas import ChatbotIntent, ChatbotParsedSpec
 from app.chatbot.services.memory import (
-    RedisChatbotMemoryStore,
     ChatbotConversationState,
     ConversationMode,
+    RedisChatbotMemoryStore,
     TranscriptItem,
 )
 from app.chatbot.utils.keywords import normalize_keyword_list
 from app.chatbot.utils.location import infer_admin_areas_from_text, infer_regions_from_text
-from app.chatbot.utils.stack_detect import extract_stack_candidates  # ✅ 후속질문에서 스택 후보 추출
+from app.chatbot.utils.stack_detect import extract_stack_candidates
 from app.core.config import settings
 from app.core.redis import get_redis
+
+logger = logging.getLogger(__name__)
+KST = ZoneInfo("Asia/Seoul")
 
 _MONTH_RE = re.compile(r"(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월(?:\s*(\d{1,2})\s*일)?")
 _THIS_MONTH = ("이번달", "이번 달")
 _LAST_MONTH = ("지난달", "지난 달", "저번달", "저번 달")
 _NEXT_MONTH = ("다음달", "다음 달")
+_FROM_DATE_HINT_RE = re.compile(r"(부터|이후|뒤로|이후로|이후부터|지금까지|현재까지|까지)")
+_STRICT_AFTER_HINT_RE = re.compile(r"(후에|후로|후)\b")
 
-def _first_day(y: int, m: int) -> date:
-    return date(y, m, 1)
+_TODAY_WORDS = ("오늘",)
+_YESTERDAY_WORDS = ("어제",)
+_TOMORROW_WORDS = ("내일",)
+_DAY_BEFORE_YESTERDAY_WORDS = ("그저께", "그제")
+
+_THIS_WEEK = ("이번주", "이번 주")
+_LAST_WEEK = ("지난주", "지난 주", "저번주", "저번 주")
+_NEXT_WEEK = ("다음주", "다음 주")
+
+_KOR_NUM = {
+    "한": 1, "두": 2, "세": 3, "네": 4,
+    "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10,
+}
+_RECENT_RE = re.compile(r"(최근|요즘)\s*([0-9]{1,3}|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열)?\s*(일|주|주일|달|개월|년)")
+_BEFORE_RE = re.compile(r"([0-9]{1,3}|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열)\s*(일|주|주일|달|개월|년)\s*전")
+
+# -------------------------
+# Salary parsing (만원 단위)
+# -------------------------
+_SALARY_HINT_RE = re.compile(r"(연봉|급여|월급|보수)")
+_EOK_RE = re.compile(r"(\d+)\s*억(?:\s*(\d+)\s*천)?")          # 1억, 1억2천
+_THOUSAND_RE = re.compile(r"(\d+)\s*천\s*(?:만|만원)?")       # 8천(만원)
+_NUM_RE = re.compile(r"(\d[\d,]*)\s*(?:만|만원|원)?")         # 8000, 8,000, 8000만원, 80,000,000원
+_AMT_TOKEN_RE = re.compile(
+    r"(\d+\s*억(?:\s*\d+\s*천)?|\d+\s*천\s*(?:만|만원)?|\d[\d,]*\s*(?:만|만원|원)?)"
+)
+
+
+def _parse_salary_amount_m만원(token: str) -> Optional[int]:
+    """
+    token -> 만원 단위 정수
+    지원:
+    - 1억2천 => 12000
+    - 8천(만원) => 8000
+    - 8000 / 8,000 / 8000만원 => 8000
+    - 80,000,000원 => 8000
+    """
+    if not token:
+        return None
+    t = token.replace(" ", "")
+
+    m = _EOK_RE.search(t)
+    if m:
+        eok = int(m.group(1))
+        thou = int(m.group(2) or 0)
+        return eok * 10000 + thou * 1000
+
+    m = _THOUSAND_RE.search(t)
+    if m:
+        return int(m.group(1)) * 1000
+
+    m = _NUM_RE.search(t)
+    if not m:
+        return None
+    raw = m.group(1).replace(",", "")
+    if not raw.isdigit():
+        return None
+    val = int(raw)
+
+    # "원"이 있거나 너무 큰 값이면 원 단위로 보고 만원 환산
+    if ("원" in t) or (val >= 1_000_000):
+        return val // 10000
+
+    return val
+
+
+def _infer_salary_range_m만원_from_text(msg: str) -> Optional[tuple[int, int]]:
+    """
+    '연봉 8천과 9천 사이', '연봉 8천~9천', '연봉 8000-9000' 등을 (8000,9000)으로 파싱.
+    날짜(1월 9일) 숫자 오탐을 줄이기 위해 '연봉/급여/월급/보수' 힌트 이후만 파싱.
+    """
+    if not msg:
+        return None
+    m_hint = _SALARY_HINT_RE.search(msg)
+    if not m_hint:
+        return None
+
+    sub = msg[m_hint.start():]
+    amts = _AMT_TOKEN_RE.findall(sub)
+    if len(amts) < 2:
+        return None
+
+    a = _parse_salary_amount_m만원(amts[0])
+    b = _parse_salary_amount_m만원(amts[1])
+    if a is None or b is None:
+        return None
+    lo, hi = (a, b) if a <= b else (b, a)
+    return lo, hi
+
+
+def _infer_min_salary_m만원_from_text(msg: str) -> Optional[int]:
+    """
+    단일 최소연봉: '연봉 8천 이상' -> 8000
+    """
+    if not msg:
+        return None
+    if not _SALARY_HINT_RE.search(msg):
+        return None
+
+    # 힌트 이후 토큰만 훑기(오탐 감소)
+    m_hint = _SALARY_HINT_RE.search(msg)
+    sub = msg[m_hint.start():] if m_hint else msg
+
+    # 억/천/숫자 중 첫 토큰만
+    m = _AMT_TOKEN_RE.search(sub.replace(" ", ""))
+    if not m:
+        return None
+    return _parse_salary_amount_m만원(m.group(1))
+
+
+def _num_token_to_int(tok: str, default: int = 1) -> int:
+    if not tok:
+        return default
+    t = tok.strip()
+    if t.isdigit():
+        return int(t)
+    return int(_KOR_NUM.get(t, default))
+
+
+def _safe_date(y: int, m: int, d: int) -> date:
+    last = calendar.monthrange(y, m)[1]
+    return date(y, m, min(d, last))
+
+
+def _start_of_week(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
 
 def _add_month(y: int, m: int, delta: int) -> tuple[int, int]:
     m2 = m + delta
@@ -41,13 +172,104 @@ def _add_month(y: int, m: int, delta: int) -> tuple[int, int]:
     m2 = (m2 - 1) % 12 + 1
     return y2, m2
 
+
+def _infer_recent_range(t: str, today: date) -> tuple[date | None, date | None]:
+    m = _RECENT_RE.search(t)
+    if not m:
+        return None, None
+    n = _num_token_to_int(m.group(2), default=1)
+    unit = m.group(3)
+
+    end = today + timedelta(days=1)
+    if unit == "일":
+        return today - timedelta(days=n), end
+    if unit in ("주", "주일"):
+        return today - timedelta(days=7 * n), end
+    if unit in ("달", "개월"):
+        y, mm = _add_month(today.year, today.month, -n)
+        s = _safe_date(y, mm, today.day)
+        return s, end
+    if unit == "년":
+        s = _safe_date(today.year - n, today.month, today.day)
+        return s, end
+    return None, None
+
+
+def _infer_n_before_range(t: str, today: date) -> tuple[date | None, date | None]:
+    m = _BEFORE_RE.search(t)
+    if not m:
+        return None, None
+
+    n = _num_token_to_int(m.group(1), default=1)
+    unit = m.group(2)
+    tail = t[m.end():]
+
+    if unit == "일":
+        base = today - timedelta(days=n)
+    elif unit in ("주", "주일"):
+        base = today - timedelta(days=7 * n)
+    elif unit in ("달", "개월"):
+        y, mm = _add_month(today.year, today.month, -n)
+        base = _safe_date(y, mm, today.day)
+    elif unit == "년":
+        base = _safe_date(today.year - n, today.month, today.day)
+    else:
+        return None, None
+
+    if _FROM_DATE_HINT_RE.search(tail):
+        return base, today + timedelta(days=1)
+    return base, base + timedelta(days=1)
+
+
+def _first_day(y: int, m: int) -> date:
+    return date(y, m, 1)
+
+
+def _today_kst() -> date:
+    return datetime.now(tz=KST).date()
+
+
 def _infer_range_from_text(msg: str) -> tuple[date | None, date | None]:
     if not msg:
         return None, None
     t = msg.strip()
     today = _today_kst()
 
-    # relative months
+    if any(k in t for k in _TODAY_WORDS):
+        return today, today + timedelta(days=1)
+    if any(k in t for k in _YESTERDAY_WORDS):
+        d = today - timedelta(days=1)
+        return d, d + timedelta(days=1)
+    if any(k in t for k in _DAY_BEFORE_YESTERDAY_WORDS):
+        d = today - timedelta(days=2)
+        return d, d + timedelta(days=1)
+    if any(k in t for k in _TOMORROW_WORDS):
+        d = today + timedelta(days=1)
+        return d, d + timedelta(days=1)
+
+    s, e = _infer_recent_range(t, today)
+    if s and e:
+        return s, e
+
+    s, e = _infer_n_before_range(t, today)
+    if s and e:
+        return s, e
+
+    if any(k in t for k in _THIS_WEEK):
+        s = _start_of_week(today)
+        e = today + timedelta(days=1)
+        return s, e
+    if any(k in t for k in _LAST_WEEK):
+        this_start = _start_of_week(today)
+        s = this_start - timedelta(days=7)
+        e = this_start
+        return s, e
+    if any(k in t for k in _NEXT_WEEK):
+        this_start = _start_of_week(today)
+        s = this_start + timedelta(days=7)
+        e = s + timedelta(days=7)
+        return s, e
+
     if any(k in t for k in _THIS_MONTH):
         y, m = today.year, today.month
         s = _first_day(y, m)
@@ -69,55 +291,43 @@ def _infer_range_from_text(msg: str) -> tuple[date | None, date | None]:
         e = _first_day(y2, m2)
         return s, e
 
-    # explicit "YYYY년 M월 (D일)"
     m = _MONTH_RE.search(t)
     if not m:
         return None, None
 
-    year = int(m.group(1) or today.year)  # ✅ 연도 없으면 올해로 가정
+    year = int(m.group(1) or today.year)
     month = int(m.group(2))
     day = m.group(3)
+    tail = t[m.end():]
 
     if day:
         s = date(year, month, int(day))
+
+        # ✅ "1월 15일 후에/후/후로" => 다음날부터 ~ 오늘까지( end exclusive )
+        if _STRICT_AFTER_HINT_RE.search(tail):
+            s = s + timedelta(days=1)
+            e = today + timedelta(days=1)
+            return s, e
+
+        # ✅ "1월 15일 이후/부터/지금까지/..." => 그날 포함해서 ~ 오늘까지
+        if _FROM_DATE_HINT_RE.search(tail):
+            e = today + timedelta(days=1)
+            return s, e
+
+        # 기본: 그날 하루
         e = s + timedelta(days=1)
         return s, e
 
     s = date(year, month, 1)
+
+    # (월 단위에서 "후"를 어떻게 할지 애매하면 일단 미지원. 보통 "1월 후에" 같은 표현은 안 씀)
+    if _FROM_DATE_HINT_RE.search(tail):
+        e = today + timedelta(days=1)
+        return s, e
+
     y2, m2 = _add_month(year, month, 1)
     e = date(y2, m2, 1)
     return s, e
-
-logger = logging.getLogger(__name__)
-KST = ZoneInfo("Asia/Seoul")
-
-
-class ChatbotState(TypedDict, total=False):
-    request_id: str
-    conversation_id: str
-    conversation_mode: str
-    turn: int
-
-    message: str
-    parsed: ChatbotParsedSpec
-    result: Dict[str, Any]
-    answer: str
-
-    last_parsed_dict: Dict[str, Any]
-    last_intent: str
-    last_item_ids: List[int]
-    scope_job_ids: List[int]
-
-
-_FOLLOWUP_MARKERS = ("그 중", "그중", "그 중에", "그중에", "그러면", "그럼", "거기서", "방금", "이전")
-
-
-def _is_followup(msg: str) -> bool:
-    return bool(msg) and any(m in msg for m in _FOLLOWUP_MARKERS)
-
-
-def _today_kst() -> date:
-    return datetime.now(tz=KST).date()
 
 
 def _default_range(_: ChatbotIntent) -> tuple[date, date]:
@@ -144,9 +354,6 @@ def _clamp_limit(n: Optional[int], default: int = 5) -> int:
 
 
 def _infer_intent_by_rule(msg: str) -> Optional[ChatbotIntent]:
-    """
-    LLM이 HELP로 도망가거나 confidence가 낮을 때, 최소한의 룰로 intent를 구제한다.
-    """
     if not msg:
         return None
     ml = msg.lower()
@@ -174,10 +381,6 @@ def _coerce_last(last_parsed_dict: Dict[str, Any]) -> Optional[ChatbotParsedSpec
 
 
 def _display_stack(token: str) -> str:
-    """
-    canonical(대개 lowercase)을 사용자에게 보여줄 형태로 변환.
-    전부 맵핑하기 어렵기 때문에, 최소 특수케이스 + 일반 title-case.
-    """
     t = (token or "").strip()
     tl = t.lower()
 
@@ -190,19 +393,13 @@ def _display_stack(token: str) -> str:
     if tl == "typescript":
         return "TypeScript"
 
-    # 다단어 토큰: spring boot -> Spring Boot
     if " " in tl:
         return " ".join(w[:1].upper() + w[1:] if w else w for w in tl.split(" "))
 
-    # 기본: 첫 글자만 대문자
     return tl[:1].upper() + tl[1:] if tl else t
 
 
 def _pick_stack_typo_note(stack_corrections: List[dict]) -> Optional[str]:
-    """
-    stack_alias(동의어) 매핑은 조용히 처리하고,
-    stack_vocab(trgm) 기반 "오타 추정"일 때만 안내 문구를 만든다.
-    """
     for c in (stack_corrections or []):
         via = str(c.get("via") or "")
         if not via.startswith("vocab_trgm"):
@@ -220,6 +417,30 @@ def _pick_stack_typo_note(stack_corrections: List[dict]) -> Optional[str]:
             f"만약 다른 기술스택을 찾는 거라면 기술스택을 다시 입력해주세요."
         )
     return None
+
+
+class ChatbotState(TypedDict, total=False):
+    request_id: str
+    conversation_id: str
+    conversation_mode: str
+    turn: int
+
+    message: str
+    parsed: ChatbotParsedSpec
+    result: Dict[str, Any]
+    answer: str
+
+    last_parsed_dict: Dict[str, Any]
+    last_intent: str
+    last_item_ids: List[int]
+    scope_job_ids: List[int]
+
+
+_FOLLOWUP_MARKERS = ("그 중", "그중", "그 중에", "그중에", "그러면", "그럼", "거기서", "방금", "이전")
+
+
+def _is_followup(msg: str) -> bool:
+    return bool(msg) and any(m in msg for m in _FOLLOWUP_MARKERS)
 
 
 class JobStatsChatbot:
@@ -279,9 +500,11 @@ class JobStatsChatbot:
   GYEONGBUK,GYEONGNAM,JEJU
 - admin_areas_any: 시/군/구(OR) 예: 강남구, 수원시, 성남시, 기장군
 - min_salary_m만원: 예) '연봉 4천 이상' => 4000
+- max_salary_m만원: 예) '연봉 8천~9천' => min=8000, max=9000
 - job_role: 자유 문자열(예: Backend, Frontend, Data Engineer 등). 확장 가능.
 - limit: 1..20
 - random: LIST_POSTINGS에서 랜덤 여부
+- 리스트 필드는 비어도 반드시 []로 출력, null 금지
 
 [Canonicalization]
 - 기술스택/직군/툴 이름은 가능한 표준 표기로 정규화하라.
@@ -310,29 +533,36 @@ class JobStatsChatbot:
 - '올해 8월 공고 몇개' => COUNT_POSTINGS, start_date={year}-08-01, end_date={year}-09-01
 - '백엔드 자바/스프링부트 공고 5개 최신' => LIST_POSTINGS, job_role='Backend', keywords_all=['Java','Spring Boot'], limit=5, random=false
 - '서울 강남구 연봉 4천 이상 공고 5개 랜덤' => LIST_POSTINGS, regions_any=['SEOUL'], admin_areas_any=['강남구'], min_salary_m만원=4000, limit=5, random=true
+- '1월 9일 뒤로 연봉 8천~9천 공고 몇개' => COUNT_POSTINGS, start_date={year}-01-09, end_date=today+1, min=8000, max=9000
 """
 
-        context = state.get("last_parsed_dict") or None
-        context_block = ""
-        if context:
-            context_block = "[Conversation context]\nPrevious parsed spec:\n" + str(context) + "\n"
+        context_dict = state.get("last_parsed_dict") or {}
+        context_json = json.dumps(context_dict, ensure_ascii=False) if context_dict else ""
 
         prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", system + "\n\n{format_instructions}"),
-                ("user", examples + "\n\n" + context_block + "\n[User question]\n{message}"),
+                (
+                    "user",
+                    examples
+                    + "\n\n[Conversation context]\n{context}\n"
+                    + "\n[User question]\n{message}",
+                ),
             ]
         ).partial(format_instructions=self.parser.get_format_instructions())
 
         chain = prompt | self.llm | self.parser
+        payload = {"message": msg, "context": context_json}
 
         try:
-            parsed: ChatbotParsedSpec = await chain.ainvoke({"message": msg})
+            parsed: ChatbotParsedSpec = await chain.ainvoke(payload)
             return {"parsed": parsed}
         except Exception:
             logger.exception("chatbot parse failed (1st)")
+            raw = await (prompt | self.llm).ainvoke(payload)
+            logger.error("LLM raw output: %s", getattr(raw, "content", raw))
             try:
-                parsed: ChatbotParsedSpec = await chain.ainvoke({"message": msg})
+                parsed: ChatbotParsedSpec = await chain.ainvoke(payload)
                 return {"parsed": parsed}
             except Exception:
                 logger.exception("chatbot parse failed (2nd)")
@@ -352,7 +582,6 @@ class JobStatsChatbot:
                 parsed.intent = fb
                 parsed.confidence = max(parsed.confidence, 0.7)
             else:
-                # last parsed intent 승계(가능하면)
                 try:
                     parsed.intent = last.intent
                     parsed.confidence = max(parsed.confidence, 0.7)
@@ -367,7 +596,7 @@ class JobStatsChatbot:
         if parsed.intent == ChatbotIntent.HELP:
             return {"parsed": parsed, "result": {"keyword_corrections": [], "stack_candidates": []}}
 
-        # 3) follow-up이면 last_parsed에서 기본 상속 (먼저 상속)
+        # 3) follow-up이면 last_parsed에서 기본 상속
         if is_follow and last is not None:
             parsed.start_date = parsed.start_date or last.start_date
             parsed.end_date = parsed.end_date or last.end_date
@@ -375,19 +604,23 @@ class JobStatsChatbot:
             if not parsed.regions_any:
                 parsed.regions_any = list(last.regions_any)
             if not parsed.admin_areas_any:
-                parsed.admin_areas_any = list(last.admin_areas_any)
+                if re.search(r"([가-힣]{2,10})(구|시|군)\b", msg):
+                    parsed.admin_areas_any = infer_admin_areas_from_text(msg, parsed.regions_any)
 
             if parsed.job_role is None:
                 parsed.job_role = last.job_role
+
             if parsed.min_salary_m만원 is None:
                 parsed.min_salary_m만원 = last.min_salary_m만원
+            if parsed.max_salary_m만원 is None:
+                parsed.max_salary_m만원 = last.max_salary_m만원
 
             if not parsed.keywords_all:
                 parsed.keywords_all = list(last.keywords_all)
             if not parsed.keywords_any:
                 parsed.keywords_any = list(last.keywords_any)
 
-        # 4) 날짜: 메시지에 월/일이 있으면 follow-up에서도 무조건 override
+        # 4) 날짜: 메시지에 월/일이 있으면 follow-up에서도 override
         s2, e2 = _infer_range_from_text(msg)
         if s2 and e2:
             parsed.start_date, parsed.end_date = s2, e2
@@ -410,35 +643,51 @@ class JobStatsChatbot:
 
             if stack_cands:
                 or_hint = any(x in msg.lower() for x in ("또는", "혹은", " or ", "/", "|"))
-
                 if or_hint:
-                    # OR로 확장
                     for s in stack_cands:
                         if s not in parsed.keywords_any:
                             parsed.keywords_any.append(s)
                 else:
-                    # 기본은 AND로 “추가 필터”(그중에서 파이썬 = 좁히기)
                     for s in stack_cands:
                         if s not in parsed.keywords_all:
                             parsed.keywords_all.append(s)
 
-        # 7) 지역/행정구역 룰 추론
+        # 7) ✅ 연봉 구간 우선 파싱 (8천~9천 / 8천과9천사이)
+        sr = _infer_salary_range_m만원_from_text(msg)
+        if sr is not None:
+            parsed.min_salary_m만원, parsed.max_salary_m만원 = sr
+        else:
+            smin = _infer_min_salary_m만원_from_text(msg)
+            if smin is not None:
+                parsed.min_salary_m만원 = smin
+
+        # min/max 뒤집힘 방어
+        if parsed.min_salary_m만원 is not None and parsed.max_salary_m만원 is not None:
+            if parsed.min_salary_m만원 > parsed.max_salary_m만원:
+                parsed.min_salary_m만원, parsed.max_salary_m만원 = parsed.max_salary_m만원, parsed.min_salary_m만원
+
+        # 8) 지역/행정구역 룰 추론
         if not parsed.regions_any:
             parsed.regions_any = infer_regions_from_text(msg)
-        if not parsed.admin_areas_any and parsed.regions_any:
+
+        if (
+                not parsed.admin_areas_any
+                and parsed.regions_any
+                and re.search(r"([가-힣]{2,10})(구|시|군)\b", msg)
+        ):
             parsed.admin_areas_any = infer_admin_areas_from_text(msg, parsed.regions_any)
 
-        # 8) 키워드 split/dedupe
+        # 9) 키워드 split/dedupe
         all_norm, corr_all = normalize_keyword_list(parsed.keywords_all, max_items=30)
         any_norm, corr_any = normalize_keyword_list(parsed.keywords_any, max_items=30)
         parsed.keywords_all = all_norm
         parsed.keywords_any = any_norm
 
-        # 9) limit
+        # 10) limit
         default_limit = int(getattr(settings, "CHATBOT_DEFAULT_RESULT_LIMIT", 5))
         parsed.limit = _clamp_limit(parsed.limit, default=default_limit)
 
-        # 10) LIST_POSTINGS random default
+        # 11) LIST_POSTINGS random default
         if parsed.intent != ChatbotIntent.LIST_POSTINGS:
             parsed.random = None
         elif parsed.random is None:
@@ -452,7 +701,6 @@ class JobStatsChatbot:
                 "stack_candidates": (stack_cands[:20] if is_follow else []),
             },
         }
-
 
     async def _execute(self, state: ChatbotState) -> Dict[str, Any]:
         parsed: ChatbotParsedSpec = state["parsed"]
@@ -469,6 +717,7 @@ class JobStatsChatbot:
                 keywords_any=parsed.keywords_any,
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
+                max_salary_m만원=parsed.max_salary_m만원,
             )
             base.update(r)
             return {"result": base}
@@ -497,6 +746,7 @@ class JobStatsChatbot:
                 keywords_any=parsed.keywords_any,
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
+                max_salary_m만원=parsed.max_salary_m만원,
                 limit=int(parsed.limit or 5),
                 random=bool(parsed.random),
             )
@@ -529,6 +779,7 @@ class JobStatsChatbot:
                 "지원 예시:\n"
                 "- 오늘 공고 몇개 올라왔어?\n"
                 "- 서울 강남구 연봉 4천 이상 공고 5개 랜덤\n"
+                "- 1월 9일 뒤로 연봉 8천~9천 공고 몇개\n"
                 "- 8월 백엔드 자바 최신 5개\n"
                 "- 요즘 올라오는 공고에서 제일 많이 요구하는 스택\n"
             )
@@ -549,8 +800,14 @@ class JobStatsChatbot:
                 parts.append(f"AND: {', '.join(result['keywords_all'])}")
             if result.get("keywords_any"):
                 parts.append(f"OR: {', '.join(result['keywords_any'])}")
-            if result.get("min_salary_m만원") is not None:
-                parts.append(f"최소연봉: {result['min_salary_m만원']}만원")
+
+            mn = result.get("min_salary_m만원")
+            mx = result.get("max_salary_m만원")
+            if mn is not None and mx is not None:
+                parts.append(f"연봉범위: {mn}~{mx}만원")
+            elif mn is not None:
+                parts.append(f"최소연봉: {mn}만원")
+
             return (" | ".join(parts)) if parts else "필터: 없음"
 
         typo_note = _pick_stack_typo_note(result.get("stack_corrections") or [])
