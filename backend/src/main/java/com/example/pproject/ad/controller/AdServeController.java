@@ -37,14 +37,14 @@ public class AdServeController {
 
                 int safeLimit = Math.min(limit, 10);
 
-                Page<AdCampaignEntity> activeAds = adCampaignService.getActiveAdsForServing(
+                Page<AdCampaignEntity> activeAds = adCampaignService.getActiveAdsForServingLegacy(
                                 PageRequest.of(0, safeLimit));
 
                 List<AdServeResponseDTO> result = activeAds.getContent().stream()
                                 .map(AdServeResponseDTO::fromEntity)
                                 .toList();
 
-                log.info("Ad serve request (anonymous). Returned {} ads", result.size());
+                log.info("Ad serve request (V1/Legacy/Anonymous). Returned {} ads", result.size());
 
                 return ResponseEntity.ok(result);
         }
@@ -60,10 +60,11 @@ public class AdServeController {
 
                 int safeLimit = Math.min(limit, 10);
 
-                // Service에서 모든 로직 처리 (이력서 조회, 유사도 계산, fallback)
-                List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, safeLimit);
+                // Service에서 모든 로직 처리 (Legacy DB Only)
+                List<AdServeResponseDTO> result = adCampaignService.getAdsForMemberLegacy(memberId, safeLimit);
 
-                log.info("Ad serve request (matched). MemberId: {}, Returned {} ads", memberId, result.size());
+                log.info("Ad serve request (V1/Legacy/Matched). MemberId: {}, Returned {} ads", memberId,
+                                result.size());
 
                 return ResponseEntity.ok(result);
         }

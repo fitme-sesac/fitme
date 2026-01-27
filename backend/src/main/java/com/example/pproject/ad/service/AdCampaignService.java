@@ -235,6 +235,47 @@ public class AdCampaignService {
     }
 
     // =======================================================
+    // [Legacy API Support] For Benchmarking (V1 vs V2)
+    // =======================================================
+
+    /**
+     * [Legacy] 순수 DB 조회 (벤치마킹용)
+     */
+    public Page<AdCampaignEntity> getActiveAdsForServingLegacy(Pageable pageable) {
+        return adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+    }
+
+    /**
+     * [Legacy] 순수 DB 유사도 검색 (벤치마킹용)
+     */
+    public List<AdServeResponseDTO> getAdsForMemberLegacy(Long memberId, int limit) {
+        // 1. 사용자의 대표 이력서 조회
+        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
+
+        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
+            log.info("[Legacy] No primary resume/embedding. Fallback to DB sort.");
+            Page<AdCampaignEntity> activeAds = adCampaignRepository
+                    .findActiveAdsOrderByCpcDesc(PageRequest.of(0, limit));
+            return activeAds.getContent().stream()
+                    .map(AdServeResponseDTO::fromEntity)
+                    .toList();
+        }
+
+        // 2. DB 유사도 기반 광고 매칭 (Redis 필터링 없음)
+        List<Double> userEmbedding = primaryResume.get().getEmbedding();
+        String embeddingStr = userEmbedding.toString();
+
+        // Call Legacy Repository Method
+        List<Object[]> matchResults = adCampaignRepository.findActiveAdsWithSimilarity(embeddingStr,
+                MIN_SIMILARITY_THRESHOLD, limit);
+
+        // 3. DTO로 변환
+        return matchResults.stream()
+                .map(AdServeResponseDTO::fromQueryResult)
+                .toList();
+    }
+
+    // =======================================================
     // 날짜 변환 헬퍼 메서드
     // =======================================================
 
