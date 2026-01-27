@@ -6,19 +6,19 @@ import { CompanySection } from "@/components/home/CompanySection";
 import { FeatureSection } from "@/components/home/FeatureSection";
 import { CTASection } from "@/components/home/CTASection";
 import { Footer } from "@/components/layout/Footer";
+import { EmployerHeroSection } from "@/components/home/EmployerHeroSection";
+import { TalentRecommendationSection } from "@/components/home/TalentRecommendationSection";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
+  const { isCompany, user } = useAuth();
+
+  // Debug mode: Reverting to checks
   return (
     <div className="min-h-screen bg-background">
-      {/* 사이드바 - 데스크탑 */}
       <Sidebar />
-      
-      {/* 메인 콘텐츠 영역 */}
       <div className="lg:pl-64">
-        {/* 헤더 */}
         <Header />
-        
-        {/* 메인 콘텐츠 */}
         <main>
           <HeroSection />
           <JobListSection />
@@ -26,8 +26,6 @@ const Index = () => {
           <FeatureSection />
           <CTASection />
         </main>
-        
-        {/* 푸터 */}
         <Footer />
       </div>
     </div>

@@ -5,7 +5,7 @@ export function CTASection() {
   return (
     <section className="py-12 lg:py-20">
       <div className="container">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-info p-8 lg:p-16">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4E56C0] to-[#9B5DE0] p-8 lg:p-16">
           {/* 배경 장식 */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-white/10 blur-3xl" />

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-info/5 py-16 lg:py-24">
+    <section className="relative overflow-visible bg-gradient-to-br from-primary/5 via-background to-info/5 py-16 lg:py-24">
       {/* 배경 장식 */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
@@ -22,20 +22,20 @@ export function HeroSection() {
 
             {/* 제목 */}
             <div className="space-y-4">
-              <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl xl:text-6xl">
-                <span className="text-gradient-hero">AI가 찾아주는</span>
+              <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl xl:text-6xl text-foreground">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#4E56C0] to-[#9B5DE0]">AI가 찾아주는</span>
                 <br />
                 나에게 딱 맞는 기회
               </h1>
               <p className="text-lg text-muted-foreground lg:text-xl max-w-lg">
-                기다리지 마세요. FitMe의 AI가 당신의 역량을 분석하고, 
+                기다리지 마세요. FitMe의 AI가 당신의 역량을 분석하고,
                 가장 적합한 기업을 먼저 제안해드립니다.
               </p>
             </div>
 
             {/* CTA 버튼 */}
             <div className="flex flex-wrap gap-4">
-              <Button size="lg" className="btn-gradient-hero h-14 px-8 text-base">
+              <Button size="lg" className="h-14 px-8 text-base bg-[#4E56C0] hover:bg-[#4E56C0]/90 text-white shadow-lg shadow-indigo-200/50 border-none">
                 지금 시작하기
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
@@ -75,7 +75,7 @@ export function HeroSection() {
                     <p className="text-sm text-muted-foreground">3개의 새로운 제안</p>
                   </div>
                 </div>
-                
+
                 {/* 매칭 결과 미리보기 */}
                 <div className="space-y-3">
                   {[

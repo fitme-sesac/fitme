@@ -7,7 +7,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 
 export default function Auth() {
-  const [activeTab, setActiveTab] = useState("login");
+  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
@@ -38,7 +38,7 @@ export default function Auth() {
 
         {/* Auth Card */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-elegant">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "signup")}>
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login">로그인</TabsTrigger>
               <TabsTrigger value="signup">회원가입</TabsTrigger>
