@@ -75,6 +75,7 @@ const RECOMMENDED_JOBS = [
 const TABS = [
     { id: "fit", label: "내 조건에 딱 맞는 채용 공고", icon: Sparkles },
     { id: "career", label: "커리어에 딱 맞는 채용 공고", icon: Building2 },
+    { id: "startup", label: "나에게 관심 있는 스타트업", icon: Flame },
 ];
 
 export function RecommendedSection() {
@@ -96,7 +97,7 @@ export function RecommendedSection() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm ${activeTab === tab.id
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all duration-200 ${activeTab === tab.id
                             ? "bg-[#333] text-white font-bold shadow-md"
                             : "bg-white text-gray-500 font-medium hover:bg-gray-100 border border-transparent"
                             }`}

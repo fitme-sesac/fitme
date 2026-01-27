@@ -13,16 +13,7 @@ import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
 import CompanyDetail from "./pages/CompanyDetail";
 import MyPage from "./pages/MyPage";
-import Community from "./pages/Community";
-import Support from "./pages/Support";
-import Resume from "./pages/Resume";
-import Interview from "./pages/Interview";
-import Settings from "./pages/Settings";
-import PrivateRoute from "./components/auth/PrivateRoute";
-import Talents from "./pages/Talents";
-import Companies from "./pages/Companies";
-import Subscription from "./pages/Subscription";
-import CompanyDashboard from "./pages/CompanyDashboard";
+// import CompanyDashboard from "./pages/CompanyDashboard";
 // import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient({
@@ -49,20 +40,7 @@ const App = () => (
             <Route path="/jobs/:jobId" element={<JobDetail />} />
             <Route path="/companies/:employerId" element={<CompanyDetail />} />
 
-            <Route path="/community" element={<Community />} />
-            <Route path="/support" element={<Support />} />
-
-            {/* Protected Routes - Pages handle their own auth state */}
             <Route path="/mypage" element={<MyPage />} />
-            <Route path="/resume" element={<Resume />} />
-            <Route path="/interview" element={<Interview />} />
-            <Route path="/settings" element={<Settings />} />
-
-            {/* Company Routes */}
-            <Route path="/talents" element={<Talents />} />
-            <Route path="/companies" element={<Companies />} />
-            <Route path="/payment/products" element={<Subscription />} />
-            <Route path="/company/dashboard" element={<CompanyDashboard />} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

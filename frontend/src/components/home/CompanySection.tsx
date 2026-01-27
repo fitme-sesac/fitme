@@ -1,10 +1,8 @@
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { getPublicEmployers } from "@/api/employers";
+import { useState } from "react";
 
-const fallbackCompanies = [
+const companies = [
   { id: 1, name: "테크스타트", logo: "T", category: "IT/소프트웨어", jobs: 12 },
   { id: 2, name: "디지털웨이브", logo: "D", category: "AI/데이터", jobs: 8 },
   { id: 3, name: "클라우드팩토리", logo: "C", category: "클라우드", jobs: 15 },
@@ -16,30 +14,6 @@ const fallbackCompanies = [
 ];
 
 export function CompanySection() {
-  const [companies, setCompanies] = useState(fallbackCompanies);
-
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      try {
-        const res = await getPublicEmployers({ page: 0, size: 12 });
-        const list = res?.content ?? res?.employers ?? (Array.isArray(res) ? res : []);
-        if (list.length > 0) {
-          setCompanies(
-            list.map((e: any) => ({
-              id: e.employerId ?? e.id,
-              name: e.name ?? "기업",
-              logo: (e.name ?? "C").charAt(0).toUpperCase(),
-              category: e.industry ?? e.category ?? "-",
-              jobs: e.openJobCount ?? e.jobs ?? 0,
-            }))
-          );
-        }
-      } catch {
-        // API 미제공 시 fallback 유지 (광고 크레딧 순 API 연동 전)
-      }
-    };
-    fetchCompanies();
-  }, []);
   const [scrollPosition, setScrollPosition] = useState(0);
 
   const scroll = (direction: "left" | "right") => {
@@ -61,7 +35,7 @@ export function CompanySection() {
               함께하는 파트너 기업
             </h2>
             <p className="text-muted-foreground">
-              광고 크레딧을 많이 사용한 우수 기업 · 2,500+ 기업이 FitMe에서 인재를 찾고 있습니다
+              2,500+ 기업이 FitMe에서 인재를 찾고 있습니다
             </p>
           </div>
           <div className="hidden sm:flex items-center gap-2">
@@ -87,14 +61,13 @@ export function CompanySection() {
         {/* 기업 카드 슬라이더 */}
         <div
           id="company-scroll"
-          className="flex gap-4 overflow-x-auto pt-4 pb-4 scrollbar-hide scroll-smooth snap-x snap-mandatory overflow-y-visible"
+          className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth snap-x snap-mandatory"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {companies.map((company) => (
-            <Link
+            <div
               key={company.id}
-              to={`/companies/${company.id}`}
-              className="group flex-shrink-0 w-64 snap-start rounded-2xl bg-card p-5 card-hover border cursor-pointer block"
+              className="group flex-shrink-0 w-64 snap-start rounded-2xl bg-card p-5 card-hover border cursor-pointer"
             >
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold text-primary">
@@ -113,7 +86,7 @@ export function CompanySection() {
                 </span>
                 <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </div>
-            </Link>
+            </div>
           ))}
         </div>
 
@@ -126,11 +99,9 @@ export function CompanySection() {
                 AI 기반 인재 매칭으로 최적의 개발자를 만나보세요
               </p>
             </div>
-            <Button asChild className="btn-gradient-primary whitespace-nowrap">
-              <Link to="/auth?tab=signup&type=company">
-                기업 서비스 시작하기
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+            <Button className="btn-gradient-primary whitespace-nowrap">
+              기업 서비스 시작하기
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </div>

@@ -3,172 +3,169 @@
 @tailwind utilities;
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-1Thin.woff2') format('woff2');
-    font-weight: 100;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-1Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-2ExtraLight.woff2') format('woff2');
-    font-weight: 200;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-2ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-3Light.woff2') format('woff2');
-    font-weight: 300;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-3Light.woff2') format('woff2');
+  font-weight: 300;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-4Regular.woff2') format('woff2');
-    font-weight: 400;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-4Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-5Medium.woff2') format('woff2');
-    font-weight: 500;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-5Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-6SemiBold.woff2') format('woff2');
-    font-weight: 600;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-6SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-7Bold.woff2') format('woff2');
-    font-weight: 700;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-7Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-8ExtraBold.woff2') format('woff2');
-    font-weight: 800;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-8ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Age2g';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-9Black.woff2') format('woff2');
-    font-weight: 900;
-    font-display: swap;
+  font-family: 'Age2g';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-6@1.0/에이투지체-9Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
 }
 
 @layer base {
   :root {
-    /* FitMe 디자인 시스템 - 민트/티얼 그린 테마 */
-    --background: 0 0% 98%;
-    --foreground: 220 25% 10%;
+    /* FitMe Light Theme (Default) */
+    /* Background: White/Off-White */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
 
+    /* Card: White */
     --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card-foreground: 240 10% 3.9%;
 
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover-foreground: 240 10% 3.9%;
 
-    /* 메인 브랜드 컬러 - 티얼 그린 */
-    --primary: 168 76% 42%;
+    /* Warm Earthy Palette (Organic Minimalist) */
+    /* Primary: Keep Brand Indigo for Actions, but use the Earth tones for everything else. */
+    --primary: 236 48% 53%;
+    /* #4E56C0 */
     --primary-foreground: 0 0% 100%;
 
-    /* 보조 컬러 */
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 220 25% 20%;
+    /* Background: Light Cream #F9F8F6 */
+    --background: 40 10% 97%;
+    --foreground: 30 5% 10%;
+    /* Warm Dark Gray */
 
-    --muted: 210 20% 96%;
-    --muted-foreground: 220 10% 50%;
+    /* Card: White or very light Beige */
+    --card: 0 0% 100%;
+    --card-foreground: 30 5% 10%;
 
-    /* 액센트 - 오렌지 */
-    --accent: 24 95% 53%;
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 5% 10%;
+
+    /* Secondary: Soft Beige #EFE9E3 */
+    --secondary: 35 20% 92%;
+    --secondary-foreground: 35 15% 30%;
+
+    /* Accent: Latte #C9B59C */
+    --accent: 35 30% 70%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    /* Muted: Warm Grayish Beige #D9CFC7 */
+    --muted: 35 15% 82%;
+    --muted-foreground: 35 10% 40%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 168 76% 42%;
+    /* Destructive */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
 
-    --radius: 0.75rem;
+    /* Borders: Warm Grayish Beige #D9CFC7 */
+    --border: 35 15% 82%;
+    --input: 35 15% 82%;
+    --ring: 236 48% 53%;
 
-    /* 사이드바 */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 15% 40%;
-    --sidebar-primary: 168 76% 42%;
+    --radius: 1rem;
+
+    /* Sidebar */
+    --sidebar-background: 40 10% 97%;
+    --sidebar-foreground: 30 5% 30%;
+    --sidebar-primary: 236 48% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 168 30% 95%;
-    --sidebar-accent-foreground: 168 76% 35%;
-    --sidebar-border: 220 13% 93%;
-    --sidebar-ring: 168 76% 42%;
+    --sidebar-accent: 35 20% 92%;
+    --sidebar-accent-foreground: 30 5% 10%;
+    --sidebar-border: 35 15% 82%;
+    --sidebar-ring: 236 48% 53%;
 
-    /* 추가 시맨틱 컬러 */
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
+    /* Gradients - Subtle Warm Fades */
+    --gradient-primary: linear-gradient(135deg, #4E56C0 0%, #7B4EC0 100%);
+    --gradient-hero: linear-gradient(135deg, #F9F8F6 0%, #EFE9E3 100%);
+    --gradient-subtle: linear-gradient(to right, #F9F8F6, #ffffff);
 
-    /* 그라디언트 */
-    --gradient-primary: linear-gradient(135deg, hsl(168 76% 42%) 0%, hsl(180 70% 35%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(168 76% 42%) 0%, hsl(199 89% 48%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(24 95% 53%) 0%, hsl(38 92% 50%) 100%);
-
-    /* 그림자 */
-    --shadow-sm: 0 1px 2px 0 hsl(220 25% 10% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(220 25% 10% / 0.1), 0 2px 4px -2px hsl(220 25% 10% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(220 25% 10% / 0.1), 0 4px 6px -4px hsl(220 25% 10% / 0.1);
-    --shadow-card: 0 2px 8px -2px hsl(220 25% 10% / 0.08);
-    --shadow-card-hover: 0 8px 25px -5px hsl(220 25% 10% / 0.15);
+    /* Shadows (Warm Tint) */
+    --shadow-sm: 0 1px 2px 0 rgb(40 30 20 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(40 30 20 / 0.05), 0 2px 4px -2px rgb(40 30 20 / 0.05);
+    --shadow-lg: 0 10px 15px -3px rgb(40 30 20 / 0.05), 0 4px 6px -4px rgb(40 30 20 / 0.05);
+    --shadow-card: 0 0 0 1px #D9CFC7, 0 4px 12px rgba(0, 0, 0, 0.02);
+    --shadow-card-hover: 0 0 0 1px #C9B59C, 0 8px 24px rgba(78, 86, 192, 0.1);
   }
 
+  /* Dark Theme Option */
   .dark {
-    --background: 220 25% 8%;
-    --foreground: 210 20% 98%;
-
-    --card: 220 25% 12%;
-    --card-foreground: 210 20% 98%;
-
-    --popover: 220 25% 12%;
-    --popover-foreground: 210 20% 98%;
-
-    --primary: 168 70% 50%;
-    --primary-foreground: 220 25% 8%;
-
-    --secondary: 220 20% 18%;
-    --secondary-foreground: 210 20% 98%;
-
-    --muted: 220 20% 18%;
-    --muted-foreground: 215 15% 60%;
-
-    --accent: 24 90% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 210 20% 98%;
-
-    --border: 220 20% 20%;
-    --input: 220 20% 20%;
-    --ring: 168 70% 50%;
-
-    --sidebar-background: 220 25% 10%;
-    --sidebar-foreground: 210 15% 70%;
-    --sidebar-primary: 168 70% 50%;
-    --sidebar-primary-foreground: 220 25% 8%;
-    --sidebar-accent: 220 20% 15%;
-    --sidebar-accent-foreground: 168 70% 55%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 168 70% 50%;
+    --background: 260 40% 5%;
+    --foreground: 210 40% 98%;
+    --card: 260 40% 5%;
+    --card-foreground: 210 40% 98%;
+    --popover: 260 40% 5%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 268 68% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 30% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 260 30% 15%;
+    --muted-foreground: 260 20% 65%;
+    --accent: 268 68% 62%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 260 30% 15%;
+    --input: 260 30% 15%;
+    --ring: 268 68% 62%;
   }
 }
 
@@ -241,9 +238,12 @@
   }
 
   @keyframes float {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateY(0px);
     }
+
     50% {
       transform: translateY(-20px);
     }
@@ -262,6 +262,7 @@
       opacity: 0;
       transform: translateY(30px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);

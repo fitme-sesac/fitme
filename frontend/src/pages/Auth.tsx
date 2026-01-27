@@ -1,25 +1,15 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Target } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 
 export default function Auth() {
-  const [searchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const typeParam = searchParams.get("type");
-  const [activeTab, setActiveTab] = useState<"login" | "signup">(() =>
-    tabParam === "signup" || tabParam === "register" ? "signup" : "login"
-  );
+  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const t = searchParams.get("tab");
-    if (t === "signup" || t === "register") setActiveTab("signup");
-  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -41,7 +31,7 @@ export default function Auth() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Target className="h-6 w-6 text-primary-foreground" />
+            <Sparkles className="h-6 w-6 text-primary-foreground" />
           </div>
           <span className="text-2xl font-bold text-foreground">FitMe</span>
         </div>
@@ -53,13 +43,13 @@ export default function Auth() {
               <TabsTrigger value="login">로그인</TabsTrigger>
               <TabsTrigger value="signup">회원가입</TabsTrigger>
             </TabsList>
-
+            
             <TabsContent value="login">
               <LoginForm />
             </TabsContent>
-
+            
             <TabsContent value="signup">
-              <SignUpForm initialUserType={typeParam === "company" ? "company" : undefined} />
+              <SignUpForm />
             </TabsContent>
           </Tabs>
         </div>

@@ -17,7 +17,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="lg:pl-64 transition-all duration-300">
+      <div className="lg:pl-64">
         <Header />
         <main>
           <HeroSection />

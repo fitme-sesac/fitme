@@ -3,7 +3,6 @@ import { ArrowRight, TrendingUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JobCard } from "./JobCard";
 import { getPublicJobs } from "@/api/jobs";
-import { Link } from "react-router-dom";
 
 // API 응답을 JobCard props 형식으로 변환
 const mapJobToCardProps = (job: any) => ({
@@ -43,12 +42,11 @@ export function JobListSection() {
     const fetchJobs = async () => {
       try {
         const response = await getPublicJobs({ page: 0, size: 6 });
-        const jobsData = Array.isArray(response)
-          ? response
-          : response?.jobs ?? response?.content ?? [];
+        const jobsData = Array.isArray(response) ? response : response?.content || [];
         setJobs(jobsData.map(mapJobToCardProps));
       } catch (error) {
         console.error("Failed to fetch jobs:", error);
+        // 에러 시 빈 배열 유지
         setJobs([]);
       } finally {
         setLoading(false);
@@ -72,11 +70,9 @@ export function JobListSection() {
               당신을 기다리는 기회
             </h2>
           </div>
-          <Button asChild variant="ghost" className="hidden sm:flex items-center gap-1 text-muted-foreground hover:text-primary">
-            <Link to="/jobs">
-              전체보기
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+          <Button variant="ghost" className="hidden sm:flex items-center gap-1 text-muted-foreground hover:text-primary">
+            전체보기
+            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
 
@@ -100,11 +96,9 @@ export function JobListSection() {
 
         {/* 모바일 전체보기 버튼 */}
         <div className="mt-8 flex justify-center sm:hidden">
-          <Button asChild variant="outline" className="w-full max-w-xs">
-            <Link to="/jobs">
-              전체 공고 보기
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+          <Button variant="outline" className="w-full max-w-xs">
+            전체 공고 보기
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>

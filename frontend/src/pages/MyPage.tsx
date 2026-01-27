@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { LogIn, Sparkles, Briefcase, FileText, User, MessageSquare } from "lucide-react";
+import { LogIn, Sparkles, Briefcase, FileText, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
@@ -34,7 +34,7 @@ export default function MyPage() {
         return (
             <div className="min-h-screen bg-background">
                 <Sidebar />
-                <div className="lg:pl-64 transition-all duration-300">
+                <div className="lg:pl-64">
                     <Header />
                     <main className="p-6">
                         <div className="max-w-2xl mx-auto">
@@ -76,15 +76,6 @@ export default function MyPage() {
                                             <div>
                                                 <p className="font-medium">AI 맞춤 추천</p>
                                                 <p className="text-sm text-muted-foreground">내 이력에 맞는 채용공고를 추천받으세요</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                                <MessageSquare className="h-5 w-5 text-primary" />
-                                            </div>
-                                            <div>
-                                                <p className="font-medium">커뮤니티 활동</p>
-                                                <p className="text-sm text-muted-foreground">내가 쓴 글과 댓글을 한눈에 모아보세요</p>
                                             </div>
                                         </div>
                                     </div>
