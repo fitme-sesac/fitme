@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -82,7 +81,8 @@ public class AiResumeService {
                     .orElse(null);
             
             if (job != null) {
-                List<String> requiredSkills = parseStack(job.getStack());
+                // job.getStack()이 이미 List<String>이므로 직접 사용
+                List<String> requiredSkills = job.getStack() != null ? job.getStack() : Collections.emptyList();
                 aiRequestPayload = AiResumeRequest.from(
                         resume, 
                         summaryType,
@@ -91,7 +91,7 @@ public class AiResumeService {
                         job.getDescription(),
                         requiredSkills,
                         job.getLocation(),
-                        job.getSalaryText() != null ? formatSalary(job.getSalaryText()) : null,
+                        job.getSalaryText(),  // 이미 String 타입
                         null // companyName은 employer에서 가져와야 함
                 );
                 log.info("채용공고 맞춤 AI 분석 요청 - resumeId: {}, jobId: {}", resumeId, jobId);
