@@ -45,8 +45,8 @@ public class JobEntity {
     @Column(name = "location", length = 120)
     private String location;
 
-    @Column(name = "salary_text")
-    private Long salaryText;
+    @Column(name = "salary_text", length = 80)
+    private String salaryText;
 
     // JSONB 타입 - Hibernate 6 방식
     @JdbcTypeCode(SqlTypes.JSON)
@@ -71,6 +71,20 @@ public class JobEntity {
 
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
+
+    /**
+     * 최소 요구 경력 연수 (0: 신입/무관)
+     * ERD: required_experience INT NOT NULL DEFAULT 0
+     */
+    @Column(name = "required_experience", nullable = false)
+    private Integer requiredExperience;
+
+    /**
+     * 모집 정원
+     * ERD: recruitment_capacity INT NOT NULL DEFAULT 0
+     */
+    @Column(name = "recruitment_capacity", nullable = false)
+    private Integer recruitmentCapacity;
 
     // AI 벡터 임베딩 (이력서와의 유사도 계산용)
     @Column(name = "embedding", columnDefinition = "vector(1536)")
@@ -103,6 +117,8 @@ public class JobEntity {
         if (viewCount == null) viewCount = 0;
         if (applicationCount == null) applicationCount = 0;
         if (adBidCredit == null) adBidCredit = 0;
+        if (requiredExperience == null) requiredExperience = 0;
+        if (recruitmentCapacity == null) recruitmentCapacity = 0;
 
         Instant now = Instant.now();
         if (createdAt == null) createdAt = now;

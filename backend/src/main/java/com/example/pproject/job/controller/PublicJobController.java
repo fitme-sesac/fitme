@@ -5,6 +5,7 @@ import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.dto.JobFilterOptionsDTO;
 import com.example.pproject.job.dto.JobListResponseDTO;
 import com.example.pproject.job.service.JobService;
+import com.example.pproject.job.service.JobViewLogService;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import java.util.Map;
 public class PublicJobController {
 
     private final JobService jobService;
+    private final JobViewLogService jobViewLogService;
     private final UserRepository userRepository;
 
     /**
@@ -98,6 +100,13 @@ public class PublicJobController {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
             log.info("공개 채용공고 상세 조회 - jobId: {}, memberId: {}", jobId, memberId);
+
+            // 열람 로그 저장 (비동기적으로 처리하여 응답 속도에 영향 없음)
+            try {
+                jobViewLogService.logView(jobId, memberId);
+            } catch (Exception logError) {
+                log.warn("열람 로그 저장 실패: {}", logError.getMessage());
+            }
 
             JobDTO job;
             if (memberId != null) {
