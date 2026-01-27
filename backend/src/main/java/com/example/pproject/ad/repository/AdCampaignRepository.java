@@ -28,6 +28,12 @@ public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Lo
         @Query("SELECT a FROM AdCampaignEntity a WHERE a.id = :id")
         Optional<AdCampaignEntity> findByIdAndNotDeleted(@Param("id") Long id);
 
+        // 상태별 캠페인 조회
+        List<AdCampaignEntity> findByStatus(String status);
+
+        // 기업별 캠페인 조회 (전체)
+        List<AdCampaignEntity> findByEmployerId(Long employerId);
+
         // 특정 job_id로 활성 상태(ENDED가 아닌) 캠페인이 존재하는지 확인
         boolean existsByJobIdAndStatusNot(Long jobId, String status);
 
