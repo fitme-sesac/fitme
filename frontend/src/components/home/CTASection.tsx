@@ -5,11 +5,11 @@ export function CTASection() {
   return (
     <section className="py-12 lg:py-20">
       <div className="container">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4E56C0] to-[#9B5DE0] p-8 lg:p-16">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#5A639C] via-[#7776B3] to-[#9B86BD] p-8 lg:p-16">
           {/* 배경 장식 */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-white/10 blur-3xl" />
-            <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-[#E2BBE9]/20 blur-3xl" />
           </div>
 
           <div className="relative text-center">
@@ -30,15 +30,14 @@ export function CTASection() {
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Button
                 size="lg"
-                className="h-14 bg-white px-8 text-primary font-semibold hover:bg-white/90"
+                className="h-14 bg-white px-8 text-[#5A639C] font-semibold hover:bg-white/90"
               >
                 무료로 시작하기
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Button
                 size="lg"
-                variant="outline"
-                className="h-14 border-2 border-white/50 bg-transparent px-8 text-white hover:bg-white/10"
+                className="h-14 bg-white px-8 text-[#5A639C] font-semibold hover:bg-white/90"
               >
                 서비스 둘러보기
               </Button>
@@ -49,3 +48,4 @@ export function CTASection() {
     </section>
   );
 }
+

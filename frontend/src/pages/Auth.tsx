@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Sparkles } from "lucide-react";
+import { Target } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignUpForm } from "@/components/auth/SignUpForm";
@@ -31,7 +31,7 @@ export default function Auth() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Sparkles className="h-6 w-6 text-primary-foreground" />
+            <Target className="h-6 w-6 text-primary-foreground" />
           </div>
           <span className="text-2xl font-bold text-foreground">FitMe</span>
         </div>
@@ -43,11 +43,11 @@ export default function Auth() {
               <TabsTrigger value="login">로그인</TabsTrigger>
               <TabsTrigger value="signup">회원가입</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
               <LoginForm />
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <SignUpForm />
             </TabsContent>

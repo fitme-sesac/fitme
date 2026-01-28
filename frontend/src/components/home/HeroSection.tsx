@@ -23,7 +23,7 @@ export function HeroSection() {
             {/* 제목 */}
             <div className="space-y-4">
               <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl xl:text-6xl text-foreground">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#4E56C0] to-[#9B5DE0]">AI가 찾아주는</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] via-[#7776B3] to-[#9B86BD]">AI가 찾아주는</span>
                 <br />
                 나에게 딱 맞는 기회
               </h1>
@@ -35,7 +35,7 @@ export function HeroSection() {
 
             {/* CTA 버튼 */}
             <div className="flex flex-wrap gap-4">
-              <Button size="lg" className="h-14 px-8 text-base bg-[#4E56C0] hover:bg-[#4E56C0]/90 text-white shadow-lg shadow-indigo-200/50 border-none">
+              <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-r from-[#5A639C] via-[#7776B3] to-[#9B86BD] hover:from-[#7776B3] hover:to-[#E2BBE9] text-white shadow-lg shadow-purple-200/50 border-none">
                 지금 시작하기
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
@@ -47,15 +47,15 @@ export function HeroSection() {
             {/* 통계 */}
             <div className="flex flex-wrap gap-8 pt-4">
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-gradient-primary">15,000+</p>
+                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] to-[#9B86BD]">15,000+</p>
                 <p className="text-sm text-muted-foreground">등록된 개발자</p>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-gradient-primary">2,500+</p>
+                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] to-[#9B86BD]">2,500+</p>
                 <p className="text-sm text-muted-foreground">파트너 기업</p>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-gradient-primary">98%</p>
+                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] to-[#9B86BD]">98%</p>
                 <p className="text-sm text-muted-foreground">매칭 만족도</p>
               </div>
             </div>

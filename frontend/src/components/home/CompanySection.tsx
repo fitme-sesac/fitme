@@ -61,7 +61,7 @@ export function CompanySection() {
         {/* 기업 카드 슬라이더 */}
         <div
           id="company-scroll"
-          className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide scroll-smooth snap-x snap-mandatory"
+          className="flex gap-4 overflow-x-auto pt-4 pb-4 scrollbar-hide scroll-smooth snap-x snap-mandatory overflow-y-visible"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {companies.map((company) => (

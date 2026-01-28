@@ -19,6 +19,7 @@ export default {
     extend: {
       fontFamily: {
         sans: [
+          "'Age2g'",
           "'Noto Sans KR'",
           "-apple-system",
           "BlinkMacSystemFont",
