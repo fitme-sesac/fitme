@@ -65,16 +65,53 @@ _AMT_TOKEN_RE = re.compile(
     r"(\d+\s*억(?:\s*\d+\s*천)?|\d+\s*천\s*(?:만|만원)?|\d[\d,]*\s*(?:만|만원|원)?)"
 )
 
+# -------------------------
+# Rate parsing (%)
+# - 여기서 "지원률/경쟁률"은 공고별 경쟁률(%) = apply_count/recruitment_capacity*100 기준 필터로 해석
+# -------------------------
+_RATE_TARGET_RE = re.compile(r"(지원률|경쟁률)")
+_RATE_CMP_RE = re.compile(
+    r"(지원률|경쟁률)\s*(?:이|가)?\s*([0-9]{1,4}(?:\.[0-9]+)?)\s*(?:%|퍼|percent)?\s*(이하|미만|이상|초과|<=|>=|<|>)"
+)
+_RATE_BETWEEN_RE = re.compile(
+    r"(지원률|경쟁률)\s*([0-9]{1,4}(?:\.[0-9]+)?)\s*(?:~|-|–|—|부터|에서)\s*([0-9]{1,4}(?:\.[0-9]+)?)\s*(?:%|퍼|percent)?"
+)
+
+
+def _infer_rate_filter_pct_from_text(msg: str) -> dict:
+    out = {"min_competition_pct": None, "max_competition_pct": None}
+    if not msg:
+        return out
+
+    m2 = _RATE_BETWEEN_RE.search(msg)
+    if m2:
+        a = float(m2.group(2))
+        b = float(m2.group(3))
+        lo, hi = (a, b) if a <= b else (b, a)
+        out["min_competition_pct"] = lo
+        out["max_competition_pct"] = hi
+        return out
+
+    m = _RATE_CMP_RE.search(msg)
+    if not m:
+        return out
+
+    val = float(m.group(2))
+    op = m.group(3)
+
+    if op in ("이상", ">="):
+        out["min_competition_pct"] = val
+    elif op in ("초과", ">"):
+        out["min_competition_pct"] = val + 1e-9
+    elif op in ("이하", "<="):
+        out["max_competition_pct"] = val
+    elif op in ("미만", "<"):
+        out["max_competition_pct"] = val - 1e-9
+
+    return out
+
 
 def _parse_salary_amount_m만원(token: str) -> Optional[int]:
-    """
-    token -> 만원 단위 정수
-    지원:
-    - 1억2천 => 12000
-    - 8천(만원) => 8000
-    - 8000 / 8,000 / 8000만원 => 8000
-    - 80,000,000원 => 8000
-    """
     if not token:
         return None
     t = token.replace(" ", "")
@@ -97,7 +134,6 @@ def _parse_salary_amount_m만원(token: str) -> Optional[int]:
         return None
     val = int(raw)
 
-    # "원"이 있거나 너무 큰 값이면 원 단위로 보고 만원 환산
     if ("원" in t) or (val >= 1_000_000):
         return val // 10000
 
@@ -105,10 +141,6 @@ def _parse_salary_amount_m만원(token: str) -> Optional[int]:
 
 
 def _infer_salary_range_m만원_from_text(msg: str) -> Optional[tuple[int, int]]:
-    """
-    '연봉 8천과 9천 사이', '연봉 8천~9천', '연봉 8000-9000' 등을 (8000,9000)으로 파싱.
-    날짜(1월 9일) 숫자 오탐을 줄이기 위해 '연봉/급여/월급/보수' 힌트 이후만 파싱.
-    """
     if not msg:
         return None
     m_hint = _SALARY_HINT_RE.search(msg)
@@ -129,19 +161,14 @@ def _infer_salary_range_m만원_from_text(msg: str) -> Optional[tuple[int, int]]
 
 
 def _infer_min_salary_m만원_from_text(msg: str) -> Optional[int]:
-    """
-    단일 최소연봉: '연봉 8천 이상' -> 8000
-    """
     if not msg:
         return None
     if not _SALARY_HINT_RE.search(msg):
         return None
 
-    # 힌트 이후 토큰만 훑기(오탐 감소)
     m_hint = _SALARY_HINT_RE.search(msg)
     sub = msg[m_hint.start():] if m_hint else msg
 
-    # 억/천/숫자 중 첫 토큰만
     m = _AMT_TOKEN_RE.search(sub.replace(" ", ""))
     if not m:
         return None
@@ -303,24 +330,20 @@ def _infer_range_from_text(msg: str) -> tuple[date | None, date | None]:
     if day:
         s = date(year, month, int(day))
 
-        # ✅ "1월 15일 후에/후/후로" => 다음날부터 ~ 오늘까지( end exclusive )
         if _STRICT_AFTER_HINT_RE.search(tail):
             s = s + timedelta(days=1)
             e = today + timedelta(days=1)
             return s, e
 
-        # ✅ "1월 15일 이후/부터/지금까지/..." => 그날 포함해서 ~ 오늘까지
         if _FROM_DATE_HINT_RE.search(tail):
             e = today + timedelta(days=1)
             return s, e
 
-        # 기본: 그날 하루
         e = s + timedelta(days=1)
         return s, e
 
     s = date(year, month, 1)
 
-    # (월 단위에서 "후"를 어떻게 할지 애매하면 일단 미지원. 보통 "1월 후에" 같은 표현은 안 씀)
     if _FROM_DATE_HINT_RE.search(tail):
         e = today + timedelta(days=1)
         return s, e
@@ -357,6 +380,12 @@ def _infer_intent_by_rule(msg: str) -> Optional[ChatbotIntent]:
     if not msg:
         return None
     ml = msg.lower()
+
+    # ✅ 지원률/경쟁률 계열
+    if _RATE_TARGET_RE.search(msg):
+        if any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수")):
+            return ChatbotIntent.COUNT_POSTINGS
+        return ChatbotIntent.RATE_STATS
 
     if any(k in msg for k in ("보여줘", "목록", "리스트", "최신", "랜덤")):
         return ChatbotIntent.LIST_POSTINGS
@@ -433,10 +462,11 @@ class ChatbotState(TypedDict, total=False):
     last_parsed_dict: Dict[str, Any]
     last_intent: str
     last_item_ids: List[int]
-    scope_job_ids: List[int]
+
+    scope_job_ids: List[int]  # ✅ 후속질의 스코프
 
 
-_FOLLOWUP_MARKERS = ("그 중", "그중", "그 중에", "그중에", "그러면", "그럼", "거기서", "방금", "이전")
+_FOLLOWUP_MARKERS = ("그 공고", "그공고", "그 중", "그중", "그 중에", "그중에", "그러면", "그럼", "거기서", "방금", "이전")
 
 
 def _is_followup(msg: str) -> bool:
@@ -489,7 +519,7 @@ class JobStatsChatbot:
 
 [Rules]
 - 추측 금지.
-- intent는 가능하면 반드시 COUNT/LIST/COMPETITION/TOP_STACKS 중 하나로 선택하라.
+- intent는 가능하면 반드시 COUNT/LIST/COMPETITION/TOP_STACKS/RATE_STATS 중 하나로 선택하라.
 - intent 자체가 전혀 판단되지 않을 때만 HELP.
 - 날짜는 YYYY-MM-DD. end_date는 exclusive(미포함).
 - 날짜/필터가 불확실하면 비워두고(Null/empty), validate 단계에서 기본값/상속이 처리된다.
@@ -499,8 +529,10 @@ class JobStatsChatbot:
   GYEONGGI,GANGWON,CHUNGBUK,CHUNGNAM,JEONBUK,JEONNAM,
   GYEONGBUK,GYEONGNAM,JEJU
 - admin_areas_any: 시/군/구(OR) 예: 강남구, 수원시, 성남시, 기장군
-- min_salary_m만원: 예) '연봉 4천 이상' => 4000
-- max_salary_m만원: 예) '연봉 8천~9천' => min=8000, max=9000
+- min_salary_m만원 / max_salary_m만원
+- min_competition_pct / max_competition_pct:
+  공고별 경쟁률(%) = apply_count / recruitment_capacity * 100
+  예) '경쟁률 120% 이하' => max_competition_pct=120
 - job_role: 자유 문자열(예: Backend, Frontend, Data Engineer 등). 확장 가능.
 - limit: 1..20
 - random: LIST_POSTINGS에서 랜덤 여부
@@ -522,7 +554,8 @@ class JobStatsChatbot:
 2) COMPETITION
 3) LIST_POSTINGS (최신/랜덤)
 4) TOP_STACKS
-5) HELP
+5) RATE_STATS (지원률/경쟁률 % 통계)
+6) HELP
 """
 
         examples = f"""[Today]
@@ -534,6 +567,8 @@ class JobStatsChatbot:
 - '백엔드 자바/스프링부트 공고 5개 최신' => LIST_POSTINGS, job_role='Backend', keywords_all=['Java','Spring Boot'], limit=5, random=false
 - '서울 강남구 연봉 4천 이상 공고 5개 랜덤' => LIST_POSTINGS, regions_any=['SEOUL'], admin_areas_any=['강남구'], min_salary_m만원=4000, limit=5, random=true
 - '1월 9일 뒤로 연봉 8천~9천 공고 몇개' => COUNT_POSTINGS, start_date={year}-01-09, end_date=today+1, min=8000, max=9000
+- '경기도 요즘 평균 지원률/경쟁률' => RATE_STATS, regions_any=['GYEONGGI']
+- '경쟁률 120% 이하 공고 몇개' => COUNT_POSTINGS, max_competition_pct=120
 """
 
         context_dict = state.get("last_parsed_dict") or {}
@@ -588,15 +623,24 @@ class JobStatsChatbot:
                 except Exception:
                     pass
 
-        # 2) confidence gate (follow-up은 완화)
+        # 2) 지원률/경쟁률 문장이면 RATE_STATS로 정규화(LLM이 COMPETITION으로 찍는 경우 방어)
+        if _RATE_TARGET_RE.search(msg):
+            if any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수")):
+                parsed.intent = ChatbotIntent.COUNT_POSTINGS
+                parsed.confidence = max(parsed.confidence, 0.8)
+            else:
+                parsed.intent = ChatbotIntent.RATE_STATS
+                parsed.confidence = max(parsed.confidence, 0.8)
+
+        # 3) confidence gate (follow-up은 완화)
         thr = 0.45 if not is_follow else 0.25
         if parsed.confidence < thr:
             parsed.intent = ChatbotIntent.HELP
 
         if parsed.intent == ChatbotIntent.HELP:
-            return {"parsed": parsed, "result": {"keyword_corrections": [], "stack_candidates": []}}
+            return {"parsed": parsed, "result": {"keyword_corrections": [], "stack_candidates": []}, "scope_job_ids": []}
 
-        # 3) follow-up이면 last_parsed에서 기본 상속
+        # 4) follow-up이면 last_parsed에서 기본 상속
         if is_follow and last is not None:
             parsed.start_date = parsed.start_date or last.start_date
             parsed.end_date = parsed.end_date or last.end_date
@@ -615,24 +659,29 @@ class JobStatsChatbot:
             if parsed.max_salary_m만원 is None:
                 parsed.max_salary_m만원 = last.max_salary_m만원
 
+            if parsed.min_competition_pct is None:
+                parsed.min_competition_pct = getattr(last, "min_competition_pct", None)
+            if parsed.max_competition_pct is None:
+                parsed.max_competition_pct = getattr(last, "max_competition_pct", None)
+
             if not parsed.keywords_all:
                 parsed.keywords_all = list(last.keywords_all)
             if not parsed.keywords_any:
                 parsed.keywords_any = list(last.keywords_any)
 
-        # 4) 날짜: 메시지에 월/일이 있으면 follow-up에서도 override
+        # 5) 날짜: 메시지에 월/일이 있으면 follow-up에서도 override
         s2, e2 = _infer_range_from_text(msg)
         if s2 and e2:
             parsed.start_date, parsed.end_date = s2, e2
 
-        # 5) 그래도 없으면 default_range
+        # 6) 그래도 없으면 default_range
         if parsed.start_date is None or parsed.end_date is None:
             s, e = _default_range(parsed.intent)
             parsed.start_date = parsed.start_date or s
             parsed.end_date = parsed.end_date or e
         parsed.start_date, parsed.end_date = _clamp_range(parsed.start_date, parsed.end_date)
 
-        # 6) follow-up에서 스택 후보 추출 (1번만)
+        # 7) follow-up에서 스택 후보 추출 (1번만)
         stack_cands: List[str] = []
         if is_follow:
             try:
@@ -652,7 +701,7 @@ class JobStatsChatbot:
                         if s not in parsed.keywords_all:
                             parsed.keywords_all.append(s)
 
-        # 7) ✅ 연봉 구간 우선 파싱 (8천~9천 / 8천과9천사이)
+        # 8) ✅ 연봉 구간 우선 파싱
         sr = _infer_salary_range_m만원_from_text(msg)
         if sr is not None:
             parsed.min_salary_m만원, parsed.max_salary_m만원 = sr
@@ -661,12 +710,11 @@ class JobStatsChatbot:
             if smin is not None:
                 parsed.min_salary_m만원 = smin
 
-        # min/max 뒤집힘 방어
         if parsed.min_salary_m만원 is not None and parsed.max_salary_m만원 is not None:
             if parsed.min_salary_m만원 > parsed.max_salary_m만원:
                 parsed.min_salary_m만원, parsed.max_salary_m만원 = parsed.max_salary_m만원, parsed.min_salary_m만원
 
-        # 8) 지역/행정구역 룰 추론
+        # 9) 지역/행정구역 룰 추론
         if not parsed.regions_any:
             parsed.regions_any = infer_regions_from_text(msg)
 
@@ -677,25 +725,44 @@ class JobStatsChatbot:
         ):
             parsed.admin_areas_any = infer_admin_areas_from_text(msg, parsed.regions_any)
 
-        # 9) 키워드 split/dedupe
+        # 10) 키워드 split/dedupe
         all_norm, corr_all = normalize_keyword_list(parsed.keywords_all, max_items=30)
         any_norm, corr_any = normalize_keyword_list(parsed.keywords_any, max_items=30)
         parsed.keywords_all = all_norm
         parsed.keywords_any = any_norm
 
-        # 10) limit
+        # 11) limit
         default_limit = int(getattr(settings, "CHATBOT_DEFAULT_RESULT_LIMIT", 5))
         parsed.limit = _clamp_limit(parsed.limit, default=default_limit)
 
-        # 11) LIST_POSTINGS random default
+        # 12) LIST_POSTINGS random default
         if parsed.intent != ChatbotIntent.LIST_POSTINGS:
             parsed.random = None
         elif parsed.random is None:
             ml = msg.lower()
             parsed.random = ("랜덤" in msg) or ("무작위" in msg) or ("random" in ml)
 
+        # 13) ✅ 지원률/경쟁률(%) 필터 파싱(LLM보다 우선)
+        rf = _infer_rate_filter_pct_from_text(msg)
+        if rf["min_competition_pct"] is not None:
+            parsed.min_competition_pct = rf["min_competition_pct"]
+        if rf["max_competition_pct"] is not None:
+            parsed.max_competition_pct = rf["max_competition_pct"]
+
+        if parsed.min_competition_pct is not None and parsed.max_competition_pct is not None:
+            if parsed.min_competition_pct > parsed.max_competition_pct:
+                parsed.min_competition_pct, parsed.max_competition_pct = parsed.max_competition_pct, parsed.min_competition_pct
+
+        # 14) ✅ 후속질의에서 "그 공고들" 스코프(직전 LIST 결과)
+        scope_ids: List[int] = []
+        if is_follow:
+            last_ids = state.get("last_item_ids") or []
+            if last_ids and any(x in msg for x in _FOLLOWUP_MARKERS):
+                scope_ids = [int(x) for x in last_ids]
+
         return {
             "parsed": parsed,
+            "scope_job_ids": scope_ids,
             "result": {
                 "keyword_corrections": (corr_all + corr_any)[:20],
                 "stack_candidates": (stack_cands[:20] if is_follow else []),
@@ -706,6 +773,8 @@ class JobStatsChatbot:
         parsed: ChatbotParsedSpec = state["parsed"]
         rid = state.get("request_id") or str(uuid.uuid4())
         base = state.get("result") or {}
+
+        scope_ids = state.get("scope_job_ids") or None
 
         if parsed.intent == ChatbotIntent.COUNT_POSTINGS:
             r = job_stats_repo.count_postings(
@@ -718,6 +787,9 @@ class JobStatsChatbot:
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
                 max_salary_m만원=parsed.max_salary_m만원,
+                min_competition_pct=parsed.min_competition_pct,
+                max_competition_pct=parsed.max_competition_pct,
+                job_ids_scope=scope_ids,
             )
             base.update(r)
             return {"result": base}
@@ -731,6 +803,27 @@ class JobStatsChatbot:
                 keywords_all=parsed.keywords_all,
                 keywords_any=parsed.keywords_any,
                 job_role=parsed.job_role,
+                min_competition_pct=parsed.min_competition_pct,
+                max_competition_pct=parsed.max_competition_pct,
+                job_ids_scope=scope_ids,
+            )
+            base.update(r)
+            return {"result": base}
+
+        if parsed.intent == ChatbotIntent.RATE_STATS:
+            r = job_stats_repo.rate_stats(
+                parsed.start_date,
+                parsed.end_date,
+                regions_any=parsed.regions_any,
+                admin_areas_any=parsed.admin_areas_any,
+                keywords_all=parsed.keywords_all,
+                keywords_any=parsed.keywords_any,
+                job_role=parsed.job_role,
+                min_salary_m만원=parsed.min_salary_m만원,
+                max_salary_m만원=parsed.max_salary_m만원,
+                min_competition_pct=parsed.min_competition_pct,
+                max_competition_pct=parsed.max_competition_pct,
+                job_ids_scope=scope_ids,
             )
             base.update(r)
             return {"result": base}
@@ -747,8 +840,11 @@ class JobStatsChatbot:
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
                 max_salary_m만원=parsed.max_salary_m만원,
+                min_competition_pct=parsed.min_competition_pct,
+                max_competition_pct=parsed.max_competition_pct,
                 limit=int(parsed.limit or 5),
                 random=bool(parsed.random),
+                job_ids_scope=scope_ids,
             )
             base.update(r)
             return {"result": base}
@@ -782,6 +878,8 @@ class JobStatsChatbot:
                 "- 1월 9일 뒤로 연봉 8천~9천 공고 몇개\n"
                 "- 8월 백엔드 자바 최신 5개\n"
                 "- 요즘 올라오는 공고에서 제일 많이 요구하는 스택\n"
+                "- 경기도 요즘 평균 지원률/경쟁률\n"
+                "- 경쟁률 120% 이하 공고 몇개\n"
             )
             return {"answer": answer, "request_id": rid}
 
@@ -808,6 +906,18 @@ class JobStatsChatbot:
             elif mn is not None:
                 parts.append(f"최소연봉: {mn}만원")
 
+            mncp = result.get("min_competition_pct")
+            mxcp = result.get("max_competition_pct")
+            if mncp is not None and mxcp is not None:
+                parts.append(f"경쟁률% 범위: {mncp}~{mxcp}")
+            elif mncp is not None:
+                parts.append(f"경쟁률% 최소: {mncp}")
+            elif mxcp is not None:
+                parts.append(f"경쟁률% 최대: {mxcp}")
+
+            if result.get("scoped"):
+                parts.append(f"스코프: 직전 결과 {result.get('scope_size', 0)}개")
+
             return (" | ".join(parts)) if parts else "필터: 없음"
 
         typo_note = _pick_stack_typo_note(result.get("stack_corrections") or [])
@@ -822,10 +932,30 @@ class JobStatsChatbot:
             applications = int(result.get("applications", 0))
             avg = float(result.get("avg_apply_per_posting", 0.0))
             body = (
-                f"{start} ~ {end} 경쟁률:\n"
+                f"{start} ~ {end} 경쟁률(지원수 기반):\n"
                 f"- 공고 수: {postings}개\n"
                 f"- 총 지원 수: {applications}건\n"
                 f"- 공고 1개당 평균 지원 수: {avg:.2f}건\n"
+                f"{filters_summary()}"
+            )
+            answer = (typo_note + "\n" + body) if typo_note else body
+
+        elif parsed.intent == ChatbotIntent.RATE_STATS:
+            postings = int(result.get("postings", 0))
+            applications = int(result.get("applications", 0))
+            cap = int(result.get("total_capacity", 0))
+            avg_apply = float(result.get("avg_apply_per_posting", 0.0))
+            apply_rate = float(result.get("apply_rate_weighted_pct", 0.0))
+            comp_avg = float(result.get("competition_avg_pct", 0.0))
+
+            body = (
+                f"{start} ~ {end} 지원/경쟁 통계:\n"
+                f"- 공고 수: {postings}개\n"
+                f"- 총 지원 수: {applications}건\n"
+                f"- 총 모집 인원: {cap}명\n"
+                f"- 공고 1개당 평균 지원자 수: {avg_apply:.2f}명\n"
+                f"- 지원률(총지원/총모집, 가중): {apply_rate:.2f}%\n"
+                f"- 평균 경쟁률(공고별 %, 평균): {comp_avg:.2f}%\n"
                 f"{filters_summary()}"
             )
             answer = (typo_note + "\n" + body) if typo_note else body
@@ -842,7 +972,9 @@ class JobStatsChatbot:
                 lines.append(
                     f"{i}. [{it.get('employer_name')}] {it.get('title')} / {it.get('location') or '-'} "
                     f"/ {it.get('salary_text') or '-'} / stack={it.get('stack') or '-'} "
-                    f"/ apply={it.get('apply_count', 0)} / created_at={it.get('created_at') or '-'} "
+                    f"/ apply={it.get('apply_count', 0)} / cap={it.get('recruitment_capacity', '-')}"
+                    f"/ comp%={it.get('competition_pct', '-')}"
+                    f"/ created_at={it.get('created_at') or '-'} "
                     f"(job_id={it.get('job_id')})"
                 )
             body = "\n".join(lines)

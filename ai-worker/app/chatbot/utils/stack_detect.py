@@ -1,4 +1,3 @@
-# app/chatbot/utils/stack_detect.py
 from __future__ import annotations
 
 import re
@@ -34,11 +33,12 @@ HANGUL_STACK_MAP = {
     "노드js": "node.js",
 }
 
+
 def extract_stack_candidates(text: str, max_candidates: int = 8) -> List[str]:
     """
     사용자가 입력한 문장에서 '스택일 가능성이 있는 토큰/구문'을 뽑는다.
     - 영어 토큰은 lower()
-    - 한글 토큰은 그대로
+    - 한글 토큰은 whitelist/매핑만 통과
     - stopword/행정구역 suffix 제거
     - 'spring boot' 같은 2-gram도 후보로 만든다.
     """
@@ -66,7 +66,6 @@ def extract_stack_candidates(text: str, max_candidates: int = 8) -> List[str]:
         # 한글 스택은 whitelist/매핑만 통과
         if base in HANGUL_STACK_MAP:
             tokens.append(HANGUL_STACK_MAP[base])
-        # else: 버림(거기서/그러면 같은 일반어 차단)
 
     if not tokens:
         return []

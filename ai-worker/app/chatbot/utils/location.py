@@ -1,4 +1,3 @@
-# app/chatbot/utils/location.py
 from __future__ import annotations
 
 import re
@@ -128,7 +127,6 @@ def infer_admin_areas_from_text(text: str, regions_any: List[str]) -> List[str]:
             words2.append(w2)
 
     region_keys = {k for k in REGION_SYNONYMS.keys() if not k.isascii()}
-    # ✅ words2 사용 + "지역" 포함 토큰 제외 권장
     candidates = [
         w for w in words2
         if (w not in STOPWORDS and w not in region_keys and "지역" not in w)
@@ -140,9 +138,7 @@ def infer_admin_areas_from_text(text: str, regions_any: List[str]) -> List[str]:
     if len(base) < 2:
         return []
 
-    base = candidates[-1]
-
-    # ✅ 조사 제거 결과가 1글자면 행정구역 후보로 쓰지 않음 ("수" 같은 것)
+    # ✅ 조사 제거 결과가 1글자면 행정구역 후보로 쓰지 않음
     if len(base) < 2:
         return []
 

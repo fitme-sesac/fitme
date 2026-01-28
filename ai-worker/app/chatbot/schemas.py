@@ -12,6 +12,7 @@ class ChatbotIntent(str, Enum):
     COMPETITION = "COMPETITION"
     LIST_POSTINGS = "LIST_POSTINGS"
     TOP_STACKS = "TOP_STACKS"
+    RATE_STATS = "RATE_STATS"  # ✅ 추가: 지원률/경쟁률(%) 통계
     HELP = "HELP"
 
 
@@ -31,7 +32,11 @@ class ChatbotParsedSpec(BaseModel):
 
     # salary (만원 단위)
     min_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
-    max_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)  # ✅ 추가
+    max_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
+
+    # ✅ 공고별 경쟁률(%) = apply_count / recruitment_capacity * 100 (지원률/경쟁률 임계값 필터)
+    min_competition_pct: Optional[float] = Field(default=None, ge=0, le=100000)
+    max_competition_pct: Optional[float] = Field(default=None, ge=0, le=100000)
 
     limit: Optional[int] = Field(default=None, ge=1, le=20)
     random: Optional[bool] = None
