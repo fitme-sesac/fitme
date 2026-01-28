@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -34,12 +35,20 @@ interface JobsResponse {
 
 const FILTER_OPTIONS: Record<string, string[]> = {
     "포지션": ["전체", "서버/백엔드", "프론트엔드", "웹 풀스택", "안드로이드", "iOS", "머신러닝/AI", "데이터 엔지니어", "DevOps", "게임 클라이언트", "보안 엔진"],
-    "경력": ["전체", "신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년 이상"],
+    "경력": [], // 슬라이더로 변경
     "스킬": ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"],
-    "연봉": ["전체", "3,000만원 이상", "4,000만원 이상", "5,000만원 이상", "6,000만원 이상", "7,000만원 이상", "8,000만원 이상", "1억원 이상"],
+    "연봉": [], // 슬라이더로 변경
     "근무지": ["전체", "서울 강남구", "서울 서초구", "서울 송파구", "서울 마포구", "서울 영등포/구로", "경기 판교/분당", "인천", "대전", "부산", "제주"],
     "서비스 분야": ["전체", "커머스", "금융/핀테크", "O2O", "소셜/커뮤니티", "게임", "SaaS", "인공지능", "블록체인", "모빌리티", "여행"]
 };
+
+// 경력 슬라이더 값 → 라벨 변환
+const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
+const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] || "신입";
+
+// 연봉 슬라이더 값 → 라벨 변환
+const SALARY_LABELS = ["3,000만원", "4,000만원", "5,000만원", "6,000만원", "7,000만원", "8,000만원", "9,000만원", "1억원+"];
+const getSalaryLabel = (value: number) => SALARY_LABELS[value] || "3,000만원";
 
 export default function Jobs() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -47,6 +56,10 @@ export default function Jobs() {
     const [page, setPage] = useState(0);
     const [activePopup, setActivePopup] = useState<string | null>(null);
     const filterScrollRef = useRef<HTMLDivElement>(null);
+
+    // 슬라이더 상태
+    const [experienceRange, setExperienceRange] = useState<number[]>([0, 10]);
+    const [salaryRange, setSalaryRange] = useState<number[]>([0, 7]);
 
     const scrollFilter = (direction: "left" | "right") => {
         if (filterScrollRef.current) {
@@ -59,7 +72,7 @@ export default function Jobs() {
     // Assuming usePublicJobs returns { data: JobsResponse, ... } structure roughly.
     const { data: rawData, isLoading, error } = usePublicJobs({
         page,
-        size: 10,
+        size: 12,
         keyword: searchParams.get("keyword") || "",
     });
 
@@ -68,6 +81,57 @@ export default function Jobs() {
     const jobs = data?.jobs || [];
     const totalPages = data?.totalPages || 0;
     const totalElements = data?.totalElements || 0;
+
+    // 슬라이더 렌더링 함수
+    const renderSliderFilter = (filterKey: string) => {
+        if (filterKey === "경력") {
+            return (
+                <div className="p-6 bg-gray-50/50 rounded-xl border border-gray-100">
+                    <div className="flex justify-between mb-4 text-sm font-medium text-gray-700">
+                        <span>{getExperienceLabel(experienceRange[0])}</span>
+                        <span className="text-[#5A639C] font-bold">~</span>
+                        <span>{getExperienceLabel(experienceRange[1])}</span>
+                    </div>
+                    <Slider
+                        value={experienceRange}
+                        onValueChange={setExperienceRange}
+                        min={0}
+                        max={10}
+                        step={1}
+                        className="w-full"
+                    />
+                    <div className="flex justify-between mt-2 text-xs text-gray-400">
+                        <span>신입</span>
+                        <span>10년+</span>
+                    </div>
+                </div>
+            );
+        }
+        if (filterKey === "연봉") {
+            return (
+                <div className="p-6 bg-gray-50/50 rounded-xl border border-gray-100">
+                    <div className="flex justify-between mb-4 text-sm font-medium text-gray-700">
+                        <span>{getSalaryLabel(salaryRange[0])}</span>
+                        <span className="text-[#5A639C] font-bold">~</span>
+                        <span>{getSalaryLabel(salaryRange[1])}</span>
+                    </div>
+                    <Slider
+                        value={salaryRange}
+                        onValueChange={setSalaryRange}
+                        min={0}
+                        max={7}
+                        step={1}
+                        className="w-full"
+                    />
+                    <div className="flex justify-between mt-2 text-xs text-gray-400">
+                        <span>3,000만원</span>
+                        <span>1억원+</span>
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
@@ -112,7 +176,7 @@ export default function Jobs() {
                                         <Button
                                             variant="ghost"
                                             className="rounded-full shrink-0 h-10 px-4 text-muted-foreground hover:text-primary hover:bg-primary/10 font-bold flex items-center gap-1.5 mr-2"
-                                            onClick={() => { setKeyword(""); setPage(0); setActivePopup(null); }}
+                                            onClick={() => { setKeyword(""); setPage(0); setActivePopup(null); setExperienceRange([0, 10]); setSalaryRange([0, 7]); }}
                                         >
                                             <RotateCcw className="w-4 h-4" /> 초기화
                                         </Button>
@@ -122,8 +186,8 @@ export default function Jobs() {
                                                 key={key}
                                                 variant={activePopup === key ? "default" : "outline"}
                                                 className={`rounded-full border-gray-300 font-normal px-4 h-10 shrink-0 transition-colors ${activePopup === key
-                                                        ? "bg-gray-900 text-white border-transparent"
-                                                        : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
+                                                    ? "bg-gray-900 text-white border-transparent"
+                                                    : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
                                                     }`}
                                                 onClick={() => setActivePopup(activePopup === key ? null : key)}
                                             >
@@ -134,26 +198,30 @@ export default function Jobs() {
                                 </div>
 
                                 {/* Expanded Filter Detail Area */}
-                                {activePopup && FILTER_OPTIONS[activePopup] && (
+                                {activePopup && (
                                     <div className="pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
-                                        <div className="flex flex-wrap gap-2 p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                                            {FILTER_OPTIONS[activePopup].map((option) => (
-                                                <button
-                                                    key={option}
-                                                    onClick={() => {
-                                                        const val = option === "전체" ? "" : option;
-                                                        setKeyword(val);
-                                                        setPage(0);
-                                                    }}
-                                                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${(keyword === option || (option === "전체" && keyword === ""))
+                                        {(activePopup === "경력" || activePopup === "연봉") ? (
+                                            renderSliderFilter(activePopup)
+                                        ) : FILTER_OPTIONS[activePopup]?.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                                                {FILTER_OPTIONS[activePopup].map((option) => (
+                                                    <button
+                                                        key={option}
+                                                        onClick={() => {
+                                                            const val = option === "전체" ? "" : option;
+                                                            setKeyword(val);
+                                                            setPage(0);
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${(keyword === option || (option === "전체" && keyword === ""))
                                                             ? "bg-white border-primary text-primary font-bold shadow-sm"
                                                             : "bg-white border-transparent text-gray-600 hover:bg-gray-100 hover:border-gray-200"
-                                                        }`}
-                                                >
-                                                    {option}
-                                                </button>
-                                            ))}
-                                        </div>
+                                                            }`}
+                                                    >
+                                                        {option}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -255,19 +323,21 @@ export default function Jobs() {
                             )}
                         </div>
 
-                        {/* 우측 사이드바 (4 cols) */}
-                        <div className="hidden lg:block lg:col-span-4 space-y-6">
-                            <SideJobList />
+                        {/* 우측 사이드바 (4 cols) - 고정 */}
+                        <div className="hidden lg:block lg:col-span-4">
+                            <div className="sticky top-20 space-y-6">
+                                <SideJobList />
 
-                            {/* 추가 위젯 (예: 인기 태그) */}
-                            <div className="bg-card rounded-2xl border border-border p-5 sticky top-[500px]">
-                                <h3 className="font-bold mb-4 text-sm text-muted-foreground">인기 검색 키워드</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {["Python", "Java", "React", "Spring Boot", "AI", "Data Engineer", "Frontend"].map(tag => (
-                                        <span key={tag} className="px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium cursor-pointer hover:bg-primary/20 hover:text-primary transition-colors">
-                                            #{tag}
-                                        </span>
-                                    ))}
+                                {/* 추가 위젯 (예: 인기 태그) */}
+                                <div className="bg-card rounded-2xl border border-border p-5">
+                                    <h3 className="font-bold mb-4 text-sm text-muted-foreground">인기 검색 키워드</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {["Python", "Java", "React", "Spring Boot", "AI", "Data Engineer", "Frontend"].map(tag => (
+                                            <span key={tag} className="px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium">
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>

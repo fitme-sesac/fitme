@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Target } from "lucide-react";
 
 const footerLinks = {
   서비스: ["채용공고", "인재검색", "기업정보", "교육/이벤트"],
@@ -22,12 +22,12 @@ export function Footer() {
           <div className="lg:col-span-2">
             <div className="mb-4 flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-                <Sparkles className="h-5 w-5 text-primary-foreground" />
+                <Target className="h-5 w-5 text-primary-foreground" />
               </div>
               <span className="text-xl font-bold">FitMe</span>
             </div>
             <p className="mb-4 text-muted-foreground max-w-xs">
-              AI 기반 리버스 리크루팅 플랫폼. 
+              AI 기반 리버스 리크루팅 플랫폼.
               기업이 당신을 먼저 찾아오는 새로운 채용 경험.
             </p>
             <div className="flex gap-3">

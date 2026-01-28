@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Bell, Menu, Sparkles, LogIn, LogOut, User, Coins } from "lucide-react";
+import { Search, Bell, Menu, Target, LogIn, LogOut, User, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +70,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 h-16 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-      <div className="flex h-full items-center justify-between px-4 lg:px-6">
+      <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-6">
         {/* 모바일 메뉴 & 로고 */}
         <div className="flex items-center gap-3 lg:hidden">
           <Button variant="ghost" size="icon" className="lg:hidden">
@@ -78,7 +78,7 @@ export function Header() {
           </Button>
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
+              <Target className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="text-lg font-bold">FitMe</span>
           </Link>
