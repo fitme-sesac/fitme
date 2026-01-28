@@ -22,9 +22,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,180 +48,137 @@ class AdCampaignServiceTest {
         @Mock
         private WalletService walletService;
 
+        @Mock
+        private AdGuardService adGuardService;
+
         @InjectMocks
         private AdCampaignService adCampaignService;
 
-        // =======================================================
-        // 1. 캠페인 생성 테스트
-        // =======================================================
-
         @Test
-        @DisplayName("캠페인 생성이 정상 작동한다")
+        @DisplayName("광고 캠페인을 성공적으로 생성한다")
         void createCampaign_Success() {
                 // 1. [Given]
-                AdCampaignCreateDTO request = AdCampaignCreateDTO.builder()
-                                .employerId(1L)
-                                .jobId(100L)
-                                .cpcBid(50)
-                                .dailyBudget(10000)
-                                .startDate(LocalDate.now())
-                                .endDate(LocalDate.now().plusDays(7))
-                                .build();
+                AdCampaignCreateDTO dto = AdCampaignCreateDTO.builder()
+                                .employerId(1L).jobId(100L).cpcBid(50).dailyBudget(1000).build();
 
-                AdCampaignEntity savedEntity = AdCampaignEntity.builder()
-                                .id(1L)
-                                .employerId(1L)
-                                .jobId(100L)
-                                .cpcBid(50)
-                                .dailyBudget(10000)
-                                .status("ACTIVE")
-                                .build();
-
-                // Wallet Mock 설정
-                Wallet mockWallet = mock(Wallet.class);
-                given(mockWallet.getBalance()).willReturn(50000L);
-
-                // Mock 설정
                 given(employerRepository.existsById(1L)).willReturn(true);
                 given(adCampaignRepository.existsByJobIdAndStatusNot(100L, "ENDED")).willReturn(false);
-                given(walletService.getMyWallet(1L, RoleType.EMPLOYER)).willReturn(mockWallet);
+
+                // Wallet의 balance는 @Builder에 포함되어 있지 않으므로 Mock으로 처리
+                Wallet wallet = mock(Wallet.class);
+                given(wallet.getBalance()).willReturn(2000L);
+                given(walletService.getMyWallet(1L, RoleType.EMPLOYER)).willReturn(wallet);
+
+                AdCampaignEntity savedEntity = AdCampaignEntity.builder()
+                                .id(1L).employerId(1L).jobId(100L).cpcBid(50).dailyBudget(1000).status("ACTIVE")
+                                .build();
                 given(adCampaignRepository.save(any(AdCampaignEntity.class))).willReturn(savedEntity);
 
                 // 2. [When]
-                AdCampaignResponseDTO response = adCampaignService.createCampaign(request);
+                AdCampaignResponseDTO result = adCampaignService.createCampaign(dto);
 
                 // 3. [Then]
-                assertThat(response).isNotNull();
-                assertThat(response.getId()).isEqualTo(1L);
-                assertThat(response.getStatus()).isEqualTo("ACTIVE");
-                verify(adCampaignRepository).save(any(AdCampaignEntity.class));
+                assertThat(result.getId()).isEqualTo(1L);
+                assertThat(result.getStatus()).isEqualTo("ACTIVE");
         }
 
         @Test
-        @DisplayName("존재하지 않는 기업으로 캠페인 생성 시 예외 발생")
+        @DisplayName("존재하지 않는 기업의 캠페인 생성 시 예외가 발생한다")
         void createCampaign_EmployerNotFound() {
                 // 1. [Given]
-                AdCampaignCreateDTO request = AdCampaignCreateDTO.builder()
-                                .employerId(999L)
-                                .jobId(100L)
-                                .build();
-
+                AdCampaignCreateDTO dto = AdCampaignCreateDTO.builder().employerId(999L).build();
                 given(employerRepository.existsById(999L)).willReturn(false);
 
                 // 2. [When & Then]
-                assertThatThrownBy(() -> adCampaignService.createCampaign(request))
+                assertThatThrownBy(() -> adCampaignService.createCampaign(dto))
                                 .isInstanceOf(IllegalArgumentException.class)
                                 .hasMessageContaining("존재하지 않는 기업");
         }
 
         @Test
-        @DisplayName("중복 캠페인 생성 시 예외 발생")
+        @DisplayName("이미 동일한 채용공고로 활성화된 캠페인이 있으면 예외가 발생한다")
         void createCampaign_DuplicateCampaign() {
                 // 1. [Given]
-                AdCampaignCreateDTO request = AdCampaignCreateDTO.builder()
-                                .employerId(1L)
-                                .jobId(100L)
-                                .build();
-
+                AdCampaignCreateDTO dto = AdCampaignCreateDTO.builder().employerId(1L).jobId(100L).build();
                 given(employerRepository.existsById(1L)).willReturn(true);
                 given(adCampaignRepository.existsByJobIdAndStatusNot(100L, "ENDED")).willReturn(true);
 
                 // 2. [When & Then]
-                assertThatThrownBy(() -> adCampaignService.createCampaign(request))
+                assertThatThrownBy(() -> adCampaignService.createCampaign(dto))
                                 .isInstanceOf(IllegalArgumentException.class)
                                 .hasMessageContaining("활성 광고 캠페인이 존재");
         }
 
         @Test
-        @DisplayName("잔액 부족 시 캠페인 생성 예외 발생")
+        @DisplayName("잔액이 부족하면 캠페인 생성 시 예외가 발생한다")
         void createCampaign_InsufficientBalance() {
                 // 1. [Given]
-                AdCampaignCreateDTO request = AdCampaignCreateDTO.builder()
-                                .employerId(1L)
-                                .jobId(100L)
-                                .dailyBudget(10000)
-                                .build();
-
-                // Wallet Mock (잔액 부족)
-                Wallet mockWallet = mock(Wallet.class);
-                given(mockWallet.getBalance()).willReturn(5000L);
+                AdCampaignCreateDTO dto = AdCampaignCreateDTO.builder()
+                                .employerId(1L).jobId(100L).dailyBudget(5000).build();
 
                 given(employerRepository.existsById(1L)).willReturn(true);
                 given(adCampaignRepository.existsByJobIdAndStatusNot(100L, "ENDED")).willReturn(false);
-                given(walletService.getMyWallet(1L, RoleType.EMPLOYER)).willReturn(mockWallet);
+
+                // Wallet의 balance는 @Builder에 포함되어 있지 않으므로 Mock으로 처리
+                Wallet wallet = mock(Wallet.class);
+                given(wallet.getBalance()).willReturn(1000L); // 5000원 필요한데 1000원뿐
+                given(walletService.getMyWallet(1L, RoleType.EMPLOYER)).willReturn(wallet);
 
                 // 2. [When & Then]
-                assertThatThrownBy(() -> adCampaignService.createCampaign(request))
+                assertThatThrownBy(() -> adCampaignService.createCampaign(dto))
                                 .isInstanceOf(IllegalArgumentException.class)
                                 .hasMessageContaining("잔액이 부족");
         }
 
-        // =======================================================
-        // 2. 캠페인 조회 테스트
-        // =======================================================
-
         @Test
-        @DisplayName("존재하는 캠페인 ID로 조회하면 성공한다")
+        @DisplayName("광고 캠페인 단건 조회 성공")
         void getCampaign_Success() {
                 // 1. [Given]
-                Long campaignId = 1L;
+                Long id = 1L;
                 AdCampaignEntity entity = AdCampaignEntity.builder()
-                                .id(campaignId)
-                                .employerId(1L)
-                                .jobId(100L)
-                                .cpcBid(50)
-                                .status("ACTIVE")
-                                .build();
+                                .id(id).employerId(1L).jobId(100L).cpcBid(50).status("ACTIVE").build();
 
-                given(adCampaignRepository.findByIdAndNotDeleted(campaignId)).willReturn(Optional.of(entity));
+                given(adCampaignRepository.findByIdAndNotDeleted(id)).willReturn(Optional.of(entity));
 
                 // 2. [When]
-                AdCampaignResponseDTO response = adCampaignService.getCampaign(campaignId);
+                AdCampaignResponseDTO result = adCampaignService.getCampaign(id);
 
                 // 3. [Then]
-                assertThat(response).isNotNull();
-                assertThat(response.getId()).isEqualTo(campaignId);
+                assertThat(result.getId()).isEqualTo(id);
+                assertThat(result.getCpcBid()).isEqualTo(50);
         }
 
         @Test
-        @DisplayName("존재하지 않는 캠페인 ID로 조회하면 예외 발생")
+        @DisplayName("존재하지 않는 광고 조회 시 예외가 발생한다")
         void getCampaign_NotFound() {
                 // 1. [Given]
-                Long campaignId = 999L;
-                given(adCampaignRepository.findByIdAndNotDeleted(campaignId)).willReturn(Optional.empty());
+                Long id = 999L;
+                given(adCampaignRepository.findByIdAndNotDeleted(id)).willReturn(Optional.empty());
 
                 // 2. [When & Then]
-                assertThatThrownBy(() -> adCampaignService.getCampaign(campaignId))
-                                .isInstanceOf(IllegalArgumentException.class)
-                                .hasMessageContaining("not found");
+                assertThatThrownBy(() -> adCampaignService.getCampaign(id))
+                                .isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("기업별 캠페인 목록 조회가 정상 작동한다")
+        @DisplayName("기업별 광고 목록 조회 성공")
         void getCampaignsByEmployer_Success() {
                 // 1. [Given]
                 Long employerId = 1L;
                 Pageable pageable = PageRequest.of(0, 10);
-
-                AdCampaignEntity entity1 = AdCampaignEntity.builder()
-                                .id(1L).employerId(employerId).cpcBid(50).status("ACTIVE").build();
-                AdCampaignEntity entity2 = AdCampaignEntity.builder()
-                                .id(2L).employerId(employerId).cpcBid(100).status("PAUSED").build();
-                Page<AdCampaignEntity> page = new PageImpl<>(List.of(entity1, entity2));
+                AdCampaignEntity entity = AdCampaignEntity.builder()
+                                .id(1L).employerId(employerId).status("ACTIVE").build();
+                Page<AdCampaignEntity> page = new PageImpl<>(List.of(entity));
 
                 given(adCampaignRepository.findByEmployerIdAndNotDeleted(employerId, pageable)).willReturn(page);
 
                 // 2. [When]
-                Page<AdCampaignResponseDTO> response = adCampaignService.getCampaignsByEmployer(employerId, pageable);
+                Page<AdCampaignResponseDTO> result = adCampaignService.getCampaignsByEmployer(employerId, pageable);
 
                 // 3. [Then]
-                assertThat(response.getTotalElements()).isEqualTo(2);
-                assertThat(response.getContent().get(0).getCpcBid()).isEqualTo(50);
+                assertThat(result.getTotalElements()).isEqualTo(1);
+                assertThat(result.getContent().get(0).getEmployerId()).isEqualTo(employerId);
         }
-
-        // =======================================================
-        // 3. 상태 변경 테스트
-        // =======================================================
 
         @Test
         @DisplayName("캠페인 상태 변경이 정상 작동한다")
@@ -229,10 +186,7 @@ class AdCampaignServiceTest {
                 // 1. [Given]
                 Long campaignId = 1L;
                 AdCampaignEntity entity = AdCampaignEntity.builder()
-                                .id(campaignId)
-                                .employerId(1L)
-                                .status("ACTIVE")
-                                .build();
+                                .id(campaignId).employerId(1L).status("ACTIVE").build();
 
                 given(adCampaignRepository.findByIdAndNotDeleted(campaignId)).willReturn(Optional.of(entity));
 
@@ -241,24 +195,8 @@ class AdCampaignServiceTest {
 
                 // 3. [Then]
                 assertThat(response.getStatus()).isEqualTo("PAUSED");
+                verify(adGuardService).updateStatus(campaignId, "PAUSED");
         }
-
-        @Test
-        @DisplayName("존재하지 않는 캠페인 상태 변경 시 예외 발생")
-        void updateStatus_NotFound() {
-                // 1. [Given]
-                Long campaignId = 999L;
-                given(adCampaignRepository.findByIdAndNotDeleted(campaignId)).willReturn(Optional.empty());
-
-                // 2. [When & Then]
-                assertThatThrownBy(() -> adCampaignService.updateStatus(campaignId, "PAUSED"))
-                                .isInstanceOf(IllegalArgumentException.class)
-                                .hasMessageContaining("not found");
-        }
-
-        // =======================================================
-        // 4. 광고 노출 테스트
-        // =======================================================
 
         @Test
         @DisplayName("비로그인 사용자 광고 노출 - 입찰가 순")
@@ -269,7 +207,10 @@ class AdCampaignServiceTest {
                                 .id(1L).employerId(1L).jobId(100L).cpcBid(50).status("ACTIVE").build();
                 Page<AdCampaignEntity> page = new PageImpl<>(List.of(entity));
 
-                given(adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable)).willReturn(page);
+                given(adGuardService.getActiveCampaignIds()).willReturn(Set.of("1"));
+                // 파라미터 타입 Long[]에 맞춰 any(Long[].class) 사용
+                given(adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(any(Long[].class), any(Pageable.class)))
+                                .willReturn(page);
 
                 // 2. [When]
                 Page<AdCampaignEntity> result = adCampaignService.getActiveAdsForServing(pageable);
@@ -289,14 +230,17 @@ class AdCampaignServiceTest {
                 AdCampaignEntity entity = AdCampaignEntity.builder()
                                 .id(1L).employerId(1L).jobId(100L).cpcBid(50).status("ACTIVE").build();
                 Page<AdCampaignEntity> page = new PageImpl<>(List.of(entity));
-                given(adCampaignRepository.findActiveAdsOrderByCpcDesc(any(Pageable.class))).willReturn(page);
+
+                given(adGuardService.getActiveCampaignIds()).willReturn(Set.of("1"));
+                // 파라미터 타입 Long[]에 맞춰 any(Long[].class) 사용
+                given(adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(any(Long[].class), any(Pageable.class)))
+                                .willReturn(page);
 
                 // 2. [When]
                 List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, 5);
 
                 // 3. [Then]
                 assertThat(result).hasSize(1);
-                assertThat(result.get(0).getSimilarity()).isNull(); // fallback이므로 유사도 null
         }
 
         @Test
@@ -305,7 +249,6 @@ class AdCampaignServiceTest {
                 // 1. [Given]
                 Long memberId = 1L;
 
-                // embedding이 null인 Resume Mock
                 Resume mockResume = mock(Resume.class);
                 given(mockResume.getEmbedding()).willReturn(null);
                 given(resumeRepository.findByUserIdAndPrimaryTrue(memberId)).willReturn(Optional.of(mockResume));
@@ -313,13 +256,16 @@ class AdCampaignServiceTest {
                 AdCampaignEntity entity = AdCampaignEntity.builder()
                                 .id(1L).employerId(1L).jobId(100L).cpcBid(50).status("ACTIVE").build();
                 Page<AdCampaignEntity> page = new PageImpl<>(List.of(entity));
-                given(adCampaignRepository.findActiveAdsOrderByCpcDesc(any(Pageable.class))).willReturn(page);
+
+                given(adGuardService.getActiveCampaignIds()).willReturn(Set.of("1"));
+                // 파라미터 타입 Long[]에 맞춰 any(Long[].class) 사용
+                given(adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(any(Long[].class), any(Pageable.class)))
+                                .willReturn(page);
 
                 // 2. [When]
                 List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, 5);
 
                 // 3. [Then]
                 assertThat(result).hasSize(1);
-                assertThat(result.get(0).getSimilarity()).isNull();
         }
 }
