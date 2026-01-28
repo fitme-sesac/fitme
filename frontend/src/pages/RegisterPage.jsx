@@ -1,5 +1,5 @@
+// RegisterPage.tsx (전체) - SOLAPI 연동 전제(프론트는 devCode/로컬OTP 제거 + 쿠키기반 검증만)
 import HtmlPage from "../components/HtmlPage";
-
 import { usePageCss } from "../hooks/usePageCss";
 
 const html = `<main class="main">
@@ -100,8 +100,6 @@ const html = `<main class="main">
                 <option value="" selected disabled>선택</option>
                 <option value="MALE">남성</option>
                 <option value="FEMALE">여성</option>
-                <option value="OTHER">기타</option>
-                <option value="UNDISCLOSED">비공개</option>
               </select>
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
@@ -142,26 +140,58 @@ const html = `<main class="main">
             </div>
             <hr style="height:0.6px;background:#888;border:none;width:100%;margin:0;">
 
-            <!-- 약관/정책 (고정 박스 + 스크롤) -->
+            <!-- 약관/정책 -->
             <div class="form-group" style="font-weight: bold; align-items: flex-start;">
               <label>정책/약관 <span style="color: red;">*</span></label>
-              <div style="width: 18rem;">
-                <div class="policy-box">
-                  <strong>[이용약관]</strong>
-                  <p>서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.</p>
-                  <hr />
-                  <strong>[개인정보 처리방침]</strong>
-                  <p>수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.</p>
-                  <hr />
-                  <strong>[운영정책]</strong>
-                  <p>커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.</p>
+
+              <div class="policy-container">
+                <div class="policy-sections">
+                  <div class="policy-section">
+                    <div class="policy-title">[이용약관]</div>
+                    <div class="policy-box">
+                      <p>서비스 이용 조건, 계정 관리, 금지행위, 책임 제한 등을 포함합니다.</p>
+                    </div>
+                    <div class="policy-agree">
+                      <label>
+                        <input type="checkbox" id="agreeTerms" name="agreeTerms" value="true" />
+                        (필수) 이용약관 동의
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="policy-section">
+                    <div class="policy-title">[개인정보 처리방침]</div>
+                    <div class="policy-box">
+                      <p>수집 항목, 이용 목적, 보관 기간, 파기 절차, 제3자 제공 및 위탁 등을 포함합니다.</p>
+                    </div>
+                    <div class="policy-agree">
+                      <label>
+                        <input type="checkbox" id="agreePrivacy" name="agreePrivacy" value="true" />
+                        (필수) 개인정보 처리방침 동의
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="policy-section">
+                    <div class="policy-title">[운영정책]</div>
+                    <div class="policy-box">
+                      <p>커뮤니티 운영 원칙, 콘텐츠 규정, 제재 기준 등을 포함합니다.</p>
+                    </div>
+                    <div class="policy-agree">
+                      <label>
+                        <input type="checkbox" id="agreePolicy" name="agreePolicy" value="true" />
+                        (필수) 운영정책 동의
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
-                <div class="policy-checks">
-                  <label><input type="checkbox" id="agreeTerms" name="agreeTerms" value="true" /> (필수) 이용약관 동의</label>
-                  <label><input type="checkbox" id="agreePrivacy" name="agreePrivacy" value="true" /> (필수) 개인정보 처리방침 동의</label>
-                  <label><input type="checkbox" id="agreePolicy" name="agreePolicy" value="true" /> (필수) 운영정책 동의</label>
-                  <label><input type="checkbox" id="marketingOptIn" name="marketingOptIn" value="true" /> (선택) 마케팅 수신 동의</label>
+                <!-- 선택 동의(마케팅) -->
+                <div class="policy-marketing">
+                  <label>
+                    <input type="checkbox" id="marketingOptIn" name="marketingOptIn" value="true" />
+                    (선택) 마케팅 수신 동의
+                  </label>
                 </div>
               </div>
             </div>
@@ -180,13 +210,15 @@ const html = `<main class="main">
 </main>`;
 
 const scripts = [
-  "(() => {\n" +
+    "(() => {\n" +
     "  const form = document.getElementById('registerForm');\n" +
     "  if (!form) return;\n" +
+    "  if (form.dataset.fitmeRegisterInit === '1') return;\n" +
+    "  form.dataset.fitmeRegisterInit = '1';\n" +
     "\n" +
     "  const alertEl = document.querySelector('.alert.alert-danger');\n" +
     "  const setAlert = (msg) => {\n" +
-    "    if (!alertEl) { alert(msg); return; }\n" +
+    "    if (!alertEl) { if (msg) alert(msg); return; }\n" +
     "    const span = alertEl.querySelector('span');\n" +
     "    if (span) span.textContent = msg; else alertEl.textContent = msg;\n" +
     "    alertEl.style.display = msg ? 'block' : 'none';\n" +
@@ -199,6 +231,7 @@ const scripts = [
     "\n" +
     "  const qs = (sel) => document.querySelector(sel);\n" +
     "\n" +
+    "  // 이메일 분해(서버 전송용 hidden)\n" +
     "  const emailFull = qs('#emailFull');\n" +
     "  const emailId = qs('#emailId');\n" +
     "  const emailDomain = qs('#emailDomain');\n" +
@@ -206,9 +239,16 @@ const scripts = [
     "  const emailHidden = qs('#email');\n" +
     "\n" +
     "  const splitEmail = (v) => {\n" +
-    "    const m = (v || '').trim().match(/^([^@]+)@([^@\\.]+)\\.([^@]+)$/);\n" +
-    "    if (!m) return null;\n" +
-    "    return { id: m[1], domain: m[2], tld: m[3] };\n" +
+    "    const s = (v || '').trim();\n" +
+    "    const at = s.lastIndexOf('@');\n" +
+    "    if (at <= 0) return null;\n" +
+    "    const local = s.slice(0, at);\n" +
+    "    const host = s.slice(at + 1);\n" +
+    "    const parts = host.split('.').filter(Boolean);\n" +
+    "    if (!local || parts.length < 2) return null;\n" +
+    "    const domain = parts.shift();\n" +
+    "    const tld = parts.join('.');\n" +
+    "    return { id: local, domain, tld };\n" +
     "  };\n" +
     "\n" +
     "  const fillEmailParts = () => {\n" +
@@ -223,9 +263,11 @@ const scripts = [
     "    return true;\n" +
     "  };\n" +
     "\n" +
-    "  // 휴대폰 OTP (서버 엔드포인트가 없으면 개발용 코드로 동작)\n" +
-    "  let otpCode = null;\n" +
+    "  // 휴대폰 OTP\n" +
     "  let otpVerified = false;\n" +
+    "  let sending = false;\n" +
+    "  let verifying = false;\n" +
+    "\n" +
     "  const phoneInput = qs('#phone');\n" +
     "  const otpInput = qs('#phoneOtpCode');\n" +
     "  const otpStatus = qs('#otpStatus');\n" +
@@ -234,63 +276,103 @@ const scripts = [
     "\n" +
     "  const normalizePhone = (p) => String(p || '').replace(/[^0-9]/g, '');\n" +
     "  const isPhoneValid = (p) => /^[0-9]{10,11}$/.test(p);\n" +
-    "  const randomOtp = () => String(Math.floor(Math.random() * 1000000)).padStart(6, '0');\n" +
     "  const setOtpStatus = (msg, ok) => {\n" +
     "    if (!otpStatus) return;\n" +
     "    otpStatus.textContent = msg;\n" +
     "    otpStatus.style.color = ok ? '#198754' : '#dc3545';\n" +
     "  };\n" +
-    "\n" +
-    "  const sendOtp = async () => {\n" +
-    "    setAlert('');\n" +
-    "    const p = normalizePhone(phoneInput?.value);\n" +
-    "    if (!isPhoneValid(p)) { setOtpStatus('휴대폰 번호를 확인해주세요. (숫자만 10~11자리)', false); return; }\n" +
-    "    if (phoneInput) phoneInput.value = p;\n" +
-    "    otpVerified = false;\n" +
-    "    let devCode = null;\n" +
-    "    try {\n" +
-    "      const res = await fetch('/api/phone/otp/send', {\n" +
-    "        method: 'POST',\n" +
-    "        headers: { 'Content-Type': 'application/json' },\n" +
-    "        body: JSON.stringify({ phone: p })\n" +
-    "      });\n" +
-    "      if (res.ok) {\n" +
-    "        const json = await res.json().catch(() => null);\n" +
-    "        if (json && json.devCode) devCode = String(json.devCode);\n" +
-    "      }\n" +
-    "    } catch (e) { /* ignore */ }\n" +
-    "    otpCode = devCode || randomOtp();\n" +
-    "    setOtpStatus('인증번호를 발송했습니다. (개발용: ' + otpCode + ')', true);\n" +
-    "  };\n" +
-    "\n" +
-    "  const verifyOtp = async () => {\n" +
-    "    setAlert('');\n" +
-    "    const input = String(otpInput?.value || '').trim();\n" +
-    "    if (!otpCode) { setOtpStatus('먼저 인증번호를 발송해주세요.', false); return; }\n" +
-    "    if (!/^[0-9]{6}$/.test(input)) { setOtpStatus('인증번호는 6자리 숫자입니다.', false); return; }\n" +
-    "\n" +
-    "    let serverOk = null;\n" +
-    "    try {\n" +
-    "      const res = await fetch('/api/phone/otp/verify', {\n" +
-    "        method: 'POST',\n" +
-    "        headers: { 'Content-Type': 'application/json' },\n" +
-    "        body: JSON.stringify({ phone: normalizePhone(phoneInput?.value), code: input })\n" +
-    "      });\n" +
-    "      if (res.ok) {\n" +
-    "        const json = await res.json().catch(() => null);\n" +
-    "        if (json && typeof json.verified === 'boolean') serverOk = json.verified;\n" +
-    "      }\n" +
-    "    } catch (e) { /* ignore */ }\n" +
-    "\n" +
-    "    const ok = (serverOk === null) ? (input === otpCode) : serverOk;\n" +
-    "    if (!ok) { otpVerified = false; setOtpStatus('인증번호가 일치하지 않습니다.', false); return; }\n" +
-    "\n" +
-    "    otpVerified = true;\n" +
-    "    setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
+    "  const lockOtpInputs = () => {\n" +
     "    if (phoneInput) phoneInput.setAttribute('readonly', 'readonly');\n" +
     "    if (otpInput) otpInput.setAttribute('readonly', 'readonly');\n" +
     "    if (sendBtn) sendBtn.disabled = true;\n" +
     "    if (verifyBtn) verifyBtn.disabled = true;\n" +
+    "  };\n" +
+    "\n" +
+    "  const syncOtpStatus = async () => {\n" +
+    "    try {\n" +
+    "      const res = await fetch('/api/phone/otp/status', { credentials: 'include' });\n" +
+    "      if (!res.ok) return;\n" +
+    "      const json = await res.json().catch(() => null);\n" +
+    "      if (json && json.verified === true) {\n" +
+    "        otpVerified = true;\n" +
+    "        setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
+    "        lockOtpInputs();\n" +
+    "      }\n" +
+    "    } catch (e) {}\n" +
+    "  };\n" +
+    "  syncOtpStatus();\n" +
+    "\n" +
+    "  const sendOtp = async () => {\n" +
+    "    if (otpVerified) return;\n" +
+    "    if (sending) return;\n" +
+    "    sending = true;\n" +
+    "\n" +
+    "    setAlert('');\n" +
+    "    const p = normalizePhone(phoneInput?.value);\n" +
+    "    if (!isPhoneValid(p)) { sending = false; setOtpStatus('휴대폰 번호를 확인해주세요. (숫자만 10~11자리)', false); return; }\n" +
+    "    if (phoneInput) phoneInput.value = p;\n" +
+    "    otpVerified = false;\n" +
+    "    if (otpInput) otpInput.value = '';\n" +
+    "    setOtpStatus('인증번호 발송 중...', true);\n" +
+    "\n" +
+    "    try {\n" +
+    "      if (sendBtn) sendBtn.disabled = true;\n" +
+    "      const res = await fetch('/api/phone/otp/send', {\n" +
+    "        method: 'POST',\n" +
+    "        headers: { 'Content-Type': 'application/json' },\n" +
+    "        credentials: 'include',\n" +
+    "        body: JSON.stringify({ phone: p })\n" +
+    "      });\n" +
+    "      const json = await res.json().catch(() => null);\n" +
+    "      if (!res.ok || !json || json.ok !== true) {\n" +
+    "        const msg = (json && (json.message || json.errorMessage)) ? (json.message || json.errorMessage) : '인증번호 발송에 실패했습니다.';\n" +
+    "        setOtpStatus(msg, false);\n" +
+    "        return;\n" +
+    "      }\n" +
+    "      setOtpStatus('인증번호를 발송했습니다. 문자로 받은 6자리를 입력해주세요.', true);\n" +
+    "    } catch (e) {\n" +
+    "      setOtpStatus('네트워크 오류로 발송에 실패했습니다.', false);\n" +
+    "    } finally {\n" +
+    "      sending = false;\n" +
+    "      if (sendBtn && !otpVerified) sendBtn.disabled = false;\n" +
+    "    }\n" +
+    "  };\n" +
+    "\n" +
+    "  const verifyOtp = async () => {\n" +
+    "    if (otpVerified) return;\n" +
+    "    if (verifying) return;\n" +
+    "    verifying = true;\n" +
+    "\n" +
+    "    setAlert('');\n" +
+    "    const p = normalizePhone(phoneInput?.value);\n" +
+    "    const input = String(otpInput?.value || '').trim();\n" +
+    "    if (!isPhoneValid(p)) { verifying = false; setOtpStatus('휴대폰 번호를 확인해주세요.', false); return; }\n" +
+    "    if (!/^[0-9]{6}$/.test(input)) { verifying = false; setOtpStatus('인증번호는 6자리 숫자입니다.', false); return; }\n" +
+    "\n" +
+    "    try {\n" +
+    "      if (verifyBtn) verifyBtn.disabled = true;\n" +
+    "      const res = await fetch('/api/phone/otp/verify', {\n" +
+    "        method: 'POST',\n" +
+    "        headers: { 'Content-Type': 'application/json' },\n" +
+    "        credentials: 'include',\n" +
+    "        body: JSON.stringify({ phone: p, code: input })\n" +
+    "      });\n" +
+    "      const json = await res.json().catch(() => null);\n" +
+    "      if (!json || json.verified !== true) {\n" +
+    "        const msg = (json && (json.message || json.errorMessage)) ? (json.message || json.errorMessage) : '인증번호가 일치하지 않습니다.';\n" +
+    "        otpVerified = false;\n" +
+    "        setOtpStatus(msg, false);\n" +
+    "        return;\n" +
+    "      }\n" +
+    "      otpVerified = true;\n" +
+    "      setOtpStatus('휴대폰 인증이 완료되었습니다.', true);\n" +
+    "      lockOtpInputs();\n" +
+    "    } catch (e) {\n" +
+    "      setOtpStatus('네트워크 오류로 인증에 실패했습니다.', false);\n" +
+    "    } finally {\n" +
+    "      verifying = false;\n" +
+    "      if (verifyBtn && !otpVerified) verifyBtn.disabled = false;\n" +
+    "    }\n" +
     "  };\n" +
     "\n" +
     "  if (sendBtn) sendBtn.addEventListener('click', (e) => { e.preventDefault(); sendOtp(); });\n" +
@@ -298,13 +380,10 @@ const scripts = [
     "\n" +
     "  form.addEventListener('submit', (e) => {\n" +
     "    setAlert('');\n" +
-    "\n" +
     "    const pw = String(qs('#password')?.value || '');\n" +
     "    const pw2 = String(qs('#passwordConfirm')?.value || '');\n" +
     "    if (pw !== pw2) { e.preventDefault(); setAlert('비밀번호와 비밀번호 재확인이 일치하지 않습니다.'); return; }\n" +
-    "\n" +
     "    if (!fillEmailParts()) { e.preventDefault(); return; }\n" +
-    "\n" +
     "    const agreeTerms = qs('#agreeTerms');\n" +
     "    const agreePrivacy = qs('#agreePrivacy');\n" +
     "    const agreePolicy = qs('#agreePolicy');\n" +
@@ -313,7 +392,6 @@ const scripts = [
     "      setAlert('필수 약관에 동의해야 회원가입이 가능합니다.');\n" +
     "      return;\n" +
     "    }\n" +
-    "\n" +
     "    if (!otpVerified) {\n" +
     "      e.preventDefault();\n" +
     "      setAlert('휴대폰 인증을 완료해주세요.');\n" +
@@ -321,10 +399,10 @@ const scripts = [
     "    }\n" +
     "  });\n" +
     "})();",
-  "AOS.init();",
+    "(() => { if (window.AOS && typeof window.AOS.init === 'function') window.AOS.init(); })();",
 ];
 
 export default function RegisterPage() {
-  usePageCss("/assets/css/pages/register.css");
-  return <HtmlPage html={html} scripts={scripts} />;
+    usePageCss("/assets/css/pages/register.css");
+    return <HtmlPage html={html} scripts={scripts} />;
 }

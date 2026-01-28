@@ -1,159 +1,240 @@
-#main .link-wrap ul {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    padding: 0;
-    justify-content: space-between;
-    margin: 0;
+/* public/assets/css/pages/home_index.css  (FULL REWRITE) */
+
+/* ====== Tunables ====== */
+#main {
+    --side-w: 300px;
+    --gap: 18px;
+
+    /* 카드 높이: 여기만 바꾸면 카드 크기 유지/변경이 한 번에 됨 */
+    --card-h: 300px;
+
+    /* 좌측 회색 박스 위/아래 여백(서로 다르게 가능) */
+    --left-pad-top: 20px;
+    --left-pad-bottom: 24px;
+    --left-pad-x: 18px;
 }
 
-#main .link-wrap li {
-    width: calc(50% - 20px);
-    margin: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    border-radius: 10px;
-    background-color: white;
-    padding: 10px;
-    height: 100px;
-    position: relative;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+/* 페이지(섹션) 자체 위아래 여백 줄이기 */
+#main.section {
+    padding: 24px 0;
+}
+
+/* ====== Layout: Grid로 좌/우 배치 ====== */
+#main .main-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--side-w);
+    gap: var(--gap);
+    align-items: stretch;
+
+    /* 기존처럼 크게 주고 싶으면 여기만 */
+    padding: 10px 300px;
+}
+
+/* ====== LEFT: 추천공고 영역 ====== */
+#main #section_contents.main_content {
+    background: #f4f6fa;
+    border-radius: 20px;
     overflow: hidden;
+
+    /* “위/아래 회색 여백”은 여기서 결정됨 */
+    padding: var(--left-pad-top) var(--left-pad-x) var(--left-pad-bottom);
 }
 
-#main .link-wrap li:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-}
-
-#main .link-wrap a {
-    text-decoration: none;
-    color: inherit;
-    width: 100%;
-    height: 100%;
+/* 내부는 단순 column (탭-카드 간격은 gap으로만 관리) */
+#main #section_contents .inner {
     display: flex;
     flex-direction: column;
+    gap: 8px;           /* ✅ 탭-카드 간격: 네가 말한 “괜찮은 간격”을 여기서 유지 */
+    min-width: 0;
+}
+
+/* 탭 */
+#main #section_contents .tab {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#main #section_contents .tab_btn {
+    border: 0;
+    background: #2a62ff;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* 카드 리스트: 4열 grid, 높이는 카드가 결정(=빈 회색 여백 구조적으로 없음) */
+#main #section_contents .items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    align-items: stretch;
+}
+
+#main #section_contents .item_recruit {
+    min-width: 0;
+}
+
+/* 카드 높이를 “고정” => 패널 높이는 카드에 의해 결정 */
+#main #section_contents .item_recruit .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+    height: var(--card-h);        /* ✅ 카드 크기 유지(핵심) */
+    padding: 16px;
+
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+
+    text-decoration: none;
+    color: #111;
+    min-width: 0;
+}
+
+#main #section_contents .item_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#main #section_contents .item_header .logo {
+    width: 110px;
+    height: 36px;
+    background: #e9edf5;
+    border-radius: 8px;
+}
+
+#main #section_contents .item_header .dday { font-size: 12px; color: #77819A; }
+#main #section_contents .item_body .title { font-size: 16px; font-weight: 800; line-height: 1.35; }
+#main #section_contents .item_body .company { margin-top: 6px; font-size: 13px; color: #6B7280; }
+
+/* 네비 버튼은 숨김 */
+#main .btn_prev,
+#main .btn_next {
+    display: none !important;
+}
+
+/* ====== RIGHT: 배너 + 링크 ====== */
+#main aside.right-panel.main_side {
+    background: #fff;
+    border: 1px solid #e6eaf2;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+
+    padding: 12px;
+    overflow: hidden;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    /* grid에서 같은 행에 있으면 자동으로 좌측 높이에 맞춰 stretch 됨 */
+}
+
+/* 남는 높이는 배너가 먹어서 “아래 흰 여백”이 안 남게 */
+#main aside.right-panel.main_side .main_banner {
+    flex: 1 1 auto;
+    min-height: 220px;
+
+    border-radius: 16px;
+    background: #8b0036;
+    color: #fff;
+
+    display: flex;
     align-items: center;
     justify-content: center;
-}
-
-#main .link-wrap img {
-    width: 50px;
-    height: 50px;
-}
-
-#main .link-wrap span {
-    color: #333;
-    font-size: 0.9rem;
-    font-weight: bold;
     text-align: center;
+
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
 }
 
-/* 제목 부분(주요서비스) */
-#main .title-wrap {
-    flex: 1;
-    min-width: 200px;
-    margin-bottom: 20px;
+#main .banner_title { font-weight: 900; font-size: 20px; line-height: 1.2; }
+#main .banner_sub { margin-top: 8px; opacity: .85; }
+
+#main aside.right-panel.main_side .link-wrap {
+    flex: 0 0 auto;
 }
 
-#main .title-wrap p {
-    font-size: 1.8rem;
-    font-weight: bold;
-    margin: 0;
-}
-
-#main .title-wrap .hidden-mo {
-    font-size: 1rem;
-    color: #666;
-    margin-top: 5px;
-}
-
-/* 컨테이너 기본 설정 */
-#main .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-#main .service-menu {
-    flex: 2;
-    min-width: 300px;
-}
-
-/* 서비스 메뉴 리스트 */
-#main .featured-services {
+#main aside.right-panel.main_side .link-wrap ul {
     list-style: none;
-    padding: 0;
     margin: 0;
+    padding: 0;
+
     display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 12px;
 }
 
-#main .featured-services li {
-    flex: 1;
-    min-width: 100px;
-    max-width: 120px;
-    margin: 10px;
-    text-align: center;
-    background-color: #f8f9fa;
-    border-radius: 10px;
-    padding: 15px;
+#main aside.right-panel.main_side .link-wrap li {
+    display: flex;
+    border-radius: 14px;
+    background-color: #e9fff1;
+    padding: 12px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-#main .featured-services li:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+#main aside.right-panel.main_side .link-wrap li:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(0,0,0,0.12);
 }
 
-#main .featured-services li a {
+#main aside.right-panel.main_side .link-wrap a {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 14px;
+
     text-decoration: none;
     color: inherit;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
-#main .featured-services li img {
-    width: 40px;
-    height: 40px;
-    margin-bottom: 8px;
-}
-
-#main .featured-services li span {
+#main aside.right-panel.main_side .link-wrap img { width: 26px; height: 26px; }
+#main aside.right-panel.main_side .link-wrap span {
+    color: #333;
     font-size: 0.95rem;
-    font-weight: bold;
+    font-weight: 800;
+    white-space: nowrap;
 }
 
-/* 반응형 */
-@media (max-width: 768px) {
-    #main .container {
-        flex-direction: column;
-        align-items: flex-start;
+/* ====== Responsive ====== */
+@media (max-width: 992px) {
+    #main .main-top {
+        grid-template-columns: 1fr;
+        padding: 10px 20px;
     }
 
-    #main .title-wrap {
-        width: 100%;
+    /* 모바일은 4개 한 줄이 작아지니 가로 스크롤 */
+    #main #section_contents .items {
+        display: flex;
+        gap: 14px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 6px; /* 스크롤바 겹침 방지 */
     }
 
-    #main .service-menu {
-        width: 100%;
+    #main #section_contents .item_recruit {
+        flex: 0 0 300px;
     }
 
-    #main .featured-services {
-        justify-content: center;
-    }
-
-    #main .featured-services li {
-        min-width: 120px;
-    }
-
-    #main .link-wrap li {
-        width: calc(100% - 20px);
+    /* 모바일에서 우측(아래로 내려감)은 배너가 늘어날 필요 없음 */
+    #main aside.right-panel.main_side .main_banner {
+        flex: 0 0 220px;
     }
 }

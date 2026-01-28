@@ -3,6 +3,7 @@ package com.example.pproject.resume.entity;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
@@ -32,6 +33,15 @@ public class ResumeCertificate extends BaseTimeEntity {
 
     @Column(name = "is_verified")
     private Boolean verified;
+
+    @Builder
+    public ResumeCertificate(Resume resume, String name, String issuer, LocalDate acquisitionDate, Boolean verified) {
+        this.resume = resume;
+        this.name = name;
+        this.issuer = issuer;
+        this.acquisitionDate = acquisitionDate;
+        this.verified = verified;
+    }
 
     public void setResume(Resume resume) { this.resume = resume; }
 }

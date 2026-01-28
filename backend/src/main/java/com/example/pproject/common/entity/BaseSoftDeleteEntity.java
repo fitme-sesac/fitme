@@ -4,23 +4,24 @@ import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 @MappedSuperclass
 public abstract class BaseSoftDeleteEntity extends BaseTimeEntity {
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     public void delete() {
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = Instant.now();
     }
 
     public void restore() {
         this.deletedAt = null;
     }
 
+    // 삭제 여부 확인
     public boolean isDeleted() {
         return deletedAt != null;
     }

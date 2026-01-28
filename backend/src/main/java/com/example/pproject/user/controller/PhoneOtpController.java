@@ -2,107 +2,124 @@ package com.example.pproject.user.controller;
 
 import com.example.pproject.Config.CookieUtils;
 import com.example.pproject.Config.JwtTokenProvider;
+import com.example.pproject.sms.PhoneVerificationService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CookieValue;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.UUID;
 
-/**
- * 휴대폰 인증(OTP) API
- * - 외부 SMS 연동 전까지는 devCode를 응답에 포함(프론트에서 개발용 표시)
- * - 검증 성공 시 PHONE_VERIFIED_TMP(HttpOnly) 쿠키를 발급
- */
 @RestController
-@RequestMapping("/api/phone/otp")
+@RequestMapping("/api/phone")
 @RequiredArgsConstructor
 public class PhoneOtpController {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final PhoneVerificationService phoneVerificationService;
 
-    @PostMapping("/send")
-    public ResponseEntity<?> send(@RequestBody Map<String, String> body,
-                                  HttpServletRequest request,
-                                  HttpServletResponse response) {
-        String phone = body == null ? null : body.get("phone");
-        String normalizedPhone = phone == null ? "" : phone.replaceAll("[^0-9]", "");
-        if (normalizedPhone.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "휴대폰 번호를 입력해주세요."));
-        }
+    private static final String PURPOSE_SIGNUP = "SIGNUP";
 
-        String code = generate6Digits();
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("phone", normalizedPhone);
-        claims.put("code", code);
-
-        // 5분 유효
-        String tmp = jwtTokenProvider.createFlowToken("PHONE_OTP", claims, 300);
-        CookieUtils.addHttpOnlyCookie(request, response, "PHONE_OTP_TMP", tmp, 300, "Lax");
-
-        // TODO: 실제 SMS 발송 연동(현재는 devCode 반환)
-        return ResponseEntity.ok(Map.of("ok", true, "devCode", code));
+    @PostMapping("/otp/send")
+    public ResponseEntity<?> sendOtp(@RequestBody Map<String, String> body,
+                                     HttpServletRequest request,
+                                     HttpServletResponse response) {
+        return doSend(body, request, response);
     }
 
+    /** fitme-2 프론트 연동: /api/phone/send-code */
+    @PostMapping("/send-code")
+    public ResponseEntity<?> sendCode(@RequestBody Map<String, String> body,
+                                      HttpServletRequest request,
+                                      HttpServletResponse response) {
+        return doSend(body, request, response);
+    }
+
+    @PostMapping("/otp/verify")
+    public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> body,
+                                       HttpServletRequest request,
+                                       HttpServletResponse response,
+                                       @CookieValue(value = "PHONE_OTP_TMP", required = false) String otpToken) {
+        return doVerify(body, request, response, otpToken);
+    }
+
+    /** fitme-2 프론트 연동: /api/phone/verify */
     @PostMapping("/verify")
     public ResponseEntity<?> verify(@RequestBody Map<String, String> body,
                                     HttpServletRequest request,
                                     HttpServletResponse response,
                                     @CookieValue(value = "PHONE_OTP_TMP", required = false) String otpToken) {
-
-        String phone = body == null ? null : body.get("phone");
-        String code = body == null ? null : body.get("code");
-        String normalizedPhone = phone == null ? "" : phone.replaceAll("[^0-9]", "");
-
-        if (normalizedPhone.isBlank() || code == null || code.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("verified", false, "message", "휴대폰 번호와 인증번호를 입력해주세요."));
-        }
-        if (otpToken == null || otpToken.isBlank() || !jwtTokenProvider.validateToken(otpToken)) {
-            return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 먼저 발송해주세요."));
-        }
-
-        Claims c = jwtTokenProvider.getClaims(otpToken);
-        if (!"PHONE_OTP".equals(c.get("flowType", String.class))) {
-            return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 다시 발송해주세요."));
-        }
-
-        Map<String, Object> flow = flowClaimsOf(c);
-        String savedPhone = flow.get("phone") == null ? null : flow.get("phone").toString();
-        String savedCode = flow.get("code") == null ? null : flow.get("code").toString();
-
-        if (savedPhone == null || savedCode == null) {
-            return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 다시 발송해주세요."));
-        }
-        if (!normalizedPhone.equals(savedPhone)) {
-            return ResponseEntity.ok(Map.of("verified", false, "message", "휴대폰 번호가 일치하지 않습니다."));
-        }
-        if (!code.equals(savedCode)) {
-            return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호가 일치하지 않습니다."));
-        }
-
-        // ✅ 인증 성공: verified 쿠키 발급(15분)
-        Map<String, Object> verifiedClaims = new HashMap<>();
-        verifiedClaims.put("phone", normalizedPhone);
-        String verified = jwtTokenProvider.createFlowToken("PHONE_VERIFIED", verifiedClaims, 900);
-        CookieUtils.addHttpOnlyCookie(request, response, "PHONE_VERIFIED_TMP", verified, 900, "Lax");
-
-        CookieUtils.deleteCookie(request, response, "PHONE_OTP_TMP");
-        return ResponseEntity.ok(Map.of("verified", true));
+        return doVerify(body, request, response, otpToken);
     }
 
-    /**
-     * 컨트롤러/서비스에서 재사용하기 위한 "PHONE_VERIFIED_TMP" 해석 함수
-     */
-    public static String readVerifiedPhone(JwtTokenProvider jwtTokenProvider, String verifiedToken) {
+    private ResponseEntity<?> doSend(Map<String, String> body,
+                                     HttpServletRequest request,
+                                     HttpServletResponse response) {
+        String phone = body == null ? null : body.get("phone");
+        try {
+            String ip = getClientIp(request);
+            String ua = request.getHeader("User-Agent");
+            var result = phoneVerificationService.sendOtp(phone, PURPOSE_SIGNUP, ip, ua);
+            long ttl = Math.min(300, secondsUntil(result.expiresAt()));
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("verificationId", result.verificationId().toString());
+            claims.put("phone", normalize(phone));
+            claims.put("purpose", PURPOSE_SIGNUP);
+            String tmp = jwtTokenProvider.createFlowToken("PHONE_OTP_DB", claims, ttl);
+            CookieUtils.addHttpOnlyCookie(request, response, "PHONE_OTP_TMP", tmp, ttl, "Lax");
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(502).body(Map.of("ok", false, "message", "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요."));
+        }
+    }
+
+    private ResponseEntity<?> doVerify(Map<String, String> body,
+                                       HttpServletRequest request,
+                                       HttpServletResponse response,
+                                       String otpToken) {
+        try {
+            String phone = body == null ? null : body.get("phone");
+            String code = body == null ? null : body.get("code");
+            if (otpToken == null || otpToken.isBlank() || !jwtTokenProvider.validateToken(otpToken)) {
+                return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 먼저 발송해주세요."));
+            }
+            Claims c = jwtTokenProvider.getClaims(otpToken);
+            if (!"PHONE_OTP_DB".equals(c.get("flowType", String.class))) {
+                return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 다시 발송해주세요."));
+            }
+            Map<String, Object> flow = flowClaimsOf(c);
+            String vid = flow.get("verificationId") == null ? null : flow.get("verificationId").toString();
+            String savedPhone = flow.get("phone") == null ? null : flow.get("phone").toString();
+            String purpose = flow.get("purpose") == null ? null : flow.get("purpose").toString();
+            String normalizedPhone = normalize(phone);
+            if (vid == null || savedPhone == null || purpose == null) {
+                return ResponseEntity.ok(Map.of("verified", false, "message", "인증번호를 다시 발송해주세요."));
+            }
+            if (!normalizedPhone.equals(savedPhone)) {
+                return ResponseEntity.ok(Map.of("verified", false, "message", "휴대폰 번호가 일치하지 않습니다."));
+            }
+            phoneVerificationService.verifyOtp(UUID.fromString(vid), normalizedPhone, purpose, code);
+            Map<String, Object> verifiedClaims = new HashMap<>();
+            verifiedClaims.put("phone", normalizedPhone);
+            verifiedClaims.put("purpose", purpose);
+            String verified = jwtTokenProvider.createFlowToken("PHONE_VERIFIED", verifiedClaims, 900);
+            CookieUtils.addHttpOnlyCookie(request, response, "PHONE_VERIFIED_TMP", verified, 900, "Lax");
+            CookieUtils.deleteCookie(request, response, "PHONE_OTP_TMP");
+            return ResponseEntity.ok(Map.of("verified", true));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.ok(Map.of("verified", false, "message", e.getMessage()));
+        }
+    }
+
+    public static String readVerifiedPhone(JwtTokenProvider jwtTokenProvider, String verifiedToken, String requiredPurpose) {
         if (verifiedToken == null || verifiedToken.isBlank() || jwtTokenProvider == null) return null;
         if (!jwtTokenProvider.validateToken(verifiedToken)) return null;
 
@@ -110,8 +127,13 @@ public class PhoneOtpController {
         if (!"PHONE_VERIFIED".equals(c.get("flowType", String.class))) return null;
 
         Map<String, Object> flow = flowClaimsOf(c);
-        Object p = flow.get("phone");
-        return p == null ? null : p.toString();
+        String phone = flow.get("phone") == null ? null : flow.get("phone").toString();
+        String purpose = flow.get("purpose") == null ? null : flow.get("purpose").toString();
+
+        if (phone == null) return null;
+        if (requiredPurpose != null && !requiredPurpose.equals(purpose)) return null;
+
+        return phone;
     }
 
     private static Map<String, Object> flowClaimsOf(Claims c) {
@@ -124,8 +146,28 @@ public class PhoneOtpController {
         return Collections.emptyMap();
     }
 
-    private static String generate6Digits() {
-        int n = 100000 + new Random().nextInt(900000);
-        return String.valueOf(n);
+    private String normalize(String p) {
+        return String.valueOf(p == null ? "" : p).replaceAll("[^0-9]", "");
+    }
+
+    private long secondsUntil(OffsetDateTime exp) {
+        if (exp == null) return 300;
+        long sec = java.time.Duration.between(OffsetDateTime.now(), exp).getSeconds();
+        return Math.max(1, sec);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) return xff.split(",")[0].trim();
+        return request.getRemoteAddr();
+    }
+
+    @GetMapping("/otp/status")
+    public ResponseEntity<?> status(
+            @CookieValue(value = "PHONE_VERIFIED_TMP", required = false) String verifiedToken
+    ) {
+        String phone = readVerifiedPhone(jwtTokenProvider, verifiedToken, "SIGNUP");
+        boolean verified = (phone != null);
+        return ResponseEntity.ok(Map.of("verified", verified));
     }
 }

@@ -38,6 +38,8 @@ public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final SignedCookieOAuth2AuthorizationRequestRepository signedCookieOAuth2AuthorizationRequestRepository;
+    private final NoOpOAuth2AuthorizedClientRepository noOpOAuth2AuthorizedClientRepository;
 
     @Value("${app.front-base-url:http://localhost:5173}")
     private String frontBaseUrl;
@@ -81,10 +83,19 @@ public class SecurityConfig {
 
         http.authenticationProvider(daoAuthenticationProvider);
 
-        http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
+        // ✅ 완전 무상태: 세션 생성/저장 금지
+        http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.securityContext(sc -> sc.securityContextRepository(
+                new org.springframework.security.web.context.NullSecurityContextRepository()));
 
         http.authorizeHttpRequests(auth -> {
             auth.requestMatchers("/test1", "/test2").permitAll();
+
+            // 토스 페이먼츠 웹훅 (인증 없이 접근 가능해야 함)
+            auth.requestMatchers("/api/v1/payments/webhook").permitAll();
+            
+            // 공개 API (인증 없이 접근 가능)
+            auth.requestMatchers("/api/public/**").permitAll();
 
             auth.requestMatchers(
                     "/Login",
@@ -139,8 +150,14 @@ public class SecurityConfig {
         http.oauth2Login(oauth2 -> oauth2
                 // 프론트에서 /oauth2/authorization/google?prompt=select_account 같은 파라미터를 붙였을 때
                 // 실제로 Google 인증 URL로 전달되도록 커스텀 resolver를 연결한다.
-                .authorizationEndpoint(ae -> ae.authorizationRequestResolver(authorizationRequestResolver))
+                .authorizationEndpoint(ae -> ae
+                        .authorizationRequestResolver(authorizationRequestResolver)
+                        // ✅ OAuth2 상태값(state/PKCE 등) 세션 대신 서명된 쿠키에 저장
+                        .authorizationRequestRepository(signedCookieOAuth2AuthorizationRequestRepository)
+                )
                 .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
+                // ✅ OAuth2AuthorizedClient도 세션에 저장하지 않음
+                .authorizedClientRepository(noOpOAuth2AuthorizedClientRepository)
                 .successHandler(customAuthenticationSuccessHandler)
                 .failureHandler(customAuthenticationFailureHandler)
         );
