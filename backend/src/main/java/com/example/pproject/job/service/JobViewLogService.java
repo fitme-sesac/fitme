@@ -3,7 +3,7 @@ package com.example.pproject.job.service;
 import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.entity.JobViewLog;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.job.repository.JobViewLogRepository;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.repository.EmployerRepository;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class JobViewLogService {
 
     private final JobViewLogRepository jobViewLogRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final EmployerRepository employerRepository;
 
     // 중복 로그 방지를 위한 시간 간격 (분)
@@ -38,7 +38,7 @@ public class JobViewLogService {
      */
     @Transactional
     public void logView(Long jobId, Long memberId) {
-        JobEntity job = jobRepository.findByIdAndNotDeleted(jobId).orElse(null);
+        JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId).orElse(null);
         if (job == null) {
             return; // 존재하지 않는 공고는 무시
         }

@@ -3,7 +3,7 @@ package com.example.pproject.job.service;
 import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.entity.JobScrap;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.job.repository.JobScrapRepository;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.repository.EmployerRepository;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class JobScrapService {
 
     private final JobScrapRepository jobScrapRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final EmployerRepository employerRepository;
 
     /**
@@ -35,7 +35,7 @@ public class JobScrapService {
     @Transactional
     public boolean toggleScrap(Long jobId, Long memberId) {
         // 공고 존재 여부 확인
-        JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
+        JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("채용공고를 찾을 수 없습니다."));
 
         // 이미 스크랩한 경우 삭제

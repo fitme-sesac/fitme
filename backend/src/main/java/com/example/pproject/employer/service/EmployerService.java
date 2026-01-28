@@ -7,7 +7,7 @@ import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
@@ -31,7 +31,7 @@ public class EmployerService {
 
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
     private final OutboxEventProducer outboxEventProducer;
@@ -112,11 +112,11 @@ public class EmployerService {
         List<EmployerDashboardDTO.JobSummaryDTO> jobSummaries = List.of();
 
         try {
-            activeJobCount = jobRepository.countActiveByEmployerId(employer.getId());
-            totalApplicationCount = jobRepository.sumApplicationCountByEmployerId(employer.getId());
+            activeJobCount = jobEntityRepository.countActiveByEmployerId(employer.getId());
+            totalApplicationCount = jobEntityRepository.sumApplicationCountByEmployerId(employer.getId());
 
             // 최근 채용공고 5개
-            List<JobEntity> recentJobs = jobRepository.findByEmployerIdAndNotDeleted(employer.getId())
+            List<JobEntity> recentJobs = jobEntityRepository.findByEmployerIdAndNotDeleted(employer.getId())
                     .stream()
                     .limit(5)
                     .collect(Collectors.toList());

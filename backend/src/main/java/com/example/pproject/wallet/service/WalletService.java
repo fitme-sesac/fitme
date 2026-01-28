@@ -231,7 +231,7 @@ public class WalletService {
      * [관리자] 지갑을 수동으로 생성합니다.
      *
      * @param userId   사용자 ID
-     * @param roleType 사용자 역할
+     * @param buyerType 사용자 역할
      * @return 생성된 지갑 ID
      * @throws IllegalStateException 이미 지갑이 존재하는 경우
      */
