@@ -39,27 +39,27 @@ public class AdCampaignService {
     private final WalletService walletService;
     private final AdGuardService adGuardService;
 
+    private static final double MIN_SIMILARITY_THRESHOLD = 0.5;
+
+    // =================================================================================
+    // [SECTION 1: Admin & CRUD Manager]
+    // 광고 캠페인의 생명주기를 관리하며, DB 상태 변경 시 Redis 캐시(AdGuard)를 동기화합니다.
+    // =================================================================================
+
     /**
-     * 광고주(Employer)가 입력한 정보를 바탕으로 실제 광고를 생성
-     * 
-     * [검증 순서]
-     * 1. employerId가 유효한지 확인 (존재하는 기업인지)
-     * 2. 중복 캠페인 체크 (같은 job_id로 활성 광고가 있는지)
-     * 3. 잔액 확인 (일일 예산 이상의 잔액이 있는지)
+     * 광고 캠페인 생성
+     * [검증] 기업 존재 여부, 중복 채용공고 광고 금지, 일일 예산 이상의 잔액 확인
      */
     @Transactional
     public AdCampaignResponseDTO createCampaign(AdCampaignCreateDTO dto) {
-        // [1] 기업(Employer) 존재 여부 확인
         if (!employerRepository.existsById(dto.getEmployerId())) {
             throw new IllegalArgumentException("존재하지 않는 기업입니다. Employer ID: " + dto.getEmployerId());
         }
 
-        // [2] 중복 캠페인 체크: 해당 job_id로 이미 활성(ENDED가 아닌) 캠페인이 있으면 에러
         if (adCampaignRepository.existsByJobIdAndStatusNot(dto.getJobId(), "ENDED")) {
             throw new IllegalArgumentException("이미 해당 채용공고에 대한 활성 광고 캠페인이 존재합니다. Job ID: " + dto.getJobId());
         }
 
-        // [3] 잔액 확인: 최소 일일 예산 이상의 잔액이 있어야 광고 생성 가능
         Wallet wallet = walletService.getMyWallet(dto.getEmployerId(), RoleType.EMPLOYER);
         if (wallet.getBalance() < dto.getDailyBudget()) {
             throw new IllegalArgumentException(
@@ -67,7 +67,6 @@ public class AdCampaignService {
                             wallet.getBalance(), dto.getDailyBudget()));
         }
 
-        // LocalDate → Instant 변환 (시작일은 00:00:00, 종료일은 23:59:59로 설정)
         Instant startAt = toStartOfDay(dto.getStartDate());
         Instant endAt = toEndOfDay(dto.getEndDate());
 
@@ -88,6 +87,49 @@ public class AdCampaignService {
         return AdCampaignResponseDTO.fromEntity(saved);
     }
 
+    /**
+     * 캠페인 정보 수정 (입찰가, 예산, 기간 등)
+     * [Sync] Redis 캐시에 중요 정보(CPC, Budget)를 즉시 동기화합니다.
+     */
+    @Transactional
+    public AdCampaignResponseDTO updateCampaign(Long id, AdCampaignUpdateDTO dto) {
+        AdCampaignEntity entity = adCampaignRepository.findByIdAndNotDeleted(id)
+                .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found. ID: " + id));
+
+        if (dto.getCpcBid() != null) {
+            entity.setCpcBid(dto.getCpcBid());
+            adGuardService.updateCpc(entity.getId(), entity.getCpcBid()); // Redis 동기화
+        }
+        if (dto.getDailyBudget() != null) {
+            entity.setDailyBudget(dto.getDailyBudget());
+            adGuardService.updateBudget(entity.getId(), entity.getDailyBudget()); // Redis 동기화
+        }
+        if (dto.getStartDate() != null) {
+            entity.setStartAt(toStartOfDay(dto.getStartDate()));
+        }
+        if (dto.getEndDate() != null) {
+            entity.setEndAt(toEndOfDay(dto.getEndDate()));
+        }
+
+        log.info("광고 캠페인 수정 완료. CampaignId: {}", id);
+        return AdCampaignResponseDTO.fromEntity(entity);
+    }
+
+    /**
+     * 캠페인 상태 변경 (ACTIVE, PAUSED, ENDED)
+     * [Sync] ACTIVE 시 Redis 노출 목록에 추가, 그 외에는 즉시 제거하여 노출을 중단합니다.
+     */
+    @Transactional
+    public AdCampaignResponseDTO updateStatus(Long id, String status) {
+        AdCampaignEntity entity = adCampaignRepository.findByIdAndNotDeleted(id)
+                .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found. ID: " + id));
+
+        entity.setStatus(status);
+        adGuardService.updateStatus(id, status); // [Important] Redis Active Set 동기화
+
+        return AdCampaignResponseDTO.fromEntity(entity);
+    }
+
     public Page<AdCampaignResponseDTO> getCampaignsByEmployer(Long employerId, Pageable pageable) {
         return adCampaignRepository.findByEmployerIdAndNotDeleted(employerId, pageable)
                 .map(AdCampaignResponseDTO::fromEntity);
@@ -99,185 +141,129 @@ public class AdCampaignService {
         return AdCampaignResponseDTO.fromEntity(entity);
     }
 
+    // =================================================================================
+    // [SECTION 2: V3 Optimized - Hybrid Architecture]
+    // 현재 사용 중인 가장 발전된 방식. DB의 Vector Index와 Redis의 고속 검증을 결합함.
+    // =================================================================================
+
     /**
-     * 캠페인 정보 수정 (부분 업데이트)
-     * - null인 필드는 수정하지 않음
+     * [V3] 맞춤형 매칭 광고 조회
+     * <ol>
+     * <li><b>Recall:</b> PostgreSQL의 Vector index(HNSW)를 타서 유사도 높은 '후보' 30개를 순수
+     * DB에서 빠르게 뽑음.</li>
+     * <li><b>Guard:</b> 뽑힌 30개 후보의 ID만 Redis에 Pipeline으로 물어봐서 "현재 돈(예산)이 있는지"
+     * 검증.</li>
+     * <li><b>Filter:</b> 돈 있는 광고만 최종 반환.</li>
+     * </ol>
      */
-    @Transactional
-    public AdCampaignResponseDTO updateCampaign(Long id, AdCampaignUpdateDTO dto) {
-        AdCampaignEntity entity = adCampaignRepository.findByIdAndNotDeleted(id)
-                .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found. ID: " + id));
+    public List<AdServeResponseDTO> getAdsForMember(Long memberId, int limit) {
+        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
 
-        // 부분 업데이트 (null이 아닌 필드만 수정)
-        if (dto.getCpcBid() != null) {
-            entity.setCpcBid(dto.getCpcBid());
-        }
-        if (dto.getDailyBudget() != null) {
-            entity.setDailyBudget(dto.getDailyBudget());
-        }
-        if (dto.getStartDate() != null) {
-            entity.setStartAt(toStartOfDay(dto.getStartDate()));
-        }
-        if (dto.getEndDate() != null) {
-            entity.setEndAt(toEndOfDay(dto.getEndDate()));
+        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
+            // 이력서가 없는 경우 입찰가 기반(V2 Serving)으로 Fallback
+            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit));
+            return activeAds.getContent().stream().map(AdServeResponseDTO::fromEntity).toList();
         }
 
-        // [Redis Cache Update] 중요 정보(입찰가) 변경 시 캐시 갱신
-        if (dto.getCpcBid() != null) {
-            adGuardService.updateCpc(entity.getId(), entity.getCpcBid());
-        }
+        List<Double> userEmbedding = primaryResume.get().getEmbedding();
+        int recallLimit = 30; // 후보군 추출
 
-        log.info("광고 캠페인 수정 완료. CampaignId: {}", id);
-        return AdCampaignResponseDTO.fromEntity(entity);
+        // 1단계: DB에서 후보군 30개 추출
+        List<Object[]> candidates = adCampaignRepository.findTopAdsBySimilarity(
+                userEmbedding.toString(), MIN_SIMILARITY_THRESHOLD, recallLimit);
+
+        // 2단계: Redis Pipeline을 이용한 고속 예산 검증 (N+1 문제 해결)
+        List<Long> campaignIdsToCheck = candidates.stream()
+                .map(row -> ((Number) row[0]).longValue())
+                .toList();
+        java.util.Map<Long, Boolean> activeStatusMap = adGuardService.checkActiveBatch(campaignIdsToCheck);
+
+        // 3단계: 검증 통과한 광고만 수집
+        List<AdServeResponseDTO> result = new java.util.ArrayList<>();
+        for (Object[] row : candidates) {
+            if (result.size() >= limit)
+                break;
+            Long campaignId = ((Number) row[0]).longValue();
+            if (Boolean.TRUE.equals(activeStatusMap.get(campaignId))) {
+                result.add(AdServeResponseDTO.fromQueryResult(row));
+            }
+        }
+        return result;
     }
 
-    @Transactional
-    public AdCampaignResponseDTO updateStatus(Long id, String status) {
-        AdCampaignEntity entity = adCampaignRepository.findByIdAndNotDeleted(id)
-                .orElseThrow(() -> new IllegalArgumentException("Ad Campaign not found. ID: " + id));
-
-        entity.setStatus(status);
-
-        // [New] Redis 상태 동기화 (Active Set 자동 관리)
-        adGuardService.updateStatus(id, status);
-
-        return AdCampaignResponseDTO.fromEntity(entity);
-    }
+    // =================================================================================
+    // [SECTION 3: V2 Legacy - Redis Filtered Architecture]
+    // Redis에서 활성 ID 목록을 먼저 가져오고, DB에서 'IN' 절로 필터링하는 방식.
+    // =================================================================================
 
     /**
-     * [광고 노출용] 현재 활성 상태인 광고 목록 조회 (Redis Active Set 기반)
-     * - ACTIVE 상태이고, 현재 시간이 start_at ~ end_at 사이인 광고
-     * - [NEW] Redis Active Set에 포함된(예산이 있는) 광고만 DB에서 조회
-     * - CPC 입찰가 높은 순으로 정렬 (경매 방식)
+     * [V2 Serving] 입찰가 순 광고 노출 (비로그인용 등)
+     * Redis에서 현재 활성 상태인 ID 목록(상위 5,000개)을 먼저 가져와서 DB에 던짐.
      */
     public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable) {
-        // 1. Redis에서 현재 활성 캠페인 ID 목록 조회 (예산 있는 것들)
         java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
-
-        if (activeIdsStr == null || activeIdsStr.isEmpty()) {
+        if (activeIdsStr == null || activeIdsStr.isEmpty())
             return Page.empty(pageable);
-        }
 
-        // 2. String -> Long 변환
-        List<Long> activeIds = activeIdsStr.stream()
-                .map(Long::valueOf)
-                .toList();
-
-        // 3. DB 조회 (ID 필터링)
+        Long[] activeIds = activeIdsStr.stream().map(Long::valueOf).toArray(Long[]::new);
         return adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
     }
 
     /**
-     * [유사도 기반 광고 매칭]
-     * - 사용자의 대표 이력서 embedding을 가져와서
-     * - 활성 광고의 채용공고와 유사도 계산
-     * - 하이브리드 스코어 (similarity * 0.7 + bid * 0.3) 순으로 정렬
-     * - 유사도 0.5 미만인 광고는 제외
-     * 
-     * @param resumeEmbedding 사용자 이력서의 embedding 벡터
-     * @param limit           가져올 광고 개수
-     * @return 유사도 기반 정렬된 광고 매칭 결과
+     * [V2 Legacy] Redis ID List Anti-pattern (벤치마크 비교용)
+     * Redis에서 10만 개의 ID를 가져와서 DB 쿼리의 'WHERE id IN (...)'에 넣는 방식.
+     * 활성 광고가 많아지면 쿼리 요청 패킷이 너무 커져서 성능이 급락함.
      */
-    private static final double MIN_SIMILARITY_THRESHOLD = 0.5;
-
-    public List<Object[]> getAdsWithSimilarity(List<Double> resumeEmbedding, int limit) {
-        // 1. Redis에서 현재 활성 캠페인 ID 목록 조회
+    public List<Object[]> getAdsForMemberV2(Long memberId, int limit) {
         java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
-
-        if (activeIdsStr == null || activeIdsStr.isEmpty()) {
+        if (activeIdsStr == null || activeIdsStr.isEmpty())
             return java.util.Collections.emptyList();
-        }
 
-        List<Long> activeIds = activeIdsStr.stream()
-                .map(Long::valueOf)
-                .toList();
+        Long[] activeIds = activeIdsStr.stream().map(Long::valueOf).toArray(Long[]::new);
+        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
 
-        // 2. embedding을 PostgreSQL vector 형식 문자열로 변환: [0.1, 0.2, ...] 형태
-        String embeddingStr = resumeEmbedding.toString();
+        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null)
+            return java.util.Collections.emptyList();
+        String embeddingStr = primaryResume.get().getEmbedding().toString();
 
-        // 3. DB 조회 (ID 필터링 포함)
         return adCampaignRepository.findActiveAdsWithSimilarityAndIds(activeIds, embeddingStr, MIN_SIMILARITY_THRESHOLD,
                 limit);
     }
 
-    /**
-     * [로그인 사용자용 광고 조회]
-     * - 사용자의 대표 이력서를 조회하고, embedding이 있으면 유사도 기반 매칭
-     * - embedding이 없으면 입찰가 순으로 fallback
-     * 
-     * @param memberId 사용자 ID
-     * @param limit    가져올 광고 개수
-     * @return 광고 목록 (DTO)
-     */
-    public List<AdServeResponseDTO> getAdsForMember(Long memberId, int limit) {
-        // 1. 사용자의 대표 이력서 조회
-        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
-
-        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
-            // 대표 이력서나 embedding이 없으면 입찰가 순으로 fallback
-            log.info("No primary resume or embedding for memberId: {}. Falling back to bid-based.", memberId);
-
-            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit));
-
-            return activeAds.getContent().stream()
-                    .map(AdServeResponseDTO::fromEntity)
-                    .toList();
-        }
-
-        // 2. 유사도 기반 광고 매칭
-        List<Double> userEmbedding = primaryResume.get().getEmbedding();
-        List<Object[]> matchResults = getAdsWithSimilarity(userEmbedding, limit);
-
-        // 3. DTO로 변환
-        return matchResults.stream()
-                .map(AdServeResponseDTO::fromQueryResult)
-                .toList();
-    }
-
-    // =======================================================
-    // [Legacy API Support] For Benchmarking (V1 vs V2)
-    // =======================================================
+    // =================================================================================
+    // [SECTION 4: V1 Legacy - Pure Database Logic]
+    // Redis 없이 오직 DB 트랜잭션과 쿼리에만 의존함. 정합성은 높으나 성능 확장에 한계가 있음.
+    // =================================================================================
 
     /**
-     * [Legacy] 순수 DB 조회 (벤치마킹용)
+     * [V1 Legacy] 순수 DB 기반 조회
      */
     public Page<AdCampaignEntity> getActiveAdsForServingLegacy(Pageable pageable) {
         return adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
     }
 
     /**
-     * [Legacy] 순수 DB 유사도 검색 (벤치마킹용)
+     * [V1 Legacy] 순수 DB 기반 유사도 매칭
+     * 매 요청마다 DB 전체를 훑으며 벡터 거리를 계산함.
      */
     public List<AdServeResponseDTO> getAdsForMemberLegacy(Long memberId, int limit) {
-        // 1. 사용자의 대표 이력서 조회
         Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
 
         if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
-            log.info("[Legacy] No primary resume/embedding. Fallback to DB sort.");
             Page<AdCampaignEntity> activeAds = adCampaignRepository
                     .findActiveAdsOrderByCpcDesc(PageRequest.of(0, limit));
-            return activeAds.getContent().stream()
-                    .map(AdServeResponseDTO::fromEntity)
-                    .toList();
+            return activeAds.getContent().stream().map(AdServeResponseDTO::fromEntity).toList();
         }
 
-        // 2. DB 유사도 기반 광고 매칭 (Redis 필터링 없음)
-        List<Double> userEmbedding = primaryResume.get().getEmbedding();
-        String embeddingStr = userEmbedding.toString();
+        List<Object[]> matchResults = adCampaignRepository.findActiveAdsWithSimilarity(
+                primaryResume.get().getEmbedding().toString(), MIN_SIMILARITY_THRESHOLD, limit);
 
-        // Call Legacy Repository Method
-        List<Object[]> matchResults = adCampaignRepository.findActiveAdsWithSimilarity(embeddingStr,
-                MIN_SIMILARITY_THRESHOLD, limit);
-
-        // 3. DTO로 변환
-        return matchResults.stream()
-                .map(AdServeResponseDTO::fromQueryResult)
-                .toList();
+        return matchResults.stream().map(AdServeResponseDTO::fromQueryResult).toList();
     }
 
-    // =======================================================
-    // 날짜 변환 헬퍼 메서드
-    // =======================================================
+    // =================================================================================
+    // [SECTION 5: Helpers]
+    // =================================================================================
 
     private Instant toStartOfDay(LocalDate date) {
         if (date == null)

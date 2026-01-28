@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * [V2] Redis 기반 광고 노출 API
- * - nGrinder 부하 테스트용 (V1 vs V2 성능 비교)
- * - Redis Active Set을 필터로 사용하여 불필요한 DB 조회를 최소화함.
+ * [V2: 광고 송출 시스템 컨트롤러]
+ * <p>
+ * 이 컨트롤러는 광고 노출(Serving) 및 개인화 매칭(Matching)을 담당합니다.
+ * V1(DB Direct)부터 V3(Hybrid)까지의 모든 버전을 제공하여 성능 비교 및 학습이 가능하도록 구성되었습니다.
+ * </p>
  */
 @Slf4j
 @RestController
@@ -23,45 +25,71 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdServeControllerV2 {
 
-    private final AdCampaignService adCampaignService;
+        private final AdCampaignService adCampaignService;
 
-    /**
-     * [비로그인 사용자용] 입찰가 높은 순 (Redis Filtered)
-     */
-    @GetMapping
-    public ResponseEntity<List<AdServeResponseDTO>> getAdsToServe(
-            @RequestParam(defaultValue = "5") int limit) {
+        // =================================================================================
+        // [SECTION 1: V3 Optimized - Hybrid Architecture (현행 최적화 버전)]
+        // DB의 Vector Search와 Redis의 Guard(예산 체크)를 결합한 고성능 아키텍처
+        // =================================================================================
 
-        int safeLimit = Math.min(limit, 10);
+        /**
+         * [V3] 개인화 광고 매칭
+         * - 유저의 이력서 Embedding을 기반으로 가장 적합한 광고를 추천합니다.
+         * - 핵심: DB에서 후보군 추출(Recall) 후 Redis에서 고속 검증(Guard).
+         */
+        @GetMapping("/match")
+        public ResponseEntity<List<AdServeResponseDTO>> getMatchedAds(
+                        @RequestParam Long memberId,
+                        @RequestParam(defaultValue = "5") int limit) {
 
-        // V2: Redis Active Set 기반 조회
-        Page<AdCampaignEntity> activeAds = adCampaignService.getActiveAdsForServing(
-                PageRequest.of(0, safeLimit));
+                int safeLimit = Math.min(limit, 10);
+                List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, safeLimit);
 
-        List<AdServeResponseDTO> result = activeAds.getContent().stream()
-                .map(AdServeResponseDTO::fromEntity)
-                .toList();
+                log.debug("Ad serve request (V3 Optimized). MemberId: {}, Returned {} ads", memberId, result.size());
+                return ResponseEntity.ok(result);
+        }
 
-        log.debug("Ad serve request (V2/Redis/Anonymous). Returned {} ads", result.size());
+        /**
+         * [V3] 일반 광고 노출 (입찰가 순)
+         * - 별도의 개인화 로직 없이, 현재 활성화된 광고 중 입찰가(Score)가 높은 순으로 노출합니다.
+         * - Redis ZSet을 직접 조회하므로 응답 속도가 매우 빠릅니다.
+         */
+        @GetMapping
+        public ResponseEntity<List<AdServeResponseDTO>> getAdsToServe(
+                        @RequestParam(defaultValue = "5") int limit) {
 
-        return ResponseEntity.ok(result);
-    }
+                int safeLimit = Math.min(limit, 10);
+                Page<AdCampaignEntity> activeAds = adCampaignService
+                                .getActiveAdsForServing(PageRequest.of(0, safeLimit));
 
-    /**
-     * [로그인 사용자용] 유사도 기반 매칭 (Redis Filtered)
-     */
-    @GetMapping("/match")
-    public ResponseEntity<List<AdServeResponseDTO>> getMatchedAds(
-            @RequestParam Long memberId,
-            @RequestParam(defaultValue = "5") int limit) {
+                List<AdServeResponseDTO> result = activeAds.getContent().stream()
+                                .map(AdServeResponseDTO::fromEntity)
+                                .toList();
 
-        int safeLimit = Math.min(limit, 10);
+                return ResponseEntity.ok(result);
+        }
 
-        // V2: Redis Active Set 기반 유사도 매칭
-        List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, safeLimit);
+        // =================================================================================
+        // [SECTION 2: V2 Legacy - Redis Filtered Architecture]
+        // Redis에서 활성 ID 목록을 대량으로 가져와 DB 'IN' 절에 넣는 방식 (성능 안티패턴)
+        // =================================================================================
 
-        log.debug("Ad serve request (V2/Redis/Matched). MemberId: {}, Returned {} ads", memberId, result.size());
+        /**
+         * [V2 Legacy] 개인화 광고 매칭
+         * - 문제점: 활성 광고가 많아질수록 DB 쿼리의 파라미터가 비대해져 성능이 급격히 저하됨.
+         */
+        @GetMapping("/match/v2-legacy")
+        public ResponseEntity<List<AdServeResponseDTO>> getMatchedAdsLegacyV2(
+                        @RequestParam Long memberId,
+                        @RequestParam(defaultValue = "5") int limit) {
 
-        return ResponseEntity.ok(result);
-    }
+                int safeLimit = Math.min(limit, 10);
+                List<Object[]> matchResults = adCampaignService.getAdsForMemberV2(memberId, safeLimit);
+
+                List<AdServeResponseDTO> result = matchResults.stream()
+                                .map(AdServeResponseDTO::fromQueryResult)
+                                .toList();
+
+                return ResponseEntity.ok(result);
+        }
 }
