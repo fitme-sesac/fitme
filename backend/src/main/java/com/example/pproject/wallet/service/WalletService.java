@@ -26,9 +26,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -103,7 +105,7 @@ public class WalletService {
         LocalDateTime endInclusive = ym.atEndOfMonth().atTime(LocalTime.MAX);
 
         return ledgerRepository.findByWalletAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDesc(
-                wallet, startAt, endInclusive, pageable)
+                wallet, startAt.toInstant(ZoneOffset.UTC), endInclusive.toInstant(ZoneOffset.UTC), pageable)
                 .map(WalletLedgerResponse::from);
     }
 
