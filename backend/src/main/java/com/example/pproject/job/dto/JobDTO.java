@@ -24,7 +24,8 @@ public class JobDTO {
     private String location;
     private String salaryText;    // VARCHAR(80) - 급여 정보
     private String salaryDisplay; // 프론트 표시용 포맷된 문자열
-    private String stack;
+    private String stack;  // job_posting.stack (기술 스택)
+    private String position;  // stack 기반 도출: "프론트엔드" | "백엔드" | "풀스택"
     private Integer requiredExperience;  // 요구 경력 (0: 신입/무관)
     private Integer recruitmentCapacity; // 모집 정원
     

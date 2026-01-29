@@ -14,6 +14,7 @@ import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.common.util.ArrayStringUtil;
+import com.example.pproject.common.util.JobPositionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -515,6 +516,7 @@ public class JobService {
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
                 .stack(ArrayStringUtil.listToString(job.getStack()))
+                .position(JobPositionUtil.derivePosition(job.getStack()))
                 .requiredExperience(job.getRequiredExperience())
                 .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
@@ -600,6 +602,7 @@ public class JobService {
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
                 .stack(ArrayStringUtil.listToString(job.getStack()))
+                .position(JobPositionUtil.derivePosition(job.getStack()))
                 .requiredExperience(job.getRequiredExperience())
                 .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)

@@ -108,8 +108,8 @@ export function RecommendedSection() {
                 ))}
             </div>
 
-            {/* Horizontal Scroll List */}
-            <div className="w-full relative group">
+            {/* Horizontal Scroll List - group/scroll: 스크롤 버튼만, group/card: 카드별 호버만 */}
+            <div className="w-full relative group/scroll">
                 {/* Gradient Masks */}
                 <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                 <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
@@ -117,14 +117,14 @@ export function RecommendedSection() {
                 {/* Scroll Buttons */}
                 <button
                     onClick={() => scroll("left")}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur shadow-lg rounded-full flex items-center justify-center text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-110 disabled:opacity-0"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur shadow-lg rounded-full flex items-center justify-center text-gray-700 opacity-0 group-hover/scroll:opacity-100 transition-opacity duration-300 hover:scale-110 disabled:opacity-0"
                     aria-label="Scroll left"
                 >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
                     onClick={() => scroll("right")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur shadow-lg rounded-full flex items-center justify-center text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-110"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur shadow-lg rounded-full flex items-center justify-center text-gray-700 opacity-0 group-hover/scroll:opacity-100 transition-opacity duration-300 hover:scale-110"
                     aria-label="Scroll right"
                 >
                     <ChevronRight className="w-6 h-6" />
@@ -139,9 +139,9 @@ export function RecommendedSection() {
                         <Link
                             key={job.id}
                             to={`/jobs/${job.id}`}
-                            className="flex-none w-[210px] group"
+                            className="flex-none w-[210px] group/card"
                         >
-                            <div className="h-[190px] bg-white rounded-2xl border border-gray-100 p-4 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-primary/20 flex flex-col justify-between relative overflow-hidden">
+                            <div className="h-[190px] bg-white rounded-2xl border border-gray-100 p-4 shadow-sm transition-all duration-300 group-hover/card:shadow-xl group-hover/card:-translate-y-1 group-hover/card:border-primary/20 flex flex-col justify-between relative overflow-hidden">
                                 <div>
                                     <div className="flex items-center gap-3 mb-3">
                                         <div className="w-10 h-10 rounded-xl bg-[#EFE9E3] flex items-center justify-center text-lg font-bold text-[#333]">
@@ -153,7 +153,7 @@ export function RecommendedSection() {
                                             </span>
                                         </div>
                                     </div>
-                                    <h3 className="font-bold text-gray-900 leading-snug line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                                    <h3 className="font-bold text-gray-900 leading-snug line-clamp-2 mb-1 group-hover/card:text-primary transition-colors">
                                         {job.title}
                                     </h3>
                                     <p className="text-xs text-gray-500">{job.company}</p>
