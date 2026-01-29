@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -9,6 +9,15 @@ import { CommunityNav } from "@/components/community/CommunityNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 
 // Mock posts data
 const MOCK_POSTS = [
@@ -168,6 +177,20 @@ export default function Community() {
         setTimeout(() => setIsLoading(false), 1000);
     };
 
+    const navigate = useNavigate();
+
+    // Login Prompt Logic
+    const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+    useEffect(() => {
+        if (!user) {
+            const timer = setTimeout(() => {
+                setShowLoginPrompt(true);
+            }, 10000); // 10 seconds
+            return () => clearTimeout(timer);
+        }
+    }, [user]);
+
     return (
         <div className="min-h-screen bg-background">
             <Sidebar />
@@ -246,6 +269,27 @@ export default function Community() {
 
                 <Footer />
             </div>
+
+            {/* Login Prompt Dialog */}
+            <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>로그인이 필요합니다</DialogTitle>
+                        <DialogDescription>
+                            커뮤니티의 더 많은 기능을 이용하시려면 로그인이 필요합니다.<br />
+                            3초 만에 로그인하고 다양한 정보를 확인해보세요!
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setShowLoginPrompt(false)}>
+                            구경하기
+                        </Button>
+                        <Button onClick={() => navigate("/auth")}>
+                            로그인 하러가기
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

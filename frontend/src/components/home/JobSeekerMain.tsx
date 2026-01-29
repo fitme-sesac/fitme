@@ -8,6 +8,8 @@ import { JobListSection } from "@/components/home/JobListSection";
 
 import { JobSeekerHeroSection } from "@/components/home/JobSeekerHeroSection";
 import { SurfitSection } from "@/components/home/SurfitSection";
+import { usePublicJobs } from "@/hooks/useJobs";
+import { Job } from "@/pages/Jobs";
 
 // Mock User Stats
 const USER_STATS = [
@@ -21,13 +23,29 @@ export function JobSeekerMain() {
     const { user, profile } = useAuth();
     const displayName = profile?.display_name || user?.user_metadata?.display_name || "지원자";
 
+    // Fetch jobs for AI recommendations
+    const { data: rawData, isLoading } = usePublicJobs({
+        page: 0,
+        size: 20, // Fetch enough to sort
+        keyword: ""
+    });
+
+    const jobs = (rawData as any)?.jobs as Job[] || [];
+
+    // Sort by match rate descending
+    const recommendedJobs = [...jobs].sort((a, b) => {
+        const aRate = a.matchInfo?.overallMatchRate ?? a.matchInfo?.matchRate ?? 0;
+        const bRate = b.matchInfo?.overallMatchRate ?? b.matchInfo?.matchRate ?? 0;
+        return bRate - aRate;
+    });
+
     return (
         <div className="space-y-6 pb-12">
             {/* 1. Hero Carousel Section */}
             <JobSeekerHeroSection />
 
             {/* 2. Surfit-style Layout Section (Now Full Width AI Grid) */}
-            <SurfitSection displayName={displayName} />
+            <SurfitSection displayName={displayName} jobs={recommendedJobs} />
         </div>
     );
 }

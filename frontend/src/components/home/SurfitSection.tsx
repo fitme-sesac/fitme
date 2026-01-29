@@ -1,65 +1,55 @@
 import { Button } from "@/components/ui/button";
 import { PremiumAdBanner } from "./PremiumAdBanner";
 import { AIJobCard, AIJobProps } from "./AIJobCard";
+import { Link } from "react-router-dom";
+import { Job } from "@/pages/Jobs";
 
-const MOCK_AI_JOBS: AIJobProps[] = [
-    {
-        id: "1",
-        company: "Toss",
-        logo: "T",
-        position: "Frontend Developer (Platform)",
-        experience: "경력 3~5년",
-        location: "서울 강남구",
-        matchScore: 98,
-        skills: ["React", "TypeScript", "Next.js", "Design System"],
-        salary: "6,000만 ~ 8,000만",
-        isNew: true,
-        activeTime: "방금 전",
-        jobCount: 3
-    },
-    {
-        id: "2",
-        company: "Danggeun",
-        logo: "D",
-        position: "Backend Engineer (Server)",
-        experience: "경력 5년+",
-        location: "서울 서초구",
-        matchScore: 95,
-        skills: ["Java", "Spring Boot", "Kotlin", "AWS", "JPA"],
-        salary: "7,000만 ~ 1억",
-        isNew: true,
-        activeTime: "10분 전",
-        jobCount: 2
-    },
-    {
-        id: "3",
-        company: "Line",
-        logo: "L",
-        position: "Global Messenger Client Dev",
-        experience: "경력 3년+",
-        location: "경기 성남시",
-        matchScore: 92,
-        skills: ["Swift", "iOS", "Objective-C", "RxSwift"],
-        salary: "5,500만 ~ 7,500만",
-        activeTime: "1시간 전",
-        jobCount: 5
-    },
-    {
-        id: "4",
-        company: "Woowa Bros",
-        logo: "W",
-        position: "Fullstack Engineer",
-        experience: "경력 4년+",
-        location: "서울 송파구",
-        matchScore: 89,
-        skills: ["Node.js", "React", "AWS", "Docker"],
-        salary: "6,500만 ~ 8,500만",
-        activeTime: "3시간 전",
-        jobCount: 1
+function formatActiveTime(createdAt: string): string {
+    const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return "방금 전";
+    if (diff === 1) return "1일 전";
+    if (diff < 7) return `${diff}일 전`;
+    return new Date(createdAt).toLocaleDateString().slice(2); // YY.MM.DD
+}
+
+interface SurfitSectionProps {
+    displayName?: string;
+    jobs?: Job[];
+}
+
+export function SurfitSection({ displayName, jobs = [] }: SurfitSectionProps) {
+    // Map API Job to AIJobProps
+    const displayJobs: AIJobProps[] = jobs.slice(0, 4).map(job => {
+        const skills = Array.isArray(job.stack)
+            ? job.stack
+            : job.stack != null && typeof job.stack === "string"
+                ? String(job.stack).split(",").map(s => s.trim())
+                : [];
+
+        return {
+            id: String(job.jobId),
+            company: job.companyName,
+            logo: job.companyLogoUrl || job.companyName.substring(0, 1),
+            position: job.title,
+            experience: job.requiredExperience ? `경력 ${job.requiredExperience}년+` : "신입/경력",
+            location: job.location?.split(" ").slice(0, 2).join(" ") || job.location, // Shorten location
+            matchScore: job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate ?? 80, // Fallback
+            skills: skills,
+            salary: job.salaryDisplay || "회사내규",
+            isNew: (Date.now() - new Date(job.createdAt).getTime()) < 1000 * 60 * 60 * 24 * 3, // New if < 3 days
+            activeTime: formatActiveTime(job.createdAt),
+            jobCount: undefined
+        };
+    });
+
+    if (displayJobs.length === 0) {
+        // Fallback to empty or null if no data, or keep mocks if desired?
+        // User asked to "connect dummy", creating the implication of using the source.
+        // If empty, we can just return null or empty grid to avoid showing nothing if that's expected.
+        // But for now, let's render what we have. If 0, it will just be empty grid.
+        // To be safe against empty initial load, maybe we check loading in parent?
     }
-];
 
-export function SurfitSection({ displayName }: { displayName: string }) {
     return (
         <div className="container px-4 md:px-8 py-8 bg-slate-50/50 dark:bg-background/50">
             {/* Main Content: Full Width */}
@@ -82,15 +72,17 @@ export function SurfitSection({ displayName }: { displayName: string }) {
 
                 {/* 4-Column Grid as requested */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {MOCK_AI_JOBS.map((job) => (
+                    {displayJobs.map((job) => (
                         <AIJobCard key={job.id} job={job} />
                     ))}
                 </div>
 
                 <div className="mt-12 text-center">
-                    <Button variant="outline" className="w-full md:w-auto min-w-[200px] rounded-full border-slate-200">
-                        AI 추천 더 보기
-                    </Button>
+                    <Link to="/jobs">
+                        <Button variant="outline" className="w-full md:w-auto min-w-[200px] rounded-full border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors">
+                            AI 추천 더 보기
+                        </Button>
+                    </Link>
                 </div>
             </main>
         </div>

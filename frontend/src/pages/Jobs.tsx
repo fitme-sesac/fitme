@@ -7,12 +7,13 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { JobCard } from "@/components/home/JobCard";
+import { WideJobCard } from "@/components/home/WideJobCard";
 import { RecommendedSection } from "@/components/home/RecommendedSection";
 import { SideJobList } from "@/components/home/SideJobList";
 import { usePublicJobs } from "@/hooks/useJobs";
 
 // --- Types ---
-interface Job {
+export interface Job {
     jobId: number;
     companyName: string;
     companyLogoUrl?: string; // Optional if sometimes missing
@@ -347,7 +348,7 @@ export default function Jobs() {
                                                 className={`rounded-full border-gray-300 font-normal px-4 h-10 shrink-0 transition-colors ${activePopup === key
                                                     ? "bg-gray-900 text-white border-transparent"
                                                     : selectedFilters[key] ? "bg-primary/10 text-primary border-primary"
-                                                    : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
+                                                        : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
                                                     }`}
                                                 onClick={() => {
                                                     if (activePopup === key) {
@@ -565,11 +566,11 @@ export default function Jobs() {
                                 </div>
                             )}
 
-                            {/* 채용공고 리스트 (피드) */}
+                            {/* 채용공고 리스트 (피드) - Wide Card Layout */}
                             {!isLoading && filteredJobs.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                                <div className="grid grid-cols-1 gap-6">
                                     {filteredJobs.map((job) => (
-                                        <JobCard
+                                        <WideJobCard
                                             key={job.jobId}
                                             id={job.jobId}
                                             company={job.companyName}
@@ -583,7 +584,7 @@ export default function Jobs() {
                                             isAd={(job.adBidCredit ?? 0) > 0}
                                             matchScore={job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate}
                                             requiredExperience={job.requiredExperience}
-                                            companySummary={job.employer?.description || job.employer?.summary}
+                                            companySummary={job.employer?.summary || job.employer?.description}
                                             employmentType="정규직"
                                         />
                                     ))}

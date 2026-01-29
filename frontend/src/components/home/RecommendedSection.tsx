@@ -148,7 +148,10 @@ export function RecommendedSection() {
                                             {job.icon}
                                         </div>
                                         <div>
-                                            <span className="text-[10px] font-bold text-[#4E56C0] bg-[#F5F3FF] px-2 py-0.5 rounded-full">
+                                            <span
+                                                className="text-[10px] font-black text-transparent bg-clip-text px-2 py-0.5 rounded-full border border-gray-100 bg-white/50"
+                                                style={{ backgroundImage: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}
+                                            >
                                                 95% 일치
                                             </span>
                                         </div>

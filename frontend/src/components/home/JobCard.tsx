@@ -1,4 +1,4 @@
-import { MapPin, Building2, Clock, Heart, ArrowRight } from "lucide-react";
+import { MapPin, Building2, Clock, Heart, Bookmark, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,11 +25,34 @@ interface JobCardProps {
 function formatPostedAt(createdAt: string | undefined, postedAt: string): string {
   if (createdAt) {
     const diff = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
-    if (diff === 0) return "오늘";
+    if (diff === 0) return "방금 전";
     if (diff === 1) return "1일 전";
     if (diff < 7) return `${diff}일 전`;
   }
   return postedAt;
+}
+
+// Brand color mapping
+const BRAND_COLORS: Record<string, string> = {
+  "Toss": "#0064FF", // Toss Blue
+  "Danggeun": "#FF6F0F", // Carrot Market Orange
+  "Line": "#06C755", // Line Green
+  "Woowa Bros": "#2AC1BC", // Woowa Mint
+  "Naver": "#03C75A", // Naver Green
+  "Kakao": "#FEE500", // Kakao Yellow
+  "Samsung": "#1428A0", // Samsung Blue
+  "Hyundai": "#002C5F", // Hyundai Blue
+  "LG": "#A50034", // LG Red
+  "SK": "#EA002C", // SK Red
+  "Coupang": "#E41B23", // Coupang Red
+};
+
+const DEFAULT_COLOR = "#000000"; // Fallback
+
+function getBrandColor(company: string): string {
+  // Simple partial match or exact match
+  const key = Object.keys(BRAND_COLORS).find(k => company.toLowerCase().includes(k.toLowerCase()));
+  return key ? BRAND_COLORS[key] : DEFAULT_COLOR;
 }
 
 export function JobCard({
@@ -56,113 +79,130 @@ export function JobCard({
       : [];
 
   const postedLabel = formatPostedAt(createdAt, postedAt);
+  const brandColor = getBrandColor(company);
+
+  // Specific gradient from the requested design (Blue to Teal)
+  const mainGradient = "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)";
+
+  const displayLocation = location.split(" ").slice(0, 2).join(" ");
+  const experienceLabel = requiredExperience ? `경력 ${requiredExperience}년+` : "신입/경력";
 
   return (
     <div
       className={cn(
-        "group flex flex-col w-full rounded-2xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20",
-        isAd && "ring-1 ring-primary/20"
+        "group flex flex-col w-full h-full rounded-3xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden",
+        isAd && "ring-2 ring-primary/20"
       )}
     >
-      {/* 상단: 로고 + 매칭률 배지 */}
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-lg font-bold text-gray-600 overflow-hidden">
-          {logo.length > 5 ? (
-            <img src={logo} alt={company} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xl">{logo}</span>
-          )}
-        </div>
-        {matchScore !== undefined && matchScore !== null && (
-          <span className="inline-flex items-center justify-center min-w-[48px] h-8 px-2.5 rounded-full text-sm font-bold text-primary bg-primary/10">
-            {matchScore}%
-          </span>
-        )}
-      </div>
-
-      {/* 직무 타이틀 + 회사명 */}
-      <Link to={`/jobs/${id}`} className="block mb-2">
-        <h3 className="text-lg font-bold text-gray-900 leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-          {title}
-        </h3>
-        <p className="text-sm text-gray-500 mt-0.5">{company}</p>
-      </Link>
-
-      {/* 기업/포지션 요약 */}
-      {companySummary && (
-        <p className="text-sm text-gray-600 line-clamp-2 mb-4 leading-relaxed">
-          {companySummary}
-        </p>
-      )}
-
-      {/* 근무지 · 고용형태 · 등록일 */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mb-4">
-        {location && (
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
-            {location.split(" ")[0] || location}
-          </span>
-        )}
-        <span className="flex items-center gap-1">
-          <Building2 className="h-3.5 w-3.5" />
-          {employmentType}
-        </span>
-        <span className="flex items-center gap-1">
-          <Clock className="h-3.5 w-3.5" />
-          {postedLabel}
-        </span>
-      </div>
-
-      {/* 연봉 */}
-      <p className="text-sm text-gray-700 mb-4">
-        <span className="font-medium text-gray-500">연봉 </span>
-        <span className="font-medium text-gray-900">{salary}</span>
-      </p>
-
-      {/* 스택 태그 */}
-      {skills.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-5">
-          {skills.slice(0, 4).map((skill, idx) => (
-            <Badge
-              key={idx}
-              variant="secondary"
-              className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border-0 font-medium"
-            >
-              {skill}
-            </Badge>
-          ))}
-          {skills.length > 4 && (
-            <Badge variant="secondary" className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
-              +{skills.length - 4}
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {/* 액션: 관심 + 지원하기 */}
-      <div className="flex items-center gap-2 mt-auto pt-4 border-t border-gray-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "gap-1.5 text-gray-500 hover:text-red-500",
-            interested && "text-red-500"
-          )}
-          onClick={(e) => {
-            e.preventDefault();
-            setInterested((v) => !v);
-          }}
+      {/* Header: Logo & Company Name - Fixed Height to align next sections */}
+      <div className="flex items-start gap-4 mb-4 min-h-[90px]">
+        <div
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white text-xl font-bold shadow-sm mt-1"
+          style={{ backgroundColor: brandColor }}
         >
-          <Heart className={cn("h-4 w-4", interested && "fill-current")} />
-          관심
-        </Button>
-        <Button asChild size="sm" className="ml-auto bg-primary hover:bg-primary/90 text-white gap-1.5">
-          <Link to={`/jobs/${id}`}>
-            지원하기
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Button>
+          {logo.length > 5 ? (
+            <img src={logo} alt={company} className="w-full h-full object-cover rounded-full" />
+          ) : (
+            <span>{company.charAt(0)}</span>
+          )}
+        </div>
+        <div className="flex flex-col w-full">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-bold text-lg text-gray-900 line-clamp-1">{company}</span>
+            {/* Optional 'NEW' badge if needed */}
+            {postedLabel === "방금 전" && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-600">NEW</span>
+            )}
+          </div>
+          <h3 className="text-base font-bold text-gray-800 leading-snug line-clamp-2 min-h-[44px] group-hover:text-primary transition-colors">
+            {title}
+          </h3>
+          <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-2">
+            <Building2 className="w-3 h-3 shrink-0" />
+            <span className="shrink-0">{experienceLabel}</span>
+            <span className="w-px h-2.5 bg-gray-300 shrink-0"></span>
+            <MapPin className="w-3 h-3 shrink-0" />
+            <span className="truncate">{displayLocation}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* AI Match Rate Bar */}
+      <div className="mb-5">
+        <div className="flex justify-between items-end mb-2">
+          <span className="text-sm font-bold text-gray-700">AI 매칭률</span>
+          {matchScore !== undefined && matchScore !== null && (
+            <span
+              className="text-lg font-black text-transparent bg-clip-text"
+              style={{ backgroundImage: mainGradient }}
+            >
+              {matchScore}%
+            </span>
+          )}
+        </div>
+        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-1000 ease-out"
+            style={{
+              width: `${matchScore || 0}%`,
+              background: mainGradient
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Skills - Fixed Height */}
+      <div className="flex flex-wrap gap-2 mb-5 h-[52px] content-start overflow-hidden">
+        {skills.slice(0, 3).map((skill, idx) => (
+          <span
+            key={idx}
+            className="px-3 py-1.5 rounded-xl bg-gray-50 text-gray-600 text-xs font-semibold border border-gray-100 whitespace-nowrap"
+          >
+            {skill}
+          </span>
+        ))}
+        {skills.length > 3 && (
+          <span className="px-3 py-1.5 rounded-xl bg-gray-50 text-gray-400 text-xs font-semibold border border-gray-100 whitespace-nowrap">
+            +{skills.length - 3}
+          </span>
+        )}
+      </div>
+
+      {/* Salary & Footer Info */}
+      <div className="mt-auto">
+        <p className="text-sm font-bold text-gray-800 mb-4 truncate">
+          희망 연봉: {salary}
+        </p>
+
+        <div className="flex items-center gap-3">
+          <Button
+            asChild
+            className="flex-1 h-12 rounded-xl text-base font-bold text-white shadow-md hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] border-0"
+            style={{ background: mainGradient }}
+          >
+            <Link to={`/jobs/${id}`}>
+              지원하기
+            </Link>
+          </Button>
+          <button
+            type="button"
+            className={cn(
+              "h-12 w-12 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors bg-white",
+              interested && "text-red-500 border-red-200 bg-red-50 hover:border-red-300 hover:text-red-600"
+            )}
+            onClick={(e) => {
+              e.preventDefault();
+              setInterested(v => !v);
+            }}
+          >
+            <Bookmark className={cn("w-6 h-6", interested && "fill-current")} />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between mt-4 text-[11px] text-gray-400 font-medium">
+          <span>마지막 활동: {postedLabel}</span>
+          <span>채용공고 1개</span>
+        </div>
       </div>
     </div>
   );

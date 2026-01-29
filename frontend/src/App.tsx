@@ -27,6 +27,10 @@ import CompanyDashboard from "./pages/CompanyDashboard";
 // import AdminDashboard from "./pages/AdminDashboard";
 import JobSeekerSignup from "./pages/JobSeekerSignup";
 import FirstSocialLoginPage from "./pages/FirstSocialLoginPage";
+import FindUserIdPage from "./pages/FindUserIdPage";
+import FindPasswordPage from "./pages/FindPasswordPage";
+import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
+import PaymentFailPage from "./pages/payment/PaymentFailPage";
 
 /** /Login → /auth 로 이동 (백엔드 리다이렉트 시 쿼리 유지) */
 function LoginRedirect() {
@@ -55,23 +59,36 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             {/* 백엔드 소셜 로그인 리다이렉트: /Login → 로그인 화면 (쿼리 유지) */}
+            {/* 백엔드 소셜 로그인 리다이렉트: /Login → 로그인 화면 (쿼리 유지) */}
             <Route path="/Login" element={<LoginRedirect />} />
+
+            {/* Find ID / Password Pages */}
+            <Route path="/auth/find-id" element={<FindUserIdPage />} />
+            <Route path="/auth/find-password" element={<FindPasswordPage />} />
+
             {/* 구글/카카오 등 소셜 미가입 시 백엔드가 리다이렉트하는 회원가입(추가정보) 페이지 */}
             <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
             <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
 
-            <Route path="/jobs" element={<Jobs />} />
-            <Route path="/jobs/:jobId" element={<JobDetail />} />
+
+
+            {/* Protected Job Routes */}
+            <Route path="/jobs" element={<PrivateRoute><Jobs /></PrivateRoute>} />
+            <Route path="/jobs/:jobId" element={<PrivateRoute><JobDetail /></PrivateRoute>} />
             <Route path="/companies/:employerId" element={<CompanyDetail />} />
 
             <Route path="/community" element={<Community />} />
             <Route path="/support" element={<Support />} />
 
+            {/* Payment Result Pages */}
+            <Route path="/payment/success" element={<PrivateRoute><PaymentSuccessPage /></PrivateRoute>} />
+            <Route path="/payment/fail" element={<PrivateRoute><PaymentFailPage /></PrivateRoute>} />
+
             {/* Protected Routes - Pages handle their own auth state */}
             <Route path="/mypage" element={<MyPage />} />
             <Route path="/resume" element={<Resume />} />
             <Route path="/interview" element={<Interview />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
 
             {/* Company Routes */}
             <Route path="/talents" element={<Talents />} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,18 @@ export function CompanySignUpForm() {
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
+    useEffect(() => {
+        let interval;
+        if (verificationSent && timer > 0 && !isVerified) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (timer === 0) {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [verificationSent, timer, isVerified]);
+
     // Phone Verification Handlers (Same as JobSeeker)
     const handlePhoneVerification = async () => {
         const phone = formData.phone;
@@ -79,8 +91,8 @@ export function CompanySignUpForm() {
             const res = await requestPhoneVerification(phone);
             if (res && res.ok !== false) {
                 setVerificationSent(true);
-                setTimer(180);
-                toast({ title: "인증번호 발송", description: "인증번호가 발송되었습니다. 3분 이내에 입력해주세요." });
+                setTimer(300);
+                toast({ title: "인증번호 발송", description: "인증번호가 발송되었습니다. 5분 이내에 입력해주세요." });
             } else {
                 toast({ title: "발송 실패", description: res?.message || "오류가 발생했습니다.", variant: "destructive" });
             }
@@ -257,22 +269,39 @@ export function CompanySignUpForm() {
                                 disabled={isVerified}
                                 className="flex-1"
                             />
-                            <Button type="button" variant="secondary" onClick={handlePhoneVerification} disabled={isVerified || verificationSent}>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={handlePhoneVerification}
+                                disabled={isVerified || (verificationSent && timer > 0)}
+                                className="w-28 whitespace-nowrap"
+                            >
                                 {verificationSent ? "재전송" : "인증번호 받기"}
                             </Button>
                         </div>
                         {verificationSent && !isVerified && (
-                            <div className="flex gap-2">
-                                <Input
-                                    id="verificationCode"
-                                    placeholder="인증번호 6자리"
-                                    value={formData.verificationCode}
-                                    onChange={handleChange}
-                                    className="flex-1"
-                                />
-                                <Button type="button" onClick={handleVerifyCode} disabled={isVerifying}>
+                            <div className="flex gap-2 relative">
+                                <div className="flex-1 relative">
+                                    <Input
+                                        id="verificationCode"
+                                        placeholder="인증번호 6자리"
+                                        value={formData.verificationCode}
+                                        onChange={handleChange}
+                                        className="w-full"
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-sm text-destructive font-medium">
+                                        {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')}
+                                    </span>
+                                </div>
+                                <Button
+                                    type="button"
+                                    onClick={handleVerifyCode}
+                                    disabled={isVerifying || timer === 0}
+                                    className="w-28"
+                                >
                                     {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "확인"}
                                 </Button>
+                                {timer === 0 && <div className="absolute -bottom-6 left-0 text-destructive text-xs">인증 시간이 만료되었습니다. 재전송 버튼을 눌러주세요.</div>}
                             </div>
                         )}
                     </div>

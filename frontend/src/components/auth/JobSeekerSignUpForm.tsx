@@ -41,7 +41,7 @@ const formSchema = z.object({
     verificationCode: z.string().min(1, "인증번호를 입력해주세요."),
     gender: z.enum(["male", "female"], { required_error: "성별을 선택해주세요." }),
     birthday: z.string().regex(/^\d{8}$/, "생년월일 8자리를 입력해주세요 (예: 19900101)"),
-    referralSource: z.string().optional(),
+
     terms: z.object({
         age: z.boolean().refine((val) => val === true, "필수 항목입니다."),
         service: z.boolean().refine((val) => val === true, "필수 항목입니다."),
@@ -65,6 +65,18 @@ export function JobSeekerSignUpForm() {
     const [isVerified, setIsVerified] = useState(false);
     const [timer, setTimer] = useState(0);
 
+    useEffect(() => {
+        let interval;
+        if (verificationSent && timer > 0 && !isVerified) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (timer === 0) {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [verificationSent, timer, isVerified]);
+
     // 2. Define Form
     const form = useForm({
         resolver: zodResolver(formSchema),
@@ -78,7 +90,7 @@ export function JobSeekerSignUpForm() {
             verificationCode: "",
             gender: undefined,
             birthday: "", // YYYYMMDD string
-            referralSource: "",
+
             terms: {
                 age: false,
                 service: false,
@@ -110,8 +122,8 @@ export function JobSeekerSignUpForm() {
             // If successful, returns data object
             if (res && res.ok !== false) {
                 setVerificationSent(true);
-                setTimer(180);
-                toast({ title: "인증번호가 발송되었습니다.", description: "3분 이내에 입력해주세요." });
+                setTimer(300); // 5 minutes
+                toast({ title: "인증번호가 발송되었습니다.", description: "5분 이내에 입력해주세요." });
             } else {
                 // Should not happen if auth.js throws, but just in case
                 toast({ title: "인증번호 발송 실패", description: res?.message || "오류가 발생했습니다.", variant: "destructive" });
@@ -176,7 +188,7 @@ export function JobSeekerSignUpForm() {
             role: "CANDIDATE",
             gender: data.gender,
             birthday: data.birthday,
-            referralSource: data.referralSource,
+
             marketingAgree: data.terms.marketing,
             terms: data.terms // Pass full terms object for strict compliance check if needed by auth.js
         };
@@ -234,27 +246,42 @@ export function JobSeekerSignUpForm() {
                                         </FormItem>
                                     )}
                                 />
-                                <Button type="button" variant="secondary" onClick={handlePhoneVerification} disabled={isVerified || verificationSent}>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={handlePhoneVerification}
+                                    disabled={isVerified || (verificationSent && timer > 0)}
+                                    className="w-28 whitespace-nowrap"
+                                >
                                     {verificationSent ? "재전송" : "인증번호 받기"}
                                 </Button>
                             </div>
                             {verificationSent && !isVerified && (
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 relative">
                                     <FormField
                                         control={form.control}
                                         name="verificationCode"
                                         render={({ field }) => (
-                                            <FormItem className="flex-1 space-y-0">
+                                            <FormItem className="flex-1 space-y-0 relative">
                                                 <FormControl>
                                                     <Input placeholder="인증번호 6자리" {...field} />
                                                 </FormControl>
+                                                <span className="absolute right-3 top-2.5 text-sm text-destructive font-medium">
+                                                    {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')}
+                                                </span>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
-                                    <Button type="button" onClick={handleVerifyCode} disabled={isVerifying}>
+                                    <Button
+                                        type="button"
+                                        onClick={handleVerifyCode}
+                                        disabled={isVerifying || timer === 0}
+                                        className="w-28"
+                                    >
                                         {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "확인"}
                                     </Button>
+                                    {timer === 0 && <div className="absolute -bottom-6 left-0 text-destructive text-xs">인증 시간이 만료되었습니다. 재전송 버튼을 눌러주세요.</div>}
                                 </div>
                             )}
                         </div>
@@ -399,31 +426,6 @@ export function JobSeekerSignUpForm() {
                         </div>
                     </div>
                 </section>
-
-                <FormField
-                    control={form.control}
-                    name="referralSource"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>가입 경로 (선택)</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="선택해주세요" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="search">검색</SelectItem>
-                                    <SelectItem value="sns">SNS</SelectItem>
-                                    <SelectItem value="recommendation">추천</SelectItem>
-                                    <SelectItem value="advertisement">광고</SelectItem>
-                                    <SelectItem value="other">기타</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
 
                 <Button type="submit" className="w-full h-14 text-lg font-bold btn-gradient-primary shadow-xl mt-8">
                     구직자 회원가입 완료

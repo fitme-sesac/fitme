@@ -1,19 +1,21 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { http } from "@/api/http";
 import * as authApi from "@/api/auth";
+import { getMyWallet } from "@/api/wallet";
 
 const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [credits, setCredits] = useState(0);
 
   // 세션 확인
   const checkSession = useCallback(async () => {
     try {
       const res = await http.get('/api/auth/status');
       if (res.data?.authenticated) {
-        setUser({
+        const userData = {
           id: res.data.memberId,
           email: res.data.email,
           role: res.data.role,
@@ -21,7 +23,16 @@ export function AuthProvider({ children }) {
             display_name: res.data.name,
             avatar_url: res.data.avatarUrl,
           }
-        });
+        };
+        setUser(userData);
+
+        // Fetch real credits
+        try {
+          const walletData = await getMyWallet(res.data.role);
+          setCredits(walletData.balance || 0);
+        } catch (walletError) {
+          console.error('Failed to fetch wallet:', walletError);
+        }
       } else {
         setUser(null);
       }
@@ -32,6 +43,17 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
   }, []);
+
+  // 크레딧 새로고침
+  const refreshCredits = useCallback(async () => {
+    if (!user) return;
+    try {
+      const walletData = await getMyWallet(user.role);
+      setCredits(walletData.balance || 0);
+    } catch (error) {
+      console.error('Failed to refresh credits:', error);
+    }
+  }, [user]);
 
   useEffect(() => {
     checkSession();
@@ -184,6 +206,9 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
+    credits,
+    refreshCredits,
+    addCredits: (amount) => setCredits(prev => prev + amount),
     isAuthenticated: !!user,
     isCompany,  // 기업 회원 여부
     isAdmin,    // 관리자 여부

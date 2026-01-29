@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Search, Bell, Menu, Target, LogIn, LogOut, User, Coins, ArrowRight } from "lucide-react";
+import { Search, Bell, Menu, Target, LogIn, LogOut, User, Coins, ArrowRight, Loader2 } from "lucide-react";
+import { getMyLedgers } from "@/api/wallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,17 +18,13 @@ import { useNotifications } from "@/features/notification/hooks/useNotifications
 
 import { CreditChargeModal } from "@/components/payment/CreditChargeModal";
 
-const MOCK_CREDIT_HISTORY = [
-  { id: 1, type: 'charge', amount: 50000, description: '크레딧 충전', date: '2024-03-20', isPositive: true },
-  { id: 2, type: 'use', amount: 5000, description: '채용 공고 상단 노출', date: '2024-03-19', isPositive: false },
-  { id: 3, type: 'use', amount: 3000, description: 'AI 인재 매칭 이용', date: '2024-03-18', isPositive: false },
-  { id: 4, type: 'cancel', amount: 5000, description: '광고 취소 환불', date: '2024-03-17', isPositive: true },
-  { id: 5, type: 'use', amount: 1000, description: '인재 연락하기', date: '2024-03-16', isPositive: false },
-];
+// Mock data deleted
 
 export function Header() {
-  const { user, signOut, isCompany, isAdmin } = useAuth();
+  const { user, signOut, isCompany, isAdmin, credits, userRole } = useAuth() as any;
   const navigate = useNavigate();
+  const [recentLedgers, setRecentLedgers] = useState<any[]>([]);
+  const [loadingLedgers, setLoadingLedgers] = useState(false);
   const {
     notifications,
     unreadCount,
@@ -39,19 +36,10 @@ export function Header() {
     stopPolling
   } = useNotifications();
 
+  const [searchParams] = useSearchParams();
   const [notifOpen, setNotifOpen] = useState(false);
   const [creditOpen, setCreditOpen] = useState(false);
   const [chargeModalOpen, setChargeModalOpen] = useState(false);
-  const [creditBalance, setCreditBalance] = useState(0);
-
-  // 크레딧 잔액 조회 (API 연동 시 활성화)
-  useEffect(() => {
-    if (user) {
-      // TODO: 실제 API 연동
-      // fetchCreditBalance().then(setCreditBalance);
-      setCreditBalance(10000); // 임시 값
-    }
-  }, [user]);
 
   // 알림 폴링 시작/종료
   useEffect(() => {
@@ -60,6 +48,31 @@ export function Header() {
     }
     return () => stopPolling();
   }, [user, startPolling, stopPolling]);
+
+  // 크레딧 내역 가져오기 (드롭다운 열릴 때)
+  useEffect(() => {
+    if (user && creditOpen) {
+      const fetchHistory = async () => {
+        setLoadingLedgers(true);
+        try {
+          const res = await getMyLedgers(userRole);
+          setRecentLedgers(res.content?.slice(0, 5) || []);
+        } catch (error) {
+          console.error("Failed to fetch recent ledgers:", error);
+        } finally {
+          setLoadingLedgers(false);
+        }
+      };
+      fetchHistory();
+    }
+  }, [user, creditOpen, userRole]);
+
+  // URL에 결제 성공 파라미터가 있으면 모달을 자동으로 엽니다.
+  useEffect(() => {
+    if (searchParams.get("payment_success") === "true") {
+      setChargeModalOpen(true);
+    }
+  }, [searchParams]);
 
   // 알림 드롭다운 열릴 때 최신 알림 로드
   useEffect(() => {
@@ -118,7 +131,7 @@ export function Header() {
                   <Button variant="ghost" className="h-auto p-0 hover:bg-transparent">
                     <Badge variant="secondary" className="gap-1 px-3 py-1.5 cursor-pointer hover:bg-slate-200 transition-colors">
                       <Coins className="h-3.5 w-3.5 text-amber-500" />
-                      <span className="font-medium">{creditBalance.toLocaleString()}</span>
+                      <span className="font-medium">{credits.toLocaleString()}</span>
                     </Badge>
                   </Button>
                 </DropdownMenuTrigger>
@@ -128,17 +141,28 @@ export function Header() {
                     <Badge variant="outline" className="text-[10px] font-normal border-slate-200">사용 가능</Badge>
                   </div>
                   <div className="max-h-[280px] overflow-y-auto">
-                    {MOCK_CREDIT_HISTORY.map((log) => (
-                      <div key={log.id} className="p-3 border-b last:border-0 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                        <div className="space-y-0.5">
-                          <p className="text-xs font-bold text-slate-700">{log.description}</p>
-                          <p className="text-[10px] text-slate-400">{log.date}</p>
-                        </div>
-                        <div className={`text-xs font-extrabold ${log.isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {log.isPositive ? '+' : '-'}{log.amount.toLocaleString()}
-                        </div>
+                    {loadingLedgers ? (
+                      <div className="p-8 flex flex-col items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="text-[10px]">불러오는 중...</span>
                       </div>
-                    ))}
+                    ) : recentLedgers.length === 0 ? (
+                      <div className="p-8 text-center text-[10px] text-muted-foreground">
+                        내역이 없습니다.
+                      </div>
+                    ) : (
+                      recentLedgers.map((log) => (
+                        <div key={log.ledgerId} className="p-3 border-b last:border-0 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                          <div className="space-y-0.5 max-w-[180px]">
+                            <p className="text-xs font-bold text-slate-700 truncate">{log.memo}</p>
+                            <p className="text-[10px] text-slate-400">{new Date(log.occurredAt).toLocaleDateString()}</p>
+                          </div>
+                          <div className={`text-xs font-extrabold ${log.type === 'CREDIT' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {log.type === 'CREDIT' ? '+' : '-'}{log.amount.toLocaleString()}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                   <div className="p-2 border-t">
                     <Button
@@ -146,7 +170,7 @@ export function Header() {
                       className="w-full h-9 text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center justify-center gap-1"
                       onClick={() => {
                         setCreditOpen(false);
-                        navigate("/settings/credit"); // 크레딧 내역 페이지 예시 경로
+                        navigate("/settings?tab=history");
                       }}
                     >
                       전체 내역 확인하기 <ArrowRight className="h-3 w-3" />
@@ -286,7 +310,7 @@ export function Header() {
                   <div className="flex items-center justify-between p-2 bg-secondary rounded-lg">
                     <div className="flex items-center gap-1">
                       <Coins className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-medium">{creditBalance.toLocaleString()}</span>
+                      <span className="text-sm font-medium">{credits.toLocaleString()}</span>
                     </div>
                     <button
                       onClick={() => setChargeModalOpen(true)}

@@ -34,7 +34,6 @@ export default function JobSeekerSignup() {
             otp: "",
             gender: "",
             birthday: "",
-            referralSource: "search"
         }
     });
 
@@ -329,26 +328,7 @@ export default function JobSeekerSignup() {
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label className="text-base font-bold">가입경로</Label>
-                            <Controller
-                                control={control}
-                                name="referralSource"
-                                render={({ field }) => (
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <SelectTrigger className="h-12 bg-gray-50 border-gray-200 text-gray-500">
-                                            <SelectValue placeholder="가입경로 선택" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="search">검색</SelectItem>
-                                            <SelectItem value="ad">광고</SelectItem>
-                                            <SelectItem value="friend">지인 추천</SelectItem>
-                                            <SelectItem value="etc">기타</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
+
                     </section>
 
                     <Button type="submit" disabled={isSubmitting} className="w-full h-14 text-lg font-bold bg-[#cdcdcd] hover:bg-[#5A639C] text-white rounded-xl mt-8 transition-colors">
