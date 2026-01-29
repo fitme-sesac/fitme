@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProfileSetupModal } from "@/components/auth/ProfileSetupModal";
 
 // Suspects commented out for isolation
 import Index from "./pages/Index";
@@ -24,6 +25,7 @@ import Companies from "./pages/Companies";
 import Subscription from "./pages/Subscription";
 import CompanyDashboard from "./pages/CompanyDashboard";
 // import AdminDashboard from "./pages/AdminDashboard";
+import JobSeekerSignup from "./pages/JobSeekerSignup";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,10 +42,12 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <ProfileSetupModal />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
 
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:jobId" element={<JobDetail />} />

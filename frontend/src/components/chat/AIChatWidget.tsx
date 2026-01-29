@@ -79,7 +79,7 @@ export function AIChatWidget({ isOpen, onClose }: AIChatWidgetProps) {
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
             <Card className="w-[360px] md:w-[400px] h-[600px] shadow-2xl border-border/50 flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-[#5A639C] to-[#9B86BD] p-4 flex items-center justify-between shrink-0">
+                <div className="bg-gradient-to-r from-sky-500 to-teal-400 p-4 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <Avatar className="h-10 w-10 border-2 border-white/20">
@@ -88,7 +88,7 @@ export function AIChatWidget({ isOpen, onClose }: AIChatWidgetProps) {
                                     <Bot className="h-6 w-6" />
                                 </AvatarFallback>
                             </Avatar>
-                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#5A639C] rounded-full"></span>
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-sky-500 rounded-full"></span>
                         </div>
                         <div className="text-white">
                             <h3 className="font-bold text-base flex items-center gap-1">
@@ -125,7 +125,7 @@ export function AIChatWidget({ isOpen, onClose }: AIChatWidgetProps) {
                             >
                                 {msg.role === "assistant" && (
                                     <Avatar className="h-8 w-8 mt-1 border">
-                                        <AvatarFallback className="bg-[#5A639C]/10 text-[#5A639C]">
+                                        <AvatarFallback className="bg-sky-100 text-sky-600">
                                             <Bot className="h-4 w-4" />
                                         </AvatarFallback>
                                     </Avatar>
@@ -135,7 +135,7 @@ export function AIChatWidget({ isOpen, onClose }: AIChatWidgetProps) {
                                     className={cn(
                                         "p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm",
                                         msg.role === "user"
-                                            ? "bg-[#5A639C] text-white rounded-tr-none"
+                                            ? "bg-sky-500 text-white rounded-tr-none"
                                             : "bg-background border rounded-tl-none"
                                     )}
                                 >
@@ -165,7 +165,7 @@ export function AIChatWidget({ isOpen, onClose }: AIChatWidgetProps) {
                             size="icon"
                             className={cn(
                                 "absolute right-1 bottom-1 h-10 w-10 rounded-lg transition-all",
-                                input.trim() ? "bg-[#5A639C] hover:bg-[#4A538C] text-white" : "bg-transparent text-muted-foreground hover:bg-muted"
+                                input.trim() ? "bg-sky-500 hover:bg-sky-600 text-white" : "bg-transparent text-muted-foreground hover:bg-muted"
                             )}
                             onClick={handleSend}
                             disabled={!input.trim()}

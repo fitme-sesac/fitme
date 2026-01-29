@@ -212,7 +212,7 @@ export default function Community() {
                             <div className="space-y-4">
                                 {isLoading ? (
                                     <div className="flex justify-center py-12">
-                                        <Loader2 className="h-8 w-8 animate-spin text-[#5A639C]" />
+                                        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
                                     </div>
                                 ) : sortedPosts.length > 0 ? (
                                     sortedPosts.map((post) => (
@@ -228,7 +228,7 @@ export default function Community() {
                             {/* Load More */}
                             {sortedPosts.length > 0 && (
                                 <div className="flex justify-center mt-8">
-                                    <Button variant="outline" className="text-[#5A639C] border-[#5A639C]/30">
+                                    <Button variant="outline" className="text-sky-600 border-sky-200 hover:bg-sky-50 hover:text-sky-700">
                                         더 보기
                                     </Button>
                                 </div>

@@ -4,8 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { User, Lock, Loader2 } from "lucide-react";
+import { User, Lock, Loader2, UserCircle, Briefcase } from "lucide-react";
 import { SocialLoginButtons } from "./SocialLoginButtons";
 import { z } from "zod";
 
@@ -57,8 +58,56 @@ export function LoginForm() {
     setIsLoading(false);
   };
 
+  const [userType, setUserType] = useState<"job_seeker" | "company">("job_seeker");
+
   return (
     <div className="space-y-6">
+      {/* User Type Selection - Visual Separation */}
+      <div className="space-y-3">
+        <Label className="text-base font-semibold">회원 유형 선택</Label>
+        <RadioGroup
+          value={userType}
+          onValueChange={(value: "job_seeker" | "company") => setUserType(value)}
+          className="grid grid-cols-2 gap-4"
+        >
+          <Label
+            htmlFor="login_job_seeker"
+            className={`flex flex-col items-center justify-center rounded-xl border-2 p-4 cursor-pointer transition-all ${userType === "job_seeker"
+              ? "border-primary bg-primary/5 shadow-sm"
+              : "border-border hover:border-primary/50"
+              }`}
+          >
+            <RadioGroupItem value="job_seeker" id="login_job_seeker" className="sr-only" />
+            <UserCircle className={`h-8 w-8 mb-2 ${userType === "job_seeker" ? "text-primary" : "text-muted-foreground"}`} />
+            <span className={`font-bold ${userType === "job_seeker" ? "text-primary" : "text-foreground"}`}>
+              구직자
+            </span>
+            <span className="text-xs text-muted-foreground mt-1 text-center">개인 회원 로그인</span>
+          </Label>
+
+          <Label
+            htmlFor="login_company"
+            className={`flex flex-col items-center justify-center rounded-xl border-2 p-4 cursor-pointer transition-all ${userType === "company"
+              ? "border-primary bg-primary/5 shadow-sm"
+              : "border-border hover:border-primary/50"
+              }`}
+          >
+            <RadioGroupItem value="company" id="login_company" className="sr-only" />
+            <Briefcase className={`h-8 w-8 mb-2 ${userType === "company" ? "text-primary" : "text-muted-foreground"}`} />
+            <span className={`font-bold ${userType === "company" ? "text-primary" : "text-foreground"}`}>
+              기업
+            </span>
+            <span className="text-xs text-muted-foreground mt-1 text-center">기업 회원 로그인</span>
+          </Label>
+        </RadioGroup>
+      </div>
+
+      <div className="relative py-2">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-border" />
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="loginId">아이디</Label>

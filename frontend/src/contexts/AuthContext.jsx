@@ -200,6 +200,7 @@ export function AuthProvider({ children }) {
     changePassword,
     requestPhoneVerification,
     verifyPhone,
+    updateProfile: authApi.updateProfile,
     checkSession,
   };
 

@@ -27,8 +27,8 @@ export default function Settings() {
             <div className="mb-8 border-b pb-6">
                 <div className="flex items-center gap-3 mb-4">
                     {Icon && (
-                        <div className={cn("flex items-center justify-center w-12 h-12 rounded-xl", danger ? "bg-red-100 dark:bg-red-900/20" : "bg-[#5A639C]/10")}>
-                            <Icon className={cn("h-6 w-6", danger ? "text-red-600 dark:text-red-500" : "text-[#5A639C]")} />
+                        <div className={cn("flex items-center justify-center w-12 h-12 rounded-xl", danger ? "bg-red-100 dark:bg-red-900/20" : "bg-sky-100 dark:bg-sky-900/20")}>
+                            <Icon className={cn("h-6 w-6", danger ? "text-red-600 dark:text-red-500" : "text-sky-600")} />
                         </div>
                     )}
                     <div>
@@ -83,7 +83,7 @@ export default function Settings() {
                                 <Input id="confirm-password" type="password" placeholder="새 비밀번호를 다시 입력하세요" className="h-11" />
                             </div>
                             <div className="pt-6">
-                                <Button className="w-full h-11 bg-[#5A639C] hover:bg-[#4A538C] text-lg font-medium">
+                                <Button className="w-full h-11 bg-gradient-to-r from-sky-500 to-teal-400 hover:from-sky-600 hover:to-teal-500 text-lg font-medium text-white border-0">
                                     비밀번호 변경
                                 </Button>
                             </div>
@@ -136,7 +136,7 @@ export default function Settings() {
                     {/* Page Title Area (Same as Support.tsx) */}
                     <div className="flex items-end justify-between mb-8 border-b pb-4">
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#5A639C] text-white">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sky-500 text-white">
                                 <SettingsIcon className="h-6 w-6" />
                             </div>
                             <h1 className="text-2xl font-bold">설정</h1>
@@ -166,7 +166,7 @@ export default function Settings() {
                                                         isActive
                                                             ? item.danger
                                                                 ? "bg-red-50 text-red-600 shadow-sm border border-red-100" // Danger item active style
-                                                                : "bg-[#5A639C] text-white shadow-md shadow-[#5A639C]/20" // Normal item active style
+                                                                : "bg-sky-500 text-white shadow-md shadow-sky-200/50" // Normal item active style
                                                             : item.danger
                                                                 ? "text-red-500 hover:bg-red-50" // Danger item inactive hover
                                                                 : "text-muted-foreground hover:bg-muted hover:text-foreground" // Normal item inactive hover

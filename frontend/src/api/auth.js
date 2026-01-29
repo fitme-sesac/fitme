@@ -48,17 +48,66 @@ export async function logout() {
 /**
  * 회원가입
  * @param {Object} userData - 회원가입 정보
- * @param {string} userData.email - 이메일
- * @param {string} userData.loginId - 로그인 ID
- * @param {string} userData.password - 비밀번호
- * @param {string} userData.name - 이름
- * @param {string} userData.phone - 휴대폰 번호
- * @param {string} userData.role - 역할 (CANDIDATE/EMPLOYER)
  * @returns {Promise<RegisterResponse>}
  */
 export async function register(userData) {
-  const response = await http.post("/Register", userData);
-  return response.data;
+  try {
+    const formData = new FormData();
+
+    // Map Frontend fields to Backend DTO fields (UserController.java)
+    formData.append("userid", userData.loginId); // loginId -> userid
+    formData.append("password", userData.password);
+    formData.append("passwordConfirm", userData.password);
+    formData.append("username", userData.name);
+
+    // Email Splitting (Required by UserController)
+    // userData.email -> emailId + @ + emailDomain + . + emailTLD
+    const emailParts = userData.email.match(/^([^@]+)@([^.]+)\.(.+)$/);
+    if (emailParts) {
+      formData.append("emailId", emailParts[1]);
+      formData.append("emailDomain", emailParts[2]);
+      formData.append("emailTLD", emailParts[3]);
+    } else {
+      // Fallback if simple regex fails
+      const parts1 = userData.email.split("@");
+      const local = parts1[0];
+      const rest = parts1[1] || "";
+      const parts2 = rest.split(".");
+      const domain = parts2[0] || "";
+      const tld = parts2.slice(1).join(".") || "";
+
+      formData.append("emailId", local);
+      formData.append("emailDomain", domain);
+      formData.append("emailTLD", tld);
+    }
+
+    formData.append("phone", userData.phone);
+    if (userData.gender) formData.append("gender", userData.gender.toUpperCase());
+    if (userData.birthday) formData.append("birthday", userData.birthday);
+
+    // Terms
+    const terms = userData.terms || {};
+    formData.append("agreeTerms", terms.age && terms.service ? "true" : "false");
+    formData.append("agreePrivacy", terms.privacy ? "true" : "false");
+    formData.append("agreePolicy", "true");
+    formData.append("marketingOptIn", userData.marketingAgree ? "true" : "false");
+
+    // Role & Social
+    formData.append("roleType", userData.role || "CANDIDATE");
+    formData.append("socialType", "NONE");
+
+    // Send as Form Data (MVC Controller)
+    const response = await http.post("/User/Register", formData, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+
+    // If successful, backend redirects to /Login or returns 200 OK with Login HTML
+    return { data: response.data, status: response.status };
+
+  } catch (error) {
+    console.error("Registration error:", error);
+    return { error: error.message || "Registration failed" };
+  }
 }
 
 /**
@@ -140,22 +189,43 @@ export function getSocialLoginUrl(provider) {
 }
 
 /**
- * 휴대폰 인증 요청 (회원가입용)
+ * 휴대폰 인증 요청 (회원가입용) - REST API
  * @param {string} phone - 휴대폰 번호
- * @returns {Promise<{message: string}>}
+ * @returns {Promise<{ok: boolean, message?: string}>}
  */
 export async function requestPhoneVerification(phone) {
-  const response = await http.post("/api/phone/send-code", { phone });
-  return response.data;
+  try {
+    const response = await http.post("/api/phone/otp/send", { phone });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
 }
 
 /**
- * 휴대폰 인증 확인 (회원가입용)
+ * 휴대폰 인증 확인 (회원가입용) - REST API
  * @param {string} phone - 휴대폰 번호
  * @param {string} code - 인증 코드
- * @returns {Promise<{verified: boolean}>}
+ * @returns {Promise<{verified: boolean, message?: string}>}
  */
 export async function verifyPhone(phone, code) {
-  const response = await http.post("/api/phone/verify", { phone, code });
+  try {
+    const response = await http.post("/api/phone/otp/verify", { phone, code });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+}
+
+/**
+ * 프로필 업데이트 (이미지, 이름, 핸들)
+ * @param {FormData} formData
+ */
+export async function updateProfile(formData) {
+  const response = await http.post("/api/members/profile", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return response.data;
 }
