@@ -1,3 +1,4 @@
+# app/chatbot/schemas.py
 from __future__ import annotations
 
 from datetime import date
@@ -12,7 +13,7 @@ class ChatbotIntent(str, Enum):
     COMPETITION = "COMPETITION"
     LIST_POSTINGS = "LIST_POSTINGS"
     TOP_STACKS = "TOP_STACKS"
-    RATE_STATS = "RATE_STATS"  # ✅ 추가: 지원률/경쟁률(%) 통계
+    RATE_STATS = "RATE_STATS"  # ✅ 지원률/경쟁률(%) 통계
     HELP = "HELP"
 
 
@@ -25,6 +26,9 @@ class ChatbotParsedSpec(BaseModel):
     keywords_all: List[str] = Field(default_factory=list, max_length=30)
     keywords_any: List[str] = Field(default_factory=list, max_length=30)
 
+    # ✅ 산업/업종 필터 (OR)
+    industries_any: List[str] = Field(default_factory=list, max_length=10)
+
     regions_any: List[str] = Field(default_factory=list, max_length=10)
     admin_areas_any: List[str] = Field(default_factory=list, max_length=10)
 
@@ -34,15 +38,19 @@ class ChatbotParsedSpec(BaseModel):
     min_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
     max_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
 
-    # ✅ 공고별 경쟁률(%) = apply_count / recruitment_capacity * 100 (지원률/경쟁률 임계값 필터)
+    # ✅ 공고별 경쟁률(%) = apply_count / recruitment_capacity * 100
     min_competition_pct: Optional[float] = Field(default=None, ge=0, le=100000)
     max_competition_pct: Optional[float] = Field(default=None, ge=0, le=100000)
+
+    # ✅ required_experience(년) 필터
+    min_required_experience_years: Optional[int] = Field(default=None, ge=0, le=60)
+    max_required_experience_years: Optional[int] = Field(default=None, ge=0, le=60)
 
     limit: Optional[int] = Field(default=None, ge=1, le=20)
     random: Optional[bool] = None
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
 
-    @field_validator("keywords_all", "keywords_any", "regions_any", "admin_areas_any", mode="before")
+    @field_validator("keywords_all", "keywords_any", "industries_any", "regions_any", "admin_areas_any", mode="before")
     @classmethod
     def none_to_empty_list(cls, v):
         if v is None:

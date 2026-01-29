@@ -1,3 +1,4 @@
+# app/chatbot/services/agent.py
 from __future__ import annotations
 
 import calendar
@@ -22,6 +23,7 @@ from app.chatbot.services.memory import (
     RedisChatbotMemoryStore,
     TranscriptItem,
 )
+from app.chatbot.utils.industry import infer_industries_from_text, is_industry_query
 from app.chatbot.utils.keywords import normalize_keyword_list
 from app.chatbot.utils.location import infer_admin_areas_from_text, infer_regions_from_text
 from app.chatbot.utils.stack_detect import extract_stack_candidates
@@ -36,7 +38,7 @@ _THIS_MONTH = ("이번달", "이번 달")
 _LAST_MONTH = ("지난달", "지난 달", "저번달", "저번 달")
 _NEXT_MONTH = ("다음달", "다음 달")
 _FROM_DATE_HINT_RE = re.compile(r"(부터|이후|뒤로|이후로|이후부터|지금까지|현재까지|까지)")
-_STRICT_AFTER_HINT_RE = re.compile(r"(후에|후로|후)\b")
+_STRICT_AFTER_HINT_RE = re.compile(r"(후에|후로|후|뒤)(?=\s|$|[가-힣])")
 
 _TODAY_WORDS = ("오늘",)
 _YESTERDAY_WORDS = ("어제",)
@@ -65,6 +67,28 @@ _AMT_TOKEN_RE = re.compile(
     r"(\d+\s*억(?:\s*\d+\s*천)?|\d+\s*천\s*(?:만|만원)?|\d[\d,]*\s*(?:만|만원|원)?)"
 )
 
+def _iter_salary_amount_tokens(sub: str) -> List[str]:
+    """
+    _AMT_TOKEN_RE 매칭 결과 중, 바로 뒤 글자가 '월/일/년'인 경우(날짜)는 버린다.
+    예) '1월', '17일', '2026년' 같은 토큰이 연봉으로 오인되는 버그 방지
+    """
+    out: List[str] = []
+    if not sub:
+        return out
+
+    for m in _AMT_TOKEN_RE.finditer(sub.replace(" ", "")):
+        tok = m.group(1)
+        if not tok:
+            continue
+        # 매칭 직후 문자를 확인해서 날짜 단위면 스킵
+        end = m.end()
+        after = sub[end:end+1]  # 원문 기준 한 글자
+        if after in ("월", "일", "년"):
+            continue
+        out.append(tok)
+    return out
+
+
 # -------------------------
 # Rate parsing (%)
 # - 여기서 "지원률/경쟁률"은 공고별 경쟁률(%) = apply_count/recruitment_capacity*100 기준 필터로 해석
@@ -76,6 +100,27 @@ _RATE_CMP_RE = re.compile(
 _RATE_BETWEEN_RE = re.compile(
     r"(지원률|경쟁률)\s*([0-9]{1,4}(?:\.[0-9]+)?)\s*(?:~|-|–|—|부터|에서)\s*([0-9]{1,4}(?:\.[0-9]+)?)\s*(?:%|퍼|percent)?"
 )
+
+# -------------------------
+# Experience parsing (years, integer)
+# - job_posting.required_experience (int)
+# -------------------------
+_EXP_HINT_RE = re.compile(r"(경력|경험|연차|년차)")
+_EXP_UNBOUNDED_RE = re.compile(r"(경력무관|무관|신입/경력|신입\/경력|경력\/신입)")
+_EXP_RANGE_RE = re.compile(r"([0-9]{1,2})\s*년?\s*(?:~|-|–|—)\s*([0-9]{1,2})\s*년?")  # 3~5, 3~5년, 3년~5년
+_EXP_CMP_RE = re.compile(r"([0-9]{1,2})\s*년?\s*(이상|초과|이하|미만|<=|>=|<|>)")     # 3년 이상
+_EXP_EXACT_RE = re.compile(r"([0-9]{1,2})\s*년\s*(정도|내외|가량)?")                  # 2년 정도
+_EXP_YEARCHA_RE = re.compile(r"([0-9]{1,2})\s*년차")                                  # 3년차
+
+# 요구사항 매핑(그대로)
+_EXP_WORD_MAP = [
+    ("신입", 0, 0),
+    ("주니어", 1, 3),
+    ("시니어", 3, 5),
+    ("미들", 6, None),
+    ("미드", 6, None),
+    ("중급", 6, None),
+]
 
 
 def _infer_rate_filter_pct_from_text(msg: str) -> dict:
@@ -111,6 +156,111 @@ def _infer_rate_filter_pct_from_text(msg: str) -> dict:
     return out
 
 
+def _infer_required_experience_years_from_text(msg: str) -> dict:
+    """
+    returns:
+      {"min": Optional[int], "max": Optional[int], "source": str|None}
+
+    규칙:
+    - '신입' => 0
+    - '주니어' => 1~3
+    - '시니어' => 3~5   (== required_experience >=3 and <=5)
+    - '미들/중급' => 6~
+    - '경력 3~5년' => 3~5
+    - '경력 3년 이상' => >=3
+    - '경험 2년 정도' / '2년차' => ==2
+    - 단어 매핑 + 숫자 조건이 같이 있으면 교집합(intersection).
+      교집합 불가능하면 숫자 조건 우선.
+    - '경력무관', '신입/경력' 등은 필터 없음 처리
+    """
+    out = {"min": None, "max": None, "source": None}
+    if not msg:
+        return out
+
+    t = msg.replace(" ", "")
+    if _EXP_UNBOUNDED_RE.search(t):
+        return out
+
+    base_min, base_max, base_src = None, None, None
+    for word, lo, hi in _EXP_WORD_MAP:
+        if word in msg:
+            base_min, base_max, base_src = lo, hi, f"word:{word}"
+            break
+
+    has_hint = bool(_EXP_HINT_RE.search(msg)) or (base_src is not None)
+
+    num_min, num_max, num_src = None, None, None
+    if has_hint:
+        # 0) n년차
+        m = _EXP_YEARCHA_RE.search(t)
+        if m:
+            v = int(m.group(1))
+            num_min, num_max, num_src = v, v, "yearcha"
+        else:
+            # 1) range
+            m = _EXP_RANGE_RE.search(t)
+            if m:
+                a = int(m.group(1))
+                b = int(m.group(2))
+                lo, hi = (a, b) if a <= b else (b, a)
+                num_min, num_max, num_src = lo, hi, "range"
+            else:
+                # 2) compare
+                m = _EXP_CMP_RE.search(t)
+                if m:
+                    v = int(m.group(1))
+                    op = m.group(2)
+                    if op in ("이상", ">="):
+                        num_min, num_max, num_src = v, None, "cmp:>="
+                    elif op in ("초과", ">"):
+                        num_min, num_max, num_src = v + 1, None, "cmp:>"
+                    elif op in ("이하", "<="):
+                        num_min, num_max, num_src = None, v, "cmp:<="
+                    elif op in ("미만", "<"):
+                        num_min, num_max, num_src = None, v - 1, "cmp:<"
+                else:
+                    # 3) exact-ish
+                    m = _EXP_EXACT_RE.search(t)
+                    if m:
+                        v = int(m.group(1))
+                        num_min, num_max, num_src = v, v, "exact"
+
+    def _intersect(lo1, hi1, lo2, hi2):
+        lo = lo1 if lo1 is not None else lo2
+        if lo1 is not None and lo2 is not None:
+            lo = max(lo1, lo2)
+        hi = hi1 if hi1 is not None else hi2
+        if hi1 is not None and hi2 is not None:
+            hi = min(hi1, hi2)
+        return lo, hi
+
+    if base_src is None and num_src is None:
+        return out
+
+    if base_src is not None and num_src is None:
+        out["min"], out["max"], out["source"] = base_min, base_max, base_src
+    elif base_src is None and num_src is not None:
+        out["min"], out["max"], out["source"] = num_min, num_max, num_src
+    else:
+        lo, hi = _intersect(base_min, base_max, num_min, num_max)
+        if (lo is not None and hi is not None) and (lo > hi):
+            lo, hi = num_min, num_max
+            src = f"{num_src}(override)"
+        else:
+            src = f"{base_src}+{num_src}"
+        out["min"], out["max"], out["source"] = lo, hi, src
+
+    if out["min"] is not None:
+        out["min"] = max(0, min(60, int(out["min"])))
+    if out["max"] is not None:
+        out["max"] = max(0, min(60, int(out["max"])))
+
+    if out["min"] is not None and out["max"] is not None and out["min"] > out["max"]:
+        out["min"], out["max"] = out["max"], out["min"]
+
+    return out
+
+
 def _parse_salary_amount_m만원(token: str) -> Optional[int]:
     if not token:
         return None
@@ -139,6 +289,7 @@ def _parse_salary_amount_m만원(token: str) -> Optional[int]:
 
     return val
 
+_SALARY_RANGE_SEP_RE = re.compile(r"(~|∼|〜|–|—|-|부터|에서)")
 
 def _infer_salary_range_m만원_from_text(msg: str) -> Optional[tuple[int, int]]:
     if not msg:
@@ -148,7 +299,12 @@ def _infer_salary_range_m만원_from_text(msg: str) -> Optional[tuple[int, int]]
         return None
 
     sub = msg[m_hint.start():]
-    amts = _AMT_TOKEN_RE.findall(sub)
+
+    # ✅ 범위 표지가 없으면 "범위"로 해석하지 않는다 (오탐 방지 핵심)
+    if not _SALARY_RANGE_SEP_RE.search(sub):
+        return None
+
+    amts = _iter_salary_amount_tokens(sub)
     if len(amts) < 2:
         return None
 
@@ -160,6 +316,7 @@ def _infer_salary_range_m만원_from_text(msg: str) -> Optional[tuple[int, int]]
     return lo, hi
 
 
+
 def _infer_min_salary_m만원_from_text(msg: str) -> Optional[int]:
     if not msg:
         return None
@@ -169,10 +326,11 @@ def _infer_min_salary_m만원_from_text(msg: str) -> Optional[int]:
     m_hint = _SALARY_HINT_RE.search(msg)
     sub = msg[m_hint.start():] if m_hint else msg
 
-    m = _AMT_TOKEN_RE.search(sub.replace(" ", ""))
-    if not m:
+    amts = _iter_salary_amount_tokens(sub)
+    if not amts:
         return None
-    return _parse_salary_amount_m만원(m.group(1))
+
+    return _parse_salary_amount_m만원(amts[0])
 
 
 def _num_token_to_int(tok: str, default: int = 1) -> int:
@@ -381,7 +539,6 @@ def _infer_intent_by_rule(msg: str) -> Optional[ChatbotIntent]:
         return None
     ml = msg.lower()
 
-    # ✅ 지원률/경쟁률 계열
     if _RATE_TARGET_RE.search(msg):
         if any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수")):
             return ChatbotIntent.COUNT_POSTINGS
@@ -463,7 +620,7 @@ class ChatbotState(TypedDict, total=False):
     last_intent: str
     last_item_ids: List[int]
 
-    scope_job_ids: List[int]  # ✅ 후속질의 스코프
+    scope_job_ids: List[int]
 
 
 _FOLLOWUP_MARKERS = ("그 공고", "그공고", "그 중", "그중", "그 중에", "그중에", "그러면", "그럼", "거기서", "방금", "이전")
@@ -524,6 +681,7 @@ class JobStatsChatbot:
 - 날짜는 YYYY-MM-DD. end_date는 exclusive(미포함).
 - 날짜/필터가 불확실하면 비워두고(Null/empty), validate 단계에서 기본값/상속이 처리된다.
 - keywords_all: AND, keywords_any: OR
+- industries_any: 업종/산업(OR). 예: ['it','ai','데이터 서비스']
 - regions_any: 광역 코드(OR):
   SEOUL,BUSAN,DAEGU,INCHEON,GWANGJU,DAEJEON,ULSAN,SEJONG,
   GYEONGGI,GANGWON,CHUNGBUK,CHUNGNAM,JEONBUK,JEONNAM,
@@ -533,13 +691,16 @@ class JobStatsChatbot:
 - min_competition_pct / max_competition_pct:
   공고별 경쟁률(%) = apply_count / recruitment_capacity * 100
   예) '경쟁률 120% 이하' => max_competition_pct=120
+- min_required_experience_years / max_required_experience_years:
+  정수(년). 둘 다 있으면 between(inclusive), min만 있으면 >=, max만 있으면 <=
+  '신입'=0, '주니어'=1~3, '시니어'=3~5, '미들'=6~
 - job_role: 자유 문자열(예: Backend, Frontend, Data Engineer 등). 확장 가능.
 - limit: 1..20
 - random: LIST_POSTINGS에서 랜덤 여부
 - 리스트 필드는 비어도 반드시 []로 출력, null 금지
 
 [Canonicalization]
-- 기술스택/직군/툴 이름은 가능한 표준 표기로 정규화하라.
+- 기술스택/업종/직군/툴 이름은 가능한 표준 표기로 정규화하라.
   예: "스프링부트", "spring boot" -> "Spring Boot"
       "js" -> "JavaScript"
   확신이 없으면 사용자가 쓴 원문을 그대로 사용.
@@ -569,6 +730,10 @@ class JobStatsChatbot:
 - '1월 9일 뒤로 연봉 8천~9천 공고 몇개' => COUNT_POSTINGS, start_date={year}-01-09, end_date=today+1, min=8000, max=9000
 - '경기도 요즘 평균 지원률/경쟁률' => RATE_STATS, regions_any=['GYEONGGI']
 - '경쟁률 120% 이하 공고 몇개' => COUNT_POSTINGS, max_competition_pct=120
+- '신입 개발자 모집하는 공고는 몇개야?' => COUNT_POSTINGS, min_required_experience_years=0, max_required_experience_years=0
+- '경력이 3~5년 정도를 뽑는 공고 몇개야?' => COUNT_POSTINGS, min_required_experience_years=3, max_required_experience_years=5
+- '산업분야 중 IT 관련 공고는 몇개야?' => COUNT_POSTINGS, industries_any=['it']
+- 'AI, 데이터 서비스 업종 공고 몇개야?' => COUNT_POSTINGS, industries_any=['ai','데이터 서비스']
 """
 
         context_dict = state.get("last_parsed_dict") or {}
@@ -623,7 +788,7 @@ class JobStatsChatbot:
                 except Exception:
                     pass
 
-        # 2) 지원률/경쟁률 문장이면 RATE_STATS로 정규화(LLM이 COMPETITION으로 찍는 경우 방어)
+        # 2) 지원률/경쟁률 문장이면 RATE_STATS로 정규화
         if _RATE_TARGET_RE.search(msg):
             if any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수")):
                 parsed.intent = ChatbotIntent.COUNT_POSTINGS
@@ -654,6 +819,10 @@ class JobStatsChatbot:
             if parsed.job_role is None:
                 parsed.job_role = last.job_role
 
+            # ✅ 산업 필터 상속
+            if not parsed.industries_any:
+                parsed.industries_any = list(getattr(last, "industries_any", []) or [])
+
             if parsed.min_salary_m만원 is None:
                 parsed.min_salary_m만원 = last.min_salary_m만원
             if parsed.max_salary_m만원 is None:
@@ -663,6 +832,12 @@ class JobStatsChatbot:
                 parsed.min_competition_pct = getattr(last, "min_competition_pct", None)
             if parsed.max_competition_pct is None:
                 parsed.max_competition_pct = getattr(last, "max_competition_pct", None)
+
+            # ✅ 경력 필터 상속
+            if parsed.min_required_experience_years is None:
+                parsed.min_required_experience_years = getattr(last, "min_required_experience_years", None)
+            if parsed.max_required_experience_years is None:
+                parsed.max_required_experience_years = getattr(last, "max_required_experience_years", None)
 
             if not parsed.keywords_all:
                 parsed.keywords_all = list(last.keywords_all)
@@ -701,7 +876,12 @@ class JobStatsChatbot:
                         if s not in parsed.keywords_all:
                             parsed.keywords_all.append(s)
 
-        # 8) ✅ 연봉 구간 우선 파싱
+        # 8) ✅ 산업/업종 힌트가 있으면 industries_any 자동 추론(LLM보다 우선)
+        # - 실제 표준화/동의어 매핑은 DB(alias)에서 처리하는 구조라서, 여기서는 "후보 추출"만 함.
+        if not parsed.industries_any and is_industry_query(msg):
+            parsed.industries_any = infer_industries_from_text(msg)
+
+        # 9) ✅ 연봉 구간 우선 파싱
         sr = _infer_salary_range_m만원_from_text(msg)
         if sr is not None:
             parsed.min_salary_m만원, parsed.max_salary_m만원 = sr
@@ -714,7 +894,7 @@ class JobStatsChatbot:
             if parsed.min_salary_m만원 > parsed.max_salary_m만원:
                 parsed.min_salary_m만원, parsed.max_salary_m만원 = parsed.max_salary_m만원, parsed.min_salary_m만원
 
-        # 9) 지역/행정구역 룰 추론
+        # 10) 지역/행정구역 룰 추론
         if not parsed.regions_any:
             parsed.regions_any = infer_regions_from_text(msg)
 
@@ -725,24 +905,28 @@ class JobStatsChatbot:
         ):
             parsed.admin_areas_any = infer_admin_areas_from_text(msg, parsed.regions_any)
 
-        # 10) 키워드 split/dedupe
+        # 11) 키워드 split/dedupe
         all_norm, corr_all = normalize_keyword_list(parsed.keywords_all, max_items=30)
         any_norm, corr_any = normalize_keyword_list(parsed.keywords_any, max_items=30)
         parsed.keywords_all = all_norm
         parsed.keywords_any = any_norm
 
-        # 11) limit
+        # industries split/dedupe (같은 함수 재사용)
+        ind_norm, corr_ind = normalize_keyword_list(parsed.industries_any, max_items=10)
+        parsed.industries_any = ind_norm
+
+        # 12) limit
         default_limit = int(getattr(settings, "CHATBOT_DEFAULT_RESULT_LIMIT", 5))
         parsed.limit = _clamp_limit(parsed.limit, default=default_limit)
 
-        # 12) LIST_POSTINGS random default
+        # 13) LIST_POSTINGS random default
         if parsed.intent != ChatbotIntent.LIST_POSTINGS:
             parsed.random = None
         elif parsed.random is None:
             ml = msg.lower()
             parsed.random = ("랜덤" in msg) or ("무작위" in msg) or ("random" in ml)
 
-        # 13) ✅ 지원률/경쟁률(%) 필터 파싱(LLM보다 우선)
+        # 14) ✅ 지원률/경쟁률(%) 필터 파싱(LLM보다 우선)
         rf = _infer_rate_filter_pct_from_text(msg)
         if rf["min_competition_pct"] is not None:
             parsed.min_competition_pct = rf["min_competition_pct"]
@@ -753,7 +937,24 @@ class JobStatsChatbot:
             if parsed.min_competition_pct > parsed.max_competition_pct:
                 parsed.min_competition_pct, parsed.max_competition_pct = parsed.max_competition_pct, parsed.min_competition_pct
 
-        # 14) ✅ 후속질의에서 "그 공고들" 스코프(직전 LIST 결과)
+        # ✅ required_experience(년) 파싱(LLM보다 우선)
+        er = _infer_required_experience_years_from_text(msg)
+        if er["min"] is not None:
+            parsed.min_required_experience_years = er["min"]
+        if er["max"] is not None:
+            parsed.max_required_experience_years = er["max"]
+
+        if (
+                parsed.min_required_experience_years is not None
+                and parsed.max_required_experience_years is not None
+                and parsed.min_required_experience_years > parsed.max_required_experience_years
+        ):
+            parsed.min_required_experience_years, parsed.max_required_experience_years = (
+                parsed.max_required_experience_years,
+                parsed.min_required_experience_years,
+            )
+
+        # 15) ✅ 후속질의에서 "그 공고들" 스코프(직전 LIST 결과)
         scope_ids: List[int] = []
         if is_follow:
             last_ids = state.get("last_item_ids") or []
@@ -764,7 +965,7 @@ class JobStatsChatbot:
             "parsed": parsed,
             "scope_job_ids": scope_ids,
             "result": {
-                "keyword_corrections": (corr_all + corr_any)[:20],
+                "keyword_corrections": (corr_all + corr_any + corr_ind)[:20],
                 "stack_candidates": (stack_cands[:20] if is_follow else []),
             },
         }
@@ -784,11 +985,14 @@ class JobStatsChatbot:
                 admin_areas_any=parsed.admin_areas_any,
                 keywords_all=parsed.keywords_all,
                 keywords_any=parsed.keywords_any,
+                industries_any=parsed.industries_any,
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
                 max_salary_m만원=parsed.max_salary_m만원,
                 min_competition_pct=parsed.min_competition_pct,
                 max_competition_pct=parsed.max_competition_pct,
+                min_required_experience_years=parsed.min_required_experience_years,
+                max_required_experience_years=parsed.max_required_experience_years,
                 job_ids_scope=scope_ids,
             )
             base.update(r)
@@ -802,9 +1006,12 @@ class JobStatsChatbot:
                 admin_areas_any=parsed.admin_areas_any,
                 keywords_all=parsed.keywords_all,
                 keywords_any=parsed.keywords_any,
+                industries_any=parsed.industries_any,
                 job_role=parsed.job_role,
                 min_competition_pct=parsed.min_competition_pct,
                 max_competition_pct=parsed.max_competition_pct,
+                min_required_experience_years=parsed.min_required_experience_years,
+                max_required_experience_years=parsed.max_required_experience_years,
                 job_ids_scope=scope_ids,
             )
             base.update(r)
@@ -818,11 +1025,14 @@ class JobStatsChatbot:
                 admin_areas_any=parsed.admin_areas_any,
                 keywords_all=parsed.keywords_all,
                 keywords_any=parsed.keywords_any,
+                industries_any=parsed.industries_any,
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
                 max_salary_m만원=parsed.max_salary_m만원,
                 min_competition_pct=parsed.min_competition_pct,
                 max_competition_pct=parsed.max_competition_pct,
+                min_required_experience_years=parsed.min_required_experience_years,
+                max_required_experience_years=parsed.max_required_experience_years,
                 job_ids_scope=scope_ids,
             )
             base.update(r)
@@ -837,11 +1047,14 @@ class JobStatsChatbot:
                 admin_areas_any=parsed.admin_areas_any,
                 keywords_all=parsed.keywords_all,
                 keywords_any=parsed.keywords_any,
+                industries_any=parsed.industries_any,
                 job_role=parsed.job_role,
                 min_salary_m만원=parsed.min_salary_m만원,
                 max_salary_m만원=parsed.max_salary_m만원,
                 min_competition_pct=parsed.min_competition_pct,
                 max_competition_pct=parsed.max_competition_pct,
+                min_required_experience_years=parsed.min_required_experience_years,
+                max_required_experience_years=parsed.max_required_experience_years,
                 limit=int(parsed.limit or 5),
                 random=bool(parsed.random),
                 job_ids_scope=scope_ids,
@@ -857,6 +1070,7 @@ class JobStatsChatbot:
                 parsed.end_date,
                 regions_any=parsed.regions_any,
                 admin_areas_any=parsed.admin_areas_any,
+                industries_any=parsed.industries_any,
                 job_role=parsed.job_role,
                 limit=lim,
             )
@@ -880,6 +1094,10 @@ class JobStatsChatbot:
                 "- 요즘 올라오는 공고에서 제일 많이 요구하는 스택\n"
                 "- 경기도 요즘 평균 지원률/경쟁률\n"
                 "- 경쟁률 120% 이하 공고 몇개\n"
+                "- 신입/주니어/시니어/미들 공고 몇개?\n"
+                "- 경력 3~5년 공고 몇개?\n"
+                "- 산업분야 중 IT 관련 공고 몇개?\n"
+                "- AI, 데이터 서비스 업종 공고 몇개?\n"
             )
             return {"answer": answer, "request_id": rid}
 
@@ -888,6 +1106,8 @@ class JobStatsChatbot:
 
         def filters_summary() -> str:
             parts = []
+            if result.get("industries_any"):
+                parts.append(f"산업: {', '.join(result['industries_any'])}")
             if result.get("regions_any"):
                 parts.append(f"광역: {', '.join(result['regions_any'])}")
             if result.get("admin_areas_any"):
@@ -914,6 +1134,15 @@ class JobStatsChatbot:
                 parts.append(f"경쟁률% 최소: {mncp}")
             elif mxcp is not None:
                 parts.append(f"경쟁률% 최대: {mxcp}")
+
+            mnexp = result.get("min_required_experience_years")
+            mxexp = result.get("max_required_experience_years")
+            if mnexp is not None and mxexp is not None:
+                parts.append(f"경력(년): {mnexp}~{mxexp}")
+            elif mnexp is not None:
+                parts.append(f"경력(년) 최소: {mnexp}")
+            elif mxexp is not None:
+                parts.append(f"경력(년) 최대: {mxexp}")
 
             if result.get("scoped"):
                 parts.append(f"스코프: 직전 결과 {result.get('scope_size', 0)}개")
@@ -971,9 +1200,10 @@ class JobStatsChatbot:
             for i, it in enumerate(items, 1):
                 lines.append(
                     f"{i}. [{it.get('employer_name')}] {it.get('title')} / {it.get('location') or '-'} "
-                    f"/ {it.get('salary_text') or '-'} / stack={it.get('stack') or '-'} "
-                    f"/ apply={it.get('apply_count', 0)} / cap={it.get('recruitment_capacity', '-')}"
-                    f"/ comp%={it.get('competition_pct', '-')}"
+                    f"/ {it.get('salary_text') or '-'} / exp={it.get('required_experience', '-')} "
+                    f"/ stack={it.get('stack') or '-'} "
+                    f"/ apply={it.get('apply_count', 0)} / cap={it.get('recruitment_capacity', '-')} "
+                    f"/ comp%={it.get('competition_pct', '-')} "
                     f"/ created_at={it.get('created_at') or '-'} "
                     f"(job_id={it.get('job_id')})"
                 )

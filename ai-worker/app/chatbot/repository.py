@@ -1,3 +1,4 @@
+# app/chatbot/repository.py
 from __future__ import annotations
 
 import functools
@@ -112,10 +113,11 @@ def _normalize_kw_list(xs: List[str], max_items: int = 30, max_len: int = 50) ->
 
 
 # -----------------------------
-# Canonical group expansion (NO new tables)
+# Canonical group expansion
 # -----------------------------
 
 CANONICAL_GROUP_EXPAND: Dict[str, List[str]] = {
+    # 필요 시 확장
     "javascript": ["javascript", "nodejs", "vuejs", "nextjs"],
 }
 
@@ -138,8 +140,14 @@ def _canon_members_for_query(canon: str) -> List[str]:
 
 
 # -----------------------------
-# Stack vocabulary resolution
-# (stack_alias + stack_vocab)
+# Alias table config (STACK / INDUSTRY)
+# ✅ 최신: stack_alias(entity_type, alias) 통합 테이블
+# - entity_type: 'STACK' | 'INDUSTRY'
+# - PK: (entity_type, alias)
+#
+# ✅ 하위호환:
+# - stack_alias.kind 컬럼이 있으면 kind 사용
+# - 산업을 industry_alias 테이블로 분리한 구버전이면 INDUSTRY는 industry_alias fallback
 # -----------------------------
 
 def _stack_alias_tables_ready() -> bool:
@@ -150,31 +158,232 @@ def _stack_vocab_ready() -> bool:
     return _relation_exists("stack_vocab", relkind="m") or _relation_exists("stack_vocab", relkind=None)
 
 
-def _resolve_stack_token(cur, raw: str, *, trigram_threshold: float = 0.42) -> Tuple[str, Optional[dict]]:
+def _industry_alias_tables_ready() -> bool:
+    return _relation_exists("industry_alias", relkind="r") or _relation_exists("industry_alias", relkind=None)
+
+
+def _alias_supports_entity_type() -> bool:
+    return _stack_alias_tables_ready() and _column_exists("stack_alias", "entity_type")
+
+
+def _alias_supports_kind() -> bool:
+    return _stack_alias_tables_ready() and _column_exists("stack_alias", "kind")
+
+
+def _alias_table_for(kind: str) -> tuple[Optional[str], Optional[tuple[str, str]]]:
     """
-    raw token -> canonical token
+    returns (table_name, filter)
+      - filter: (column_name, value) or None
+
     priority:
-      1) exact alias (stack_alias)
-      2) trigram vocab (stack_vocab) then alias
+      1) stack_alias.entity_type
+      2) stack_alias.kind
+      3) legacy: STACK => stack_alias, INDUSTRY => industry_alias(if exists)
+    """
+    kind_u = (kind or "").upper()
+
+    if _alias_supports_entity_type():
+        return "stack_alias", ("entity_type", kind_u)
+
+    if _alias_supports_kind():
+        return "stack_alias", ("kind", kind_u)
+
+    if kind_u == "STACK":
+        return ("stack_alias" if _stack_alias_tables_ready() else None), None
+
+    if kind_u == "INDUSTRY":
+        return ("industry_alias" if _industry_alias_tables_ready() else None), None
+
+    return None, None
+
+
+def _resolve_alias_token(
+        cur,
+        raw: str,
+        *,
+        kind: str,
+        trigram_threshold: float = 0.42,
+) -> Tuple[str, Optional[dict]]:
+    """
+    raw token -> canonical token (alias-based)
+    priority:
+      1) exact alias
+      2) trigram alias (pg_trgm)
     """
     q = _normalize_token(raw)
     if not q:
         return q, None
 
-    # 1) exact alias mapping
-    if _stack_alias_tables_ready():
+    table, flt = _alias_table_for(kind)
+    if not table:
+        return q, None
+
+    # ---------- 1) exact alias (fast path: alias = q) ----------
+    if flt:
+        col, val = flt
         cur.execute(
-            "SELECT canonical FROM stack_alias WHERE is_active AND alias = %s LIMIT 1",
+            f"SELECT canonical FROM {table} WHERE is_active AND {col} = %s AND alias = %s LIMIT 1",
+            (val, q),
+        )
+    else:
+        cur.execute(
+            f"SELECT canonical FROM {table} WHERE is_active AND alias = %s LIMIT 1",
             (q,),
         )
+    row = cur.fetchone()
+    if row and row[0]:
+        canon = _normalize_token(str(row[0]))
+        if canon and canon != q:
+            return canon, {"from": raw, "to": canon, "via": f"{kind.lower()}_alias_exact"}
+        return canon, None
+
+    # ---------- 1-b) exact alias (fallback: lower(alias)=q) ----------
+    # (ASCII 대소문자/입력 변형 방어. 테이블이 크지 않으면 충분히 감당 가능)
+    if q.isascii():
+        if flt:
+            col, val = flt
+            cur.execute(
+                f"SELECT canonical FROM {table} WHERE is_active AND {col} = %s AND lower(alias) = %s LIMIT 1",
+                (val, q),
+            )
+        else:
+            cur.execute(
+                f"SELECT canonical FROM {table} WHERE is_active AND lower(alias) = %s LIMIT 1",
+                (q,),
+            )
         row = cur.fetchone()
         if row and row[0]:
             canon = _normalize_token(str(row[0]))
             if canon and canon != q:
-                return canon, {"from": raw, "to": canon, "via": "alias_exact"}
+                return canon, {"from": raw, "to": canon, "via": f"{kind.lower()}_alias_exact"}
             return canon, None
 
-    # 2) fuzzy lookup on vocab
+    # ---------- 2) trigram alias ----------
+    if _has_pg_trgm():
+        if flt:
+            col, val = flt
+            cur.execute(
+                f"""
+                SELECT alias, canonical, similarity(alias, %s) AS sim
+                FROM {table}
+                WHERE is_active
+                  AND {col} = %s
+                  AND alias %% %s
+                ORDER BY sim DESC
+                LIMIT 1
+                """,
+                (q, val, q),
+            )
+        else:
+            cur.execute(
+                f"""
+                SELECT alias, canonical, similarity(alias, %s) AS sim
+                FROM {table}
+                WHERE is_active
+                  AND alias %% %s
+                ORDER BY sim DESC
+                LIMIT 1
+                """,
+                (q, q),
+            )
+        r = cur.fetchone()
+        if r and r[1]:
+            sim = float(r[2] or 0.0)
+            if sim >= trigram_threshold:
+                canon = _normalize_token(str(r[1]))
+                if canon and canon != q:
+                    return canon, {
+                        "from": raw,
+                        "to": canon,
+                        "via": f"{kind.lower()}_alias_trgm",
+                        "sim": sim,
+                    }
+                return canon, None
+
+    return q, None
+
+
+def _expand_aliases_for_canon(
+        cur,
+        canon_tokens: List[str],
+        *,
+        kind: str,
+        max_alias_per_canon: int = 50,
+) -> Dict[str, List[str]]:
+    """
+    canonical -> [canonical + aliases]
+    """
+    canon_tokens = [_normalize_token(c) for c in (canon_tokens or []) if _normalize_token(c)]
+    out: Dict[str, List[str]] = {c: [c] for c in canon_tokens}
+
+    table, flt = _alias_table_for(kind)
+    if not canon_tokens or not table:
+        return out
+
+    # canonical 매칭은 데이터가 대부분 lower로 들어간다는 전제(너 SQL이 그렇게 넣음)
+    # 그래도 방어적으로 lower(canonical)로 비교
+    if flt:
+        col, val = flt
+        cur.execute(
+            f"""
+            SELECT canonical, alias
+            FROM {table}
+            WHERE is_active
+              AND {col} = %s
+              AND lower(canonical) = ANY(%s::text[])
+            """,
+            (val, canon_tokens),
+        )
+    else:
+        cur.execute(
+            f"""
+            SELECT canonical, alias
+            FROM {table}
+            WHERE is_active
+              AND lower(canonical) = ANY(%s::text[])
+            """,
+            (canon_tokens,),
+        )
+
+    rows = cur.fetchall() or []
+    for canonical, alias in rows:
+        c = _normalize_token(str(canonical))
+        a = _normalize_token(str(alias))
+        if not c or not a:
+            continue
+        lst = out.setdefault(c, [c])
+        if a not in lst:
+            lst.append(a)
+        if len(lst) > max_alias_per_canon:
+            out[c] = lst[:max_alias_per_canon]
+
+    return out
+
+
+# -----------------------------
+# Stack vocabulary resolution (alias + stack_vocab)
+# -----------------------------
+
+def _resolve_stack_token(cur, raw: str, *, trigram_threshold: float = 0.42) -> Tuple[str, Optional[dict]]:
+    """
+    raw token -> canonical token
+    priority:
+      1) exact/trgm alias (stack_alias, entity_type='STACK')
+      2) vocab_trgm (stack_vocab) then alias
+    """
+    q = _normalize_token(raw)
+    if not q:
+        return q, None
+
+    # 1) alias (STACK)
+    canon, corr = _resolve_alias_token(cur, raw, kind="STACK", trigram_threshold=trigram_threshold)
+    if corr and corr.get("via") == "stack_alias_exact":
+        return canon, corr
+    if canon and canon != q:
+        if corr:
+            return canon, corr
+
+    # 2) vocab_trgm
     if _has_pg_trgm() and _stack_vocab_ready():
         cur.execute(
             """
@@ -192,58 +401,18 @@ def _resolve_stack_token(cur, raw: str, *, trigram_threshold: float = 0.42) -> T
             sim = float(row[1] or 0.0)
 
             if tok and sim >= trigram_threshold:
-                # map vocab token -> canonical via alias, if possible
-                if _stack_alias_tables_ready():
-                    cur.execute(
-                        "SELECT canonical FROM stack_alias WHERE is_active AND alias = %s LIMIT 1",
-                        (tok,),
-                    )
-                    r2 = cur.fetchone()
-                    if r2 and r2[0]:
-                        canon = _normalize_token(str(r2[0]))
-                        if canon and canon != q:
-                            return canon, {"from": raw, "to": canon, "via": "vocab_trgm+alias", "sim": sim}
-                        return canon, None
+                # vocab token -> alias canonical (if exists)
+                canon2, _ = _resolve_alias_token(cur, tok, kind="STACK", trigram_threshold=trigram_threshold)
+                if canon2:
+                    if canon2 != q:
+                        return canon2, {"from": raw, "to": canon2, "via": "vocab_trgm+alias", "sim": sim}
+                    return canon2, None
 
                 if tok != q:
                     return tok, {"from": raw, "to": tok, "via": "vocab_trgm", "sim": sim}
                 return tok, None
 
     return q, None
-
-
-def _expand_aliases_for_canon(cur, canon_tokens: List[str], max_alias_per_canon: int = 50) -> Dict[str, List[str]]:
-    """
-    canonical -> [canonical, alias1, alias2, ...]
-    """
-    canon_tokens = [_normalize_token(c) for c in (canon_tokens or []) if _normalize_token(c)]
-    out: Dict[str, List[str]] = {c: [c] for c in canon_tokens}
-
-    if not canon_tokens or not _stack_alias_tables_ready():
-        return out
-
-    cur.execute(
-        """
-        SELECT canonical, alias
-        FROM stack_alias
-        WHERE is_active
-          AND lower(canonical) = ANY(%s::text[])
-        """,
-        (canon_tokens,),
-    )
-    rows = cur.fetchall() or []
-    for canonical, alias in rows:
-        c = _normalize_token(str(canonical))
-        a = _normalize_token(str(alias))
-        if not c or not a:
-            continue
-        lst = out.setdefault(c, [c])
-        if a not in lst:
-            lst.append(a)
-        if len(lst) > max_alias_per_canon:
-            out[c] = lst[:max_alias_per_canon]
-
-    return out
 
 
 # -----------------------------
@@ -278,11 +447,6 @@ def _build_keywords_where_and_params_v2(
         alias: Optional[str] = None,
         param_offset: int = 0,
 ) -> Tuple[List[str], Dict[str, Any]]:
-    """
-    groups:
-      - keywords_all_groups: AND of (OR variants)
-      - keywords_any_groups: OR of (OR variants)
-    """
     where_parts: List[str] = []
     params: Dict[str, Any] = {}
     preds = _keyword_group_predicate(alias=alias)
@@ -299,14 +463,12 @@ def _build_keywords_where_and_params_v2(
             idx += 1
         return "(" + " OR ".join(variant_clauses) + ")"
 
-    # AND group
     for variants in keywords_all_groups:
         variants = [v for v in variants if v]
         if not variants:
             continue
         where_parts.append(_group_sql_for_variants(variants))
 
-    # OR group
     if keywords_any_groups:
         or_groups: List[str] = []
         for variants in keywords_any_groups:
@@ -382,7 +544,6 @@ def _apply_competition_pct_filters(
         max_competition_pct: Optional[float] = None,
         require_capacity: bool = False,
 ) -> None:
-    # 임계값 필터가 있거나, RATE_STATS 같이 % 계산이 필수면 capacity 조건 강제
     if require_capacity or (min_competition_pct is not None) or (max_competition_pct is not None):
         where.append(f"{alias}.recruitment_capacity IS NOT NULL")
         where.append(f"{alias}.recruitment_capacity > 0")
@@ -396,6 +557,38 @@ def _apply_competition_pct_filters(
     if max_competition_pct is not None:
         where.append(f"{expr} <= %(max_comp_pct)s")
         params["max_comp_pct"] = float(max_competition_pct)
+
+
+# -----------------------------
+# required_experience(years) filters
+# -----------------------------
+
+def _apply_required_experience_filters(
+        where: List[str],
+        params: Dict[str, Any],
+        *,
+        alias: str = "jp",
+        min_required_experience_years: Optional[int] = None,
+        max_required_experience_years: Optional[int] = None,
+) -> None:
+    if not _column_exists("job_posting", "required_experience"):
+        return
+
+    if min_required_experience_years is None and max_required_experience_years is None:
+        return
+
+    where.append(f"{alias}.required_experience IS NOT NULL")
+
+    if min_required_experience_years is not None and max_required_experience_years is not None:
+        where.append(f"{alias}.required_experience BETWEEN %(exp_min)s AND %(exp_max)s")
+        params["exp_min"] = int(min_required_experience_years)
+        params["exp_max"] = int(max_required_experience_years)
+    elif min_required_experience_years is not None:
+        where.append(f"{alias}.required_experience >= %(exp_min)s")
+        params["exp_min"] = int(min_required_experience_years)
+    elif max_required_experience_years is not None:
+        where.append(f"{alias}.required_experience <= %(exp_max)s")
+        params["exp_max"] = int(max_required_experience_years)
 
 
 # -----------------------------
@@ -439,7 +632,7 @@ class JobStatsRepository:
                 if m not in expanded_pool:
                     expanded_pool.append(m)
 
-        canon_to_aliases = _expand_aliases_for_canon(cur, expanded_pool)
+        canon_to_aliases = _expand_aliases_for_canon(cur, expanded_pool, kind="STACK")
 
         def build_variant_group(requested_canon: str) -> List[str]:
             members = _canon_members_for_query(requested_canon)
@@ -466,6 +659,58 @@ class JobStatsRepository:
 
         return all_groups, any_groups, corrections
 
+    def _resolve_and_expand_industries(
+            self,
+            cur,
+            industries_any: List[str],
+            *,
+            trigram_threshold: float = 0.42,
+            max_items: int = 10,
+    ) -> Tuple[List[List[str]], List[str], List[dict]]:
+        """
+        industries_any(raw) -> (industry_groups_for_OR, used_canon_list, corrections)
+        """
+        inds = _normalize_kw_list(industries_any or [], max_items=max_items)
+
+        corrections: List[dict] = []
+        requested: List[str] = []
+        for raw in inds:
+            canon, corr = _resolve_alias_token(cur, raw, kind="INDUSTRY", trigram_threshold=trigram_threshold)
+            if canon:
+                requested.append(canon)
+            if corr:
+                corrections.append(corr)
+
+        expanded_pool: List[str] = []
+        for c in dict.fromkeys(requested):
+            for m in _canon_members_for_query(c):
+                if m not in expanded_pool:
+                    expanded_pool.append(m)
+
+        canon_to_aliases = _expand_aliases_for_canon(cur, expanded_pool, kind="INDUSTRY")
+
+        def build_variant_group(requested_canon: str) -> List[str]:
+            members = _canon_members_for_query(requested_canon)
+            variants: List[str] = []
+            seen = set()
+
+            rc = _normalize_token(requested_canon)
+            if rc and rc not in seen:
+                variants.append(rc)
+                seen.add(rc)
+
+            for m in members:
+                for a in canon_to_aliases.get(m, [m]):
+                    aa = _normalize_token(a)
+                    if aa and aa not in seen:
+                        variants.append(aa)
+                        seen.add(aa)
+
+            return variants
+
+        groups = [build_variant_group(c) for c in requested]
+        return groups, requested, corrections
+
     def count_postings(
             self,
             start_date: date,
@@ -474,11 +719,14 @@ class JobStatsRepository:
             admin_areas_any: Optional[List[str]] = None,
             keywords_all: Optional[List[str]] = None,
             keywords_any: Optional[List[str]] = None,
+            industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
             max_competition_pct: Optional[float] = None,
+            min_required_experience_years: Optional[int] = None,
+            max_required_experience_years: Optional[int] = None,
             job_ids_scope: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         kw_all = keywords_all or []
@@ -490,6 +738,9 @@ class JobStatsRepository:
         try:
             with conn.cursor() as cur:
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
+                ind_groups, ind_used, ind_corr = self._resolve_and_expand_industries(cur, industries_any or [])
+                any_groups2 = any_groups + ind_groups
+                corr_all = (stack_corr + ind_corr)[:50]
 
                 where = [
                     "jp.deleted_at IS NULL",
@@ -508,7 +759,7 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
@@ -527,6 +778,12 @@ class JobStatsRepository:
                     require_capacity=False,
                 )
 
+                _apply_required_experience_filters(
+                    where, params, alias="jp",
+                    min_required_experience_years=min_required_experience_years,
+                    max_required_experience_years=max_required_experience_years,
+                )
+
                 sql = f"""
                     SELECT COUNT(*)::bigint AS cnt
                     FROM job_posting jp
@@ -540,6 +797,7 @@ class JobStatsRepository:
                     "count": cnt,
                     "start_date": str(start_date),
                     "end_date": str(end_date),
+                    "industries_any": ind_used,
                     "regions_any": regions_any or [],
                     "admin_areas_any": admin_areas_any or [],
                     "keywords_all": [g[0] for g in all_groups] if all_groups else [],
@@ -549,9 +807,12 @@ class JobStatsRepository:
                     "max_salary_m만원": max_salary_m만원,
                     "min_competition_pct": min_competition_pct,
                     "max_competition_pct": max_competition_pct,
+                    "min_required_experience_years": min_required_experience_years,
+                    "max_required_experience_years": max_required_experience_years,
                     "scoped": bool(job_ids_scope),
                     "scope_size": len(job_ids_scope or []),
                     "stack_corrections": stack_corr,
+                    "term_corrections": corr_all,
                 }
         finally:
             conn.close()
@@ -564,9 +825,12 @@ class JobStatsRepository:
             admin_areas_any: Optional[List[str]] = None,
             keywords_all: Optional[List[str]] = None,
             keywords_any: Optional[List[str]] = None,
+            industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             min_competition_pct: Optional[float] = None,
             max_competition_pct: Optional[float] = None,
+            min_required_experience_years: Optional[int] = None,
+            max_required_experience_years: Optional[int] = None,
             job_ids_scope: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         kw_all = keywords_all or []
@@ -578,6 +842,9 @@ class JobStatsRepository:
         try:
             with conn.cursor() as cur:
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
+                ind_groups, ind_used, ind_corr = self._resolve_and_expand_industries(cur, industries_any or [])
+                any_groups2 = any_groups + ind_groups
+                corr_all = (stack_corr + ind_corr)[:50]
 
                 where = [
                     "jp.deleted_at IS NULL",
@@ -596,7 +863,7 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
@@ -605,6 +872,12 @@ class JobStatsRepository:
                     min_competition_pct=min_competition_pct,
                     max_competition_pct=max_competition_pct,
                     require_capacity=False,
+                )
+
+                _apply_required_experience_filters(
+                    where, params, alias="jp",
+                    min_required_experience_years=min_required_experience_years,
+                    max_required_experience_years=max_required_experience_years,
                 )
 
                 sql = f"""
@@ -626,6 +899,7 @@ class JobStatsRepository:
                     "avg_apply_per_posting": float(row[2] or 0),
                     "start_date": str(start_date),
                     "end_date": str(end_date),
+                    "industries_any": ind_used,
                     "regions_any": regions_any or [],
                     "admin_areas_any": admin_areas_any or [],
                     "keywords_all": [g[0] for g in all_groups] if all_groups else [],
@@ -633,9 +907,12 @@ class JobStatsRepository:
                     "job_role": job_role,
                     "min_competition_pct": min_competition_pct,
                     "max_competition_pct": max_competition_pct,
+                    "min_required_experience_years": min_required_experience_years,
+                    "max_required_experience_years": max_required_experience_years,
                     "scoped": bool(job_ids_scope),
                     "scope_size": len(job_ids_scope or []),
                     "stack_corrections": stack_corr,
+                    "term_corrections": corr_all,
                 }
         finally:
             conn.close()
@@ -648,11 +925,14 @@ class JobStatsRepository:
             admin_areas_any: Optional[List[str]] = None,
             keywords_all: Optional[List[str]] = None,
             keywords_any: Optional[List[str]] = None,
+            industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
             max_competition_pct: Optional[float] = None,
+            min_required_experience_years: Optional[int] = None,
+            max_required_experience_years: Optional[int] = None,
             job_ids_scope: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         kw_all = keywords_all or []
@@ -664,6 +944,9 @@ class JobStatsRepository:
         try:
             with conn.cursor() as cur:
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
+                ind_groups, ind_used, ind_corr = self._resolve_and_expand_industries(cur, industries_any or [])
+                any_groups2 = any_groups + ind_groups
+                corr_all = (stack_corr + ind_corr)[:50]
 
                 where = [
                     "jp.deleted_at IS NULL",
@@ -682,7 +965,7 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
@@ -694,12 +977,17 @@ class JobStatsRepository:
                     where.append(_salary_min_predicate(int(min_salary_m만원), salary_col="jp.salary_text"))
                     params["min_salary_m"] = int(min_salary_m만원)
 
-                # RATE_STATS는 % 계산이 핵심이므로 capacity 조건을 강제
                 _apply_competition_pct_filters(
                     where, params, alias="jp",
                     min_competition_pct=min_competition_pct,
                     max_competition_pct=max_competition_pct,
                     require_capacity=True,
+                )
+
+                _apply_required_experience_filters(
+                    where, params, alias="jp",
+                    min_required_experience_years=min_required_experience_years,
+                    max_required_experience_years=max_required_experience_years,
                 )
 
                 comp_expr = _competition_pct_expr("jp")
@@ -734,6 +1022,7 @@ class JobStatsRepository:
                     "competition_avg_pct": float(r[5] or 0.0),
                     "start_date": str(start_date),
                     "end_date": str(end_date),
+                    "industries_any": ind_used,
                     "regions_any": regions_any or [],
                     "admin_areas_any": admin_areas_any or [],
                     "keywords_all": [g[0] for g in all_groups] if all_groups else [],
@@ -743,9 +1032,12 @@ class JobStatsRepository:
                     "max_salary_m만원": max_salary_m만원,
                     "min_competition_pct": min_competition_pct,
                     "max_competition_pct": max_competition_pct,
+                    "min_required_experience_years": min_required_experience_years,
+                    "max_required_experience_years": max_required_experience_years,
                     "scoped": bool(job_ids_scope),
                     "scope_size": len(job_ids_scope or []),
                     "stack_corrections": stack_corr,
+                    "term_corrections": corr_all,
                 }
         finally:
             conn.close()
@@ -759,11 +1051,14 @@ class JobStatsRepository:
             admin_areas_any: Optional[List[str]] = None,
             keywords_all: Optional[List[str]] = None,
             keywords_any: Optional[List[str]] = None,
+            industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
             max_competition_pct: Optional[float] = None,
+            min_required_experience_years: Optional[int] = None,
+            max_required_experience_years: Optional[int] = None,
             limit: int = 5,
             random: bool = False,
             job_ids_scope: Optional[List[int]] = None,
@@ -777,6 +1072,9 @@ class JobStatsRepository:
         try:
             with conn.cursor() as cur:
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
+                ind_groups, ind_used, ind_corr = self._resolve_and_expand_industries(cur, industries_any or [])
+                any_groups2 = any_groups + ind_groups
+                corr_all = (stack_corr + ind_corr)[:50]
 
                 where = [
                     "jp.deleted_at IS NULL",
@@ -795,7 +1093,7 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
@@ -814,6 +1112,12 @@ class JobStatsRepository:
                     require_capacity=False,
                 )
 
+                _apply_required_experience_filters(
+                    where, params, alias="jp",
+                    min_required_experience_years=min_required_experience_years,
+                    max_required_experience_years=max_required_experience_years,
+                )
+
                 if random:
                     order_sql = "md5(jp.job_id::text || %(seed)s)"
                     params["seed"] = request_id
@@ -822,6 +1126,9 @@ class JobStatsRepository:
 
                 lim = max(1, min(20, int(limit)))
                 params["lim"] = lim
+
+                has_exp_col = _column_exists("job_posting", "required_experience")
+                exp_select = ", jp.required_experience" if has_exp_col else ""
 
                 sql = f"""
                     SELECT
@@ -832,7 +1139,8 @@ class JobStatsRepository:
                       jp.salary_text,
                       jp.stack,
                       jp.apply_count,
-                      jp.recruitment_capacity,
+                      jp.recruitment_capacity
+                      {exp_select},
                       jp.created_at
                     FROM job_posting jp
                     JOIN employer e ON e.employer_id = jp.employer_id
@@ -845,6 +1153,12 @@ class JobStatsRepository:
 
                 items = []
                 for r in rows:
+                    req_exp = None
+                    created_at_idx = 8
+                    if has_exp_col:
+                        req_exp = r[8]
+                        created_at_idx = 9
+
                     st = r[5]
                     if isinstance(st, list):
                         flat: List[str] = []
@@ -861,6 +1175,8 @@ class JobStatsRepository:
                     cap = int(r[7] or 0)
                     comp_pct = (apply_count / cap * 100.0) if cap > 0 else None
 
+                    created_at = r[created_at_idx]
+
                     items.append(
                         {
                             "job_id": int(r[0]),
@@ -872,7 +1188,8 @@ class JobStatsRepository:
                             "apply_count": apply_count,
                             "recruitment_capacity": (cap if r[7] is not None else None),
                             "competition_pct": comp_pct,
-                            "created_at": (r[8].isoformat() if r[8] else None),
+                            "required_experience": (int(req_exp) if req_exp is not None else None),
+                            "created_at": (created_at.isoformat() if created_at else None),
                         }
                     )
 
@@ -881,6 +1198,7 @@ class JobStatsRepository:
                     "count": len(items),
                     "start_date": str(start_date),
                     "end_date": str(end_date),
+                    "industries_any": ind_used,
                     "regions_any": regions_any or [],
                     "admin_areas_any": admin_areas_any or [],
                     "keywords_all": [g[0] for g in all_groups] if all_groups else [],
@@ -890,11 +1208,14 @@ class JobStatsRepository:
                     "max_salary_m만원": max_salary_m만원,
                     "min_competition_pct": min_competition_pct,
                     "max_competition_pct": max_competition_pct,
+                    "min_required_experience_years": min_required_experience_years,
+                    "max_required_experience_years": max_required_experience_years,
                     "limit": lim,
                     "random": bool(random),
                     "scoped": bool(job_ids_scope),
                     "scope_size": len(job_ids_scope or []),
                     "stack_corrections": stack_corr,
+                    "term_corrections": corr_all,
                 }
         finally:
             conn.close()
@@ -905,6 +1226,7 @@ class JobStatsRepository:
             end_date: date,
             regions_any: Optional[List[str]] = None,
             admin_areas_any: Optional[List[str]] = None,
+            industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
             limit: int = 10,
     ) -> Dict[str, Any]:
@@ -937,8 +1259,10 @@ class JobStatsRepository:
         try:
             with conn.cursor() as cur:
                 all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
+                ind_groups, ind_used, _ = self._resolve_and_expand_industries(cur, industries_any or [])
+                any_groups2 = any_groups + ind_groups
 
-                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups, alias="jp", param_offset=0)
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
                 params.update(kw_params)
 
@@ -969,6 +1293,7 @@ class JobStatsRepository:
                     "items": items,
                     "start_date": str(start_date),
                     "end_date": str(end_date),
+                    "industries_any": ind_used,
                     "regions_any": regions_any or [],
                     "admin_areas_any": admin_areas_any or [],
                     "job_role": job_role,
