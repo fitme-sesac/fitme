@@ -1,4 +1,4 @@
-import http from '../../../api/http';
+import { http } from '../../../api/http';
 
 /**
  * 면접 일정 API
