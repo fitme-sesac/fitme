@@ -1,6 +1,6 @@
-// src/main/java/com/example/pproject/report/controller/ReportController.java
 package com.example.pproject.report.controller;
 
+import com.example.pproject.report.dto.request.MemberReportCreateRequest;
 import com.example.pproject.report.service.ReportService;
 import com.example.pproject.report.dto.request.CreateReportRequest;
 import com.example.pproject.report.dto.request.ProcessReportRequest;
@@ -12,10 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,15 +31,43 @@ public class ReportController {
 
     private final ReportService reportService;
 
+    // ❌ [삭제됨] 기존의 createReport (CreateReportRequest 사용) 메서드는 삭제하여 중복 매핑 방지
+
     /**
+     * [U-REP-001] 회원: 신고 접수 (최종 수정 버전)
      * POST /api/v1/reports
-     * 신고 생성
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'EMPLOYER')") // 일반 회원만 가능
     public ResponseEntity<ReportResponse> createReport(
-            @Valid @RequestBody CreateReportRequest request) {
-        log.info("신고 생성 요청: reporterMemberId={}", request.getReporterMemberId());
-        ReportResponse response = reportService.createReport(request);
+            @Valid @RequestBody MemberReportCreateRequest request,
+            //@AuthenticationPrincipal Long reporterId) { // 토큰에서 신고자 ID 추출
+            @RequestParam Long reporterId) { // 토큰 대신 파라미터로 ID 직접 받기
+
+        log.info("회원 신고 접수 요청: reporterId={}, targetType={}, targetId={}",
+                reporterId, request.getTargetType(), request.getTargetId());
+
+        // target_id를 타입에 따라 분배 로직
+        Long targetJobId = null;
+        Long targetMemberId = null;
+
+        if ("JOB_POSTING".equals(request.getTargetType())) {
+            targetJobId = request.getTargetId();
+        } else if ("MEMBER".equals(request.getTargetType())) {
+            targetMemberId = request.getTargetId();
+        }
+
+        // Service용 DTO로 변환
+        CreateReportRequest serviceRequest = CreateReportRequest.builder()
+                .reporterMemberId(reporterId) // 로그인한 회원 ID
+                .targetType(request.getTargetType())
+                .targetJobId(targetJobId)       // 분배된 ID
+                .targetMemberId(targetMemberId) // 분배된 ID
+                .reasonCode(request.getReasonCode())
+                .reasonDetail(request.getDescription()) // description -> reasonDetail
+                .build();
+
+        ReportResponse response = reportService.createReport(serviceRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -99,14 +130,20 @@ public class ReportController {
 
     /**
      * POST /api/v1/reports/{reportId}/process
-     * 신고 처리 (중재 조치)
+     * 신고 처리 (중재 조치) - 관리자 전용
      */
     @PostMapping("/{reportId}/process")
     public ResponseEntity<ModerationActionResponse> processReport(
             @PathVariable Long reportId,
             @Valid @RequestBody ProcessReportRequest request) {
         log.info("신고 처리: reportId={}", reportId);
+
+        // 경로 변수의 ID를 DTO에 설정하여 일치시킴
         request.setReportId(reportId);
+
+        // 실제로는 보안 컨텍스트에서 관리자 ID를 가져와야 합니다.
+        // request.setAdminMemberId(currentAdminId);
+
         ModerationActionResponse response = reportService.processReport(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -147,18 +184,20 @@ public class ReportController {
 
     /**
      * GET /api/v1/reports/member/{memberId}/penalty-points
-     * 회원 경고 점수 조회
+     * 회원 경고 점수 및 상태 조회
      */
     @GetMapping("/member/{memberId}/penalty-points")
     public ResponseEntity<Map<String, Object>> getMemberPenaltyPoints(
             @PathVariable Long memberId) {
         log.info("회원 경고 점수 조회: memberId={}", memberId);
+
         Integer totalPoints = reportService.getMemberPenaltyPoints(memberId);
+        boolean isBanned = reportService.isMemberBanned(memberId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("memberId", memberId);
         response.put("totalPenaltyPoints", totalPoints);
-        response.put("isBanned", totalPoints >= 100);  // 100점 이상 시 계정 정지
+        response.put("isBanned", isBanned);
 
         return ResponseEntity.ok(response);
     }

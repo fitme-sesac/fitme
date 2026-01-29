@@ -5,10 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "member_penalty_point", indexes = {
-        @Index(name = "idx_member_id", columnList = "member_id"),
-        @Index(name = "idx_report_id", columnList = "report_id")
-})
+@Table(name = "member_penalty_point") // ✅ 여기도 indexes 삭제!
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,10 +23,10 @@ public class MemberPenaltyPoint {
     private Long reportId;
 
     @Column(nullable = false)
-    private Integer points;  // 경고 점수
+    private Integer points;
 
     @Column(length = 200, nullable = false)
-    private String reason;  // 경고 사유
+    private String reason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

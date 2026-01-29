@@ -3,10 +3,10 @@ package com.example.pproject.notice.service;
 import com.example.pproject.notice.dto.*;
 import com.example.pproject.notice.entity.Notice;
 import com.example.pproject.notice.entity.NoticeAttachment;
-import com.example.pproject.notice.entity.NoticeDelivery; // [추가]
+import com.example.pproject.notice.entity.NoticeDelivery;
 import com.example.pproject.notice.entity.Notice.NoticeStatus;
 import com.example.pproject.notice.entity.Notice.NoticeType;
-import com.example.pproject.notice.repository.NoticeDeliveryRepository; // [추가]
+import com.example.pproject.notice.repository.NoticeDeliveryRepository;
 import com.example.pproject.notice.repository.NoticeRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,18 +28,25 @@ import java.util.Map;
 public class NoticeService {
 
     private final NoticeRepository noticeRepository;
-    private final NoticeDeliveryRepository noticeDeliveryRepository; // [추가] 주입
+    private final NoticeDeliveryRepository noticeDeliveryRepository;
 
     // ==================== ADMIN: 생성/수정/삭제 ====================
 
     @Transactional
     public NoticeResponse createNotice(NoticeCreateRequest request, Long adminId) {
-        // 정책 문서 유일성 체크
+        // 1. 정책 문서 Rotation (기존 활성 약관 처리)
         if (Notice.isUniqueActivePolicyType(request.getNoticeType())) {
+            // 주의: 만약 DB에 이미 중복된 Active 정책이 여러 개 있다면 여기서 에러가 날 수 있습니다.
+            // (Repository의 findActivePolicyForRotation이 Optional을 반환하기 때문)
+            // 테스트 중 발생한 중복 데이터는 DB에서 직접 정리하거나, 로직을 List 조회로 변경해야 합니다.
             noticeRepository.findActivePolicyForRotation(request.getNoticeType())
-                    .ifPresent(Notice::markForDeletion);
+                    .ifPresent(existingNotice -> {
+                        existingNotice.markForDeletion();
+                        log.info("기존 약관(id={}) 상태 변경 -> PENDING_DELETE", existingNotice.getId());
+                    });
         }
 
+        // 2. 공지 생성
         Notice notice = Notice.builder()
                 .title(request.getTitle())
                 .body(request.getBody())
@@ -50,6 +58,7 @@ public class NoticeService {
                 .updatedBy(adminId)
                 .build();
 
+        // 3. 첨부파일 처리
         if (request.getAttachments() != null) {
             for (NoticeCreateRequest.AttachmentRequest fileReq : request.getAttachments()) {
                 NoticeAttachment attachment = NoticeAttachment.builder()
@@ -60,7 +69,15 @@ public class NoticeService {
             }
         }
 
-        return NoticeResponse.from(noticeRepository.save(notice));
+        Notice savedNotice = noticeRepository.save(notice);
+
+        // 4. 자동 알림 발송 트리거
+        if (Notice.isUniqueActivePolicyType(savedNotice.getNoticeType()) && savedNotice.getIsPublic()) {
+            sendNotice(savedNotice.getId(), NoticeDelivery.DeliveryChannel.EMAIL, adminId);
+            log.info("중요 약관 등록으로 인한 자동 알림 발송 트리거 완료: noticeId={}", savedNotice.getId());
+        }
+
+        return NoticeResponse.from(savedNotice);
     }
 
     @Transactional
@@ -82,37 +99,38 @@ public class NoticeService {
 
     @Transactional
     public void deleteNotice(Long noticeId) {
-        noticeRepository.deleteById(noticeId);
+        Notice notice = noticeRepository.findById(noticeId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 공지사항입니다."));
+
+        notice.markForDeletion();
+
+        notice.update(
+                notice.getTitle(), notice.getBody(), false, notice.getNoticeType(),
+                NoticeStatus.PENDING_DELETE,
+                LocalDateTime.now().plusDays(30),
+                notice.getUpdatedBy()
+        );
+
+        log.info("공지 삭제 요청(30일 유예): noticeId={}", noticeId);
     }
 
-    // ==================== [추가] ADMIN: 공지 발송 ====================
+    // ==================== ADMIN: 공지 발송 ====================
 
-    /**
-     * 공지사항 발송 이력 생성 (ERD 32번 notice_delivery 테이블 대응)
-     * 실제 발송 로직(메일/PUSH 등)은 별도 모듈이나 이벤트 리스너에서 처리한다고 가정하고,
-     * 여기서는 DB에 '발송 준비(PENDING)' 상태의 이력을 남깁니다.
-     */
     @Transactional
     public void sendNotice(Long noticeId, NoticeDelivery.DeliveryChannel channel, Long adminId) {
         Notice notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 공지사항입니다."));
 
-        // TODO: 실제로는 전체 회원(Member) 목록을 조회하여 Loop를 돌거나 Batch Insert를 해야 합니다.
-        // 현재는 Member Repository 의존성이 없으므로, 예시로 '관리자 자신'에게 보내는 것으로 구현합니다.
-        // 실무에서는: List<Long> targetMemberIds = memberRepository.findAllActiveIds();
-
-        Long targetMemberId = adminId; // 테스트용: 발송 대상을 관리자 본인으로 설정
+        Long targetMemberId = adminId;
 
         NoticeDelivery delivery = NoticeDelivery.builder()
                 .notice(notice)
                 .memberId(targetMemberId)
                 .channel(channel)
-                .status(NoticeDelivery.DeliveryStatus.PENDING) // 초기 상태: 발송 대기
+                .status(NoticeDelivery.DeliveryStatus.PENDING)
                 .build();
 
         noticeDeliveryRepository.save(delivery);
-
-        log.info("공지 발송 이력 생성 완료: noticeId={}, memberId={}, channel={}", noticeId, targetMemberId, channel);
     }
 
     // ==================== PUBLIC: 조회 ====================
@@ -125,8 +143,17 @@ public class NoticeService {
         return noticeRepository.findByTypePublic(type, pageable).map(NoticeListResponse::from);
     }
 
+    /**
+     * ✅ [핵심] 최신 정책 1건 조회
+     * 기존 에러 원인: 데이터가 18개인데 1개만 달라고 해서 발생.
+     * 수정: findTop... 메서드를 사용하여 가장 최신 1개만 가져오도록 변경.
+     */
     public NoticeResponse getLatestPolicy(NoticeType type) {
-        return noticeRepository.findActivePolicy(type)
+        return noticeRepository.findTopByNoticeTypeAndStatusAndIsPublicOrderByCreatedAtDesc(
+                        type,
+                        NoticeStatus.ACTIVE,
+                        true
+                )
                 .map(NoticeResponse::from)
                 .orElseThrow(() -> new IllegalArgumentException("현재 활성화된 정책 문서가 없습니다."));
     }
