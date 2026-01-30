@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     CHATBOT_OPENAI_MODEL_NAME: str = "gpt-4o-mini"
     CHATBOT_OPENAI_TEMPERATURE: float = 0.0
 
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost,http://127.0.0.1"
+
     # Database
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
