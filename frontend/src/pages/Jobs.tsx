@@ -11,6 +11,12 @@ import { WideJobCard } from "@/components/home/WideJobCard";
 import { RecommendedSection } from "@/components/home/RecommendedSection";
 import { SideJobList } from "@/components/home/SideJobList";
 import { usePublicJobs } from "@/hooks/useJobs";
+import {
+    POSITION_DISPLAY_OPTIONS,
+    derivePosition,
+    getPositionLabelsFromStack,
+    getPositionSortOrder,
+} from "@/shared/constants/positionCategories";
 
 // --- Types ---
 export interface Job {
@@ -49,7 +55,7 @@ interface JobsResponse {
 }
 
 const FILTER_OPTIONS: Record<string, string[]> = {
-    "포지션": ["전체", "서버/백엔드", "프론트엔드", "웹 풀스택", "안드로이드", "iOS", "머신러닝/AI", "데이터 엔지니어", "DevOps", "게임 클라이언트", "보안 엔진"],
+    "포지션": POSITION_DISPLAY_OPTIONS,
     "경력": [], // 슬라이더로 관리
     "스킬": ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"],
     "연봉": [], // 슬라이더로 관리
@@ -83,32 +89,14 @@ const LOCATION_REGIONS: { region: string; subRegions: string[] }[] = [
     { region: "제주", subRegions: ["제주시", "서귀포시"] },
 ];
 
-/** 채용공고 stack(및 API position) 기반으로 포지션 라벨 목록 도출 (타이틀 미사용) */
-function getPositionLabelsFromStack(job: Job): string[] {
-    const labels: string[] = [];
-    const stack = Array.isArray(job.stack) ? job.stack : (job.stack != null ? [String(job.stack)] : []);
-    const lower = stack.map(s => String(s).toLowerCase().trim());
+/** 채용공고 stack/API position → API용 포지션 (정렬용) */
+function getJobPosition(job: Job): string | null {
+    return derivePosition(job.stack, job.position);
+}
 
-    // API에서 오는 stack 기반 position (프론트엔드/백엔드/풀스택) — 타이틀 미사용
-    const apiPos = job.position?.trim();
-    if (apiPos === "프론트엔드") labels.push("프론트엔드");
-    if (apiPos === "백엔드") labels.push("서버/백엔드");
-    if (apiPos === "풀스택") labels.push("웹 풀스택");
-
-    const has = (keywords: string[]) => keywords.some(kw => lower.some(s => s.includes(kw)));
-    if (!labels.includes("프론트엔드") && has(["react", "vue", "angular", "javascript", "typescript", "next", "nuxt", "svelte", "html", "css", "frontend", "프론트"])) labels.push("프론트엔드");
-    if (!labels.includes("서버/백엔드") && has(["java", "spring", "kotlin", "node", "python", "django", "flask", "go", "golang", "backend", "백엔드", "서버", "express", "nestjs", "mysql", "postgresql", "mongodb"])) labels.push("서버/백엔드");
-    if (!labels.includes("웹 풀스택") && labels.includes("프론트엔드") && labels.includes("서버/백엔드")) labels.push("웹 풀스택");
-
-    if (has(["android", "안드로이드", "kotlin"]) && lower.some(s => s.includes("android") || s.includes("mobile"))) labels.push("안드로이드");
-    if (has(["ios", "swift", "아이오에스"])) labels.push("iOS");
-    if (has(["tensorflow", "pytorch", "machine learning", "ml", "ai", "keras", "머신러닝", "딥러닝"])) labels.push("머신러닝/AI");
-    if (has(["spark", "airflow", "kafka", "bigquery", "data engineer", "데이터", "etl"])) labels.push("데이터 엔지니어");
-    if (has(["docker", "kubernetes", "k8s", "terraform", "ci/cd", "devops", "aws", "gcp", "azure"])) labels.push("DevOps");
-    if (has(["unity", "unreal", "game", "게임", "c++", "c#"])) labels.push("게임 클라이언트");
-    if (has(["security", "보안"])) labels.push("보안 엔진");
-
-    return [...new Set(labels)];
+/** 채용공고 stack/API position → UI용 포지션 라벨 목록 (필터 매칭용) */
+function getJobPositionLabels(job: Job): string[] {
+    return getPositionLabelsFromStack(job.stack, job.position);
 }
 
 export default function Jobs() {
@@ -168,11 +156,11 @@ export default function Jobs() {
         const locationSelected = getSelectedArray("근무지");
         const industrySelected = getSelectedArray("서비스 분야");
 
-        // 포지션 필터: 채용공고 stack 기반 매핑만 사용 (타이틀 미사용)
+        // 포지션 필터: UI 포지션 라벨(서버/백엔드, 프론트엔드, 웹 풀스택, 안드로이드, iOS 등)로 필터
         if (posSelected.length > 0) {
             filteredJobs = filteredJobs.filter(job => {
-                const jobPositions = getPositionLabelsFromStack(job);
-                return posSelected.some(p => jobPositions.includes(p));
+                const jobLabels = getJobPositionLabels(job);
+                return posSelected.some((p) => jobLabels.includes(p));
             });
         }
 
@@ -236,15 +224,19 @@ export default function Jobs() {
             );
         }
 
-        // 정렬: 매칭율 우선, 없으면 최신순
+        // 정렬: (1) 매칭율 우선 (2) 포지션 카테고리순(프론트엔드→백엔드→풀스택) (3) 최신순
         filteredJobs.sort((a, b) => {
             const aRate = a.matchInfo?.overallMatchRate ?? a.matchInfo?.matchRate;
             const bRate = b.matchInfo?.overallMatchRate ?? b.matchInfo?.matchRate;
             if (aRate !== undefined && bRate !== undefined) {
-                return (bRate || 0) - (aRate || 0);
+                const rateDiff = (bRate || 0) - (aRate || 0);
+                if (rateDiff !== 0) return rateDiff;
             }
-            if (aRate !== undefined) return -1;
-            if (bRate !== undefined) return 1;
+            if (aRate !== undefined && bRate === undefined) return -1;
+            if (aRate === undefined && bRate !== undefined) return 1;
+            const posOrderA = getPositionSortOrder(getJobPosition(a));
+            const posOrderB = getPositionSortOrder(getJobPosition(b));
+            if (posOrderA !== posOrderB) return posOrderA - posOrderB;
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 

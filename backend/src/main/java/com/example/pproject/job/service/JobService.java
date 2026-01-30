@@ -13,6 +13,7 @@ import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
+import com.example.pproject.common.constants.JobPositionConstants;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.common.util.JobPositionUtil;
 import lombok.RequiredArgsConstructor;
@@ -401,6 +402,7 @@ public class JobService {
         return JobFilterOptionsDTO.builder()
                 .stacks(stacks)
                 .locations(locations)
+                .positionCategories(JobPositionConstants.DISPLAY_POSITION_LABELS)
                 .experienceOptions(JobFilterOptionsDTO.getDefaultExperienceOptions())
                 .build();
     }
