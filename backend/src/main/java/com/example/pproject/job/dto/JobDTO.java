@@ -22,9 +22,11 @@ public class JobDTO {
     
     // ERD 기준 필드
     private String location;
-    private Long salaryText;      // BIGINT - 연봉 (원 단위)
+    private String salaryText;    // VARCHAR(80) - 급여 정보
     private String salaryDisplay; // 프론트 표시용 포맷된 문자열
     private String stack;
+    private Integer requiredExperience;  // 요구 경력 (0: 신입/무관)
+    private Integer recruitmentCapacity; // 모집 정원
     
     private int viewCount;
     private int applicationCount;

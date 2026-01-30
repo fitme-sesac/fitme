@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import ScrapButton from '../components/ScrapButton';
 
 /**
  * 공개 채용공고 상세 페이지
@@ -192,13 +193,23 @@ export default function PublicJobDetailPage() {
                   </div>
                 )}
 
-                {/* 급여 정보 */}
-                {job.salaryText && (
-                  <div className="alert alert-success mb-0">
-                    <i className="bi bi-currency-dollar me-2"></i>
-                    <strong>급여:</strong> {job.salaryText}
+                {/* 급여 및 경력 정보 */}
+                <div className="d-flex flex-wrap gap-3 mb-0">
+                  {job.salaryText && (
+                    <div className="alert alert-success mb-0 flex-grow-1">
+                      <i className="bi bi-currency-dollar me-2"></i>
+                      <strong>급여:</strong> {job.salaryText}
+                    </div>
+                  )}
+                  <div className="alert alert-primary mb-0 flex-grow-1">
+                    <i className="bi bi-briefcase me-2"></i>
+                    <strong>경력:</strong> {
+                      job.requiredExperience === null || job.requiredExperience === undefined || job.requiredExperience === 0
+                        ? '신입/무관'
+                        : `${job.requiredExperience}년 이상`
+                    }
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
@@ -277,7 +288,7 @@ export default function PublicJobDetailPage() {
 
                   {/* 세부 매칭률 */}
                   <div className="row g-2 mb-3">
-                    <div className="col-6">
+                    <div className="col-4">
                       <div className="mini-stat-card bg-light rounded p-2 text-center">
                         <div 
                           className="mini-circle mx-auto mb-1"
@@ -288,7 +299,18 @@ export default function PublicJobDetailPage() {
                         <small className="text-muted d-block">기술스택</small>
                       </div>
                     </div>
-                    <div className="col-6">
+                    <div className="col-4">
+                      <div className="mini-stat-card bg-light rounded p-2 text-center">
+                        <div 
+                          className="mini-circle mx-auto mb-1"
+                          style={{ '--rate': job.matchInfo.experienceMatchRate || 0, '--color': '#fd7e14' }}
+                        >
+                          <span>{job.matchInfo.experienceMatchRate || 0}%</span>
+                        </div>
+                        <small className="text-muted d-block">경력</small>
+                      </div>
+                    </div>
+                    <div className="col-4">
                       <div className="mini-stat-card bg-light rounded p-2 text-center">
                         <div 
                           className="mini-circle mx-auto mb-1"
@@ -444,15 +466,15 @@ export default function PublicJobDetailPage() {
                   >
                     <i className="bi bi-send me-2"></i>지원하기
                   </button>
-                  <button 
-                    className="btn btn-outline-secondary"
-                    onClick={() => {
-                      // 스크랩 기능
-                      alert('스크랩 기능은 준비 중입니다.');
+                  <ScrapButton 
+                    jobId={job.jobId || jobId}
+                    size="lg"
+                    showText={true}
+                    onToggle={(scraped, message) => {
+                      // 스크랩 토글 완료 시 메시지 표시 (선택사항)
+                      console.log(message);
                     }}
-                  >
-                    <i className="bi bi-bookmark me-2"></i>스크랩
-                  </button>
+                  />
                 </div>
               </div>
             </div>

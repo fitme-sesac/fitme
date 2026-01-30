@@ -215,7 +215,9 @@ public class JobService {
                 .status(dto.getStatus() != null ? dto.getStatus() : "DRAFT")
                 .location(dto.getLocation())
                 .salaryText(dto.getSalaryText())
-                .stack(dto.getStack())
+                .stack(ArrayStringUtil.stringToList(dto.getStack()))
+                .requiredExperience(dto.getRequiredExperience() != null ? dto.getRequiredExperience() : 0)
+                .recruitmentCapacity(dto.getRecruitmentCapacity() != null ? dto.getRecruitmentCapacity() : 0)
                 .requiredQuestions(dto.getRequiredQuestions())
                 .build();
 
@@ -268,7 +270,9 @@ public class JobService {
         if (dto.getStatus() != null) job.setStatus(dto.getStatus());
         if (dto.getLocation() != null) job.setLocation(dto.getLocation());
         if (dto.getSalaryText() != null) job.setSalaryText(dto.getSalaryText());
-        if (dto.getStack() != null) job.setStack(dto.getStack());
+        if (dto.getStack() != null) job.setStack(ArrayStringUtil.stringToList(dto.getStack()));
+        if (dto.getRequiredExperience() != null) job.setRequiredExperience(dto.getRequiredExperience());
+        if (dto.getRecruitmentCapacity() != null) job.setRecruitmentCapacity(dto.getRecruitmentCapacity());
         if (dto.getRequiredQuestions() != null) job.setRequiredQuestions(dto.getRequiredQuestions());
 
         jobRepository.save(job);
@@ -396,6 +400,7 @@ public class JobService {
         return JobFilterOptionsDTO.builder()
                 .stacks(stacks)
                 .locations(locations)
+                .experienceOptions(JobFilterOptionsDTO.getDefaultExperienceOptions())
                 .build();
     }
 
@@ -509,7 +514,9 @@ public class JobService {
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
-                .stack(ArrayStringUtil.cleanArrayString(job.getStack()))
+                .stack(ArrayStringUtil.listToString(job.getStack()))
+                .requiredExperience(job.getRequiredExperience())
+                .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)
@@ -592,7 +599,9 @@ public class JobService {
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
-                .stack(ArrayStringUtil.cleanArrayString(job.getStack()))
+                .stack(ArrayStringUtil.listToString(job.getStack()))
+                .requiredExperience(job.getRequiredExperience())
+                .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)
@@ -603,28 +612,14 @@ public class JobService {
     }
     
     /**
-     * 연봉(원 단위)을 읽기 쉬운 형식으로 변환
-     * 예: 50000000 -> "5,000만원", 35000000 -> "3,500만원"
+     * 급여 정보 표시용 포맷
+     * salaryText가 String으로 변경되어 그대로 반환
      */
-    private String formatSalary(Long salary) {
-        if (salary == null || salary <= 0) {
+    private String formatSalary(String salaryText) {
+        if (salaryText == null || salaryText.isBlank()) {
             return null;
         }
-        
-        // 만원 단위로 변환
-        long man = salary / 10000;
-        
-        if (man >= 10000) {
-            // 1억 이상
-            long uk = man / 10000;
-            long remainMan = man % 10000;
-            if (remainMan > 0) {
-                return String.format("%,d억 %,d만원", uk, remainMan);
-            }
-            return String.format("%,d억원", uk);
-        }
-        
-        return String.format("%,d만원", man);
+        return salaryText;
     }
 
     // ===== 기술 스택 매칭 기능 =====
@@ -714,6 +709,9 @@ public class JobService {
         }
         
         try {
+            // JobEntity 조회 (경력 매칭용)
+            JobEntity jobEntity = jobRepository.findPublicJobById(jobId).orElse(null);
+            
             // 지원자의 기술 스택 조회
             Set<String> candidateSkills;
             try {
@@ -729,6 +727,18 @@ public class JobService {
             
             if (candidateSkills.isEmpty()) {
                 log.debug("[상세] 지원자에게 등록된 기술 스택이 없습니다 (memberId: {})", memberId);
+                // 경력 매칭만 수행
+                if (jobEntity != null && jobEntity.getRequiredExperience() != null && jobEntity.getRequiredExperience() > 0) {
+                    JobMatchInfoDTO matchInfo = calculateMatchInfoWithProficiency(
+                            job.getStack(), 
+                            candidateSkills,
+                            Collections.emptyMap(),
+                            jobEntity,
+                            memberId,
+                            false
+                    );
+                    job.setMatchInfo(matchInfo);
+                }
                 return job;
             }
             
@@ -738,18 +748,18 @@ public class JobService {
             Map<String, Integer> proficiencyMap = resumeSkillService.getSkillProficiencyMap(memberId);
             log.debug("[상세] 지원자 숙련도 맵: {}", proficiencyMap);
             
-            // 매칭 정보 계산 (숙련도 기반, 벡터 매칭은 비활성화)
+            // 매칭 정보 계산 (숙련도 기반 + 경력 매칭, 벡터 매칭은 비활성화)
             JobMatchInfoDTO matchInfo = calculateMatchInfoWithProficiency(
                     job.getStack(), 
                     candidateSkills,
                     proficiencyMap,
-                    null,  // 벡터 매칭 비활성화
-                    null,
+                    jobEntity,  // 경력 매칭용
+                    memberId,
                     false
             );
             job.setMatchInfo(matchInfo);
-            log.debug("[상세] 매칭 결과 - 매칭률: {}%, 매칭 스택: {}", 
-                    matchInfo.getOverallMatchRate(), matchInfo.getMatchedStacks());
+            log.debug("[상세] 매칭 결과 - 매칭률: {}%, 스택매칭: {}%, 경력매칭: {}%", 
+                    matchInfo.getOverallMatchRate(), matchInfo.getStackMatchRate(), matchInfo.getExperienceMatchRate());
         } catch (Exception e) {
             log.warn("매칭 정보 계산 실패 (jobId: {}, memberId: {}): {}", jobId, memberId, e.getMessage());
             // 매칭 정보 없이 반환
@@ -984,12 +994,37 @@ public class JobService {
             }
         }
         
-        // 종합 매칭률 (스택 60% + 벡터 40%)
+        // 경력 매칭률 계산
+        int experienceMatchRate = 100; // 기본값: 경력 정보 없으면 100%
+        Integer requiredExperience = null;
+        Integer candidateExperience = null;
+        
+        if (jobEntity != null && memberId != null) {
+            requiredExperience = jobEntity.getRequiredExperience();
+            // 이력서에서 경력 조회
+            candidateExperience = getCandidateExperience(memberId);
+            
+            if (requiredExperience != null && requiredExperience > 0) {
+                if (candidateExperience != null && candidateExperience >= requiredExperience) {
+                    experienceMatchRate = 100; // 요구 경력 충족
+                } else if (candidateExperience != null) {
+                    // 경력 부족: 비율로 계산
+                    experienceMatchRate = (int) Math.round((candidateExperience / (double) requiredExperience) * 100);
+                    experienceMatchRate = Math.min(experienceMatchRate, 100);
+                } else {
+                    experienceMatchRate = 0; // 경력 정보 없음
+                }
+            }
+        }
+        
+        // 종합 매칭률 (스택 50% + 벡터 30% + 경력 20%)
         int overallMatchRate;
         if (includeVectorMatch && vectorMatchRate > 0) {
-            overallMatchRate = (int) Math.round(stackMatchRate * 0.6 + vectorMatchRate * 0.4);
+            overallMatchRate = (int) Math.round(
+                    stackMatchRate * 0.5 + vectorMatchRate * 0.3 + experienceMatchRate * 0.2);
         } else {
-            overallMatchRate = stackMatchRate;
+            // 벡터 매칭 없으면: 스택 70% + 경력 30%
+            overallMatchRate = (int) Math.round(stackMatchRate * 0.7 + experienceMatchRate * 0.3);
         }
         
         String matchLevel = JobMatchInfoDTO.calculateMatchLevel(overallMatchRate);
@@ -997,12 +1032,15 @@ public class JobService {
         // 지원자 스택 목록 (원본 대소문자 유지)
         List<String> candidateStackList = new ArrayList<>(candidateSkills);
         
-        log.debug("숙련도 기반 매칭 - 요구: {}, 매칭: {}, 스택매칭: {}%, 종합: {}%", 
-                requiredStacks, matchedStacks, stackMatchRate, overallMatchRate);
+        log.debug("숙련도 기반 매칭 - 요구: {}, 매칭: {}, 스택매칭: {}%, 경력매칭: {}%, 종합: {}%", 
+                requiredStacks, matchedStacks, stackMatchRate, experienceMatchRate, overallMatchRate);
         
         JobMatchInfoDTO matchInfo = JobMatchInfoDTO.builder()
                 .stackMatchRate(stackMatchRate)
                 .vectorMatchRate(vectorMatchRate)
+                .experienceMatchRate(experienceMatchRate)
+                .requiredExperience(requiredExperience)
+                .candidateExperience(candidateExperience)
                 .requiredStacks(requiredStacks)
                 .matchedStacks(matchedStacks)
                 .missingStacks(missingStacks)
@@ -1093,6 +1131,30 @@ public class JobService {
         }
     }
     
+    /**
+     * 지원자의 경력 연수 조회
+     * 
+     * @param memberId 지원자 회원 ID
+     * @return 경력 연수 (없으면 null)
+     */
+    private Integer getCandidateExperience(Long memberId) {
+        try {
+            Optional<Resume> resumeOpt = resumeRepository.findByUser_IdAndPrimaryTrue(memberId);
+            if (resumeOpt.isEmpty()) {
+                // 대표 이력서 없으면 최근 이력서 조회
+                resumeOpt = resumeRepository.findFirstByUser_IdOrderByLastModifiedAtDesc(memberId);
+            }
+            
+            if (resumeOpt.isPresent()) {
+                Integer careerYears = resumeOpt.get().getCareerYears();
+                return careerYears != null ? careerYears : 0;
+            }
+        } catch (Exception e) {
+            log.warn("지원자 경력 조회 실패 (memberId: {}): {}", memberId, e.getMessage());
+        }
+        return null;
+    }
+
     /**
      * 두 벡터 간 코사인 유사도 계산
      * 
