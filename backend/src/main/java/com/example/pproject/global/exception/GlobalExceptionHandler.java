@@ -31,6 +31,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * [추가] IllegalArgumentException 처리
+     * 
+     * 언제 발생하나요?
+     * - 서비스에서 throw new IllegalArgumentException("에러 메시지")를 던질 때
+     * - 예: 중복 광고 캠페인 생성 시도, 존재하지 않는 ID 조회 등
+     * 
+     * 왜 필요한가요?
+     * - 이 핸들러가 없으면 500 Internal Server Error + "서버 오류가 발생했습니다"가 뜸
+     * - 이 핸들러가 있으면 400 Bad Request + 실제 에러 메시지가 클라이언트에 전달됨
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("IllegalArgumentException 발생 - Message: {}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST) // 400 에러로 응답
+                .body(ApiResponse.error("400", e.getMessage())); // 실제 에러 메시지 전달
+    }
+
+    /**
      * Validation 예외 처리
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -39,9 +59,7 @@ public class GlobalExceptionHandler {
         log.warn("Validation Exception 발생");
 
         Map<String, String> errors = new HashMap<>();
-        e.getBindingResult().getFieldErrors().forEach(error ->
-                errors.put(error.getField(), error.getDefaultMessage())
-        );
+        e.getBindingResult().getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)

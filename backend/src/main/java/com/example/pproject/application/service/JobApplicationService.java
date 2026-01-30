@@ -6,7 +6,7 @@ import com.example.pproject.application.dto.JobApplicationResponse;
 import com.example.pproject.application.entity.JobApplication;
 import com.example.pproject.application.repository.JobApplicationRepository;
 import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.user.entity.UserEntity;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class JobApplicationService {
 
     private final JobApplicationRepository jobApplicationRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
 
@@ -39,7 +39,7 @@ public class JobApplicationService {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        JobEntity job = jobRepository.findById(request.getJobId())
+        JobEntity job = jobEntityRepository.findById(request.getJobId())
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
 
         Resume resume = resumeRepository.findById(request.getResumeId())
@@ -57,7 +57,7 @@ public class JobApplicationService {
                 .build();
 
         job.setApplicationCount(job.getApplicationCount() + 1);
-        jobRepository.save(job);
+        jobEntityRepository.save(job);
 
         return jobApplicationRepository.save(application).getId();
     }
