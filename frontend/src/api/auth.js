@@ -52,7 +52,10 @@ export async function logout() {
  */
 export async function register(userData) {
   try {
-    const formData = new FormData();
+    // Spring MVC Controller(UserController.java)는 @RequestParam/@ModelAttribute 바인딩이 잘 되는
+    // x-www-form-urlencoded 또는 multipart/form-data 를 기대합니다.
+    // 여기서는 단순 폼 필드만 보내므로 URLSearchParams로 통일합니다.
+    const formData = new URLSearchParams();
 
     // Map Frontend fields to Backend DTO fields (UserController.java)
     formData.append("userid", userData.loginId); // loginId -> userid
@@ -61,14 +64,12 @@ export async function register(userData) {
     formData.append("username", userData.name);
 
     // Email Splitting (Required by UserController)
-    // userData.email -> emailId + @ + emailDomain + . + emailTLD
     const emailParts = userData.email.match(/^([^@]+)@([^.]+)\.(.+)$/);
     if (emailParts) {
       formData.append("emailId", emailParts[1]);
       formData.append("emailDomain", emailParts[2]);
       formData.append("emailTLD", emailParts[3]);
     } else {
-      // Fallback if simple regex fails
       const parts1 = userData.email.split("@");
       const local = parts1[0];
       const rest = parts1[1] || "";
@@ -96,17 +97,17 @@ export async function register(userData) {
     formData.append("roleType", userData.role || "CANDIDATE");
     formData.append("socialType", "NONE");
 
-    // Send as Form Data (MVC Controller)
     const response = await http.post("/User/Register", formData, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      maxRedirects: 0,
+      validateStatus: (s) => s >= 200 && s < 400,
     });
 
-    // If successful, backend redirects to /Login or returns 200 OK with Login HTML
+    // Backend는 성공 시 /Login 으로 redirect 합니다. (SPA에서는 이후 checkSession으로 상태 확인)
     return { data: response.data, status: response.status };
-
   } catch (error) {
     console.error("Registration error:", error);
-    return { error: error.message || "Registration failed" };
+    return { error: error.response?.data?.error || error.message || "Registration failed" };
   }
 }
 
