@@ -1,14 +1,31 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// App.tsx
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+
+// ✅ 추가
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ProfileSetupModal } from "@/components/auth/ProfileSetupModal";
-import PrivateRoute from "./components/auth/PrivateRoute";
+
+import AppLayout from "./layout/AppLayout";
+import HomePage from "./pages/HomePage";
+import Jobs from "./pages/Jobs";
+import JobDetail from "./pages/JobDetail";
+import Talents from "./pages/Talents";
+import Companies from "./pages/Companies";
+import CompanyDetail from "./pages/CompanyDetail";
+import Community from "./pages/Community";
+import Interview from "./pages/Interview";
+import Resume from "./pages/Resume";
+import Subscription from "./pages/Subscription";
+import MyPage from "./pages/MyPage";
+import CompanyDashboard from "./pages/CompanyDashboard";
+import JobSeekerMyPage from "./pages/JobSeekerMyPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import NotFound from "./pages/NotFound";
+import Support from "./pages/Support";
+import Auth from "./pages/Auth";
+
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
-import FirstSocialLoginPage from "./pages/FirstSocialLoginPage";
 import FindUserIdPage from "./pages/FindUserIdPage";
 import VerifyUserIdCodePage from "./pages/VerifyUserIdCodePage";
 import ResultUserIdPage from "./pages/ResultUserIdPage";
@@ -16,107 +33,129 @@ import FindPasswordPage from "./pages/FindPasswordPage";
 import VerifyCodePage from "./pages/VerifyCodePage";
 import NewPasswordPage from "./pages/NewPasswordPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
-import JobSeekerSignup from "./pages/JobSeekerSignup";
-import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
-import PaymentFailPage from "./pages/payment/PaymentFailPage";
+import FirstSocialLoginPage from "./pages/FirstSocialLoginPage";
 
-// Suspects commented out for isolation
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import Jobs from "./pages/Jobs";
-import JobDetail from "./pages/JobDetail";
-import CompanyDetail from "./pages/CompanyDetail";
-import MyPage from "./pages/MyPage";
-import Community from "./pages/Community";
-import Support from "./pages/Support";
-import Resume from "./pages/Resume";
-import Interview from "./pages/Interview";
-import Settings from "./pages/Settings";
-import Talents from "./pages/Talents";
-import Companies from "./pages/Companies";
-import Subscription from "./pages/Subscription";
-import CompanyDashboard from "./pages/CompanyDashboard";
-// import AdminDashboard from "./pages/AdminDashboard";
+import PrivateRoute from "./components/auth/PrivateRoute";
 
-/** /Login → /auth 로 이동 (백엔드 리다이렉트 시 쿼리 유지) */
-function LoginRedirect() {
-  const { search } = useLocation();
-  return <Navigate to={"/auth" + (search || "")} replace />;
+// querystring 유지 리다이렉트
+function RedirectWithQuery({ to }: { to: string }) {
+    const loc = useLocation();
+    return <Navigate to={`${to}${loc.search}${loc.hash || ""}`} replace />;
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+// (필요 시) 백엔드로 강제 점프: /User/First_Social_Login 같은 서버 로직이 필요한 경로용
+function JumpToBackendSamePath() {
+    const loc = useLocation();
+    useEffect(() => {
+        const backendPublic =
+            (import.meta as any).env?.VITE_API_BASE_URL?.trim() || "http://localhost:8080";
+        const base = backendPublic.replace(/\/+$/, "");
+        window.location.replace(`${base}${loc.pathname}${loc.search}${loc.hash || ""}`);
+    }, [loc.pathname, loc.search, loc.hash]);
+    return null;
+}
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <ProfileSetupModal />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            {/* 백엔드 소셜 로그인 리다이렉트: /login-redirect → /auth (쿼리 유지) */}
-            <Route path="/login-redirect" element={<LoginRedirect />} />
-            <Route path="/Login" element={<LoginPage />} />
-            <Route path="/Register" element={<RegisterPage />} />
-            <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
+export default function App() {
+    return (
+        // ✅ 1) 이게 핵심: AuthProvider로 전체 감싸기
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    {/* ✅ 2) 레거시 /User/* 별칭 라우트: 로그인/회원가입/휴대폰 인증 흐름 막히는 것 해결 */}
+                    <Route path="/User/Register" element={<RegisterPage />} />
+                    <Route path="/User/Find_Userid" element={<FindUserIdPage />} />
+                    <Route path="/User/Find_Password" element={<FindPasswordPage />} />
 
-            <Route path="/FindUserId" element={<FindUserIdPage />} />
-            <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
-            <Route path="/ResultUserId" element={<ResultUserIdPage />} />
+                    {/* 아이디/비번 찾기 단계별 레거시 경로도 같이 커버 */}
+                    <Route path="/User/Verify_Userid_Code" element={<VerifyUserIdCodePage />} />
+                    <Route path="/User/Result_Userid" element={<ResultUserIdPage />} />
+                    <Route path="/User/Verify_Code" element={<VerifyCodePage />} />
+                    <Route path="/User/New_Password" element={<NewPasswordPage />} />
+                    <Route path="/User/Change_Password" element={<ChangePasswordPage />} />
 
-            <Route path="/FindPassword" element={<FindPasswordPage />} />
-            <Route path="/VerifyCode" element={<VerifyCodePage />} />
-            <Route path="/NewPassword" element={<NewPasswordPage />} />
+                    {/* 소셜 최초 로그인: 서버가 HttpOnly 쿠키로 query 만들어주는 흐름이면 백엔드로 점프가 안전 */}
+                    <Route path="/User/First_Social_Login" element={<JumpToBackendSamePath />} />
 
-            <Route path="/ChangePassword" element={<ChangePasswordPage />} />
+                    {/* 기존 라우트들 */}
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/Login" element={<LoginPage />} />
+                    <Route path="/Register" element={<RegisterPage />} />
 
-            {/* Find ID/Password (auth 하위 경로) */}
-            <Route path="/auth/find-id" element={<FindUserIdPage />} />
-            <Route path="/auth/find-password" element={<FindPasswordPage />} />
-            {/* 구글/카카오 등 소셜 미가입 시 회원가입(추가정보) */}
-            <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
+                    <Route path="/FindUserId" element={<FindUserIdPage />} />
+                    <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
+                    <Route path="/ResultUserId" element={<ResultUserIdPage />} />
 
-            {/* Protected Job Routes */}
-            <Route path="/jobs" element={<PrivateRoute><Jobs /></PrivateRoute>} />
-            <Route path="/jobs/:jobId" element={<PrivateRoute><JobDetail /></PrivateRoute>} />
-            <Route path="/companies/:employerId" element={<CompanyDetail />} />
+                    <Route path="/FindPassword" element={<FindPasswordPage />} />
+                    <Route path="/VerifyCode" element={<VerifyCodePage />} />
+                    <Route path="/NewPassword" element={<NewPasswordPage />} />
+                    <Route path="/ChangePassword" element={<ChangePasswordPage />} />
 
-            <Route path="/community" element={<Community />} />
-            <Route path="/support" element={<Support />} />
+                    <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
 
-            {/* Payment Result Pages - PrivateRoute 제거: 토스에서 리다이렉트 시 인증 로딩으로 깜빡임 방지 */}
-            <Route path="/payment/success" element={<PaymentSuccessPage />} />
-            <Route path="/payment/fail" element={<PaymentFailPage />} />
+                    <Route element={<AppLayout />}>
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/jobs" element={<Jobs />} />
+                        <Route path="/jobs/:jobId" element={<JobDetail />} />
+                        <Route path="/talents" element={<Talents />} />
+                        <Route path="/companies" element={<Companies />} />
+                        <Route path="/companies/:companyId" element={<CompanyDetail />} />
+                        <Route path="/community" element={<Community />} />
+                        <Route path="/interview" element={<Interview />} />
+                        <Route path="/support" element={<Support />} />
 
-            {/* Protected Routes - Pages handle their own auth state */}
-            <Route path="/mypage" element={<MyPage />} />
-            <Route path="/resume" element={<Resume />} />
-            <Route path="/interview" element={<Interview />} />
-            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+                        <Route
+                            path="/resume"
+                            element={
+                                <PrivateRoute>
+                                    <Resume />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/subscription"
+                            element={
+                                <PrivateRoute>
+                                    <Subscription />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/mypage"
+                            element={
+                                <PrivateRoute>
+                                    <MyPage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/company/dashboard"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <CompanyDashboard />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/jobseeker/mypage"
+                            element={
+                                <PrivateRoute requiredRole="JOB_SEEKER">
+                                    <JobSeekerMyPage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin"
+                            element={
+                                <PrivateRoute requiredRole="ADMIN">
+                                    <AdminDashboard />
+                                </PrivateRoute>
+                            }
+                        />
+                    </Route>
 
-            {/* Company Routes */}
-            <Route path="/talents" element={<Talents />} />
-            <Route path="/companies" element={<Companies />} />
-            <Route path="/payment/products" element={<Subscription />} />
-            <Route path="/company/dashboard" element={<CompanyDashboard />} />
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+                    <Route path="*" element={<NotFound />} />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
+    );
+}
