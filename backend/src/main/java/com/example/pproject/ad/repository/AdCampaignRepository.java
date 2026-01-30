@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Long> {
 
     // 기업별 광고 캠페인 목록
-    @Query("SELECT a FROM AdCampaignEntity a WHERE a.employerId = :employerId ORDER BY a.createdAt DESC")
+    @Query("SELECT a FROM AdCampaignEntity a WHERE a.employerId = :employerId AND a.status != 'DELETED' ORDER BY a.createdAt DESC")
     Page<AdCampaignEntity> findByEmployerIdAndNotDeleted(@Param("employerId") Long employerId, Pageable pageable);
 
     // 활성 상태인 광고 찾기 (Status='ACTIVE', 기간 내)
@@ -25,7 +25,7 @@ public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Lo
     Page<AdCampaignEntity> findActiveAds(Pageable pageable);
 
     // ID로 캠페인 조회
-    @Query("SELECT a FROM AdCampaignEntity a WHERE a.id = :id")
+    @Query("SELECT a FROM AdCampaignEntity a WHERE a.id = :id AND a.status != 'DELETED'")
     Optional<AdCampaignEntity> findByIdAndNotDeleted(@Param("id") Long id);
 
     // 상태별 캠페인 조회
@@ -57,51 +57,50 @@ public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Lo
      * 사용자 이력서와 채용공고의 유사도 + 입찰가를 하이브리드 계산하여 정렬합니다.
      * </p>
      * <p>
-     * <b>성능 한계:</b> 매 요청마다 DB에서 벡터 거리 계산을 수행하므로 트래픽 증가 시 DB CPU 부하가 큽니다.
+     * <b>성능 최적화 (Recall CTE):</b> 전체 임베딩을 스캔하지 않고, 인덱스를 활용해
+     * 유사도가 높은 상위 200개(Recall)만 먼저 추려낸 뒤, 정밀 스코어링을 수행합니다.
      * </p>
      */
     @Query(value = """
-            -- [CTE 1] 최대 입찰가 계산 (정규화용)
-            WITH max_bid AS (
-                SELECT COALESCE(MAX(ac.cpc_bid), 1) as max_cpc
-                FROM ad_campaign ac
-                WHERE ac.status = 'ACTIVE'
+            WITH user_vec AS (
+                SELECT CAST(:userEmbedding AS vector) as u_vec
             ),
-            -- [CTE 2] 각 광고에 유사도/스코어 계산
-            scored_ads AS (
+            recall AS (
+                -- 1단계: 유사도 상위 200개만 빠르게 추출 (Index 활용)
                 SELECT
-                    ac.campaign_id,
                     jp.job_id,
-                    ac.employer_id,
+                    jp.embedding,
                     jp.title,
-                    ac.cpc_bid,
-                    -- 코사인 유사도 계산: 1 - 코사인거리 (0=동일, 1=무관, 2=반대)
-                    1 - (jp.embedding <=> CAST(:userEmbedding AS vector)) AS similarity,
-                    -- 하이브리드 스코어 = 유사도(70%) + 정규화된 입찰가(30%)
-                    (1 - (jp.embedding <=> CAST(:userEmbedding AS vector))) * 0.7
-                        + (ac.cpc_bid::float / mb.max_cpc) * 0.3 AS hybrid_score
-                FROM ad_campaign ac
-                -- 광고 캠페인과 채용공고 연결
-                JOIN job_posting jp ON ac.job_id = jp.job_id
-                -- max_bid CTE 결합 (정규화용)
-                CROSS JOIN max_bid mb
-                WHERE ac.status = 'ACTIVE'
-                    AND (ac.start_at IS NULL OR ac.start_at <= NOW())
-                    AND (ac.end_at IS NULL OR ac.end_at >= NOW())
-                    -- embedding이 없는 채용공고는 제외
-                    AND jp.embedding IS NOT NULL
+                    (jp.embedding <=> uv.u_vec) AS dist
+                FROM job_posting jp
+                CROSS JOIN user_vec uv
+                WHERE jp.embedding IS NOT NULL
+                ORDER BY jp.embedding <=> uv.u_vec
+                LIMIT 200
             )
-            -- [최종] 유사도 필터링 + 스코어 정렬
-            SELECT campaign_id, job_id, employer_id, title, cpc_bid, similarity, hybrid_score
-            FROM scored_ads
-            WHERE similarity >= :minSimilarity
-            ORDER BY hybrid_score DESC
+            -- 2단계: 추출된 후보군에 대해 CPC 고려하여 하이브리드 점수 계산
+            SELECT
+                ac.campaign_id,
+                r.job_id,
+                ac.employer_id,
+                r.title,
+                ac.cpc_bid,
+                1 - r.dist AS similarity,
+                (1 - r.dist) * 0.7 + (ac.cpc_bid::float / :maxCpc) * 0.3 AS hybrid_score
+            FROM recall r
+            JOIN ad_campaign ac ON ac.job_id = r.job_id
+            WHERE ac.status = 'ACTIVE'
+                AND (ac.start_at IS NULL OR ac.start_at <= NOW())
+                AND (ac.end_at IS NULL OR ac.end_at >= NOW())
+                AND r.dist <= :maxDistance
+            ORDER BY r.dist ASC, hybrid_score DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findActiveAdsWithSimilarity(
             @Param("userEmbedding") String userEmbedding,
-            @Param("minSimilarity") double minSimilarity,
-            @Param("limit") int limit);
+            @Param("maxDistance") double maxDistance,
+            @Param("limit") int limit,
+            @Param("maxCpc") double maxCpc);
 
     // =================================================================================
     // [V2: Redis Filtered Logic]
@@ -109,95 +108,93 @@ public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Lo
     // =================================================================================
 
     // [광고 노출용 - V2] Redis Active Set 기반 조회 (ID 필터링 + CPC 정렬)
-    // PostgreSQL ANY() 함수를 사용하여 JDBC 파라미터 제한을 우회하고 성능을 최적화합니다.
     @Query(value = "SELECT * FROM ad_campaign a WHERE a.campaign_id = ANY(:ids) AND a.status = 'ACTIVE' " +
-            "AND (a.start_at IS NULL OR a.start_at <= CURRENT_TIMESTAMP) " +
-            "AND (a.end_at IS NULL OR a.end_at >= CURRENT_TIMESTAMP) " +
             "ORDER BY a.cpc_bid DESC", nativeQuery = true)
     Page<AdCampaignEntity> findActiveAdsByIdsOrderByCpcDesc(@Param("ids") Long[] ids, Pageable pageable);
 
+    @Query(value = "SELECT * FROM ad_campaign a WHERE a.campaign_id = ANY(:ids) AND a.status = 'ACTIVE' " +
+            "ORDER BY a.cpc_bid DESC", nativeQuery = true)
+    List<AdCampaignEntity> findActiveAdsByIdsOrderByCpcDescList(@Param("ids") Long[] ids);
+
     /**
      * [개인화 광고 매칭 - V2 Legacy]
-     * 
+     *
      * Redis에서 가져온 대량의 ID 목록(ids)을 '필터'로 사용하여 DB에서 유사도를 계산합니다.
-     * ID가 매우 많을 경우(10만 개 이상), ANY(:ids) 절에 너무 많은 파라미터가 들어가 성능 저하(Parsing Cost)가
-     * 발생합니다.
-     * (벤치마크 비교용으로 유지)
+     * ID가 매우 많을 경우(10만 개 이상), ANY(:ids) 절에 너무 많은 파라미터가 들어가 성능 저하가 발생할 수 있습니다.
      */
     @Query(value = """
-            WITH max_bid AS (
-                SELECT COALESCE(MAX(ac.cpc_bid), 1) as max_cpc
-                FROM ad_campaign ac
-                WHERE ac.status = 'ACTIVE'
-            ),
-            scored_ads AS (
-                SELECT
-                    ac.campaign_id,
-                    jp.job_id,
-                    ac.employer_id,
-                    jp.title,
-                    ac.cpc_bid,
-                    1 - (jp.embedding <=> CAST(:userEmbedding AS vector)) AS similarity,
-                    (1 - (jp.embedding <=> CAST(:userEmbedding AS vector))) * 0.7
-                        + (ac.cpc_bid::float / mb.max_cpc) * 0.3 AS hybrid_score
-                FROM ad_campaign ac
-                JOIN job_posting jp ON ac.job_id = jp.job_id
-                CROSS JOIN max_bid mb
-                WHERE ac.campaign_id = ANY(:ids) -- [Array Filter Optimization]
-                    AND ac.status = 'ACTIVE'
-                    AND (ac.start_at IS NULL OR ac.start_at <= NOW())
-                    AND (ac.end_at IS NULL OR ac.end_at >= NOW())
-                    AND jp.embedding IS NOT NULL
-            )
-            SELECT campaign_id, job_id, employer_id, title, cpc_bid, similarity, hybrid_score
-            FROM scored_ads
-            WHERE similarity >= :minSimilarity
-            ORDER BY hybrid_score DESC
+            SELECT
+                ac.campaign_id,
+                jp.job_id,
+                ac.employer_id,
+                jp.title,
+                ac.cpc_bid,
+                1 - (jp.embedding <=> CAST(:userEmbedding AS vector)) AS similarity,
+                (1 - (jp.embedding <=> CAST(:userEmbedding AS vector))) * 0.7 + (ac.cpc_bid::float / :maxCpc) * 0.3 AS hybrid_score
+            FROM ad_campaign ac
+            JOIN job_posting jp ON ac.job_id = jp.job_id
+            WHERE ac.campaign_id = ANY(:ids)
+                AND ac.status = 'ACTIVE'
+                AND jp.embedding IS NOT NULL
+                AND (jp.embedding <=> CAST(:userEmbedding AS vector)) <= :maxDistance
+            ORDER BY jp.embedding <=> CAST(:userEmbedding AS vector) ASC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findActiveAdsWithSimilarityAndIds(
             @Param("ids") Long[] ids,
             @Param("userEmbedding") String userEmbedding,
-            @Param("minSimilarity") double minSimilarity,
-            @Param("limit") int limit);
+            @Param("maxDistance") double maxDistance,
+            @Param("limit") int limit,
+            @Param("maxCpc") double maxCpc);
+
+    // =================================================================================
+    // [V3: Hybrid Architecture - Current Best Practice]
+    // DB에서 상위 유사도 후보군(Recall)을 빠르게 가져온 후, Redis(Lua Script)로 예산 필터링을 수행합니다.
+    // 즉, V1과 유사한 '전체 범위 검색'이지만, Recall 단계를 최적화하여 사용합니다.
+    // =================================================================================
 
     /**
      * [V3 Hybrid - Recall Phase]
-     * Redis 필터링 없이 DB에서 순수 유사도 기반으로 상위 N개를 조회합니다.
+     * Redis 필터링 없이 DB에서 순수 유사도 기반으로 상위 N개를 조회합니다. (Recall CTE 적용)
      * 이후 Application Layer에서 Redis Guard를 통해 예산을 검증합니다.
      */
     @Query(value = """
-            WITH max_bid AS (
-                SELECT COALESCE(MAX(ac.cpc_bid), 1) as max_cpc
-                FROM ad_campaign ac
-                WHERE ac.status = 'ACTIVE'
+            WITH user_vec AS (
+                SELECT CAST(:userEmbedding AS vector) as u_vec
             ),
-            scored_ads AS (
+            recall AS (
+                -- Index Scan을 유도하여 빠르게 상위 유사도 후보를 추출
                 SELECT
-                    ac.campaign_id,
                     jp.job_id,
-                    ac.employer_id,
+                    jp.embedding,
                     jp.title,
-                    ac.cpc_bid,
-                    1 - (jp.embedding <=> CAST(:userEmbedding AS vector)) AS similarity,
-                    (1 - (jp.embedding <=> CAST(:userEmbedding AS vector))) * 0.7
-                        + (ac.cpc_bid::float / mb.max_cpc) * 0.3 AS hybrid_score
-                FROM ad_campaign ac
-                JOIN job_posting jp ON ac.job_id = jp.job_id
-                CROSS JOIN max_bid mb
-                WHERE ac.status = 'ACTIVE'
-                    AND (ac.start_at IS NULL OR ac.start_at <= NOW())
-                    AND (ac.end_at IS NULL OR ac.end_at >= NOW())
-                    AND jp.embedding IS NOT NULL
+                    (jp.embedding <=> uv.u_vec) AS dist
+                FROM job_posting jp
+                CROSS JOIN user_vec uv
+                WHERE jp.embedding IS NOT NULL
+                ORDER BY jp.embedding <=> uv.u_vec
+                LIMIT 200
             )
-            SELECT campaign_id, job_id, employer_id, title, cpc_bid, similarity, hybrid_score
-            FROM scored_ads
-            WHERE similarity >= :minSimilarity
-            ORDER BY hybrid_score DESC
+            SELECT
+                ac.campaign_id,
+                r.job_id,
+                ac.employer_id,
+                r.title,
+                ac.cpc_bid,
+                1 - r.dist AS similarity,
+                (1 - r.dist) * 0.7 + (ac.cpc_bid::float / :maxCpc) * 0.3 AS hybrid_score
+            FROM recall r
+            JOIN ad_campaign ac ON ac.job_id = r.job_id
+            WHERE ac.status = 'ACTIVE'
+                AND (ac.start_at IS NULL OR ac.start_at <= NOW())
+                AND (ac.end_at IS NULL OR ac.end_at >= NOW())
+                AND r.dist <= :maxDistance
+            ORDER BY r.dist ASC, hybrid_score DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findTopAdsBySimilarity(
             @Param("userEmbedding") String userEmbedding,
-            @Param("minSimilarity") double minSimilarity,
-            @Param("limit") int limit);
+            @Param("maxDistance") double maxDistance,
+            @Param("limit") int limit,
+            @Param("maxCpc") double maxCpc);
 }

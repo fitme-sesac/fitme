@@ -32,6 +32,7 @@ public class AdClickService {
     private final AdClickEventRepository adClickEventRepository;
     private final AdCampaignRepository adCampaignRepository;
     private final WalletService walletService;
+    private final AdCampaignService adCampaignService;
 
     // 중복 클릭 방지 시간 윈도우 (10분)
     private static final int CLICK_DEDUP_MINUTES = 10;
@@ -80,10 +81,14 @@ public class AdClickService {
                     SourceType.AD_CLICK);
             log.info("Ad click charged. EmployerId: {}, Amount: {}", employerId, cpcBid);
         } catch (IllegalStateException e) {
-            // 잔액 부족 시 광고 일시정지
+            // 잔액 부족 시 광고 일시정지 (별도 트랜잭션으로 커밋)
             log.warn("Insufficient balance. Pausing campaign. EmployerId: {}", employerId);
-            campaign.setStatus("PAUSED");
-            return;
+            try {
+                adCampaignService.pauseCampaignInNewTx(campaignId);
+            } catch (Exception ex) {
+                log.error("Failed to pause campaign", ex);
+            }
+            throw e; // 본 트랜잭션 롤백
         }
 
         // 4. 클릭 이벤트 저장

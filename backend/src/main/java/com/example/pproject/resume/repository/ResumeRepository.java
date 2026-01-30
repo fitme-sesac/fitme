@@ -2,6 +2,8 @@ package com.example.pproject.resume.repository;
 
 import com.example.pproject.resume.entity.Resume;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +24,10 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
 
     // [추가] 특정 유저의 이력서 개수 조회 (마이페이지 통계용)
     long countByUser_Id(Long userId);
+
+    // [성능 최적화] 광고 매칭용 임베딩만 조회 (불필요한 조인 방지)
+    @Query(value = "SELECT CAST(embedding AS text) FROM resume WHERE member_id = :userId AND is_primary = true", nativeQuery = true)
+    Optional<String> findEmbeddingByUserId(@Param("userId") Long userId);
 
     // 기존 findByUserIdAndPrimaryTrue 호출 시 -> 표준 메소드로 연결
     default Optional<Resume> findByUserIdAndPrimaryTrue(Long userId) {

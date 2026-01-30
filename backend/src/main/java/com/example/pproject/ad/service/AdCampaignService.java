@@ -7,8 +7,8 @@ import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.dto.AdServeResponseDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
 import com.example.pproject.ad.repository.AdCampaignRepository;
+import com.example.pproject.ad.repository.AdClickEventRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
-import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.wallet.entity.Wallet;
 import com.example.pproject.wallet.service.WalletService;
@@ -35,11 +35,12 @@ public class AdCampaignService {
 
     private final AdCampaignRepository adCampaignRepository;
     private final EmployerRepository employerRepository;
-    private final ResumeRepository resumeRepository;
-    private final WalletService walletService;
+    private final AdClickEventRepository adClickEventRepository; // [Restored]
+    private final ResumeRepository resumeRepository; // [Restored]
+    private final WalletService walletService; // [Restored]
     private final AdGuardService adGuardService;
 
-    private static final double MIN_SIMILARITY_THRESHOLD = 0.5;
+    private static final double MIN_SIMILARITY_THRESHOLD = 0.0;
 
     // =================================================================================
     // [SECTION 1: Admin & CRUD Manager]
@@ -157,20 +158,23 @@ public class AdCampaignService {
      * </ol>
      */
     public List<AdServeResponseDTO> getAdsForMember(Long memberId, int limit) {
-        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
+        // 0. 사용자 이력서 조회 (임베딩만 조회하여 최적화)
+        Optional<String> embeddingOpt = resumeRepository.findEmbeddingByUserId(memberId);
 
-        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
+        if (embeddingOpt.isEmpty()) {
             // 이력서가 없는 경우 입찰가 기반(V2 Serving)으로 Fallback
             Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit));
             return activeAds.getContent().stream().map(AdServeResponseDTO::fromEntity).toList();
         }
 
-        List<Double> userEmbedding = primaryResume.get().getEmbedding();
-        int recallLimit = 30; // 후보군 추출
+        String userEmbedding = embeddingOpt.get();
+        int recallLimit = 100; // [Recall] 후보군을 넉넉하게 조회 (HNSW Index 사용)
 
-        // 1단계: DB에서 후보군 30개 추출
+        // 1단계: DB에서 유사도 높은 후보군 추출 (Sorted by Similarity)
+        // [Optimized] maxDistance = 1.0 - minSimilarity
+        double maxDistance = 1.0 - MIN_SIMILARITY_THRESHOLD;
         List<Object[]> candidates = adCampaignRepository.findTopAdsBySimilarity(
-                userEmbedding.toString(), MIN_SIMILARITY_THRESHOLD, recallLimit);
+                userEmbedding, maxDistance, recallLimit, 5000.0);
 
         // 2단계: Redis Pipeline을 이용한 고속 예산 검증 (N+1 문제 해결)
         List<Long> campaignIdsToCheck = candidates.stream()
@@ -178,15 +182,21 @@ public class AdCampaignService {
                 .toList();
         java.util.Map<Long, Boolean> activeStatusMap = adGuardService.checkActiveBatch(campaignIdsToCheck);
 
-        // 3단계: 검증 통과한 광고만 수집
+        // 3단계: 검증 통과한 광고만 수집 + [Re-Rank] Hybrid Score 정렬
         List<AdServeResponseDTO> result = new java.util.ArrayList<>();
         for (Object[] row : candidates) {
-            if (result.size() >= limit)
-                break;
             Long campaignId = ((Number) row[0]).longValue();
             if (Boolean.TRUE.equals(activeStatusMap.get(campaignId))) {
                 result.add(AdServeResponseDTO.fromQueryResult(row));
             }
+        }
+
+        // [Re-Rank] DB는 유사도 순으로 줬으므로, 최종적으로 Hybrid Score(CPC 반영)로 재정렬 필요
+        result.sort((a, b) -> Double.compare(b.getHybridScore(), a.getHybridScore()));
+
+        // 요청된 개수만큼 자르기 (Pagination)
+        if (result.size() > limit) {
+            return result.subList(0, limit);
         }
         return result;
     }
@@ -219,15 +229,22 @@ public class AdCampaignService {
         if (activeIdsStr == null || activeIdsStr.isEmpty())
             return java.util.Collections.emptyList();
 
-        Long[] activeIds = activeIdsStr.stream().map(Long::valueOf).toArray(Long[]::new);
-        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
+        // [Performance Fix] 30만 개를 쿼리에 다 넣으면 터지므로 30,000개로 제한 (실험적 수치)
+        Long[] activeIds = activeIdsStr.stream()
+                .limit(30000)
+                .map(Long::valueOf)
+                .toArray(Long[]::new);
 
-        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null)
+        Optional<String> embeddingOpt = resumeRepository.findEmbeddingByUserId(memberId);
+        if (embeddingOpt.isEmpty()) {
             return java.util.Collections.emptyList();
-        String embeddingStr = primaryResume.get().getEmbedding().toString();
+        }
+        // [Optimized] V2 Legacy (Redis Filtered)
+        String embeddingStr = embeddingOpt.get();
+        double maxDistance = 1.0 - MIN_SIMILARITY_THRESHOLD;
 
-        return adCampaignRepository.findActiveAdsWithSimilarityAndIds(activeIds, embeddingStr, MIN_SIMILARITY_THRESHOLD,
-                limit);
+        return adCampaignRepository.findActiveAdsWithSimilarityAndIds(activeIds, embeddingStr, maxDistance,
+                limit, 5000.0);
     }
 
     // =================================================================================
@@ -247,16 +264,18 @@ public class AdCampaignService {
      * 매 요청마다 DB 전체를 훑으며 벡터 거리를 계산함.
      */
     public List<AdServeResponseDTO> getAdsForMemberLegacy(Long memberId, int limit) {
-        Optional<Resume> primaryResume = resumeRepository.findByUserIdAndPrimaryTrue(memberId);
+        Optional<String> embeddingOpt = resumeRepository.findEmbeddingByUserId(memberId);
 
-        if (primaryResume.isEmpty() || primaryResume.get().getEmbedding() == null) {
+        if (embeddingOpt.isEmpty()) {
             Page<AdCampaignEntity> activeAds = adCampaignRepository
                     .findActiveAdsOrderByCpcDesc(PageRequest.of(0, limit));
             return activeAds.getContent().stream().map(AdServeResponseDTO::fromEntity).toList();
         }
 
+        // [Optimized] V1 Legacy (Pure DB)
+        double maxDistance = 1.0 - MIN_SIMILARITY_THRESHOLD;
         List<Object[]> matchResults = adCampaignRepository.findActiveAdsWithSimilarity(
-                primaryResume.get().getEmbedding().toString(), MIN_SIMILARITY_THRESHOLD, limit);
+                embeddingOpt.get(), maxDistance, limit, 5000.0);
 
         return matchResults.stream().map(AdServeResponseDTO::fromQueryResult).toList();
     }
@@ -275,5 +294,20 @@ public class AdCampaignService {
         if (date == null)
             return null;
         return date.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant();
+    }
+
+    /**
+     * [트랜잭션 분리] 캠페인 일시정지 (잔액 부족 등 예외 상황 처리용)
+     * - 호출한 쪽 트랜잭션이 롤백되어도 이 변경사항은 커밋되어야 함.
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void pauseCampaignInNewTx(Long campaignId) {
+        log.warn("Pausing campaign due to exception/insufficient funds. ID: {}", campaignId);
+        AdCampaignEntity campaign = adCampaignRepository.findById(campaignId)
+                .orElse(null);
+        if (campaign != null) {
+            campaign.setStatus("PAUSED");
+            // Dirty checking에 의해 자동 저장됨
+        }
     }
 }
