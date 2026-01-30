@@ -3,10 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Sparkles, 
-  Bookmark, 
-  MessageSquare, 
+import {
+  Sparkles,
+  Bookmark,
+  MessageSquare,
   MapPin,
   Briefcase,
   ArrowRight,
@@ -191,7 +191,7 @@ export function TalentRecommendationSection() {
 
                 {/* 액션 버튼 */}
                 <div className="flex gap-2">
-                  <Button size="sm" className="flex-1 btn-gradient-primary">
+                  <Button size="sm" className="flex-1 text-white shadow-md transition-all hover:scale-[1.02] border-0 font-bold" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}>
                     <MessageSquare className="h-4 w-4 mr-1" />
                     연락하기
                   </Button>

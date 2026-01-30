@@ -25,3 +25,10 @@ export async function getPaymentDetail(orderId) {
     const response = await http.get(`/api/v1/payments/${orderId}`);
     return response.data;
 }
+
+export async function cancelPayment(paymentKey, cancelReason) {
+    const response = await http.post(`/api/v1/payments/${paymentKey}/cancel`, {
+        cancelReason
+    });
+    return response.data;
+}

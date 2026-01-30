@@ -9,81 +9,16 @@ import { Switch } from "@/components/ui/switch";
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { getMyPayments } from "@/api/payment";
-import { getMyLedgers } from "@/api/wallet";
-import { Loader2, Bell, Lock, UserX, ChevronRight, AlertTriangle, Settings as SettingsIcon, Receipt, Coins, CreditCard } from "lucide-react";
+import { Loader2, Bell, Lock, UserX, ChevronRight, AlertTriangle, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SettingsTab = "notification" | "password" | "delete" | "history";
+type SettingsTab = "notification" | "password" | "delete";
 
 export default function Settings() {
     const [searchParams] = useSearchParams();
     const initialTab = (searchParams.get("tab") as SettingsTab) || "notification";
     const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-    const { user, credits, userRole } = useAuth() as any;
-
-    const [payments, setPayments] = useState<any[]>([]);
-    const [ledgers, setLedgers] = useState<any[]>([]);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-    const fetchHistory = useCallback(async () => {
-        if (!user || activeTab !== "history") return;
-
-        setIsLoadingHistory(true);
-        try {
-            const [paymentsData, ledgersData] = await Promise.all([
-                getMyPayments(userRole),
-                getMyLedgers(userRole)
-            ]);
-
-            setPayments(paymentsData.content || []);
-            setLedgers(ledgersData.content || []);
-        } catch (error) {
-            console.error("Failed to fetch history:", error);
-        } finally {
-            setIsLoadingHistory(false);
-        }
-    }, [user, activeTab, userRole]);
-
-    useEffect(() => {
-        if (activeTab === "history") {
-            fetchHistory();
-        }
-    }, [activeTab, fetchHistory]);
-
-    // Calculate this month's spending
-    const monthlySpending = payments
-        .filter(p => {
-            if (!p.approvedAt) return false;
-            const date = new Date(p.approvedAt);
-            const now = new Date();
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        })
-        .reduce((sum, p) => sum + p.totalAmount, 0);
-
-    // Merge payments and ledgers for a unified chronological view
-    const unifiedHistory = [
-        ...payments.map(p => ({
-            id: `pay-${p.paymentId}`,
-            type: 'charge',
-            amount: p.totalAmount,
-            title: p.orderName,
-            date: p.approvedAt ? new Date(p.approvedAt).toLocaleString() : '진행 중',
-            isPlus: true,
-            payMethod: p.method,
-            status: p.status === 'DONE' ? '승인 완료' : '진행 중'
-        })),
-        ...ledgers.map(l => ({
-            id: `ledger-${l.ledgerId}`,
-            type: l.type === 'CREDIT' ? 'charge' : 'use',
-            amount: l.amount,
-            title: l.memo,
-            date: new Date(l.occurredAt).toLocaleString(),
-            isPlus: l.type === 'CREDIT',
-            payMethod: '크레딧',
-            status: l.type === 'CREDIT' ? '충전 완료' : '사용 완료'
-        }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const { user, userRole } = useAuth() as any;
 
     type MenuSection = {
         title: string;
@@ -95,12 +30,6 @@ export default function Settings() {
             title: "서비스 설정",
             items: [
                 { id: "notification", label: "알림 설정", icon: Bell },
-            ]
-        },
-        {
-            title: "결제 및 자산",
-            items: [
-                { id: "history", label: "결제/크레딧 내역", icon: Receipt },
             ]
         },
         {
@@ -156,106 +85,6 @@ export default function Settings() {
                         </div>
                     </div>
                 );
-
-            case "history":
-                return (
-                    <div className="bg-card rounded-2xl shadow-sm border p-8 min-h-[600px]">
-                        <ContentHeader title="결제/크레딧 내역" icon={Receipt} />
-
-                        <div className="space-y-8">
-                            {/* 상단 요약 카드 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="p-6 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 dark:from-amber-950/30 dark:to-orange-950/10 dark:border-amber-900/30">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg">
-                                            <Coins className="h-5 w-5 text-amber-600 dark:text-amber-500" />
-                                        </div>
-                                        <span className="font-semibold text-amber-900 dark:text-amber-200">보유 크레딧</span>
-                                    </div>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-3xl font-bold text-amber-900 dark:text-amber-100">{credits.toLocaleString()}</span>
-                                        <span className="text-amber-700 dark:text-amber-300 font-medium">C</span>
-                                    </div>
-                                </div>
-                                <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-50 to-gray-50 border border-slate-100 dark:bg-slate-900/50 dark:border-slate-800">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                                            <CreditCard className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                                        </div>
-                                        <span className="font-semibold text-slate-900 dark:text-slate-200">이번 달 결제 금액</span>
-                                    </div>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-3xl font-bold text-slate-900 dark:text-white">{monthlySpending.toLocaleString()}</span>
-                                        <span className="text-slate-600 dark:text-slate-400 font-medium">원</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 내역 리스트 */}
-                            <div className="space-y-6">
-                                <div>
-                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                        <Receipt className="h-5 w-5 text-muted-foreground" />
-                                        최근 활동 내역
-                                    </h3>
-                                    <div className="rounded-xl border bg-card overflow-hidden">
-                                        <div className="grid grid-cols-1 divide-y">
-                                            {isLoadingHistory ? (
-                                                <div className="p-12 flex flex-col items-center gap-3 text-muted-foreground">
-                                                    <Loader2 className="h-8 w-8 animate-spin" />
-                                                    <p>내역을 불러오는 중...</p>
-                                                </div>
-                                            ) : unifiedHistory.length === 0 ? (
-                                                <div className="p-12 text-center text-muted-foreground">
-                                                    활동 내역이 없습니다.
-                                                </div>
-                                            ) : (
-                                                unifiedHistory.map((item) => (
-                                                    <div key={item.id} className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                                                        <div className="flex items-start gap-4">
-                                                            <div className={cn(
-                                                                "mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                                                                item.isPlus ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-600"
-                                                            )}>
-                                                                {item.isPlus ? <Coins className="h-5 w-5" /> : <Receipt className="h-5 w-5" />}
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-bold text-base text-foreground mb-1">{item.title}</p>
-                                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                    <span>{item.date}</span>
-                                                                    <span className="w-0.5 h-3 bg-slate-200 dark:bg-slate-800"></span>
-                                                                    <span>{item.payMethod}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className={cn(
-                                                                "text-lg font-bold",
-                                                                item.isPlus ? "text-emerald-600" : "text-slate-900 dark:text-slate-100"
-                                                            )}>
-                                                                {item.isPlus ? '+' : '-'}{Number(item.amount).toLocaleString()}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground font-medium">
-                                                                {item.status}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                        {!isLoadingHistory && unifiedHistory.length > 0 && (
-                                            <div className="p-3 border-t bg-muted/10 text-center">
-                                                <Button variant="ghost" size="sm" onClick={fetchHistory} className="text-muted-foreground hover:text-foreground text-xs">
-                                                    내역 새로고침
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
             case "password":
                 return (
                     <div className="bg-card rounded-2xl shadow-sm border p-8 min-h-[600px]">
@@ -274,7 +103,7 @@ export default function Settings() {
                                 <Input id="confirm-password" type="password" placeholder="새 비밀번호를 다시 입력하세요" className="h-11" />
                             </div>
                             <div className="pt-6">
-                                <Button className="w-full h-11 bg-gradient-to-r from-sky-500 to-teal-400 hover:from-sky-600 hover:to-teal-500 text-lg font-medium text-white border-0">
+                                <Button className="w-full h-11 text-lg font-medium text-white border-0 transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}>
                                     비밀번호 변경
                                 </Button>
                             </div>

@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Building2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { JobRegistrationModal } from "@/components/company/JobRegistrationModal";
 
 export function DashboardHeader() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -13,10 +17,13 @@ export function DashboardHeader() {
           <p className="text-muted-foreground">채용공고와 지원자를 효율적으로 관리하세요</p>
         </div>
       </div>
-      <Button className="btn-gradient-primary">
+      <Button className="btn-gradient-primary" onClick={() => setIsModalOpen(true)}>
         <Plus className="h-4 w-4 mr-2" />
         새 채용공고 등록
       </Button>
+
+      <JobRegistrationModal open={isModalOpen} onOpenChange={setIsModalOpen} />
     </div>
   );
 }
+

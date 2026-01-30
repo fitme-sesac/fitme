@@ -10,6 +10,9 @@ import { JobCard } from "@/components/home/JobCard";
 import { WideJobCard } from "@/components/home/WideJobCard";
 import { RecommendedSection } from "@/components/home/RecommendedSection";
 import { SideJobList } from "@/components/home/SideJobList";
+import { CompanySidebar } from "@/components/home/CompanySidebar";
+import { CompanyMarketingBanner } from "@/components/home/CompanyMarketingBanner";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePublicJobs } from "@/hooks/useJobs";
 import {
     POSITION_DISPLAY_OPTIONS,
@@ -100,6 +103,7 @@ function getJobPositionLabels(job: Job): string[] {
 }
 
 export default function Jobs() {
+    const { isCompany } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [keyword, setKeyword] = useState(searchParams.get("keyword") || "");
     const [page, setPage] = useState(0);
@@ -279,7 +283,7 @@ export default function Jobs() {
 
                 <main className="container max-w-7xl mx-auto py-6 px-4 md:px-8">
                     {/* 상단 추천/광고 섹션 (탭 형태) */}
-                    <RecommendedSection />
+                    {isCompany ? <CompanyMarketingBanner /> : <RecommendedSection />}
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-8">
                         {/* 중앙 피드 (8 cols) */}
@@ -533,10 +537,21 @@ export default function Jobs() {
                             {/* Scout Banner */}
                             {!isLoading && (
                                 <div className="bg-[#F8F9FA] rounded-md py-4 px-6 mb-8 flex flex-col sm:flex-row items-center justify-between gap-2 border border-[#E1E4E8] sm:h-[60px]">
-                                    <p className="text-[#4E5968] text-sm tracking-tight">지금 프로필을 등록하면, 스카우트 제안을 받을 수 있어요</p>
-                                    <Link to="/resume" className="text-[#3B82F6] text-sm font-bold flex items-center hover:underline whitespace-nowrap">
-                                        내가 받을 스카우트 제안 보기 <ChevronRight className="ml-0.5 h-4 w-4" />
-                                    </Link>
+                                    {isCompany ? (
+                                        <>
+                                            <p className="text-[#4E5968] text-sm tracking-tight">인재들에게 보낸 제안과 지원 현황을 한눈에 확인해보세요</p>
+                                            <Link to="/company/dashboard" className="text-[#3B82F6] text-sm font-bold flex items-center hover:underline whitespace-nowrap">
+                                                제안/신청 확인하기 <ChevronRight className="ml-0.5 h-4 w-4" />
+                                            </Link>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="text-[#4E5968] text-sm tracking-tight">지금 프로필을 등록하면, 스카우트 제안을 받을 수 있어요</p>
+                                            <Link to="/resume" className="text-[#3B82F6] text-sm font-bold flex items-center hover:underline whitespace-nowrap">
+                                                내가 받을 스카우트 제안 보기 <ChevronRight className="ml-0.5 h-4 w-4" />
+                                            </Link>
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -643,16 +658,28 @@ export default function Jobs() {
                         {/* 우측 사이드바 (4 cols) - 고정 */}
                         <div className="hidden lg:block lg:col-span-4">
                             <div className="sticky top-20 space-y-6">
-                                <SideJobList />
+                                {isCompany ? (
+                                    <CompanySidebar />
+                                ) : (
+                                    <SideJobList />
+                                )}
 
                                 {/* 추가 위젯 (예: 인기 태그) */}
                                 <div className="bg-card rounded-2xl border border-border p-5">
                                     <h3 className="font-bold mb-4 text-sm text-muted-foreground">인기 검색 키워드</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {["Python", "Java", "React", "Spring Boot", "AI", "Data Engineer", "Frontend"].map(tag => (
-                                            <span key={tag} className="px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium">
+                                            <button
+                                                key={tag}
+                                                onClick={() => {
+                                                    setKeyword(tag);
+                                                    setSearchParams({ keyword: tag });
+                                                    setPage(0);
+                                                }}
+                                                className="px-3 py-1.5 rounded-lg bg-secondary/50 text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors"
+                                            >
                                                 #{tag}
-                                            </span>
+                                            </button>
                                         ))}
                                     </div>
                                 </div>

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { ChevronRight, Home, FileText, Send, Star, User } from "lucide-react";
+import { ChevronRight, Home, FileText, Send, Star, User, Calendar } from "lucide-react";
 
 const menuSections = [
     {
@@ -21,13 +21,7 @@ const menuSections = [
         items: [
             { label: "입사지원 현황", href: "/applications", icon: Send },
             { label: "받은 포지션 제안", href: "/proposals", icon: Send },
-        ],
-    },
-    {
-        title: "AI추천",
-        items: [
-            { label: "새로운 추천공고", href: "/recommendations/new", icon: Star },
-            { label: "확인한 추천공고", href: "/recommendations/viewed", icon: Star },
+            { label: "면접 일정 관리", href: "/interview", icon: Calendar },
         ],
     },
 ];
@@ -57,7 +51,7 @@ export function JobSeekerSidebar() {
                                     className={cn(
                                         "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200",
                                         isActive
-                                            ? "bg-[#5A639C] text-white shadow-md shadow-[#5A639C]/20"
+                                            ? "bg-gradient-primary text-white shadow-md shadow-sky-500/20"
                                             : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                     )}
                                 >

@@ -28,8 +28,8 @@ export function SurfitSection({ displayName, jobs = [] }: SurfitSectionProps) {
 
         return {
             id: String(job.jobId),
-            company: job.companyName,
-            logo: job.companyLogoUrl || job.companyName.substring(0, 1),
+            company: job.companyName || "회사명",
+            logo: job.companyLogoUrl || (job.companyName || "C").substring(0, 1),
             position: job.title,
             experience: job.requiredExperience ? `경력 ${job.requiredExperience}년+` : "신입/경력",
             location: job.location?.split(" ").slice(0, 2).join(" ") || job.location, // Shorten location
