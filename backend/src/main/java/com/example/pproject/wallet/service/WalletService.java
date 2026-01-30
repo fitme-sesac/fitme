@@ -325,7 +325,82 @@ public class WalletService {
         // 1. 지갑 잔액 차감 (부족하면 예외)
         wallet.use(amount);
 
-        // 2. LOT FIFO 차감 (Chunk 조회)
+        // 2. LOT FIFO 차감
+        consumeCreditLots(wallet, amount);
+
+        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, sourceType, sourceRefId, amount, balanceBefore,
+                idempotencyKey, memo);
+        ledgerRepository.save(ledger);
+    }
+
+    /**
+     * [Phase 2] 광고 예산 예약 (하루치)
+     */
+    @Transactional
+    public void holdBudget(Long employerId, long amount, String idempotencyKey) {
+        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+
+        if (ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
+            return;
+        }
+
+        long balanceBefore = wallet.getBalance();
+
+        // 1. 예약 (가용잔액 체크 포함)
+        wallet.hold(amount);
+
+        // 2. Ledger 기록 (TxType: DEBIT, 금액은 찍히지만 잔액 변동은 없음 - 예약 로그)
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, 0L, balanceBefore,
+                idempotencyKey, "광고 예산 예약 (HOLD: " + amount + ")");
+        ledgerRepository.save(ledger);
+    }
+
+    /**
+     * [Phase 2] 광고 클릭 이벤트 배치 정산 및 환불 (Batch Settlement)
+     * - 어제 사용한 금액(usedAmount)만큼 차감하고, 남은 예약금을 환불합니다.
+     */
+    @Transactional
+    public void settleDailyUsage(Long employerId, long usedAmount, String idempotencyKey) {
+        // 이미 처리된 정산인지 확인
+        if (ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
+            return;
+        }
+
+        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+        long balanceBefore = wallet.getBalance(); // 사실상 balance 변화는 없음 (reserved 내부 처리) -> 아님, 환불 시 증가함.
+
+        // 1. 실제 사용분 처리 (예약금 소멸)
+        if (usedAmount > 0) {
+            wallet.deductReserved(usedAmount);
+            consumeCreditLots(wallet, usedAmount); // 사용된 크레딧 소멸
+        }
+
+        // 2. 남은 예약금 환불 (Balance 복구)
+        long refunded = wallet.getReservedBalance(); // 남은 거 다 환불
+        wallet.releaseAllReservation();
+
+        // 3. Ledger (정산 및 환불 로그)
+        String memo = String.format("일일 정산 (사용: %d, 환불: %d)", usedAmount, refunded);
+
+        // 사용 내역 기록 (DEBIT)
+        if (usedAmount > 0) {
+            WalletLedger usageLedger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, usedAmount,
+                    balanceBefore,
+                    idempotencyKey + "_USAGE", memo);
+            ledgerRepository.save(usageLedger);
+        }
+
+        // 환불 내역은 별도 기록 필요 없음? -> Balance가 늘어나니까 CREDIT인지?
+        // 아님. 원래 내 돈이었으니 그냥 내부 이동임.
+        // 하지만 Balance가 늘어나는 것 처럼 보이니 헷갈릴 수 있음.
+        // 여기선 "사용 내역"만 명확히 남기면 됨. (환불은 내부 처리)
+    }
+
+    /**
+     * CreditLot FIFO 차감 로직 (공통로직으로 분리했음)
+     */
+    private void consumeCreditLots(Wallet wallet, long amount) {
         long remaining = amount;
 
         while (remaining > 0) {
@@ -358,11 +433,6 @@ public class WalletService {
                 throw new IllegalStateException("데이터 정합성 오류: LOT 차감이 진행되지 않습니다.");
             }
         }
-
-        // 3. Ledger 기록 (엔티티 팩토리 메서드 사용)
-        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, sourceType, sourceRefId, amount, balanceBefore,
-                idempotencyKey, memo);
-        ledgerRepository.save(ledger);
     }
 
     /**
