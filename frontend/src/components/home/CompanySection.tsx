@@ -52,7 +52,7 @@ export function CompanySection() {
   };
 
   return (
-    <section className="py-12 lg:py-16 bg-secondary/30">
+    <section className="py-12 lg:py-16">
       <div className="container">
         {/* 섹션 헤더 */}
         <div className="mb-8 flex items-end justify-between">
@@ -118,7 +118,7 @@ export function CompanySection() {
         </div>
 
         {/* 기업 등록 CTA */}
-        <div className="mt-8 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-info/10 p-6 lg:p-8">
+        <div className="mt-8 rounded-2xl bg-sky-50 p-6 lg:p-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold mb-1">기업 회원이신가요?</h3>

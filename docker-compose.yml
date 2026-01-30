@@ -57,6 +57,11 @@ services:
     env_file:
       - ./.env.docker
     environment:
+      # DB (Docker 네트워크 내 postgres 서비스로 연결)
+      DB_URL: jdbc:postgresql://postgres:5432/fitme_project
+      DB_USERNAME: postgres
+      # DB_PASSWORD는 .env.docker에서 로드 (따옴표 없이 설정 권장)
+
       # Redis (used for OTP/cache etc.)
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -85,7 +90,9 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      
+      DB_NAME: fitme_project
+      DB_USER: postgres
+      # DB_PASSWORD는 .env.docker에서 로드
     ports:
       - "8000:8000"
     depends_on:

@@ -16,7 +16,7 @@ const BANNERS = [
         company: "Danggeun",
         title: "당신 근처의 당근마켓",
         desc: "Backend Developer (Server)",
-        color: "from-orange-500 to-orange-400",
+        color: "from-teal-500 to-teal-400",
         image: "https://about.daangn.com/img/og_image.png"
     },
     {
