@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Search, Bell, Menu, Target, LogIn, LogOut, User, Coins } from "lucide-react";
+import { Search, Bell, Menu, Target, LogIn, LogOut, User, Coins, ArrowRight, Loader2 } from "lucide-react";
+import { getMyLedgers } from "@/api/wallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,9 +16,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useNotifications } from "@/features/notification/hooks/useNotifications";
 
+import { CreditChargeModal } from "@/components/payment/CreditChargeModal";
+
+// Mock data deleted
+
 export function Header() {
-  const { user, signOut, isCompany } = useAuth();
+  const { user, signOut, isCompany, isAdmin, credits, userRole } = useAuth() as any;
   const navigate = useNavigate();
+  const [recentLedgers, setRecentLedgers] = useState<any[]>([]);
+  const [loadingLedgers, setLoadingLedgers] = useState(false);
   const {
     notifications,
     unreadCount,
@@ -29,17 +36,10 @@ export function Header() {
     stopPolling
   } = useNotifications();
 
+  const [searchParams] = useSearchParams();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [creditBalance, setCreditBalance] = useState(0);
-
-  // 크레딧 잔액 조회 (API 연동 시 활성화)
-  useEffect(() => {
-    if (user) {
-      // TODO: 실제 API 연동
-      // fetchCreditBalance().then(setCreditBalance);
-      setCreditBalance(10000); // 임시 값
-    }
-  }, [user]);
+  const [creditOpen, setCreditOpen] = useState(false);
+  const [chargeModalOpen, setChargeModalOpen] = useState(false);
 
   // 알림 폴링 시작/종료
   useEffect(() => {
@@ -48,6 +48,31 @@ export function Header() {
     }
     return () => stopPolling();
   }, [user, startPolling, stopPolling]);
+
+  // 크레딧 내역 가져오기 (드롭다운 열릴 때)
+  useEffect(() => {
+    if (user && creditOpen) {
+      const fetchHistory = async () => {
+        setLoadingLedgers(true);
+        try {
+          const res = await getMyLedgers(userRole);
+          setRecentLedgers(res.content?.slice(0, 5) || []);
+        } catch (error) {
+          console.error("Failed to fetch recent ledgers:", error);
+        } finally {
+          setLoadingLedgers(false);
+        }
+      };
+      fetchHistory();
+    }
+  }, [user, creditOpen, userRole]);
+
+  // URL에 결제 성공 파라미터가 있으면 모달을 자동으로 엽니다.
+  useEffect(() => {
+    if (searchParams.get("payment_success") === "true") {
+      setChargeModalOpen(true);
+    }
+  }, [searchParams]);
 
   // 알림 드롭다운 열릴 때 최신 알림 로드
   useEffect(() => {
@@ -69,7 +94,7 @@ export function Header() {
   const mypageHref = isCompany ? "/company/dashboard" : "/mypage";
 
   return (
-    <header className="sticky top-0 z-50 h-16 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <header className="sticky top-0 z-50 h-16 border-b border-border bg-sidebar/95 backdrop-blur supports-[backdrop-filter]:bg-sidebar/80">
       <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-6">
         {/* 모바일 메뉴 & 로고 */}
         <div className="flex items-center gap-3 lg:hidden">
@@ -86,12 +111,12 @@ export function Header() {
 
         {/* 검색바 */}
         <div className="hidden md:flex flex-1 max-w-xl mx-auto lg:ml-0">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative w-full home-search-bar">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground home-search-icon" />
             <Input
               type="search"
               placeholder="포지션, 기업, 기술스택으로 검색하세요"
-              className="w-full pl-10 pr-4 h-10 bg-secondary border-0 focus-visible:ring-primary"
+              className="w-full pl-10 pr-4 h-10 bg-[#EAEFEF] border-0 focus-visible:ring-primary rounded-full transition-all"
             />
           </div>
         </div>
@@ -101,15 +126,66 @@ export function Header() {
           {/* 크레딧 표시 (로그인 시) */}
           {user && (
             <div className="hidden sm:flex items-center gap-2 mr-2">
-              <Badge variant="secondary" className="gap-1 px-3 py-1.5">
-                <Coins className="h-3.5 w-3.5 text-amber-500" />
-                <span className="font-medium">{creditBalance.toLocaleString()}</span>
-              </Badge>
-              <Button size="sm" variant="outline" asChild className="h-8">
-                <Link to="/payment/products">충전</Link>
+              <DropdownMenu open={creditOpen} onOpenChange={setCreditOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-auto p-0 hover:bg-transparent">
+                    <Badge variant="secondary" className="gap-1 px-3 py-1.5 cursor-pointer hover:bg-slate-200 transition-colors">
+                      <Coins className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="font-medium">{credits.toLocaleString()}</span>
+                    </Badge>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-72" align="end" forceMount>
+                  <div className="p-3 border-b flex items-center justify-between">
+                    <span className="font-bold text-sm">최근 크레딧 내역</span>
+                    <Badge variant="outline" className="text-[10px] font-normal border-slate-200">사용 가능</Badge>
+                  </div>
+                  <div className="max-h-[280px] overflow-y-auto">
+                    {loadingLedgers ? (
+                      <div className="p-8 flex flex-col items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="text-[10px]">불러오는 중...</span>
+                      </div>
+                    ) : recentLedgers.length === 0 ? (
+                      <div className="p-8 text-center text-[10px] text-muted-foreground">
+                        내역이 없습니다.
+                      </div>
+                    ) : (
+                      recentLedgers.map((log) => (
+                        <div key={log.ledgerId} className="p-3 border-b last:border-0 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                          <div className="space-y-0.5 max-w-[180px]">
+                            <p className="text-xs font-bold text-slate-700 truncate">{log.memo}</p>
+                            <p className="text-[10px] text-slate-400">{new Date(log.occurredAt).toLocaleDateString()}</p>
+                          </div>
+                          <div className={`text-xs font-extrabold ${log.type === 'CREDIT' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {log.type === 'CREDIT' ? '+' : '-'}{log.amount.toLocaleString()}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="p-2 border-t">
+                    <Button
+                      variant="ghost"
+                      className="w-full h-9 text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center justify-center gap-1"
+                      onClick={() => {
+                        setCreditOpen(false);
+                        navigate("/settings?tab=history");
+                      }}
+                    >
+                      전체 내역 확인하기 <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button size="sm" variant="outline" onClick={() => setChargeModalOpen(true)} className="h-8 border-slate-200 hover:bg-slate-50 font-bold">
+                충전
               </Button>
             </div>
           )}
+
+          {/* 크레딧 충전 모달 */}
+          <CreditChargeModal open={chargeModalOpen} onOpenChange={setChargeModalOpen} />
 
           {/* 알림 드롭다운 */}
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
@@ -220,7 +296,12 @@ export function Header() {
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <div className="flex items-center justify-start gap-2 p-2">
                   <div className="flex flex-col space-y-1 leading-none">
-                    <p className="font-medium">{user.user_metadata?.display_name || user.email}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{user.user_metadata?.display_name || user.email}</p>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                        {isAdmin ? "관리자" : isCompany ? "기업" : "구직자"}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
                 </div>
@@ -229,11 +310,14 @@ export function Header() {
                   <div className="flex items-center justify-between p-2 bg-secondary rounded-lg">
                     <div className="flex items-center gap-1">
                       <Coins className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-medium">{creditBalance.toLocaleString()}</span>
+                      <span className="text-sm font-medium">{credits.toLocaleString()}</span>
                     </div>
-                    <Link to="/payment/products" className="text-xs text-primary hover:underline">
+                    <button
+                      onClick={() => setChargeModalOpen(true)}
+                      className="text-xs text-primary font-bold hover:underline"
+                    >
                       충전
-                    </Link>
+                    </button>
                   </div>
                 </div>
                 <DropdownMenuSeparator />

@@ -28,6 +28,9 @@ export function SocialLoginButtons() {
 
   return (
     <div className="flex flex-col gap-3 mt-3 w-full">
+      <p className="text-xs text-slate-500 text-center mb-1">
+        계정이 있으면 로그인, 없으면 회원가입으로 이어집니다.
+      </p>
       {/* Google */}
       <Button
         type="button"

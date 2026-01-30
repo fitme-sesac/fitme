@@ -63,10 +63,10 @@ export function Sidebar() {
         {/* 로고 */}
         <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
           <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#5A639C] to-[#9B86BD] shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-teal-400 shadow-sm">
               <Target className="h-5 w-5 text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">FitMe</span>
+            <span className="text-xl font-bold text-sky-600 tracking-tight">FitMe</span>
           </Link>
         </div>
 
@@ -130,7 +130,7 @@ export function Sidebar() {
           ) : (
             <Link
               to="/auth"
-              className="mt-3 w-full bg-gradient-to-r from-[#5A639C] via-[#7776B3] to-[#9B86BD] text-white shadow-md hover:shadow-lg hover:to-[#E2BBE9] transition-all duration-300 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold"
+              className="mt-3 w-full bg-gradient-to-r from-sky-500 via-sky-400 to-teal-400 text-white shadow-md hover:shadow-lg hover:from-teal-400 hover:to-sky-500 transition-all duration-300 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold"
             >
               <LogIn className="h-4 w-4" />
               <span>로그인</span>

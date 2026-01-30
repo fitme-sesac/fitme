@@ -57,7 +57,7 @@ export function CommunityNav({ activeCategory, onCategoryChange, activeSort = 'a
                             className={`
                                 flex items-center gap-2 rounded-lg px-4 py-2 shrink-0
                                 ${isActive
-                                    ? "bg-gradient-to-r from-[#5A639C] to-[#9B86BD] text-white hover:from-[#4A538C] hover:to-[#8B76AD]"
+                                    ? "bg-gradient-to-r from-sky-500 to-teal-400 text-white hover:from-sky-600 hover:to-teal-500 shadow-sm"
                                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                 }
                             `}
@@ -75,7 +75,7 @@ export function CommunityNav({ activeCategory, onCategoryChange, activeSort = 'a
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="flex items-center gap-2 border-[#5A639C]/30 text-[#5A639C] hover:bg-[#5A639C]/10"
+                                className="flex items-center gap-2 border-sky-200 text-sky-600 hover:bg-sky-50"
                             >
                                 <SortIcon className="h-4 w-4" />
                                 {currentSort.label}
@@ -89,7 +89,7 @@ export function CommunityNav({ activeCategory, onCategoryChange, activeSort = 'a
                                     <DropdownMenuItem
                                         key={option.id}
                                         onClick={() => onSortChange?.(option.id)}
-                                        className={`flex items-center gap-2 ${activeSort === option.id ? "bg-[#5A639C]/10 text-[#5A639C]" : ""}`}
+                                        className={`flex items-center gap-2 ${activeSort === option.id ? "bg-sky-50 text-sky-600" : ""}`}
                                     >
                                         <OptionIcon className="h-4 w-4" />
                                         {option.label}

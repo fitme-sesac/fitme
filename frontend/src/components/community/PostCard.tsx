@@ -47,10 +47,10 @@ interface Post {
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-    general: { label: "일반", color: "bg-gray-100 text-gray-700" },
-    company_news: { label: "기업소식", color: "bg-blue-100 text-blue-700" },
-    career_tips: { label: "커리어팁", color: "bg-green-100 text-green-700" },
-    qna: { label: "Q&A", color: "bg-purple-100 text-purple-700" },
+    general: { label: "일반", color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
+    company_news: { label: "기업소식", color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" },
+    career_tips: { label: "커리어팁", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300" },
+    qna: { label: "Q&A", color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" },
 };
 
 function formatTimeAgo(dateString: string): string {
@@ -99,7 +99,7 @@ export function PostCard({ post, onLike, onComment, onShare, onBookmark }: PostC
                     <div className="flex items-center gap-3">
                         <Avatar className="h-12 w-12">
                             <AvatarImage src={post.author.avatar} />
-                            <AvatarFallback className="bg-gradient-to-br from-[#5A639C] to-[#9B86BD] text-white font-bold">
+                            <AvatarFallback className="bg-gradient-to-br from-sky-500 to-teal-400 text-white font-bold">
                                 {post.author.name.charAt(0)}
                             </AvatarFallback>
                         </Avatar>
@@ -163,7 +163,7 @@ export function PostCard({ post, onLike, onComment, onShare, onBookmark }: PostC
                         <div className="p-4">
                             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                                 <ExternalLink className="h-3 w-3" />
-                                <span>{new URL(post.link.url).hostname}</span>
+                                <span className="text-sky-600">{new URL(post.link.url).hostname}</span>
                             </div>
                             <h4 className="font-medium text-foreground line-clamp-1">{post.link.title}</h4>
                             {post.link.description && (
@@ -210,7 +210,7 @@ export function PostCard({ post, onLike, onComment, onShare, onBookmark }: PostC
                         variant="ghost"
                         size="icon"
                         onClick={handleBookmark}
-                        className={`h-8 w-8 ${isBookmarked ? "text-[#5A639C]" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`h-8 w-8 ${isBookmarked ? "text-sky-500" : "text-muted-foreground hover:text-foreground"}`}
                     >
                         <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
                     </Button>

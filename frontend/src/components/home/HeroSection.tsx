@@ -23,12 +23,12 @@ export function HeroSection() {
 
             {/* 제목 */}
             <div className="space-y-4">
-              <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl xl:text-6xl text-foreground">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] via-[#7776B3] to-[#9B86BD]">AI가 찾아주는</span>
+              <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl xl:text-6xl text-slate-900">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-500 via-sky-400 to-teal-400">AI가 찾아주는</span>
                 <br />
                 나에게 딱 맞는 기회
               </h1>
-              <p className="text-lg text-muted-foreground lg:text-xl max-w-lg">
+              <p className="text-lg text-slate-500 lg:text-xl max-w-lg">
                 기다리지 마세요. FitMe의 AI가 당신의 역량을 분석하고,
                 가장 적합한 기업을 먼저 제안해드립니다.
               </p>
@@ -36,13 +36,13 @@ export function HeroSection() {
 
             {/* CTA 버튼 */}
             <div className="flex flex-wrap gap-4">
-              <Button asChild size="lg" className="h-14 px-8 text-base bg-gradient-to-r from-[#5A639C] via-[#7776B3] to-[#9B86BD] hover:from-[#7776B3] hover:to-[#E2BBE9] text-white shadow-lg shadow-purple-200/50 border-none">
+              <Button asChild size="lg" className="h-14 px-8 text-base bg-gradient-to-r from-sky-500 via-sky-400 to-teal-400 hover:from-teal-400 hover:to-sky-500 text-white shadow-lg shadow-sky-200/50 border-none">
                 <Link to="/auth?tab=signup">
                   지금 시작하기
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="h-14 px-8 text-base border-2">
+              <Button asChild size="lg" variant="outline" className="h-14 px-8 text-base border-2 hover:bg-slate-50 hover:text-sky-600 hover:border-sky-200">
                 <Link to="/auth?tab=signup&type=company">기업 서비스 알아보기</Link>
               </Button>
             </div>
@@ -50,16 +50,16 @@ export function HeroSection() {
             {/* 통계 */}
             <div className="flex flex-wrap gap-8 pt-4">
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] to-[#9B86BD]">15,000+</p>
-                <p className="text-sm text-muted-foreground">등록된 개발자</p>
+                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-500 to-teal-400">15,000+</p>
+                <p className="text-sm text-slate-500">등록된 개발자</p>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] to-[#9B86BD]">2,500+</p>
-                <p className="text-sm text-muted-foreground">파트너 기업</p>
+                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-500 to-teal-400">2,500+</p>
+                <p className="text-sm text-slate-500">파트너 기업</p>
               </div>
               <div className="space-y-1">
-                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#5A639C] to-[#9B86BD]">98%</p>
-                <p className="text-sm text-muted-foreground">매칭 만족도</p>
+                <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-500 to-teal-400">98%</p>
+                <p className="text-sm text-slate-500">매칭 만족도</p>
               </div>
             </div>
           </div>
@@ -86,7 +86,7 @@ export function HeroSection() {
                     { company: "디지털웨이브", match: 92, role: "풀스택 개발자" },
                     { company: "클라우드팩토리", match: 88, role: "백엔드 개발자" },
                   ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-xl bg-secondary/50 p-3">
+                    <div key={i} className="flex items-center justify-between rounded-xl bg-[#EAEFEF] p-3">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
                           {item.company[0]}
