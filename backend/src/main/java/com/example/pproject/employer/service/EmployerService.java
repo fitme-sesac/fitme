@@ -274,6 +274,109 @@ public class EmployerService {
     }
 
     /**
+     * 공개 기업 목록 조회 (채용 중인 기업, OPEN 공고가 1개 이상인 기업)
+     * - 페이지네이션 지원
+     * - industry가 있으면 업종 필터 (부분 일치)
+     */
+    public PublicEmployerListResponseDTO getPublicEmployers(int page, int size, String industry) {
+        int offset = page * size;
+        List<PublicEmployerDTO> content;
+        long totalElements;
+
+        try {
+            StringBuilder countSql = new StringBuilder("""
+                SELECT COUNT(DISTINCT e.employer_id)
+                FROM employer e
+                INNER JOIN job_posting j ON j.employer_id = e.employer_id AND j.status = 'OPEN' AND j.deleted_at IS NULL
+                WHERE e.deleted_at IS NULL
+                """);
+            StringBuilder dataSql = new StringBuilder("""
+                SELECT e.employer_id, e.name, e.logo_url, e.industry, COUNT(j.job_id) AS open_job_count
+                FROM employer e
+                INNER JOIN job_posting j ON j.employer_id = e.employer_id AND j.status = 'OPEN' AND j.deleted_at IS NULL
+                WHERE e.deleted_at IS NULL
+                """);
+            List<Object> params = new ArrayList<>();
+            List<Object> countParams = new ArrayList<>();
+
+            if (industry != null && !industry.isBlank()) {
+                String industryArg = "%" + industry.trim() + "%";
+                countSql.append(" AND (LOWER(e.industry) LIKE LOWER(?) OR e.industry = ?)");
+                dataSql.append(" AND (LOWER(e.industry) LIKE LOWER(?) OR e.industry = ?)");
+                params.add(industryArg);
+                params.add(industry.trim());
+                countParams.add(industryArg);
+                countParams.add(industry.trim());
+            }
+
+            dataSql.append(" GROUP BY e.employer_id, e.name, e.logo_url, e.industry ORDER BY open_job_count DESC LIMIT ? OFFSET ?");
+            params.add(size);
+            params.add(offset);
+
+            totalElements = countParams.isEmpty()
+                    ? jdbcTemplate.queryForObject(countSql.toString(), Long.class)
+                    : jdbcTemplate.queryForObject(countSql.toString(), Long.class, countParams.toArray());
+            if (totalElements == 0) {
+                content = List.of();
+            } else {
+                content = jdbcTemplate.query(dataSql.toString(),
+                        (rs, rowNum) -> PublicEmployerDTO.builder()
+                                .employerId(rs.getLong("employer_id"))
+                                .name(rs.getString("name"))
+                                .logoUrl(rs.getString("logo_url"))
+                                .industry(rs.getString("industry"))
+                                .openJobCount(rs.getInt("open_job_count"))
+                                .build(),
+                        params.toArray());
+            }
+        } catch (Exception e) {
+            log.warn("공개 기업 목록 조회 실패: {}", e.getMessage());
+            content = List.of();
+            totalElements = 0;
+        }
+
+        int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+        return PublicEmployerListResponseDTO.builder()
+                .content(content)
+                .page(page)
+                .size(size)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .build();
+    }
+
+    /**
+     * 공개 기업 상세 조회 (채용 중인 기업 정보)
+     * - 삭제되지 않은 기업만 반환
+     * - openJobCount 포함
+     */
+    public PublicEmployerDetailDTO getPublicEmployer(Long employerId) {
+        if (employerId == null) {
+            return null;
+        }
+        EmployerEntity employer = employerRepository.findByIdAndDeletedAtIsNull(employerId).orElse(null);
+        if (employer == null) {
+            return null;
+        }
+        long openJobCount = 0;
+        try {
+            openJobCount = jobRepository.countActiveByEmployerId(employerId);
+        } catch (Exception e) {
+            log.warn("기업 {} 채용공고 수 조회 실패: {}", employerId, e.getMessage());
+        }
+        return PublicEmployerDetailDTO.builder()
+                .employerId(employer.getId())
+                .name(employer.getName())
+                .logoUrl(employer.getLogoUrl())
+                .industry(employer.getIndustry())
+                .location(employer.getLocation())
+                .employeeCount(employer.getEmployeeCount())
+                .description(employer.getDescription())
+                .openJobCount((int) openJobCount)
+                .build();
+    }
+
+    /**
      * 회원의 소속 기업 ID 조회 (JobService 등에서 사용)
      */
     public Long getEmployerIdByMemberId(Long memberId) {

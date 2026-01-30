@@ -12,6 +12,13 @@ import java.util.stream.Collectors;
  */
 public final class JobPositionUtil {
 
+    /** 정렬된 포지션 카테고리 목록 (필터/LLM 등에서 일관된 순서 보장) */
+    public static final java.util.List<String> ORDERED_POSITION_CATEGORIES = java.util.List.of(
+            "프론트엔드",
+            "백엔드",
+            "풀스택"
+    );
+
     private static final Set<String> FRONTEND_KEYWORDS = Set.of(
             "react", "vue", "angular", "javascript", "typescript", "js", "ts",
             "next.js", "nextjs", "nuxt", "svelte", "remix", "html", "css", "scss", "sass",

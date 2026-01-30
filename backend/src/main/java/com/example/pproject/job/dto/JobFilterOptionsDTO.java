@@ -7,7 +7,6 @@ import java.util.List;
 /**
  * 채용공고 필터 옵션 DTO
  * - 프론트엔드에서 필터 드롭다운에 표시할 옵션들
- * - LLM/ai-worker에서 포지션 목록이 필요하면 positionCategories 사용
  */
 @Getter
 @Setter
@@ -22,8 +21,8 @@ public class JobFilterOptionsDTO {
     // 사용 가능한 지역 목록 (시/도 단위)
     private List<String> locations;
     
-    /** 포지션 카테고리 (전체, 서버/백엔드, 프론트엔드, 웹 풀스택, 안드로이드, iOS 등) - LLM/필터 공통 */
-    private List<String> positionCategories;
+    /** 정렬된 포지션 카테고리 목록 (프론트엔드, 백엔드, 풀스택 - 필터/LLM 호출용) */
+    private List<String> positions;
     
     // 경력 필터 옵션
     private List<ExperienceOption> experienceOptions;

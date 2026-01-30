@@ -13,7 +13,6 @@ import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
-import com.example.pproject.common.constants.JobPositionConstants;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.common.util.JobPositionUtil;
 import lombok.RequiredArgsConstructor;
@@ -402,7 +401,7 @@ public class JobService {
         return JobFilterOptionsDTO.builder()
                 .stacks(stacks)
                 .locations(locations)
-                .positionCategories(JobPositionConstants.DISPLAY_POSITION_LABELS)
+                .positions(JobPositionUtil.ORDERED_POSITION_CATEGORIES)
                 .experienceOptions(JobFilterOptionsDTO.getDefaultExperienceOptions())
                 .build();
     }
@@ -412,7 +411,7 @@ public class JobService {
      * - 대소문자 구분 없이 검색
      * - 한글 기술스택 검색 지원 (자바 → Java)
      */
-    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location) {
+    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location, String position) {
         Page<JobEntity> jobPage;
         // JPQL 쿼리용 (정렬 포함)
         PageRequest pageRequestWithSort = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -432,6 +431,9 @@ public class JobService {
         } else if (location != null && !location.isBlank()) {
             // 지역 필터 - JPQL 쿼리 사용
             jobPage = jobRepository.findPublicJobsByLocation(location.trim(), pageRequestWithSort);
+        } else if (position != null && !position.isBlank() && JobPositionUtil.ORDERED_POSITION_CATEGORIES.contains(position.trim())) {
+            // 포지션 카테고리 필터 (프론트엔드/백엔드/풀스택) - Repository에서 stack 기반 도출
+            jobPage = jobRepository.findPublicJobsByPosition(position.trim(), pageRequestNoSort);
         } else {
             // 전체 조회 - JPQL 쿼리 사용
             jobPage = jobRepository.findPublicJobs(pageRequestWithSort);
@@ -507,6 +509,7 @@ public class JobService {
         EmployerEntity employer = employerRepository.findById(job.getEmployerId())
                 .orElse(null);
 
+        String derivedPosition = JobPositionUtil.derivePosition(job.getStack());
         return JobDTO.builder()
                 .jobId(job.getId())
                 .jobUid(String.valueOf(job.getId()))
@@ -518,7 +521,8 @@ public class JobService {
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
                 .stack(ArrayStringUtil.listToString(job.getStack()))
-                .position(JobPositionUtil.derivePosition(job.getStack()))
+                .position(derivedPosition)
+                .positionCategory(derivedPosition)
                 .requiredExperience(job.getRequiredExperience())
                 .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
@@ -593,6 +597,7 @@ public class JobService {
     }
 
     private JobDTO toJobDTO(JobEntity job, EmployerEntity employer) {
+        String derivedPosition = JobPositionUtil.derivePosition(job.getStack());
         return JobDTO.builder()
                 .jobId(job.getId())
                 .jobUid(String.valueOf(job.getId()))
@@ -604,7 +609,8 @@ public class JobService {
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
                 .stack(ArrayStringUtil.listToString(job.getStack()))
-                .position(JobPositionUtil.derivePosition(job.getStack()))
+                .position(derivedPosition)
+                .positionCategory(derivedPosition)
                 .requiredExperience(job.getRequiredExperience())
                 .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
@@ -635,8 +641,8 @@ public class JobService {
      * - 매칭률이 높은 공고가 상단에 표시됨
      */
     public JobListResponseDTO getPublicJobsWithMatch(int page, int size, String keyword, 
-                                                      String stack, String location, Long memberId) {
-        JobListResponseDTO baseResponse = getPublicJobs(page, size, keyword, stack, location);
+                                                      String stack, String location, String position, Long memberId) {
+        JobListResponseDTO baseResponse = getPublicJobs(page, size, keyword, stack, location, position);
         
         // memberId가 없거나 CandidateSkillProvider가 없으면 매칭 정보 없이 반환
         if (memberId == null) {

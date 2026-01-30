@@ -61,25 +61,26 @@ public class PublicJobController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String stack,
             @RequestParam(required = false) String location,
+            @RequestParam(required = false) String position,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
-            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, memberId: {}",
-                    page, size, keyword, stack, location, memberId);
+            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, position: {}, memberId: {}",
+                    page, size, keyword, stack, location, position, memberId);
 
             JobListResponseDTO response;
             if (memberId != null) {
                 // 로그인 사용자: 매칭 정보 포함 시도
                 try {
-                    response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, memberId);
+                    response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, position, memberId);
                 } catch (Exception matchError) {
                     // 매칭 계산 실패 시 기본 조회로 폴백
                     log.warn("매칭 정보 계산 실패, 기본 조회로 전환: {}", matchError.getMessage());
-                    response = jobService.getPublicJobs(page, size, keyword, stack, location);
+                    response = jobService.getPublicJobs(page, size, keyword, stack, location, position);
                 }
             } else {
                 // 비로그인 사용자: 기본 조회
-                response = jobService.getPublicJobs(page, size, keyword, stack, location);
+                response = jobService.getPublicJobs(page, size, keyword, stack, location, position);
             }
             return ResponseEntity.ok(response);
         } catch (Exception e) {

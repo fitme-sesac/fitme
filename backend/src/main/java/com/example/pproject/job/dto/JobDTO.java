@@ -4,6 +4,7 @@ import lombok.*;
 
 /**
  * 채용공고 조회 DTO (ERD 기준)
+ * - LLM/API 호출 시 position, positionCategory로 포지션 카테고리 필터·분류에 사용 가능
  */
 @Getter
 @Setter
@@ -25,7 +26,19 @@ public class JobDTO {
     private String salaryText;    // VARCHAR(80) - 급여 정보
     private String salaryDisplay; // 프론트 표시용 포맷된 문자열
     private String stack;  // job_posting.stack (기술 스택)
-    private String position;  // stack 기반 도출: "프론트엔드" | "백엔드" | "풀스택"
+    
+    /**
+     * 포지션 카테고리 (stack 기반 도출)
+     * - LLM/필터 호출용: "프론트엔드" | "백엔드" | "풀스택" (JobPositionUtil.ORDERED_POSITION_CATEGORIES와 동일)
+     */
+    private String position;
+    
+    /**
+     * LLM 호출용 포지션 카테고리 (position과 동일 값, 영문 키로 참조 시 사용)
+     * - 가능 값: "프론트엔드", "백엔드", "풀스택"
+     */
+    private String positionCategory;
+    
     private Integer requiredExperience;  // 요구 경력 (0: 신입/무관)
     private Integer recruitmentCapacity; // 모집 정원
     

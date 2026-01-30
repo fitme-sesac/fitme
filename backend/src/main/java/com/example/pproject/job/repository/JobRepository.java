@@ -83,6 +83,54 @@ public interface JobRepository extends JpaRepository<JobEntity, Long> {
     @Query("SELECT j FROM JobEntity j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL AND LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))")
     Page<JobEntity> findPublicJobsByLocation(@Param("location") String location, Pageable pageable);
     
+    /**
+     * 포지션 카테고리별 공개 채용공고 조회 (stack 기반 도출: 프론트엔드/백엔드/풀스택)
+     * - position 값: "프론트엔드", "백엔드", "풀스택" (JobPositionUtil.ORDERED_POSITION_CATEGORIES와 동일)
+     */
+    @Query(value = """
+        WITH pos_derived AS (
+          SELECT j.job_id,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%react%%' OR LOWER(s) LIKE '%%vue%%' OR LOWER(s) LIKE '%%angular%%' OR LOWER(s) LIKE '%%javascript%%' OR LOWER(s) LIKE '%%typescript%%' OR LOWER(s) LIKE '%%next%%' OR LOWER(s) LIKE '%%frontend%%' OR LOWER(s) LIKE '%%프론트%%')
+               AND EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%java%%' OR LOWER(s) LIKE '%%spring%%' OR LOWER(s) LIKE '%%python%%' OR LOWER(s) LIKE '%%node%%' OR LOWER(s) LIKE '%%backend%%' OR LOWER(s) LIKE '%%백엔드%%' OR LOWER(s) LIKE '%%sql%%' OR LOWER(s) LIKE '%%mysql%%')
+              THEN '풀스택'
+              WHEN EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%react%%' OR LOWER(s) LIKE '%%vue%%' OR LOWER(s) LIKE '%%angular%%' OR LOWER(s) LIKE '%%javascript%%' OR LOWER(s) LIKE '%%typescript%%' OR LOWER(s) LIKE '%%next%%' OR LOWER(s) LIKE '%%frontend%%' OR LOWER(s) LIKE '%%프론트%%')
+              THEN '프론트엔드'
+              WHEN EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%java%%' OR LOWER(s) LIKE '%%spring%%' OR LOWER(s) LIKE '%%python%%' OR LOWER(s) LIKE '%%node%%' OR LOWER(s) LIKE '%%backend%%' OR LOWER(s) LIKE '%%백엔드%%' OR LOWER(s) LIKE '%%sql%%' OR LOWER(s) LIKE '%%mysql%%')
+              THEN '백엔드'
+              ELSE NULL
+            END AS pos
+          FROM job_posting j
+          WHERE j.status = 'OPEN' AND j.deleted_at IS NULL
+        )
+        SELECT j.* FROM job_posting j
+        INNER JOIN pos_derived p ON j.job_id = p.job_id
+        WHERE p.pos = :position
+        ORDER BY j.created_at DESC
+        """,
+        countQuery = """
+        WITH pos_derived AS (
+          SELECT j.job_id,
+            CASE
+              WHEN EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%react%%' OR LOWER(s) LIKE '%%vue%%' OR LOWER(s) LIKE '%%angular%%' OR LOWER(s) LIKE '%%javascript%%' OR LOWER(s) LIKE '%%typescript%%' OR LOWER(s) LIKE '%%next%%' OR LOWER(s) LIKE '%%frontend%%' OR LOWER(s) LIKE '%%프론트%%')
+               AND EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%java%%' OR LOWER(s) LIKE '%%spring%%' OR LOWER(s) LIKE '%%python%%' OR LOWER(s) LIKE '%%node%%' OR LOWER(s) LIKE '%%backend%%' OR LOWER(s) LIKE '%%백엔드%%' OR LOWER(s) LIKE '%%sql%%' OR LOWER(s) LIKE '%%mysql%%')
+              THEN '풀스택'
+              WHEN EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%react%%' OR LOWER(s) LIKE '%%vue%%' OR LOWER(s) LIKE '%%angular%%' OR LOWER(s) LIKE '%%javascript%%' OR LOWER(s) LIKE '%%typescript%%' OR LOWER(s) LIKE '%%next%%' OR LOWER(s) LIKE '%%frontend%%' OR LOWER(s) LIKE '%%프론트%%')
+              THEN '프론트엔드'
+              WHEN EXISTS (SELECT 1 FROM unnest(j.stack) s WHERE LOWER(s) LIKE '%%java%%' OR LOWER(s) LIKE '%%spring%%' OR LOWER(s) LIKE '%%python%%' OR LOWER(s) LIKE '%%node%%' OR LOWER(s) LIKE '%%backend%%' OR LOWER(s) LIKE '%%백엔드%%' OR LOWER(s) LIKE '%%sql%%' OR LOWER(s) LIKE '%%mysql%%')
+              THEN '백엔드'
+              ELSE NULL
+            END AS pos
+          FROM job_posting j
+          WHERE j.status = 'OPEN' AND j.deleted_at IS NULL
+        )
+        SELECT COUNT(*) FROM job_posting j
+        INNER JOIN pos_derived p ON j.job_id = p.job_id
+        WHERE p.pos = :position
+        """,
+        nativeQuery = true)
+    Page<JobEntity> findPublicJobsByPosition(@Param("position") String position, Pageable pageable);
+    
     // ===== 필터 옵션 조회 =====
     
     // 공개 채용공고에서 사용된 모든 스택 목록 조회 (중복 제거)

@@ -1,9 +1,13 @@
 package com.example.pproject.wallet.controller;
 
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.Constant.RoleType;
+import com.example.pproject.employer.entity.EmployerMemberEntity;
+import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.payment.entity.Payment;
 import com.example.pproject.payment.repository.PaymentRepository;
+import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.dto.*;
 import com.example.pproject.wallet.service.WalletService;
 import jakarta.validation.Valid;
@@ -28,6 +32,38 @@ public class WalletController {
 
     private final WalletService walletService;
     private final PaymentRepository paymentRepository;
+    private final UserRepository userRepository;
+    private final EmployerMemberRepository employerMemberRepository;
+
+    /**
+     * Principal에서 회원 ID(member_id) 추출.
+     * - JwtUserPrincipal이고 id가 있으면 id 사용
+     * - 아니면 userid로 회원 조회 후 id 반환
+     */
+    private Long getMemberIdFromPrincipal(UserDetails userDetails) {
+        if (userDetails instanceof JwtUserPrincipal principal && principal.getId() != null) {
+            return principal.getId();
+        }
+        return userRepository.findByUserid(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."))
+                .getId().longValue();
+    }
+
+    /**
+     * 지갑 소유자 ID 반환 (CANDIDATE: member_id, EMPLOYER: employer_id)
+     */
+    private Long getOwnerIdForWallet(UserDetails userDetails, RoleType roleType) {
+        Long memberId = getMemberIdFromPrincipal(userDetails);
+        if (roleType == RoleType.CANDIDATE) {
+            return memberId;
+        }
+        if (roleType == RoleType.EMPLOYER) {
+            return employerMemberRepository.findFirstByMemberIdAndActiveTrue(memberId)
+                    .map(EmployerMemberEntity::getEmployerId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+        }
+        return memberId;
+    }
 
     // =================================================================================
     // 1. 사용자 기능 (User)
@@ -42,8 +78,8 @@ public class WalletController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(defaultValue = "CANDIDATE") RoleType roleType
     ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(WalletInfoResponse.from(walletService.getMyWallet(userId, roleType)));
+        Long ownerId = getOwnerIdForWallet(userDetails, roleType);
+        return ResponseEntity.ok(WalletInfoResponse.from(walletService.getMyWallet(ownerId, roleType)));
     }
 
     /**
@@ -56,8 +92,8 @@ public class WalletController {
             @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
             @PageableDefault(size = 20, sort = "occurredAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(walletService.getMyLedgers(userId, roleType, pageable));
+        Long ownerId = getOwnerIdForWallet(userDetails, roleType);
+        return ResponseEntity.ok(walletService.getMyLedgers(ownerId, roleType, pageable));
     }
 
     /**
@@ -72,8 +108,8 @@ public class WalletController {
             @RequestParam int month,
             @PageableDefault(size = 20, sort = "occurredAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(walletService.getMyLedgersByMonth(userId, roleType, year, month, pageable));
+        Long ownerId = getOwnerIdForWallet(userDetails, roleType);
+        return ResponseEntity.ok(walletService.getMyLedgersByMonth(ownerId, roleType, year, month, pageable));
     }
 
     /**
@@ -85,9 +121,9 @@ public class WalletController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(defaultValue = "CANDIDATE") RoleType roleType
     ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
+        Long ownerId = getOwnerIdForWallet(userDetails, roleType);
         return ResponseEntity.ok(
-                walletService.getMyCreditLots(userId, roleType).stream()
+                walletService.getMyCreditLots(ownerId, roleType).stream()
                         .map(WalletCreditLotResponse::from)
                         .collect(Collectors.toList())
         );
@@ -102,7 +138,7 @@ public class WalletController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid WalletChargeRequest request
     ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
+        Long userId = getMemberIdFromPrincipal(userDetails);
         // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
         BuyerType buyerType = BuyerType.MEMBER;
 
@@ -122,7 +158,7 @@ public class WalletController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid WalletUseRequest request
     ) {
-        Long userId = Long.parseLong(userDetails.getUsername());
+        Long userId = getMemberIdFromPrincipal(userDetails);
         // TODO: request에 roleType 추가 필요 (현재는 CANDIDATE 고정)
         BuyerType buyerType = BuyerType.MEMBER;
 
