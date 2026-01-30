@@ -6,9 +6,12 @@ import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
+import com.example.pproject.job.dto.JobMatchInfoDTO;
+import com.example.pproject.job.service.JobService;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
+import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -35,6 +40,8 @@ public class EmployerService {
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
     private final OutboxEventProducer outboxEventProducer;
+    private final JobService jobService;
+    private final ResumeSkillService resumeSkillService;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -436,6 +443,32 @@ public class EmployerService {
                             .build(),
                     params.toArray());
 
+            // 채용공고(stack) vs 구직자 이력서(re_stack, tech_stack) 기반 매칭 정보 계산
+            for (ApplicantListDTO.ApplicantDTO dto : applicants) {
+                try {
+                    JobEntity job = jobEntityRepository.findById(dto.getJobId()).orElse(null);
+                    if (job == null) {
+                        dto.setMatchInfo(emptyMatchInfo());
+                        continue;
+                    }
+                    String jobStack = ArrayStringUtil.listToString(job.getStack());
+                    Set<String> candidateSkills = dto.getMemberId() != null
+                            ? resumeSkillService.getSkillsByMemberId(dto.getMemberId())
+                            : Collections.emptySet();
+                    if (candidateSkills == null) candidateSkills = Collections.emptySet();
+                    JobMatchInfoDTO matchInfo = jobService.calculateMatchInfo(
+                            jobStack != null ? jobStack : "",
+                            candidateSkills,
+                            job,
+                            dto.getMemberId());
+                    dto.setMatchInfo(matchInfo);
+                } catch (Exception e) {
+                    log.warn("지원자 매칭률 계산 실패 applicationId={}, jobId={}, memberId={}: {}",
+                            dto.getApplicationId(), dto.getJobId(), dto.getMemberId(), e.getMessage());
+                    dto.setMatchInfo(emptyMatchInfo());
+                }
+            }
+
             return ApplicantListDTO.builder()
                     .applicants(applicants)
                     .total(applicants.size())
@@ -825,6 +858,22 @@ public class EmployerService {
     }
 
     // ===== Helper Methods =====
+
+    /**
+     * 매칭 정보 없을 때 사용할 빈 DTO
+     */
+    private static JobMatchInfoDTO emptyMatchInfo() {
+        JobMatchInfoDTO m = new JobMatchInfoDTO();
+        m.setOverallMatchRate(0);
+        m.setStackMatchRate(0);
+        m.setExperienceMatchRate(0);
+        m.setVectorMatchRate(0);
+        m.setMatchLevel("LOW");
+        m.setRequiredStacks(Collections.emptyList());
+        m.setMatchedStacks(Collections.emptyList());
+        m.setMissingStacks(Collections.emptyList());
+        return m;
+    }
 
     /**
      * userid로 employer_id 조회

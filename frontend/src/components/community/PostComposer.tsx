@@ -45,7 +45,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
                 <div className="flex gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
                         <AvatarImage src={user?.user_metadata?.avatar_url} />
-                        <AvatarFallback className="bg-gradient-to-br from-[#5A639C] to-[#9B86BD] text-white font-bold">
+                        <AvatarFallback className="bg-gradient-to-br from-sky-500 to-teal-400 text-white font-bold">
                             {displayName.charAt(0)}
                         </AvatarFallback>
                     </Avatar>
@@ -63,13 +63,13 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
                         {isFocused && (
                             <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                                 <div className="flex items-center gap-2">
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-[#5A639C]">
+                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-sky-600 hover:bg-sky-50">
                                         <Image className="h-5 w-5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-[#5A639C]">
+                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-sky-600 hover:bg-sky-50">
                                         <Link className="h-5 w-5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-[#5A639C]">
+                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-sky-600 hover:bg-sky-50">
                                         <FileText className="h-5 w-5" />
                                     </Button>
 
@@ -104,7 +104,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
                                         size="sm"
                                         onClick={handleSubmit}
                                         disabled={!content.trim()}
-                                        className="bg-gradient-to-r from-[#5A639C] to-[#9B86BD] hover:from-[#4A538C] hover:to-[#8B76AD] text-white gap-2"
+                                        className="bg-gradient-to-r from-sky-500 to-teal-400 hover:from-sky-600 hover:to-teal-500 text-white gap-2"
                                     >
                                         <Send className="h-4 w-4" />
                                         게시

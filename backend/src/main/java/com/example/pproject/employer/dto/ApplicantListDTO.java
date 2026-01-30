@@ -1,5 +1,6 @@
 package com.example.pproject.employer.dto;
 
+import com.example.pproject.job.dto.JobMatchInfoDTO;
 import lombok.*;
 import java.util.List;
 
@@ -33,5 +34,7 @@ public class ApplicantListDTO {
         private String status;
         private String appliedAt;
         private String viewedAt;
+        /** 채용공고(stack) vs 구직자 이력서(re_stack, tech_stack) 기반 매칭 정보 */
+        private JobMatchInfoDTO matchInfo;
     }
 }
