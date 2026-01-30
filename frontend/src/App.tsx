@@ -4,6 +4,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import FirstSocialLoginPage from "./pages/FirstSocialLoginPage";
+import FindUserIdPage from "./pages/FindUserIdPage";
+import VerifyUserIdCodePage from "./pages/VerifyUserIdCodePage";
+import ResultUserIdPage from "./pages/ResultUserIdPage";
+import FindPasswordPage from "./pages/FindPasswordPage";
+import VerifyCodePage from "./pages/VerifyCodePage";
+import NewPasswordPage from "./pages/NewPasswordPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
 
 // Suspects commented out for isolation
 import Index from "./pages/Index";
@@ -44,8 +54,22 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+              <Route path="/Login" element={<LoginPage />} />
+              <Route path="/Register" element={<RegisterPage />} />
+              <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
 
-            <Route path="/jobs" element={<Jobs />} />
+              <Route path="/FindUserId" element={<FindUserIdPage />} />
+              <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
+              <Route path="/ResultUserId" element={<ResultUserIdPage />} />
+
+              <Route path="/FindPassword" element={<FindPasswordPage />} />
+              <Route path="/VerifyCode" element={<VerifyCodePage />} />
+              <Route path="/NewPassword" element={<NewPasswordPage />} />
+
+              <Route path="/ChangePassword" element={<ChangePasswordPage />} />
+
+
+              <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:jobId" element={<JobDetail />} />
             <Route path="/companies/:employerId" element={<CompanyDetail />} />
 
