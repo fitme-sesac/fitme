@@ -9,6 +9,7 @@ services:
       - ./.env.docker
     ports:
       - "5432:5432"
+    shm_size: 512mb
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -121,9 +122,35 @@ services:
     depends_on:
       - backend
 
+  # ==================================================
+  # [추가됨] nGrinder Controller & Agent
+  # ==================================================
+  ngrinder-controller:
+    image: ngrinder/controller:latest
+    container_name: fitme-ngrinder-controller
+    restart: unless-stopped
+    ports:
+      - "80:80"             # nGrinder 웹 (http://localhost)
+      - "16001:16001"
+      - "12000-12009:12000-12009"
+    volumes:
+      - ngrinder-data:/opt/ngrinder-controller
+    # backend가 켜질 때까지 기다릴 필요는 없으므로 depends_on은 생략하거나
+    # 필요시 추가하셔도 됩니다. 여기선 독립 실행되게 두었습니다.
+
+  ngrinder-agent:
+    image: ngrinder/agent:latest
+    container_name: fitme-ngrinder-agent
+    restart: unless-stopped
+    links:
+      - ngrinder-controller:controller
+    depends_on:
+      - ngrinder-controller
 
 volumes:
   pgdata:
   redisdata:
   frontend_node_modules:
   uploads:
+  # [추가됨] nGrinder 데이터 저장소
+  ngrinder-data:
