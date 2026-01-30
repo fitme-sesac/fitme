@@ -34,6 +34,9 @@ class AdClickServiceTest {
         @Mock
         private WalletService walletService;
 
+        @Mock
+        private AdCampaignService adCampaignService;
+
         @InjectMocks
         private AdClickService adClickService;
 
@@ -222,10 +225,15 @@ class AdClickServiceTest {
                                 .when(walletService).useCredit(anyLong(), any(), anyLong(), anyString(), any());
 
                 // 2. [When]
-                adClickService.trackClick(dto);
+                org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> {
+                        adClickService.trackClick(dto);
+                });
 
                 // 3. [Then] - 캠페인 상태가 PAUSED로 변경되었는지 확인
-                // (Entity 상태 변경은 setStatus로 처리됨)
+                // 별도 트랜잭션 메서드가 호출되었는지 확인
+                verify(adCampaignService).pauseCampaignInNewTx(eq(1L));
+
+                // 이벤트 저장은 안 되어야 함
                 verify(adClickEventRepository, never()).save(any());
         }
 }
