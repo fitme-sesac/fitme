@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 export default function PaymentSuccessPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { refreshCredits } = useAuth() as any;
+    const { user, loading, refreshCredits } = useAuth() as any;
     const [isProcessing, setIsProcessing] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +18,14 @@ export default function PaymentSuccessPage() {
     const orderId = searchParams.get("orderId");
     const amount = Number(searchParams.get("amount") || 0);
 
+    // 결제 확인 useEffect - 모든 hooks는 조건부 return 전에 선언해야 함
     useEffect(() => {
+        // Auth 로딩 중이면 대기
+        if (loading) return;
+
+        // 인증되지 않은 경우 대기 (UI에서 처리)
+        if (!user) return;
+
         const verifyPayment = async () => {
             if (!paymentKey || !orderId || !amount) {
                 navigate("/settings?tab=history");
@@ -37,7 +44,6 @@ export default function PaymentSuccessPage() {
                 await refreshCredits();
 
                 // Redirect back to settings with success flag
-                // This triggers the popup modal in the settings page
                 navigate(`/settings?tab=history&payment_success=true&orderId=${orderId}&amount=${amount}`, { replace: true });
             } catch (err: any) {
                 console.error("Payment confirmation failed:", err);
@@ -48,7 +54,33 @@ export default function PaymentSuccessPage() {
         };
 
         verifyPayment();
-    }, [paymentKey, orderId, amount, navigate, refreshCredits]);
+    }, [loading, user, paymentKey, orderId, amount, navigate, refreshCredits]);
+
+    // Auth 로딩 중이면 로딩 화면 표시
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+                <Card className="w-full max-w-md p-8 text-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+                    <p className="text-slate-500 font-medium">인증 정보를 확인하고 있습니다...</p>
+                </Card>
+            </div>
+        );
+    }
+
+    // 인증되지 않은 경우 로그인 안내
+    if (!user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+                <Card className="w-full max-w-md p-8 text-center space-y-4">
+                    <p className="text-slate-500">로그인이 필요합니다.</p>
+                    <Button onClick={() => navigate("/auth")} className="w-full">
+                        로그인하기
+                    </Button>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
