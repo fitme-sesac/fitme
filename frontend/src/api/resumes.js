@@ -122,3 +122,26 @@ export async function deleteResumeAttachment(resumeId, attachmentId) {
   );
   return response.data;
 }
+/**
+ * 내 프로필 요약 정보 조회 (마이페이지용)
+ * @returns {Promise<Object>}
+ */
+export async function getMyProfileSummary() {
+  // TODO: 백엔드 API 구현 후 실제 호출로 변경
+  // const response = await http.get("/api/resumes/my-profile-summary");
+  // return response.data;
+
+  // Mock Data
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        name: "양**",
+        lastCompany: "(주)에스씨케이컴퍼니",
+        totalExperience: "1년 8개월",
+        recentInfo: "1년 2개월 근무",
+        recentPosition: "바리스타",
+        skills: ["풀스택", "JAVA", "CSS", "React", "ReactJS", "Redux", "Git", "CSS3", "HTML", "Javascript"]
+      });
+    }, 500); // Simulate network delay
+  });
+}

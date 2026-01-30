@@ -41,7 +41,7 @@ export function CommunitySidebar() {
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Flame className="h-4 w-4 text-orange-500" />
+                        <Flame className="h-4 w-4 text-sky-500" />
                         인기 게시물
                     </CardTitle>
                 </CardHeader>
@@ -53,11 +53,11 @@ export function CommunitySidebar() {
                                 to={`/community/post/${post.id}`}
                                 className="flex items-start gap-3 group"
                             >
-                                <span className={`text-sm font-bold ${idx < 3 ? "text-[#5A639C]" : "text-muted-foreground"}`}>
+                                <span className={`text-sm font-bold ${idx < 3 ? "text-sky-600" : "text-muted-foreground"}`}>
                                     {idx + 1}
                                 </span>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate group-hover:text-[#5A639C] transition-colors">
+                                    <p className="text-sm font-medium truncate group-hover:text-sky-600 transition-colors">
                                         {post.title}
                                     </p>
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
@@ -78,7 +78,7 @@ export function CommunitySidebar() {
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Users className="h-4 w-4 text-blue-500" />
+                        <Users className="h-4 w-4 text-teal-500" />
                         추천 멤버
                     </CardTitle>
                 </CardHeader>
@@ -88,7 +88,7 @@ export function CommunitySidebar() {
                             <div key={member.id} className="flex items-center gap-3">
                                 <Avatar className="h-9 w-9">
                                     <AvatarImage src={member.avatar} />
-                                    <AvatarFallback className="bg-gradient-to-br from-[#5A639C] to-[#9B86BD] text-white text-xs font-bold">
+                                    <AvatarFallback className="bg-gradient-to-br from-sky-500 to-teal-400 text-white text-xs font-bold">
                                         {member.name.charAt(0)}
                                     </AvatarFallback>
                                 </Avatar>
@@ -110,7 +110,7 @@ export function CommunitySidebar() {
                             <Bell className="h-4 w-4 text-amber-500" />
                             공지사항
                         </CardTitle>
-                        <Link to="/announcements" className="text-xs text-muted-foreground hover:text-[#5A639C] flex items-center">
+                        <Link to="/announcements" className="text-xs text-muted-foreground hover:text-sky-600 flex items-center">
                             더보기 <ChevronRight className="h-3 w-3" />
                         </Link>
                     </div>
@@ -126,7 +126,7 @@ export function CommunitySidebar() {
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-medium flex-1 truncate">{notice.title}</p>
                                     {notice.isNew && (
-                                        <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">NEW</Badge>
+                                        <Badge className="bg-sky-500 text-white text-[10px] px-1.5 py-0">NEW</Badge>
                                     )}
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">{notice.date}</p>
@@ -137,13 +137,13 @@ export function CommunitySidebar() {
             </Card>
 
             {/* CTA Card */}
-            <Card className="bg-gradient-to-br from-[#5A639C] to-[#9B86BD] text-white border-0">
+            <Card className="bg-gradient-to-br from-sky-500 to-teal-500 text-white border-0">
                 <CardContent className="p-5 text-center">
                     <h3 className="font-bold mb-2">커뮤니티에 참여하세요!</h3>
-                    <p className="text-sm text-white/80 mb-4">
+                    <p className="text-sm text-white/90 mb-4">
                         업계 전문가들과 네트워킹하고 커리어 기회를 발견하세요.
                     </p>
-                    <Button variant="secondary" size="sm" className="w-full bg-white text-[#5A639C] hover:bg-white/90">
+                    <Button variant="secondary" size="sm" className="w-full bg-white text-sky-600 hover:bg-white/90 font-bold border-none">
                         프로필 완성하기
                     </Button>
                 </CardContent>

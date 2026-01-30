@@ -8,6 +8,7 @@ import com.example.pproject.job.repository.JobScrapRepository;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.common.util.ArrayStringUtil;
+import com.example.pproject.common.util.JobPositionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -113,6 +114,7 @@ public class JobScrapService {
                 .location(job.getLocation())
                 .salaryText(job.getSalaryText())
                 .stack(ArrayStringUtil.listToString(job.getStack()))
+                .position(JobPositionUtil.derivePosition(job.getStack()))
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
                 .applicationCount(job.getApplicationCount() != null ? job.getApplicationCount() : 0)
                 .createdAt(job.getCreatedAt() != null ? job.getCreatedAt().toString() : null)

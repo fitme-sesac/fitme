@@ -67,124 +67,131 @@
 
 @layer base {
   :root {
-    /* FitMe Business Theme - Professional & Clean */
-    /* Core Colors */
-    --navy-deep: 215 50% 23%;
-    /* #1E3A5F - Deep Navy */
-    --slate-gray: 215 16% 47%;
-    /* #64748B - Slate Gray */
-    --blue-accent: 217 91% 60%;
-    /* #3B82F6 - Professional Blue */
-    --light-gray: 210 40% 98%;
-    /* #F8FAFC - Clean Light Gray */
+    /* FitMe Theme - Smart Ocean & Slate */
+    /* Concept: Cool, Professional, Refreshing, Tech-Savvy
+       Background: #F8FAFC (Slate 50) - Eye comfortable cool white
+       Foreground: #0F172A (Slate 900) - Professional Dark
+       Primary: #0EA5E9 (Sky 500) -> #2DD4BF (Teal 400) - Gradient
+       Secondary: #E2E8F0 (Slate 200) - Borders/Subtle Layouts
+       Accent: #38BDF8 (Sky 400)
+    */
 
-    /* Background: Clean Light Gray */
+    /* Background: Cool Light Gray (#F8FAFC) */
     --background: 210 40% 98%;
-    --foreground: 215 25% 27%;
+    /* #F8FAFC */
 
-    /* Card: Pure White */
+    /* Foreground: Deep Slate (#0F172A) */
+    --foreground: 222 47% 11%;
+    /* #0F172A */
+
+    /* Card: White (#FFFFFF) */
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
+    --card-foreground: 222 47% 11%;
 
     /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --popover-foreground: 222 47% 11%;
 
-    /* Primary: Deep Navy #1E3A5F */
-    --primary: 215 50% 23%;
+    /* Primary: Sky Blue (#0EA5E9) */
+    --primary: 199 89% 48%;
+    /* #0EA5E9 */
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary: Light Slate #F1F5F9 */
+    /* Secondary: Slate 100/200 (#F1F5F9 / #E2E8F0) */
     --secondary: 210 40% 96%;
-    --secondary-foreground: 215 25% 27%;
+    /* #F1F5F9 */
+    --secondary-foreground: 222 47% 11%;
 
-    /* Accent: Professional Blue #3B82F6 */
-    --accent: 217 91% 60%;
+    /* Accent: Teal (#2DD4BF) or Lighter Sky */
+    --accent: 199 89% 48%;
     --accent-foreground: 0 0% 100%;
 
-    /* Muted: Soft Gray */
-    --muted: 210 40% 96%;
+    /* Muted: Slate 400 (#94A3B8) */
+    --muted: 210 40% 96.1%;
     --muted-foreground: 215 16% 47%;
 
-    /* Success - Green */
+    /* Success */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
 
-    /* Warning - Amber */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    /* Info - Blue */
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 100%;
-
     /* Destructive */
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    /* Borders: Subtle Gray */
+    /* Borders: Slate 200 (#E2E8F0) */
     --border: 214 32% 91%;
+    /* #E2E8F0 matches Slate 200 close enough, standard tailwind border is often e2e8f0 */
     --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --ring: 199 89% 48%;
+    /* Primary Sky */
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+    /* Slightly more modern/tech radius */
 
-    /* Sidebar - Deep Navy */
-    --sidebar-background: 215 50% 23%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 217 91% 60%;
+    /* Sidebar: Matches Background or White? Let's go White for clean look or same as bg.
+       User wanted "Cool and comfortable".
+       Let's allow Sidebar to be White to separate from the subtle gray page bg.
+    */
+    --sidebar-background: 0 0% 100%;
+    /* White */
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 199 89% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 40% 35%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 40% 18%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 210 40% 96%;
+    /* Slate 100 */
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 199 89% 48%;
 
-    /* Gradients - Business Style with Purple Accent for Buttons */
-    --gradient-primary: linear-gradient(135deg, #5A639C 0%, #7776B3 100%);
-    --gradient-hero: linear-gradient(135deg, #5A639C 0%, #7776B3 50%, #9B86BD 100%);
-    --gradient-subtle: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-    --gradient-purple: linear-gradient(135deg, #5A639C 0%, #7776B3 50%, #9B86BD 100%);
-    --gradient-purple-light: linear-gradient(135deg, #7776B3 0%, #9B86BD 50%, #E2BBE9 100%);
-    --gradient-mixed: linear-gradient(135deg, #5A639C 0%, #9B86BD 100%);
+    /* Gradients */
+    /* Primary Gradient: Sky Blue -> Teal (oceanic/refreshing) */
+    --gradient-primary: linear-gradient(to right, #0EA5E9 0%, #2DD4BF 100%);
 
-    /* Shadows (Neutral) */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-    --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    /* Hero Gradient: Subtle Cool White -> Slate 50 */
+    --gradient-hero: linear-gradient(to bottom, #F8FAFC 0%, #E2E8F0 100%);
+
+    /* Subtle Gradient: White to Light Slate */
+    --gradient-subtle: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
+
+    /* Shadows - Cool Tinted */
+    --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+    --shadow: 0 4px 6px -1px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(15 23 42 / 0.1), 0 8px 10px -6px rgb(15 23 42 / 0.1);
   }
 
-  /* Dark Theme Option - Deep Navy */
+  /* Dark Theme Option - Dark Green Forest */
   .dark {
-    --background: 215 50% 8%;
-    --foreground: 210 40% 98%;
-    --card: 215 45% 12%;
-    --card-foreground: 210 40% 98%;
-    --popover: 215 45% 12%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
+    /* Dark Theme - Deep Purple/Plum */
+    --background: 280 30% 10%;
+    --foreground: 36 33% 95%;
+    --card: 280 30% 12%;
+    --card-foreground: 36 33% 95%;
+    --popover: 345 40% 12%;
+    --popover-foreground: 330 85% 90%;
+    --primary: 280 45% 72%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 215 40% 18%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 35% 20%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 215 40% 20%;
-    --input: 215 40% 20%;
-    --ring: 217 91% 60%;
+    --secondary: 342 30% 20%;
+    --secondary-foreground: 36 33% 95%;
+    --muted: 280 30% 15%;
+    --muted-foreground: 280 20% 70%;
+    --accent: 315 30% 20%;
+    --accent-foreground: 36 33% 95%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 90%;
+    --border: 280 30% 20%;
+    --input: 280 30% 20%;
+    --ring: 280 45% 72%;
 
-    --sidebar-background: 215 50% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 280 30% 10%;
+    --sidebar-foreground: 36 33% 95%;
+    --sidebar-primary: 280 45% 72%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 40% 20%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 40% 15%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 315 30% 20%;
+    --sidebar-accent-foreground: 36 33% 95%;
+    --sidebar-border: 280 30% 20%;
+    --sidebar-ring: 280 45% 72%;
   }
 }
 

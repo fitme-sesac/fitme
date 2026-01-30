@@ -22,8 +22,8 @@ export function SignUpForm() {
           <Label
             htmlFor="job_seeker"
             className={`flex flex-col items-center justify-center rounded-xl border-2 p-4 cursor-pointer transition-all ${userType === "job_seeker"
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "border-border hover:border-primary/50"
+              ? "border-primary bg-primary/5 shadow-sm"
+              : "border-border hover:border-primary/50"
               }`}
           >
             <RadioGroupItem value="job_seeker" id="job_seeker" className="sr-only" />
@@ -37,8 +37,8 @@ export function SignUpForm() {
           <Label
             htmlFor="company"
             className={`flex flex-col items-center justify-center rounded-xl border-2 p-4 cursor-pointer transition-all ${userType === "company"
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "border-border hover:border-primary/50"
+              ? "border-primary bg-primary/5 shadow-sm"
+              : "border-border hover:border-primary/50"
               }`}
           >
             <RadioGroupItem value="company" id="company" className="sr-only" />

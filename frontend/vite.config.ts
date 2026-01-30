@@ -12,8 +12,11 @@ const bypassSpaGet = (req: any) => {
 
 export default defineConfig(({ mode }) => {
     // Vite env (.env, .env.development 등) 로드
-    // prefix="" 로 했으니 VITE_가 아닌 값도 로드되지만, 아래에서 안전하게 선택해서 씀
-    const env = loadEnv(mode, process.cwd(), "");
+    // 프로젝트 루트(.env)와 frontend 폴더(.env) 모두 로드 시도
+    const env = {
+        ...loadEnv(mode, path.resolve(__dirname, ".."), ""),
+        ...loadEnv(mode, process.cwd(), ""),
+    };
 
     /**
      * 핵심: "프록시 타겟(서버/컨테이너 내부용)" 과
@@ -26,13 +29,13 @@ export default defineConfig(({ mode }) => {
      *   (컨테이너 DNS는 브라우저에서 해석 안 되므로 보통 http://localhost:8080 같은 값)
      */
 
-        // ✅ 프록시 타겟 (우선순위: process.env > env > default)
+    // ✅ 프록시 타겟 (우선순위: process.env > env > default)
     const backendTarget =
-            process.env.BACKEND_TARGET ||
-            env.BACKEND_TARGET ||
-            process.env.VITE_BACKEND_URL ||
-            env.VITE_BACKEND_URL ||
-            "http://localhost:8080";
+        process.env.BACKEND_TARGET ||
+        env.BACKEND_TARGET ||
+        process.env.VITE_BACKEND_URL ||
+        env.VITE_BACKEND_URL ||
+        "http://localhost:8080";
 
     const aiTarget =
         process.env.AI_WORKER_TARGET ||
@@ -74,7 +77,7 @@ export default defineConfig(({ mode }) => {
                 "/Logout": { target: backendTarget, changeOrigin: true },
                 "/oauth2": { target: backendTarget, changeOrigin: true },
                 "/login": { target: backendTarget, changeOrigin: true },
-                
+
                 // API 프록시 (백엔드)
                 "/api": { target: backendTarget, changeOrigin: true },
 
@@ -82,6 +85,9 @@ export default defineConfig(({ mode }) => {
                 "/chatbot": { target: aiTarget, changeOrigin: true },
                 "/resumes": { target: aiTarget, changeOrigin: true },
             },
+        },
+        define: {
+            "import.meta.env.VITE_TOSS_CLIENT_KEY": JSON.stringify(process.env.TOSS_CLIENT_KEY || env.TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY),
         },
     };
 });
