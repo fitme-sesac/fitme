@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { 
-  ArrowLeft, MapPin, Banknote, Clock, Building2, Users, 
-  Briefcase, Globe, Mail, Phone, Heart, Share2, Loader2, Sparkles, 
-  ChevronDown, ChevronUp, CheckCircle, AlertCircle 
+import {
+  ArrowLeft, MapPin, Banknote, Clock, Building2, Users,
+  Briefcase, Globe, Mail, Phone, Heart, Share2, Loader2, Sparkles,
+  ChevronDown, ChevronUp, CheckCircle, AlertCircle, Calendar, GraduationCap
 } from "lucide-react";
+import { KakaoMap } from "@/components/common/KakaoMap";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -30,7 +31,7 @@ export default function JobDetail() {
   const [showMatchDetail, setShowMatchDetail] = useState(false);
 
   // 스킬 배열 처리
-  const skills = job?.stack 
+  const skills = job?.stack
     ? (Array.isArray(job.stack) ? job.stack : job.stack.split(",").map(s => s.trim()).filter(Boolean))
     : [];
 
@@ -91,10 +92,10 @@ export default function JobDetail() {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      
+
       <div className="lg:pl-64">
         <Header />
-        
+
         <main className="container py-8">
           {/* 뒤로가기 */}
           <Link to="/jobs" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
@@ -110,8 +111,8 @@ export default function JobDetail() {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-4">
                     {job.companyLogoUrl ? (
-                      <img 
-                        src={job.companyLogoUrl} 
+                      <img
+                        src={job.companyLogoUrl}
                         alt={job.companyName}
                         className="h-16 w-16 rounded-xl object-cover"
                       />
@@ -121,7 +122,7 @@ export default function JobDetail() {
                       </div>
                     )}
                     <div>
-                      <Link 
+                      <Link
                         to={`/companies/${job.employerId}`}
                         className="text-muted-foreground hover:text-primary transition-colors"
                       >
@@ -173,8 +174,8 @@ export default function JobDetail() {
                         style={{
                           borderColor:
                             job.matchInfo.matchLevel === "EXCELLENT" ? "#28a745" :
-                            job.matchInfo.matchLevel === "GOOD" ? "#17a2b8" :
-                            job.matchInfo.matchLevel === "MODERATE" ? "#ffc107" : "#6c757d",
+                              job.matchInfo.matchLevel === "GOOD" ? "#17a2b8" :
+                                job.matchInfo.matchLevel === "MODERATE" ? "#ffc107" : "#6c757d",
                         }}
                       >
                         <span className="text-xl font-bold">{matchRateDisplay(job.matchInfo)}%</span>
@@ -184,13 +185,13 @@ export default function JobDetail() {
                         <Badge
                           variant={
                             job.matchInfo.matchLevel === "EXCELLENT" ? "default" :
-                            job.matchInfo.matchLevel === "GOOD" ? "secondary" :
-                            job.matchInfo.matchLevel === "MODERATE" ? "outline" : "outline"
+                              job.matchInfo.matchLevel === "GOOD" ? "secondary" :
+                                job.matchInfo.matchLevel === "MODERATE" ? "outline" : "outline"
                           }
                           className={
                             job.matchInfo.matchLevel === "EXCELLENT" ? "bg-green-600" :
-                            job.matchInfo.matchLevel === "GOOD" ? "bg-sky-600" :
-                            job.matchInfo.matchLevel === "MODERATE" ? "bg-amber-500 text-white" : ""
+                              job.matchInfo.matchLevel === "GOOD" ? "bg-sky-600" :
+                                job.matchInfo.matchLevel === "MODERATE" ? "bg-amber-500 text-white" : ""
                           }
                         >
                           {matchLevelLabel(job.matchInfo.matchLevel)}
@@ -249,10 +250,10 @@ export default function JobDetail() {
                           <div className="flex flex-wrap gap-1">
                             {(job.matchInfo.matchedStacks?.length ?? 0) > 0
                               ? job.matchInfo.matchedStacks.map((s, i) => (
-                                  <Badge key={i} variant="secondary" className="bg-green-500/10 text-green-700 text-xs">
-                                    {s}
-                                  </Badge>
-                                ))
+                                <Badge key={i} variant="secondary" className="bg-green-500/10 text-green-700 text-xs">
+                                  {s}
+                                </Badge>
+                              ))
                               : <span className="text-muted-foreground text-xs">없음</span>}
                           </div>
                         </div>
@@ -263,10 +264,10 @@ export default function JobDetail() {
                           <div className="flex flex-wrap gap-1">
                             {(job.matchInfo.missingStacks?.length ?? 0) > 0
                               ? job.matchInfo.missingStacks.map((s, i) => (
-                                  <Badge key={i} variant="secondary" className="bg-amber-500/10 text-amber-700 text-xs">
-                                    {s}
-                                  </Badge>
-                                ))
+                                <Badge key={i} variant="secondary" className="bg-amber-500/10 text-amber-700 text-xs">
+                                  {s}
+                                </Badge>
+                              ))
                               : <span className="text-muted-foreground text-xs">없음 🎉</span>}
                           </div>
                         </div>
@@ -285,6 +286,68 @@ export default function JobDetail() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* 채용 정보 (Recruitment Info) */}
+              <div className="rounded-2xl bg-card p-6 border">
+                <h2 className="text-lg font-semibold mb-4">채용 정보</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg">
+                        <Building2 className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-0.5">기업 형태</p>
+                        <p className="text-sm font-semibold text-slate-900">{job.industry || "IT / 플랫폼"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg">
+                        <Users className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-0.5">경쟁률</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {job.recruitmentCapacity && job.applicationCount
+                            ? `약 ${Math.max(1, Math.round(job.applicationCount / job.recruitmentCapacity))}:1`
+                            : "집계중 (채용 인원 미정)"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg">
+                        <Calendar className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-0.5">접수 기간</p>
+                        <p className="text-sm font-semibold text-slate-900">상시 채용 (채용 시 마감)</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg">
+                        <Briefcase className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-0.5">지원 방법</p>
+                        <p className="text-sm font-semibold text-slate-900">FitMe 간편 지원</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg">
+                        <GraduationCap className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-0.5">지원 자격</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {job.requiredExperience ? `경력 ${job.requiredExperience}년 이상` : "신입 · 경력 무관"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* 상세 설명 */}
@@ -312,6 +375,20 @@ export default function JobDetail() {
                   </>
                 )}
               </div>
+
+              {/* 근무지 지도 (Workplace Map) */}
+              <div className="rounded-2xl bg-card p-6 border">
+                <h2 className="text-lg font-semibold mb-4">근무지 위치</h2>
+                <div className="mb-4 text-sm text-slate-600 flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  {job.location || "위치 정보 없음"}
+                </div>
+                <KakaoMap
+                  address={job.location}
+                  companyName={job.companyName}
+                // Assuming backend might send lat/lng in future, or we use address
+                />
+              </div>
             </div>
 
             {/* 사이드바 */}
@@ -319,7 +396,7 @@ export default function JobDetail() {
               {/* 지원하기 카드 */}
               <div className="rounded-2xl bg-card p-6 border sticky top-24">
                 <h3 className="font-semibold mb-4">이 공고에 지원하기</h3>
-                
+
                 {isAuthenticated ? (
                   <Link to={`/jobs/${jobId}/apply`}>
                     <Button className="w-full btn-gradient-primary" size="lg">
@@ -350,6 +427,14 @@ export default function JobDetail() {
                     <span className="text-muted-foreground">지원자</span>
                     <span>{job.applicationCount?.toLocaleString() || 0}명</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">경쟁률</span>
+                    <span>
+                      {job.recruitmentCapacity && job.applicationCount
+                        ? `약 ${Math.max(1, Math.round(job.applicationCount / job.recruitmentCapacity))}:1`
+                        : "집계중 (채용 인원 미정)"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -357,13 +442,13 @@ export default function JobDetail() {
               <div className="rounded-2xl bg-card p-6 border">
                 <h3 className="font-semibold mb-4">기업 정보</h3>
                 <div className="space-y-3 text-sm">
-                  <Link 
+                  <Link
                     to={`/companies/${job.employerId}`}
                     className="flex items-center gap-3 hover:bg-secondary/50 rounded-lg p-2 -mx-2 transition-colors"
                   >
                     {job.companyLogoUrl ? (
-                      <img 
-                        src={job.companyLogoUrl} 
+                      <img
+                        src={job.companyLogoUrl}
                         alt={job.companyName}
                         className="h-10 w-10 rounded-lg object-cover"
                       />
@@ -379,7 +464,7 @@ export default function JobDetail() {
             </div>
           </div>
         </main>
-        
+
         <Footer />
       </div>
     </div>

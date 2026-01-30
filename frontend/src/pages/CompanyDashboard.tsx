@@ -7,9 +7,28 @@ import { AIMatchingTab } from "@/components/company/AIMatchingTab";
 import { AdAnalyticsTab } from "@/components/company/AdAnalyticsTab";
 import { DashboardHeader } from "@/components/company/DashboardHeader";
 import { AdBanner } from "@/components/company/AdBanner";
+import { CompanyCommunityManagement } from "@/components/company/CompanyCommunityManagement";
+
+import { useSearchParams } from "react-router-dom";
 
 export default function CompanyDashboard() {
-  const [activeTab, setActiveTab] = useState("jobs");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "jobs";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync URL when tab changes
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    setSearchParams(prev => {
+      prev.set('tab', val);
+      return prev;
+    });
+  };
+
+  // Sync state if URL changes externally (e.g. back button)
+  // Although not strictly necessary if we only use one way binding, bidirectional is safer
+  // Actually, let's just use the setter wrapper.
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -21,11 +40,12 @@ export default function CompanyDashboard() {
 
           <DashboardHeader />
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
             <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
               <TabsTrigger value="jobs">채용공고 관리</TabsTrigger>
               <TabsTrigger value="applicants">지원자 현황</TabsTrigger>
               <TabsTrigger value="ai-matching">AI 인재 추천</TabsTrigger>
+              <TabsTrigger value="community">커뮤니티 관리</TabsTrigger>
               <TabsTrigger value="ads">광고 성과</TabsTrigger>
             </TabsList>
 
@@ -45,6 +65,10 @@ export default function CompanyDashboard() {
 
                 <TabsContent value="ads" className="mt-0">
                   <AdAnalyticsTab />
+                </TabsContent>
+
+                <TabsContent value="community" className="mt-0">
+                  <CompanyCommunityManagement />
                 </TabsContent>
               </div>
 
