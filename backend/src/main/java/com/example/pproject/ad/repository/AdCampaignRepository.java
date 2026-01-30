@@ -173,7 +173,7 @@ public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Lo
                 CROSS JOIN user_vec uv
                 WHERE jp.embedding IS NOT NULL
                 ORDER BY jp.embedding <=> uv.u_vec
-                LIMIT 200
+                LIMIT :limit
             )
             SELECT
                 ac.campaign_id,
