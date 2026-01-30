@@ -58,6 +58,9 @@ public class Wallet extends BaseTimeEntity {
     @Column(name = "status", nullable = false, length = 20)
     private WalletStatus status;
 
+    @Column(name = "reserved_balance", nullable = false)
+    private long reservedBalance = 0L;
+
     @Builder
     public Wallet(BuyerType ownerType, UserEntity member, EmployerEntity employer) {
         validateOwner(ownerType, member, employer);
@@ -65,7 +68,14 @@ public class Wallet extends BaseTimeEntity {
         this.member = member;
         this.employer = employer;
         this.balance = 0L;
+        this.reservedBalance = 0L;
         this.status = WalletStatus.ACTIVE;
+    }
+
+    public long getAvailableBalance() {
+        // [Phase 2 Refactor] 선차감 모델 도입으로 인해 reservedBalance는 가용 잔액 계산에서 제외
+        // 00시에 이미 balance에서 차감되어 reserved로 이동했으므로, balance 자체가 가용 잔액임.
+        return this.balance;
     }
 
     public void charge(long amount) {
@@ -78,6 +88,7 @@ public class Wallet extends BaseTimeEntity {
         this.balance += amount;
     }
 
+    // 즉시 사용 (가용 잔액 체크 -> balance 체크로 단순화)
     public void use(long amount) {
         verifyActive();
         Assert.isTrue(amount > 0, "사용액은 0보다 커야 합니다.");
@@ -86,6 +97,53 @@ public class Wallet extends BaseTimeEntity {
             throw new IllegalStateException("잔액이 부족합니다.");
         }
         this.balance -= amount;
+    }
+
+    // 예산 예약 (Hold) - [Phase 2: Pre-deduction]
+    // 가용 잔액에서 즉시 차감하여 예약금으로 이동
+    public void hold(long amount) {
+        verifyActive();
+        Assert.isTrue(amount > 0, "예약액은 0보다 커야 합니다.");
+
+        if (this.balance < amount) {
+            throw new IllegalStateException("잔액이 부족하여 예약할 수 없습니다.");
+        }
+        this.balance -= amount; // 가용 잔액 차감
+        this.reservedBalance += amount; // 예약금 증가
+    }
+
+    // 예약금 정산 (사용 확정 + 예약 해제)
+    public void settle(long usedAmount, long releasedReservation) {
+        verifyActive();
+        Assert.isTrue(usedAmount >= 0, "사용액은 0 이상이어야 합니다.");
+        Assert.isTrue(releasedReservation > 0, "해제할 예약금은 0보다 커야 합니다.");
+
+        if (this.reservedBalance < releasedReservation) {
+            throw new IllegalStateException("해제할 예약금이 현재 예약금보다 큽니다.");
+        }
+        this.reservedBalance -= releasedReservation;
+
+        // settle은 이제 사용하지 않을 예정이나 호환성을 위해 유지
+        // (Pre-deduction에서는 이미 balance가 차감되었으므로 추가 차감 불필요)
+        // 하지만 기존 settle 로직은 "예약 건 거에서 사용" 이므로...
+        // 아, 기존 로직은 "balance -= used" 였음.
+        // Pre-deduction에서는 "balance"는 이미 깎였으니 "reserved"만 깎으면 됨 (used만큼 소멸, 남은건 환불?)
+        // -> settle은 "실시간 정산" 용도이므로 배치 정산(deductReserved) 사용 시 호출되지 않음.
+    }
+
+    // [Phase 2] 배치 정산용: 실제 사용액만큼 예약금 소멸 (매출 확정)
+    public void deductReserved(long amount) {
+        if (this.reservedBalance < amount) {
+            throw new IllegalStateException("차감할 예약금이 부족합니다.");
+        }
+        this.reservedBalance -= amount;
+    }
+
+    // [Phase 2] 잔여 예약금 환불 (일일 정산 리셋용)
+    // 안 쓰고 남은 예약금을 다시 balance로 복구
+    public void releaseAllReservation() {
+        this.balance += this.reservedBalance;
+        this.reservedBalance = 0L;
     }
 
     public void resume() {

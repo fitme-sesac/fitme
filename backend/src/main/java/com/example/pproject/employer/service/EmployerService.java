@@ -7,9 +7,9 @@ import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.dto.JobMatchInfoDTO;
-import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
 import com.example.pproject.job.service.JobService;
+import com.example.pproject.job.entity.JobEntity;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
@@ -36,7 +36,7 @@ public class EmployerService {
 
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
     private final OutboxEventProducer outboxEventProducer;
@@ -119,11 +119,11 @@ public class EmployerService {
         List<EmployerDashboardDTO.JobSummaryDTO> jobSummaries = List.of();
 
         try {
-            activeJobCount = jobRepository.countActiveByEmployerId(employer.getId());
-            totalApplicationCount = jobRepository.sumApplicationCountByEmployerId(employer.getId());
+            activeJobCount = jobEntityRepository.countActiveByEmployerId(employer.getId());
+            totalApplicationCount = jobEntityRepository.sumApplicationCountByEmployerId(employer.getId());
 
             // 최근 채용공고 5개
-            List<JobEntity> recentJobs = jobRepository.findByEmployerIdAndNotDeleted(employer.getId())
+            List<JobEntity> recentJobs = jobEntityRepository.findByEmployerIdAndNotDeleted(employer.getId())
                     .stream()
                     .limit(5)
                     .collect(Collectors.toList());
@@ -446,7 +446,7 @@ public class EmployerService {
             // 채용공고(stack) vs 구직자 이력서(re_stack, tech_stack) 기반 매칭 정보 계산
             for (ApplicantListDTO.ApplicantDTO dto : applicants) {
                 try {
-                    JobEntity job = jobRepository.findById(dto.getJobId()).orElse(null);
+                    JobEntity job = jobEntityRepository.findById(dto.getJobId()).orElse(null);
                     if (job == null) {
                         dto.setMatchInfo(emptyMatchInfo());
                         continue;
