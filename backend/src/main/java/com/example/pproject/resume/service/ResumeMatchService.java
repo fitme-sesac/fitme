@@ -1,6 +1,6 @@
 package com.example.pproject.resume.service;
 
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.resume.dto.JobRecommendationDTO;
 import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.repository.ResumeRepository;
@@ -22,7 +22,7 @@ import java.util.Optional;
 public class ResumeMatchService {
 
         private final ResumeRepository resumeRepository;
-        private final JobRepository jobRepository;
+        private final JobEntityRepository jobRepository;
 
         private static final double DEFAULT_MIN_SIMILARITY = 0.3;
 

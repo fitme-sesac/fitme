@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface JobRepository extends JpaRepository<JobEntity, Long> {
+public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
 
   // 기업별 채용공고 목록 (삭제되지 않은 것만)
   @Query("SELECT j FROM JobEntity j WHERE j.employerId = :employerId AND j.deletedAt IS NULL ORDER BY j.createdAt DESC")
