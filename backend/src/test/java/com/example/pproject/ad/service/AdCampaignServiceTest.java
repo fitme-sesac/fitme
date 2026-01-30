@@ -221,11 +221,12 @@ class AdCampaignServiceTest {
         }
 
         @Test
-        @DisplayName("로그인 사용자 - 이력서 없으면 입찰가 순 fallback")
+        @DisplayName("로그인 사용자 - 이력서 없거나 임베딩 없으면 입찰가 순 fallback")
         void getAdsForMember_NoResume_FallbackToBidBased() {
                 // 1. [Given]
                 Long memberId = 1L;
-                given(resumeRepository.findByUserIdAndPrimaryTrue(memberId)).willReturn(Optional.empty());
+                // [Modified] findByUserIdAndPrimaryTrue -> findEmbeddingByUserId
+                given(resumeRepository.findEmbeddingByUserId(memberId)).willReturn(Optional.empty());
 
                 AdCampaignEntity entity = AdCampaignEntity.builder()
                                 .id(1L).employerId(1L).jobId(100L).cpcBid(50).status("ACTIVE").build();
@@ -244,28 +245,46 @@ class AdCampaignServiceTest {
         }
 
         @Test
-        @DisplayName("로그인 사용자 - embedding 없으면 입찰가 순 fallback")
-        void getAdsForMember_NoEmbedding_FallbackToBidBased() {
+        @DisplayName("로그인 사용자 - 임베딩 기반 AI 매칭 및 필터링 성공")
+        void getAdsForMember_Success() {
                 // 1. [Given]
                 Long memberId = 1L;
+                String mockEmbedding = "[0.1, 0.2, 0.3]";
 
-                Resume mockResume = mock(Resume.class);
-                given(mockResume.getEmbedding()).willReturn(null);
-                given(resumeRepository.findByUserIdAndPrimaryTrue(memberId)).willReturn(Optional.of(mockResume));
+                // 이력서 임베딩 조회 Mock
+                given(resumeRepository.findEmbeddingByUserId(memberId)).willReturn(Optional.of(mockEmbedding));
 
-                AdCampaignEntity entity = AdCampaignEntity.builder()
-                                .id(1L).employerId(1L).jobId(100L).cpcBid(50).status("ACTIVE").build();
-                Page<AdCampaignEntity> page = new PageImpl<>(List.of(entity));
+                // DB 조회 결과 Mock (Object[] {campaignId, jobId, employerId, title, cpcBid,
+                // similarity, hybridScore})
+                // 광고 A: 유사도 높음(0.9), 입찰가 낮음(100) -> Hybrid Score 낮음 (0.7)
+                Object[] row1 = { 1L, 101L, 10L, "Job A", 100, 0.9, 0.7 };
+                // 광고 B: 유사도 낮음(0.5), 입찰가 높음(1000) -> Hybrid Score 높음 (0.9)
+                Object[] row2 = { 2L, 102L, 20L, "Job B", 1000, 0.5, 0.9 };
 
-                given(adGuardService.getActiveCampaignIds()).willReturn(Set.of("1"));
-                // 파라미터 타입 Long[]에 맞춰 any(Long[].class) 사용
-                given(adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(any(Long[].class), any(Pageable.class)))
-                                .willReturn(page);
+                List<Object[]> queryResult = List.of(row1, row2);
+
+                given(adCampaignRepository.findTopAdsBySimilarity(
+                                eq(mockEmbedding), anyDouble(), anyInt(), anyDouble()))
+                                .willReturn(queryResult);
+
+                // Redis 예산 필터링 Mock (둘 다 돈이 있다고 가정)
+                // 주의: checkActiveBatch는 Map<Long, Boolean>을 반환함
+                java.util.Map<Long, Boolean> activeMap = java.util.Map.of(1L, true, 2L, true);
+                given(adGuardService.checkActiveBatch(anyList())).willReturn(activeMap);
 
                 // 2. [When]
-                List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, 5);
+                List<AdServeResponseDTO> result = adCampaignService.getAdsForMember(memberId, 10);
 
                 // 3. [Then]
-                assertThat(result).hasSize(1);
+                assertThat(result).hasSize(2);
+
+                // 정렬 로직 검증: 서비스 코드에서 Hybrid Score 기준으로 재정렬하는지 확인
+                // 광고 B(Hybrid 0.9)가 광고 A(Hybrid 0.7)보다 먼저 나와야 함
+                assertThat(result.get(0).getCampaignId()).isEqualTo(2L);
+                assertThat(result.get(1).getCampaignId()).isEqualTo(1L);
+
+                // 값 검증
+                assertThat(result.get(0).getSimilarity()).isEqualTo(0.5);
+                assertThat(result.get(0).getHybridScore()).isEqualTo(0.9);
         }
 }

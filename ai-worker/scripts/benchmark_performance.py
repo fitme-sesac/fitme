@@ -32,7 +32,7 @@ else:
 # TOTAL_REQUESTS: 총 몇 번의 클릭(요청)을 보낼지 결정
 # CONCURRENT_REQUESTS: 한 번에 동시에 몇 명이 접속하는 것처럼 흉내낼지 (동시성 수준)
 BASE_URL = "http://localhost:8081"
-MEMBER_ID = 101
+MEMBER_ID = 100
 TOTAL_REQUESTS = 100
 CONCURRENT_REQUESTS = 10
 
