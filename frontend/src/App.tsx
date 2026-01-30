@@ -95,9 +95,9 @@ const App = () => (
             <Route path="/community" element={<Community />} />
             <Route path="/support" element={<Support />} />
 
-            {/* Payment Result Pages */}
-            <Route path="/payment/success" element={<PrivateRoute><PaymentSuccessPage /></PrivateRoute>} />
-            <Route path="/payment/fail" element={<PrivateRoute><PaymentFailPage /></PrivateRoute>} />
+            {/* Payment Result Pages - PrivateRoute 제거: 토스에서 리다이렉트 시 인증 로딩으로 깜빡임 방지 */}
+            <Route path="/payment/success" element={<PaymentSuccessPage />} />
+            <Route path="/payment/fail" element={<PaymentFailPage />} />
 
             {/* Protected Routes - Pages handle their own auth state */}
             <Route path="/mypage" element={<MyPage />} />
