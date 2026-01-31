@@ -1,6 +1,6 @@
-import HtmlPage from "../components/HtmlPage";
+import HtmlPage from "@/components/HtmlPage";
 
-import { usePageCss } from "../hooks/usePageCss";
+import { usePageCss } from "@/hooks/usePageCss";
 const html = `<main class="main">
 
         <!-- Page Title -->

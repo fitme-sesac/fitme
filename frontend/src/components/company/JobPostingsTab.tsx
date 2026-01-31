@@ -1,84 +1,173 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Briefcase, 
-  Eye, 
-  Users, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
-  Pause, 
+import {
+  Briefcase,
+  Eye,
+  Users,
+  MoreVertical,
+  Edit,
+  Trash2,
   Play,
-  TrendingUp,
-  Clock
+  Clock,
+  Loader2,
+  Mail,
 } from "lucide-react";
+import { getJobPostings, deleteJobPosting } from "@/features/job/api/jobApi";
+import { getApplicants } from "@/api/employers";
 
-const mockJobPostings = [
-  {
-    id: 1,
-    title: "시니어 프론트엔드 개발자",
-    status: "active",
-    applicants: 23,
-    views: 1247,
-    createdAt: "2026-01-20",
-    expiresAt: "2026-02-20",
-    techStack: ["React", "TypeScript", "Next.js"],
-    experienceLevel: "시니어 (5년 이상)",
-    salary: "8,000만원 ~ 1억",
-  },
-  {
-    id: 2,
-    title: "백엔드 개발자",
-    status: "active",
-    applicants: 45,
-    views: 2103,
-    createdAt: "2026-01-15",
-    expiresAt: "2026-02-15",
-    techStack: ["Node.js", "PostgreSQL", "AWS"],
-    experienceLevel: "미들 (3~5년)",
-    salary: "6,000만원 ~ 8,000만원",
-  },
-  {
-    id: 3,
-    title: "데이터 엔지니어",
-    status: "paused",
-    applicants: 12,
-    views: 567,
-    createdAt: "2026-01-10",
-    expiresAt: "2026-02-10",
-    techStack: ["Python", "Spark", "Airflow"],
-    experienceLevel: "주니어 (1~3년)",
-    salary: "5,000만원 ~ 6,000만원",
-  },
-  {
-    id: 4,
-    title: "DevOps 엔지니어",
-    status: "closed",
-    applicants: 31,
-    views: 892,
-    createdAt: "2025-12-01",
-    expiresAt: "2026-01-01",
-    techStack: ["Kubernetes", "Docker", "Terraform"],
-    experienceLevel: "시니어 (5년 이상)",
-    salary: "9,000만원 ~ 1.2억",
-  },
-];
-
-const statusConfig = {
-  active: { label: "진행중", className: "bg-success/10 text-success border-success/20" },
-  paused: { label: "일시중지", className: "bg-warning/10 text-warning border-warning/20" },
-  closed: { label: "마감", className: "bg-muted text-muted-foreground border-border" },
+const statusConfig: Record<string, { label: string; className: string }> = {
+  OPEN: { label: "진행중", className: "bg-success/10 text-success border-success/20" },
+  DRAFT: { label: "임시저장", className: "bg-warning/10 text-warning border-warning/20" },
+  CLOSED: { label: "마감", className: "bg-muted text-muted-foreground border-border" },
 };
 
-export function JobPostingsTab() {
+function experienceLabel(years: number | null | undefined): string {
+  if (years == null || years === 0) return "신입";
+  if (years >= 10) return "10년 이상";
+  if (years >= 7) return "7년 이상";
+  if (years >= 5) return "5년 이상";
+  if (years >= 3) return "3년 이상";
+  if (years >= 1) return "1년 이상";
+  return "신입";
+}
+
+interface JobPostingsTabProps {
+  /** 목록 새로고침 트리거 (변경 시 refetch) */
+  refetchKey?: number;
+  /** 수정하기 클릭 시 호출 (모달 열기용) */
+  onEditJob?: (jobUid: string) => void;
+}
+
+export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProps) {
+  const [jobs, setJobs] = useState<{
+    jobId: number;
+    jobUid: string;
+    title: string;
+    status: string;
+    viewCount: number;
+    applicationCount: number;
+    stack?: string;
+    requiredExperience?: number;
+    recruitmentCapacity?: number;
+    salaryDisplay?: string;
+    salaryText?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalElements, setTotalElements] = useState(0);
+  const [applicantsModalJob, setApplicantsModalJob] = useState<{
+    jobId: number;
+    jobUid: string;
+    title: string;
+  } | null>(null);
+  const [applicantsList, setApplicantsList] = useState<
+    { applicationId: number; jobId: number; name?: string; email?: string; jobTitle?: string; appliedAt?: string; status?: string }[]
+  >([]);
+  const [applicantsLoading, setApplicantsLoading] = useState(false);
+
+  const fetchJobs = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getJobPostings({ page: 0, size: 50 });
+      setJobs(res.jobs ?? []);
+      setTotalElements(res.totalElements ?? 0);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "채용공고 목록을 불러오는데 실패했습니다.";
+      setError(msg);
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, [refetchKey]);
+
+  useEffect(() => {
+    if (!applicantsModalJob) {
+      setApplicantsList([]);
+      return;
+    }
+    let cancelled = false;
+    setApplicantsLoading(true);
+    getApplicants("")
+      .then((res: { applicants?: { applicationId: number; jobId: number; name?: string; email?: string; jobTitle?: string; appliedAt?: string; status?: string }[] }) => {
+        if (cancelled) return;
+        const list = (res.applicants ?? []).filter(
+          (a: { jobId: number }) => Number(a.jobId) === Number(applicantsModalJob.jobId)
+        );
+        setApplicantsList(list);
+      })
+      .catch(() => {
+        if (!cancelled) setApplicantsList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setApplicantsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applicantsModalJob]);
+
+  const handleDelete = async (jobUid: string) => {
+    if (!window.confirm("이 채용공고를 삭제하시겠습니까?")) return;
+    try {
+      await deleteJobPosting(jobUid);
+      await fetchJobs();
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "삭제에 실패했습니다.";
+      alert(msg);
+    }
+  };
+
+  const activeCount = jobs.filter((j) => j.status === "OPEN").length;
+  const totalViews = jobs.reduce((s, j) => s + (j.viewCount ?? 0), 0);
+  const totalApplicants = jobs.reduce((s, j) => s + (j.applicationCount ?? 0), 0);
+
+  if (loading && jobs.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="h-10 bg-muted animate-pulse rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            채용공고 목록을 불러오는 중...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* 통계 카드 */}
@@ -91,7 +180,7 @@ export function JobPostingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">전체 공고</p>
-                <p className="text-2xl font-bold text-foreground">4</p>
+                <p className="text-2xl font-bold text-foreground">{totalElements}</p>
               </div>
             </div>
           </CardContent>
@@ -104,7 +193,7 @@ export function JobPostingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">진행중</p>
-                <p className="text-2xl font-bold text-foreground">2</p>
+                <p className="text-2xl font-bold text-foreground">{activeCount}</p>
               </div>
             </div>
           </CardContent>
@@ -117,7 +206,7 @@ export function JobPostingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">총 조회수</p>
-                <p className="text-2xl font-bold text-foreground">4,809</p>
+                <p className="text-2xl font-bold text-foreground">{totalViews.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -130,7 +219,7 @@ export function JobPostingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">총 지원자</p>
-                <p className="text-2xl font-bold text-foreground">111</p>
+                <p className="text-2xl font-bold text-foreground">{totalApplicants.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -143,84 +232,162 @@ export function JobPostingsTab() {
           <CardTitle className="text-lg">채용공고 목록</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {mockJobPostings.map((job) => (
-            <div
-              key={job.id}
-              className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-foreground">{job.title}</h3>
-                    <Badge variant="outline" className={statusConfig[job.status as keyof typeof statusConfig].className}>
-                      {statusConfig[job.status as keyof typeof statusConfig].label}
-                    </Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {job.techStack.map((tech) => (
-                      <Badge key={tech} variant="secondary" className="text-xs">
-                        {tech}
+          {error && (
+            <p className="text-destructive text-sm py-2">{error}</p>
+          )}
+          {jobs.length === 0 && !error && (
+            <p className="text-muted-foreground text-center py-8">등록된 채용공고가 없습니다.</p>
+          )}
+          {jobs.map((job) => {
+            const status = statusConfig[job.status] ?? {
+              label: job.status,
+              className: "bg-muted text-muted-foreground border-border",
+            };
+            const techStack = job.stack
+              ? job.stack.split(",").map((s) => s.trim()).filter(Boolean)
+              : [];
+            return (
+              <div
+                key={job.jobUid}
+                className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Link
+                        to={`/employer/jobs/${job.jobUid ?? job.jobId}`}
+                        className="font-semibold text-foreground hover:underline"
+                      >
+                        {job.title}
+                      </Link>
+                      <Badge variant="outline" className={status.className}>
+                        {status.label}
                       </Badge>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <span>{job.experienceLevel}</span>
-                    <span>{job.salary}</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      마감: {job.expiresAt}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-6">
-                  <div className="flex gap-6">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{job.views.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">조회수</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-primary">{job.applicants}</p>
-                      <p className="text-xs text-muted-foreground">지원자</p>
+                    {techStack.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {techStack.map((tech) => (
+                          <Badge key={tech} variant="secondary" className="text-xs">
+                            {tech}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      <span>{experienceLabel(job.requiredExperience)}</span>
+                      {(job.salaryDisplay || job.salaryText) && (
+                        <span>{job.salaryDisplay ?? job.salaryText}</span>
+                      )}
+                      {job.updatedAt && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          수정: {job.updatedAt.slice(0, 10)}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        수정하기
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        {job.status === "active" ? (
-                          <>
-                            <Pause className="h-4 w-4 mr-2" />
-                            일시중지
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-2" />
-                            재개하기
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        삭제하기
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex items-center gap-6">
+                    <div className="flex gap-6">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-foreground">
+                          {(job.viewCount ?? 0).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">조회수</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-center hover:bg-muted/50 rounded-lg px-2 py-1 transition-colors cursor-pointer"
+                        onClick={() =>
+                          setApplicantsModalJob({
+                            jobId: job.jobId,
+                            jobUid: job.jobUid,
+                            title: job.title,
+                          })
+                        }
+                      >
+                        <p className="text-2xl font-bold text-primary">
+                          {job.applicationCount ?? 0}
+                        </p>
+                        <p className="text-xs text-muted-foreground">지원자</p>
+                      </button>
+                    </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => onEditJob?.(job.jobUid)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          수정하기
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => handleDelete(job.jobUid)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          삭제하기
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
+
+      {/* 지원자 목록 모달 */}
+      <Dialog open={!!applicantsModalJob} onOpenChange={(open) => !open && setApplicantsModalJob(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">
+              지원자 목록 {applicantsModalJob && `· ${applicantsModalJob.title}`}
+            </DialogTitle>
+          </DialogHeader>
+          {applicantsLoading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mr-2" />
+              불러오는 중...
+            </div>
+          ) : applicantsList.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">지원자가 없습니다.</p>
+          ) : (
+            <ul className="space-y-3">
+              {applicantsList.map((a) => (
+                <li
+                  key={a.applicationId}
+                  className="flex items-center gap-3 p-3 rounded-lg border bg-card"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{a.name ?? "-"}</p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Mail className="h-3.5 w-3.5" />
+                        {a.email ?? "-"}
+                      </span>
+                      {a.appliedAt && (
+                        <span className="text-xs">
+                          {new Date(a.appliedAt).toLocaleDateString("ko-KR")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="shrink-0">
+                    {a.status ?? "SUBMITTED"}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

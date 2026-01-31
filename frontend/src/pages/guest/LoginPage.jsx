@@ -1,7 +1,7 @@
 // LoginPage.jsx (또는 LoginPage.js)
 
-import HtmlPage from "../components/HtmlPage";
-import { usePageCss } from "../hooks/usePageCss";
+import HtmlPage from "@/components/HtmlPage";
+import { usePageCss } from "@/hooks/usePageCss";
 
 const html = `<main class="main">
   <div class="page-title" style="background-color: #003300;">

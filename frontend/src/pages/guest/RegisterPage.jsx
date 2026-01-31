@@ -1,6 +1,6 @@
 // RegisterPage.tsx (전체) - SOLAPI 연동 전제(프론트는 devCode/로컬OTP 제거 + 쿠키기반 검증만)
-import HtmlPage from "../components/HtmlPage";
-import { usePageCss } from "../hooks/usePageCss";
+import HtmlPage from "@/components/HtmlPage";
+import { usePageCss } from "@/hooks/usePageCss";
 
 const html = `<main class="main">
   <!-- Page Title -->

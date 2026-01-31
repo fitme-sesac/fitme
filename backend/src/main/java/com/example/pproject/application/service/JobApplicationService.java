@@ -63,11 +63,11 @@ public class JobApplicationService {
     }
 
     @Transactional
-    public void cancel(Long applicationId, Integer userId) {
+    public void cancel(Long applicationId, Long memberId) {
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found"));
 
-        if (!application.getMember().getId().equals(userId)) {
+        if (!application.getMember().getId().equals(memberId)) {
             throw new IllegalArgumentException("본인의 지원 내역만 취소할 수 있습니다.");
         }
 
@@ -83,8 +83,8 @@ public class JobApplicationService {
         }
     }
 
-    public List<JobApplicationResponse> getMyApplications(Integer userId) {
-        return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(userId.longValue()).stream()
+    public List<JobApplicationResponse> getMyApplications(Long memberId) {
+        return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(memberId).stream()
                 .map(JobApplicationResponse::from)
                 .collect(Collectors.toList());
     }

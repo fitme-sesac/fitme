@@ -140,10 +140,8 @@ public class EmployerService {
                             .build())
                     .collect(Collectors.toList());
 
-            // 전체 조회수 합계
-            totalViewCount = recentJobs.stream()
-                    .mapToLong(job -> job.getViewCount() != null ? job.getViewCount() : 0)
-                    .sum();
+            // 전체 조회수 합계 (해당 기업의 모든 공고)
+            totalViewCount = jobEntityRepository.sumViewCountByEmployerId(employer.getId());
         } catch (Exception e) {
             log.warn("채용공고 통계 조회 중 오류 (무시됨): {}", e.getMessage());
         }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Header } from '@/components/layout/Header';
 
 /**
  * 채용공고 목록 페이지
@@ -75,7 +76,9 @@ export default function JobListPage() {
   }
 
   return (
-    <main className="main">
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="main">
       <div className="container py-4">
         {/* 페이지 헤더 */}
         <div className="d-flex justify-content-between align-items-center mb-4">
@@ -225,6 +228,7 @@ export default function JobListPage() {
           )}
         </div>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }

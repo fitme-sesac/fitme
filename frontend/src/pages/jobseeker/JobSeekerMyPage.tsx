@@ -220,7 +220,7 @@ const getStatusBadgeVariant = (status: string) => {
 };
 
 const JobSeekerMyPage = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const [profileSummary, setProfileSummary] = useState<any>(null);
   const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
   const [viewedJobs, setViewedJobs] = useState<any[]>([]);
@@ -318,21 +318,27 @@ const JobSeekerMyPage = () => {
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
                   <Avatar className="h-24 w-24">
-                    <AvatarImage src={user?.user_metadata?.avatar_url} />
+                    <AvatarImage src={profileSummary?.avatar_url || user?.user_metadata?.avatar_url} />
                     <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                      {profile?.display_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase()}
+                      {(profileSummary?.display_name || user?.name || user?.email)?.charAt(0)?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
 
                   <div className="flex-1">
                     <h1 className="text-2xl font-bold">
-                      {profile?.display_name || "사용자"}님, 안녕하세요!
+                      {profileSummary?.display_name || user?.name || "사용자"}님, 안녕하세요!
                     </h1>
-                    <p className="text-muted-foreground mt-1">{user?.email}</p>
+                    <p className="text-muted-foreground mt-1">{profileSummary?.email || user?.email}</p>
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {/* 뱃지는 하드코딩된 예시, 실제 데이터가 있으면 교체 가능 */}
-                      <Badge variant="outline">프론트엔드 개발자</Badge>
-                      <Badge variant="outline">서울</Badge>
+                      {profileSummary?.job_title && (
+                        <Badge variant="outline">{profileSummary.job_title}</Badge>
+                      )}
+                      {profileSummary?.primaryResume?.preferenceLocation && (
+                        <Badge variant="outline">{profileSummary.primaryResume.preferenceLocation}</Badge>
+                      )}
+                      {!profileSummary?.job_title && !profileSummary?.primaryResume?.preferenceLocation && (
+                        <Badge variant="outline" className="text-muted-foreground">프로필을 완성해주세요</Badge>
+                      )}
                     </div>
                   </div>
 

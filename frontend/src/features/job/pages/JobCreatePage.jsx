@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Header } from '@/components/layout/Header';
 import JobForm from '../components/JobForm';
 
 /**
@@ -33,7 +34,9 @@ export default function JobCreatePage() {
   };
 
   return (
-    <main className="main">
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="main">
       <div className="container py-4">
         {/* 헤더 */}
         <div className="mb-4">
@@ -102,6 +105,7 @@ export default function JobCreatePage() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }

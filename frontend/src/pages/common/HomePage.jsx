@@ -1,7 +1,7 @@
 // src/pages/HomePage.jsx
 
-import HtmlPage from "../components/HtmlPage";
-import { usePageCss } from "../hooks/usePageCss";
+import HtmlPage from "@/components/HtmlPage";
+import { usePageCss } from "@/hooks/usePageCss";
 
 // NOTE
 // - CSS는 public/assets/css/pages/home_index.css 에서 제어

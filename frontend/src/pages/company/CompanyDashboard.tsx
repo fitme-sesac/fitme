@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Header } from "@/components/layout/Header";
 import { JobPostingsTab } from "@/components/company/JobPostingsTab";
 import { ApplicantsTab } from "@/components/company/ApplicantsTab";
 import { AIMatchingTab } from "@/components/company/AIMatchingTab";
@@ -8,6 +9,8 @@ import { AdAnalyticsTab } from "@/components/company/AdAnalyticsTab";
 import { DashboardHeader } from "@/components/company/DashboardHeader";
 import { AdBanner } from "@/components/company/AdBanner";
 import { CompanyCommunityManagement } from "@/components/company/CompanyCommunityManagement";
+import { getEmployerDashboard } from "@/api/employers";
+import { useAuth } from "@/contexts/AuthContext";
 
 import { useSearchParams } from "react-router-dom";
 
@@ -15,6 +18,30 @@ export default function CompanyDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "jobs";
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [jobsRefetchKey, setJobsRefetchKey] = useState(0);
+  const [editJobUid, setEditJobUid] = useState<string | null>(null);
+  const [dashboardInfo, setDashboardInfo] = useState<{ companyName?: string; memberName?: string } | null>(null);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const u = user as { name?: string; user_metadata?: { name?: string } } | null;
+    const memberName = u?.name ?? u?.user_metadata?.name ?? undefined;
+    if (!user) {
+      setDashboardInfo(null);
+      return;
+    }
+    setDashboardInfo((prev) => ({ ...prev, memberName }));
+    let cancelled = false;
+    getEmployerDashboard()
+      .then((res: { profile?: { name?: string }; recentJobs?: unknown[] }) => {
+        if (cancelled) return;
+        setDashboardInfo((prev) => ({ ...prev, companyName: res.profile?.name ?? undefined }));
+      })
+      .catch(() => {
+        if (!cancelled) setDashboardInfo((prev) => ({ ...prev, companyName: undefined }));
+      });
+    return () => { cancelled = true; };
+  }, [user]);
 
   // Sync URL when tab changes
   const handleTabChange = (val: string) => {
@@ -33,12 +60,20 @@ export default function CompanyDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="lg:ml-64">
+      <div className="lg:ml-64 flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1">
         <div className="p-6 lg:p-8">
           {/* 상단 광고 배너 */}
           <AdBanner position="top" />
 
-          <DashboardHeader />
+          <DashboardHeader
+            onJobCreated={() => setJobsRefetchKey((k) => k + 1)}
+            editJobUid={editJobUid}
+            onClearEdit={() => setEditJobUid(null)}
+            companyName={dashboardInfo?.companyName ?? null}
+            memberName={dashboardInfo?.memberName ?? (user as { name?: string })?.name ?? null}
+          />
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
             <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
@@ -52,7 +87,10 @@ export default function CompanyDashboard() {
             <div className="mt-6 grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
               <div>
                 <TabsContent value="jobs" className="mt-0">
-                  <JobPostingsTab />
+                  <JobPostingsTab
+                    refetchKey={jobsRefetchKey}
+                    onEditJob={(jobUid) => setEditJobUid(jobUid)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="applicants" className="mt-0">
@@ -79,7 +117,8 @@ export default function CompanyDashboard() {
             </div>
           </Tabs>
         </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

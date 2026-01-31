@@ -4,36 +4,66 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ProfileSetupModal } from "@/components/auth/ProfileSetupModal";
 
-import Index from "./pages/Index";
-import Jobs from "./pages/Jobs";
-import JobDetail from "./pages/JobDetail";
-import Talents from "./pages/Talents";
-import CompanyDetail from "./pages/CompanyDetail";
-import Community from "./pages/Community";
-import Interview from "./pages/Interview";
-import Resume from "./pages/Resume";
-import Subscription from "./pages/Subscription";
-import MyPage from "./pages/MyPage";
-import CompanyDashboard from "./pages/CompanyDashboard";
-import CompanyManagement from "./pages/CompanyManagement";
-import JobSeekerMyPage from "./pages/JobSeekerMyPage";
-import JobSeekerSignup from "./pages/JobSeekerSignup";
-import AdminDashboard from "./pages/AdminDashboard";
-import Support from "./pages/Support";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
+// ============================================
+// Common Pages (공통 기능)
+// ============================================
+import Index from "./pages/common/Index";
+import Jobs from "./pages/common/Jobs";
+import JobDetail from "./pages/common/JobDetail";
+import CompanyDetail from "./pages/common/CompanyDetail";
+import Community from "./pages/common/Community";
+import Support from "./pages/common/Support";
+import Settings from "./pages/common/Settings";
+import Subscription from "./pages/common/Subscription";
+import NotFound from "./pages/common/NotFound";
+
+// ============================================
+// Guest Pages (비회원/인증)
+// ============================================
+import Auth from "./pages/guest/Auth";
+import FindUserIdPage from "./pages/guest/FindUserIdPage";
+import VerifyUserIdCodePage from "./pages/guest/VerifyUserIdCodePage";
+import ResultUserIdPage from "./pages/guest/ResultUserIdPage";
+import FindPasswordPage from "./pages/guest/FindPasswordPage";
+import VerifyCodePage from "./pages/guest/VerifyCodePage";
+import NewPasswordPage from "./pages/guest/NewPasswordPage";
+import ChangePasswordPage from "./pages/guest/ChangePasswordPage";
+import FirstSocialLoginPage from "./pages/guest/FirstSocialLoginPage";
+import JobSeekerSignup from "./pages/guest/JobSeekerSignup";
+
+// ============================================
+// JobSeeker Pages (구직자 전용)
+// ============================================
+import Interview from "./pages/jobseeker/Interview";
+import Resume from "./pages/jobseeker/Resume";
+import MyPage from "./pages/jobseeker/MyPage";
+import JobSeekerMyPage from "./pages/jobseeker/JobSeekerMyPage";
+
+// ============================================
+// Company Pages (기업회원 전용)
+// ============================================
+import CompanyDashboard from "./pages/company/CompanyDashboard";
+import CompanyManagement from "./pages/company/CompanyManagement";
+import Talents from "./pages/company/Talents";
+
+// ============================================
+// Employer Job Pages (채용공고 목록/상세/등록/수정 - /employer/jobs/*)
+// ============================================
+import JobListPage from "./features/job/pages/JobListPage";
+import JobDetailPage from "./features/job/pages/JobDetailPage";
+import JobCreatePage from "./features/job/pages/JobCreatePage";
+import JobEditPage from "./features/job/pages/JobEditPage";
+
+// ============================================
+// Admin Pages (관리자 전용)
+// ============================================
+import AdminDashboard from "./pages/admin/AdminDashboard";
+
+// ============================================
+// Payment Pages (결제)
+// ============================================
 import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
 import PaymentFailPage from "./pages/payment/PaymentFailPage";
-
-import Auth from "./pages/Auth";
-import FindUserIdPage from "./pages/FindUserIdPage";
-import VerifyUserIdCodePage from "./pages/VerifyUserIdCodePage";
-import ResultUserIdPage from "./pages/ResultUserIdPage";
-import FindPasswordPage from "./pages/FindPasswordPage";
-import VerifyCodePage from "./pages/VerifyCodePage";
-import NewPasswordPage from "./pages/NewPasswordPage";
-import ChangePasswordPage from "./pages/ChangePasswordPage";
-import FirstSocialLoginPage from "./pages/FirstSocialLoginPage";
 
 import PrivateRoute from "./components/auth/PrivateRoute";
 
@@ -135,6 +165,40 @@ export default function App() {
                         element={
                             <PrivateRoute requiredRole="EMPLOYER">
                                 <CompanyDashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    {/* 기업 채용공고: 목록/상세/등록/수정 (수정하기 링크와 브레드크럼 연동) */}
+                    <Route path="/employer/dashboard" element={<Navigate to="/company/dashboard" replace />} />
+                    <Route
+                        path="/employer/jobs"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <JobListPage />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/employer/jobs/create"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <JobCreatePage />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/employer/jobs/:jobId"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <JobDetailPage />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/employer/jobs/:jobId/edit"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <JobEditPage />
                             </PrivateRoute>
                         }
                     />

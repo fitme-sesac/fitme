@@ -290,9 +290,9 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ""} />
+                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || (user as any).userid || ""} />
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      {user.email?.charAt(0).toUpperCase()}
+                      {(user.email || (user as any).userid || (user as any).name || "U").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -315,7 +315,7 @@ export function Header() {
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                      {user.email || "이메일 없음"}
+                      {user.email || (user as any).userid || (user as any).name || "이메일 없음"}
                     </p>
                   </div>
                 </div>

@@ -196,4 +196,15 @@ public class ResumeController {
         resumeService.deleteAttachment(resumeId, attachmentId, user.getId());
         return ResponseEntity.ok().build();
     }
+
+    /**
+     * 내 프로필 요약 조회 (마이페이지용)
+     * 설명: 사용자 기본 정보와 대표 이력서 요약 정보를 반환합니다.
+     */
+    @Operation(summary = "내 프로필 요약 조회", description = "마이페이지에 표시할 사용자 기본 정보와 대표 이력서 요약을 반환합니다.")
+    @GetMapping("/my-profile-summary")
+    public ResponseEntity<Map<String, Object>> getMyProfileSummary(@AuthenticationPrincipal JwtUserPrincipal user) {
+        Map<String, Object> summary = resumeService.getProfileSummary(user.getId());
+        return ResponseEntity.ok(summary);
+    }
 }

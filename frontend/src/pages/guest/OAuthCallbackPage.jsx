@@ -1,4 +1,4 @@
-import { usePageCss } from "../hooks/usePageCss";
+import { usePageCss } from "@/hooks/usePageCss";
 
 export default function OAuthCallbackPage() {
   

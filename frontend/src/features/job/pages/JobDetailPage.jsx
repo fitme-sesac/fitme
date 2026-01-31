@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Header } from '@/components/layout/Header';
 
 /**
  * 채용공고 상세 페이지
@@ -63,41 +64,43 @@ export default function JobDetailPage() {
     }
   };
 
+  const layout = (content) => (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="main">{content}</main>
+    </div>
+  );
+
   if (loading) {
-    return (
-      <main className="main">
-        <div className="container py-5">
-          <div className="text-center">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
+    return layout(
+      <div className="container py-5">
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error) {
-    return (
-      <main className="main">
-        <div className="container py-4">
-          <div className="alert alert-danger">
-            <i className="bi bi-exclamation-triangle me-2"></i>
-            {error}
-            <Link to="/employer/jobs" className="btn btn-outline-danger btn-sm ms-3">
-              목록으로
-            </Link>
-          </div>
+    return layout(
+      <div className="container py-4">
+        <div className="alert alert-danger">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          {error}
+          <Link to="/employer/jobs" className="btn btn-outline-danger btn-sm ms-3">
+            목록으로
+          </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (!job) return null;
 
-  return (
-    <main className="main">
-      <div className="container py-4">
+  return layout(
+    <div className="container py-4">
         {/* 헤더 */}
         <div className="mb-4">
           <nav aria-label="breadcrumb">
@@ -253,6 +256,5 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
-    </main>
   );
 }
