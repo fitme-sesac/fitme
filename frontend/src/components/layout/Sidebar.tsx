@@ -71,7 +71,7 @@ export function Sidebar() {
         </div>
 
         {/* 메인 네비게이션 */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-2 px-3 py-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href || (item.action === "chat" && isChatOpen);
             const badge = 'badge' in item ? (item as { badge?: string }).badge : undefined;
@@ -99,7 +99,7 @@ export function Sidebar() {
         </nav>
 
         {/* 하단 섹션 */}
-        <div className="border-t border-sidebar-border px-3 py-4">
+        <div className="border-t border-sidebar-border px-3 py-4 space-y-2">
           {bottomItems.map((item) => {
             const href = item.label === "마이페이지" ? getMypageHref() : item.href;
             const isActive = location.pathname === href;
@@ -130,7 +130,8 @@ export function Sidebar() {
           ) : (
             <Link
               to="/auth"
-              className="mt-3 w-full bg-gradient-to-r from-sky-500 via-sky-400 to-teal-400 text-white shadow-md hover:shadow-lg hover:from-teal-400 hover:to-sky-500 transition-all duration-300 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold"
+              className="mt-4 w-full text-white shadow-md transition-all duration-300 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold border-0 hover:scale-[1.02]"
+              style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}
             >
               <LogIn className="h-4 w-4" />
               <span>로그인</span>

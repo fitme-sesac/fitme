@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Target, Sparkles } from "lucide-react";
+import { Target, Sparkles, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignUpForm } from "@/components/auth/SignUpForm";
@@ -129,6 +129,15 @@ export default function Auth() {
             </div>
           </div>
         </div>
+      </div>
+      <div className="absolute bottom-8 left-8 z-50">
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-medium text-sm bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-200/50 hover:bg-white/80"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          홈으로 돌아가기
+        </button>
       </div>
     </div>
   );

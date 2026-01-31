@@ -345,7 +345,7 @@ public class PaymentService {
             walletService.chargeCredit(
                     userId,
                     payment.getOrder().getBuyerType(),
-                    payment.getPaidAmount().getAmount().longValue(),
+                    payment.getOrder().getProduct().getCreditAmount().longValue(),
                     payment.getPaidAmount(),
                     payment);
         } catch (Exception e) {
@@ -459,7 +459,7 @@ public class PaymentService {
         walletService.chargeCredit(
                 userId,
                 payment.getOrder().getBuyerType(),
-                payment.getPaidAmount().getAmount().longValue(),
+                payment.getOrder().getProduct().getCreditAmount().longValue(),
                 payment.getPaidAmount(),
                 payment);
     }

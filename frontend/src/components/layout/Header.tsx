@@ -170,7 +170,11 @@ export function Header() {
                       className="w-full h-9 text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center justify-center gap-1"
                       onClick={() => {
                         setCreditOpen(false);
-                        navigate("/settings?tab=history");
+                        if (isCompany) {
+                          navigate("/companies?tab=billing");
+                        } else {
+                          navigate("/mypage?tab=history");
+                        }
                       }}
                     >
                       전체 내역 확인하기 <ArrowRight className="h-3 w-3" />

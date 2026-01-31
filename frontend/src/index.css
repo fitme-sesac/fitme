@@ -144,8 +144,8 @@
     --sidebar-ring: 199 89% 48%;
 
     /* Gradients */
-    /* Primary Gradient: Sky Blue -> Teal (oceanic/refreshing) */
-    --gradient-primary: linear-gradient(to right, #0EA5E9 0%, #2DD4BF 100%);
+    /* Primary Gradient: Sky Blue -> Teal (oceanic/refreshing) - Updated to User Preferred Vibrant Gradient */
+    --gradient-primary: linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%);
 
     /* Hero Gradient: Subtle Cool White -> Slate 50 */
     --gradient-hero: linear-gradient(to bottom, #F8FAFC 0%, #E2E8F0 100%);
@@ -211,9 +211,13 @@
 }
 
 @layer components {
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+
   .btn-gradient-primary {
     background: var(--gradient-primary);
-    @apply text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300;
+    @apply text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:opacity-90;
   }
 
   .btn-gradient-hero {
@@ -283,7 +287,7 @@
   }
 
   .nav-link {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200;
+    @apply flex items-center gap-4 px-4 py-3.5 rounded-xl text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200;
   }
 
   .nav-link-active {
