@@ -31,7 +31,15 @@ public class FindUserIdApiController {
     private final PhoneVerificationService phoneVerificationService;
     private final UserService userService;
 
-    private static final String PURPOSE_FIND_USERID = "FIND_USERID";
+    // NOTE:
+    // - phone_verification.purpose에는 DB CHECK 제약이 걸려있습니다.
+    //   (docker/postgres/init/001_schema.sql: ck_phone_verification_purpose)
+    // - 기존 스키마는 SIGNUP/PASSWORD_RESET/PHONE_LINK만 허용합니다.
+    // - "아이디 찾기" OTP가 "FIND_USERID" 같은 신규 purpose를 쓰면,
+    //   SMS는 발송되더라도 DB 저장이 실패하면서(제약 위반) 컨트롤러가 502를 응답합니다.
+    // - DB 마이그레이션 없이 즉시 동작시키기 위해, 아이디 찾기 OTP purpose는
+    //   스키마에 이미 포함된 PASSWORD_RESET을 재사용합니다.
+    private static final String PURPOSE_FIND_USERID = "PASSWORD_RESET";
 
     /**
      * 1) 이름+휴대폰이 DB와 매칭되는지 확인
