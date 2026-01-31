@@ -61,7 +61,15 @@ export default function App() {
                     <Route path="/Register" element={<RedirectToAuthTab tab="signup" />} />
                     <Route path="/User/Register" element={<RedirectToAuthTab tab="signup" />} />
 
-                    {/* ✅ 레거시/호환 URL 유지 (필요한 기능 페이지는 그대로 유지) */}
+                    {/* ✅ 백엔드 redirectFront(..)가 사용하는 프론트 경로 호환 */}
+                    <Route path="/FindUserId" element={<FindUserIdPage />} />
+                    <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
+                    <Route path="/ResultUserId" element={<ResultUserIdPage />} />
+                    <Route path="/FindPassword" element={<FindPasswordPage />} />
+                    <Route path="/VerifyCode" element={<VerifyCodePage />} />
+                    <Route path="/NewPassword" element={<NewPasswordPage />} />
+
+                    {/* ✅ 레거시/호환 URL 유지 */}
                     <Route path="/User/Find_Userid" element={<FindUserIdPage />} />
                     <Route path="/User/Find_Password" element={<FindPasswordPage />} />
                     <Route path="/User/Verify_Userid_Code" element={<VerifyUserIdCodePage />} />
@@ -79,10 +87,10 @@ export default function App() {
                     <Route path="/auth/find-id/result" element={<ResultUserIdPage />} />
                     <Route path="/auth/find-password" element={<FindPasswordPage />} />
 
-                    {/* ✅ 홈: 레거시 HomePage 제거 -> 컴포넌트 기반 Index로 교체 */}
+                    {/* ✅ 홈 */}
                     <Route path="/" element={<Index />} />
 
-                    {/* ✅ 나머지: 각 페이지가 이미 Sidebar/Header/Footer(components/layout)를 사용 */}
+                    {/* ✅ 나머지 페이지 */}
                     <Route path="/jobs" element={<Jobs />} />
                     <Route path="/jobs/:jobId" element={<JobDetail />} />
                     <Route path="/talents" element={<Talents />} />

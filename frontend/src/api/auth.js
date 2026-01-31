@@ -1,155 +1,249 @@
-import http from "./http";
+import { http } from "./http";
 
 /**
- * 로그인 API
+ * 공통: axios가 (성공/실패 모두) 백엔드가 프론트로 redirect한 최종 URL을 따라간 뒤,
+ * response.request.responseURL 등에 최종 주소가 남는 점을 이용해 에러 메시지를 추출한다.
  */
-export async function login({ userid, password }) {
-    const payload = { userid, password };
-    // 백엔드는 JSON으로 받는 로그인 API(`/User/Login` 등)를 사용할 수도 있고,
-    // REST `/api/auth/login`을 쓸 수도 있습니다.
-    // 현재 프로젝트에서는 백엔드에 맞춰 /api/auth/login을 사용합니다.
-    return http.post("/api/auth/login", payload);
+function parseQueryFromUrl(urlString) {
+  if (!urlString) return new URLSearchParams();
+  try {
+    const u = new URL(urlString, window.location.origin);
+    return u.searchParams;
+  } catch {
+    return new URLSearchParams();
+  }
 }
 
-/**
- * 로그아웃 API
- */
+function extractRedirectErrorMessage(response) {
+  const finalUrl = response?.request?.responseURL || response?.config?.url || "";
+  const params = parseQueryFromUrl(finalUrl);
+
+  // backend에서 Login/Register 등으로 redirect하면서 사용하는 키들
+  const msg = params.get("errorMessage") || params.get("error") || params.get("message");
+  return msg ? decodeURIComponent(msg) : null;
+}
+
+function throwIfRedirectError(response) {
+  const msg = extractRedirectErrorMessage(response);
+  // message는 성공에서도 사용할 수 있으므로, errorMessage/error만 우선 처리
+  const finalUrl = response?.request?.responseURL || "";
+  const params = parseQueryFromUrl(finalUrl);
+  const err = params.get("errorMessage") || params.get("error");
+  if (err) {
+    throw new Error(decodeURIComponent(err));
+  }
+  return msg ? decodeURIComponent(msg) : null;
+}
+
+// ========================
+// Auth (form login 기반)
+// ========================
+
+export async function login(userid, password) {
+  const body = new URLSearchParams();
+  body.set("userid", userid ?? "");
+  body.set("password", password ?? "");
+
+  const res = await http.post("/Login", body, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    // Spring Security 성공/실패 모두 redirect를 사용하므로,
+    // 최종 redirect URL의 query를 파싱해 에러를 판단한다.
+    maxRedirects: 5,
+  });
+
+  throwIfRedirectError(res);
+  return { ok: true };
+}
+
 export async function logout() {
-    return http.post("/api/auth/logout");
+  // Spring Security logoutUrl
+  const res = await http.post("/Logout", null, { maxRedirects: 5 });
+  // logout은 보통 성공 redirect만 있으므로 에러가 없다면 ok
+  return { ok: true, message: throwIfRedirectError(res) };
 }
 
-/**
- * 로그인 상태 확인
- */
-export async function getAuthStatus() {
-    return http.get("/api/auth/status");
+export async function checkAuthStatus() {
+  return http.get("/api/auth/status").then((r) => r.data);
 }
 
-/**
- * 일반 회원가입 (백엔드 UserController.registerProc 호환)
- *
- * ✅ 포인트:
- * - 백엔드는 /User/Register (Spring MVC)에서
- *   - @ModelAttribute(UserRequestDTO)
- *   - + @RequestParam("emailId/emailDomain/emailTLD")
- *   를 같이 받습니다.
- * - 실패 시 redirect: {frontBaseUrl}/Register?errorMessage=... 로 보내는 구조라
- *   SPA에서는 responseURL을 파싱해서 에러 메시지를 표시합니다.
- */
+// ========================
+// 회원가입
+// ========================
+
+function splitEmailForBackend(email) {
+  const s = String(email || "").trim();
+  const at = s.indexOf("@");
+  if (at <= 0) return { emailId: "", emailDomain: "", emailTLD: "" };
+  const emailId = s.slice(0, at);
+  const rest = s.slice(at + 1);
+  const parts = rest.split(".").filter(Boolean);
+  if (parts.length < 2) return { emailId, emailDomain: rest, emailTLD: "" };
+
+  const emailTLD = parts[parts.length - 1];
+  const emailDomain = parts.slice(0, -1).join(".");
+  return { emailId, emailDomain, emailTLD };
+}
+
 export async function register(userData) {
-    // ---------- helpers ----------
-    const splitEmailForLegacy = (email) => {
-        if (!email || typeof email !== "string") return { emailId: "", emailDomain: "", emailTLD: "" };
-        const [idPart, domainPart] = email.split("@");
-        if (!idPart || !domainPart) return { emailId: "", emailDomain: "", emailTLD: "" };
+  // backend(UserController.registerProc)는 form body + emailId/emailDomain/emailTLD 를 @RequestParam으로 받는다.
+  const body = new URLSearchParams();
 
-        const parts = domainPart.split(".");
-        if (parts.length < 2) return { emailId: idPart, emailDomain: domainPart, emailTLD: "" };
-
-        return {
-            emailId: idPart,
-            emailDomain: parts[0],
-            emailTLD: parts.slice(1).join("."), // co.kr 등 처리
-        };
-    };
-
-    const normalizeBirthday = (birthday) => {
-        if (!birthday) return "";
-        // 이미 YYYY-MM-DD면 그대로
-        if (/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return birthday;
-        // YYYYMMDD → YYYY-MM-DD
-        if (/^\d{8}$/.test(birthday)) {
-            const yyyy = birthday.slice(0, 4);
-            const mm = birthday.slice(4, 6);
-            const dd = birthday.slice(6, 8);
-            return `${yyyy}-${mm}-${dd}`;
+  const emailParts =
+    userData?.emailId && userData?.emailDomain && userData?.emailTLD
+      ? {
+          emailId: String(userData.emailId),
+          emailDomain: String(userData.emailDomain),
+          emailTLD: String(userData.emailTLD),
         }
-        return birthday;
-    };
+      : splitEmailForBackend(userData?.email);
 
-    const decodeErrorMessage = (raw) => {
-        if (!raw) return "";
-        try {
-            return decodeURIComponent(raw.replace(/\+/g, "%20"));
-        } catch {
-            return raw;
-        }
-    };
+  // 필드명은 backend UserRequestDTO/컨트롤러 바인딩에 최대한 맞춤
+  body.set("userid", userData?.userid ?? "");
+  body.set("password", userData?.password ?? "");
+  body.set("passwordConfirm", userData?.passwordConfirm ?? userData?.passwordConfirm ?? userData?.confirmPassword ?? "");
+  body.set("username", userData?.username ?? "");
+  body.set("phone", userData?.phone ?? "");
+  body.set("gender", userData?.gender ?? "");
+  body.set("birthday", userData?.birthday ?? "");
 
-    // ---------- build payload ----------
-    const formData = new FormData();
+  body.set("agreeTerms", String(Boolean(userData?.agreeTerms)));
+  body.set("agreePrivacy", String(Boolean(userData?.agreePrivacy)));
+  body.set("agreePolicy", String(Boolean(userData?.agreePolicy)));
+  body.set("marketingOptIn", String(Boolean(userData?.marketingOptIn)));
 
-    // DTO 필드 (UserRequestDTO 기준)
-    formData.append("userid", userData.userid ?? "");
-    formData.append("password", userData.password ?? "");
-    formData.append("passwordConfirm", userData.passwordConfirm ?? userData.confirmPassword ?? "");
-    formData.append("username", userData.username ?? userData.name ?? "");
-    formData.append("phone", userData.phone ?? "");
-    formData.append("gender", userData.gender ?? "");
-    formData.append("birthday", normalizeBirthday(userData.birthday ?? ""));
-    formData.append("agreeTerms", String(Boolean(userData.agreeTerms)));
-    formData.append("agreePrivacy", String(Boolean(userData.agreePrivacy)));
-    formData.append("agreePolicy", String(Boolean(userData.agreePolicy)));
-    formData.append("marketingOptIn", String(Boolean(userData.marketingOptIn)));
+  body.set("emailId", emailParts.emailId ?? "");
+  body.set("emailDomain", emailParts.emailDomain ?? "");
+  body.set("emailTLD", emailParts.emailTLD ?? "");
 
-    // Controller에서 별도로 받는 email 파트들(@RequestParam)
-    const email = userData.email ?? "";
-    const { emailId, emailDomain, emailTLD } = splitEmailForLegacy(email);
-    formData.append("emailId", emailId);
-    formData.append("emailDomain", emailDomain);
-    formData.append("emailTLD", emailTLD);
+  const res = await http.post("/User/Register", body, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    maxRedirects: 5,
+  });
 
-    // ---------- request ----------
-    // ⚠️ FormData 보낼 때 Content-Type을 직접 지정하지 마세요(바운더리 깨질 수 있음).
-    const res = await http.post("/User/Register", formData, {
-        validateStatus: () => true, // redirect/에러 상태를 우리가 해석
-    });
+  // 실패 시 /Register?errorMessage=... 로 redirect됨
+  throwIfRedirectError(res);
 
-    // axios(XHR)가 redirect를 따라간 최종 URL(브라우저 환경에서 제공)
-    const finalUrl = res?.request?.responseURL || "";
-
-    // 1) 백엔드가 실패 시: /Register?errorMessage=... 로 redirect
-    if (finalUrl.includes("/Register") && finalUrl.includes("errorMessage=")) {
-        const u = new URL(finalUrl, window.location.origin);
-        const raw = u.searchParams.get("errorMessage");
-        const msg = decodeErrorMessage(raw) || "회원가입에 실패했습니다.";
-        throw new Error(msg);
-    }
-
-    // 2) 혹시 /Register로 갔는데 errorMessage가 없는 케이스
-    if (finalUrl.includes("/Register") && !finalUrl.includes("errorMessage=")) {
-        throw new Error("회원가입에 실패했습니다. 입력값을 확인해주세요.");
-    }
-
-    // 3) 백엔드가 성공 시: /Login 으로 redirect
-    if (finalUrl.includes("/Login")) {
-        return { ok: true };
-    }
-
-    // 4) 서버 예외(500 등)
-    if (res.status >= 500) {
-        throw new Error("서버 오류로 회원가입에 실패했습니다. (백엔드 로그 확인 필요)");
-    }
-
-    // 5) 기타 4xx
-    if (res.status >= 400) {
-        throw new Error("회원가입에 실패했습니다. 입력값을 확인해주세요.");
-    }
-
-    // 예상 밖이지만 성공으로 간주
-    return { ok: true };
+  // 성공 시 /Login 으로 redirect됨
+  return { ok: true, message: extractRedirectErrorMessage(res) };
 }
 
-/**
- * 휴대폰 인증번호 발송
- */
-export async function sendPhoneOtp(phone, purpose = "SIGNUP") {
-    return http.post("/api/phone/otp/send", { phone, purpose });
+// ========================
+// 휴대폰 OTP (회원가입)
+// ========================
+
+export async function requestPhoneVerification(phone) {
+  return http.post("/api/phone/otp/send", { phone }).then((r) => r.data);
 }
 
-/**
- * 휴대폰 인증번호 검증
- */
-export async function verifyPhoneOtp(phone, code, purpose = "SIGNUP") {
-    return http.post("/api/phone/otp/verify", { phone, code, purpose });
+export async function verifyPhone(phone, code) {
+  return http.post("/api/phone/otp/verify", { phone, code }).then((r) => r.data);
 }
+
+// ========================
+// 아이디 찾기 (이름 + 휴대폰)
+// ========================
+
+export async function findUserId(name, phone) {
+  try {
+    const res = await http.post("/api/user/find-id/send", { name, phone }).then((r) => r.data);
+    if (!res?.ok) {
+      throw new Error(res?.message || "이름과 휴대폰 번호가 일치하는 회원이 없습니다.");
+    }
+    return res; // { ok:true, expiresIn:number }
+  } catch (e) {
+    const msg =
+      e?.response?.data?.message ||
+      e?.response?.data?.errorMessage ||
+      e?.message ||
+      "이름과 휴대폰 번호가 일치하는 회원이 없습니다.";
+    throw new Error(msg);
+  }
+}
+
+export async function verifyUserIdCode(phone, code) {
+  const res = await http.post("/api/user/find-id/verify", { phone, code }).then((r) => r.data);
+  if (!res?.ok) {
+    throw new Error(res?.message || "인증번호가 일치하지 않습니다.");
+  }
+  return res; // { ok:true, userId }
+}
+
+export async function getUserIdResult() {
+  const res = await http.get("/api/user/find-id/result").then((r) => r.data);
+  if (!res?.ok) {
+    throw new Error(res?.message || "조회할 아이디 정보가 없습니다.");
+  }
+  return res; // { ok:true, userId }
+}
+
+// ========================
+// 비밀번호 찾기 (아이디 + 휴대폰 OTP + 토큰으로 재설정)
+// - 프론트 FindPasswordPage.jsx 의 기대 형태에 맞춤
+// ========================
+
+export async function findPassword(loginId, phone) {
+  try {
+    const res = await http.post("/api/user/find-password/send", { loginId, phone }).then((r) => r.data);
+    if (!res?.ok) {
+      throw new Error(res?.message || "일치하는 회원 정보가 없습니다.");
+    }
+    return res;
+  } catch (e) {
+    const msg =
+      e?.response?.data?.message ||
+      e?.response?.data?.errorMessage ||
+      e?.message ||
+      "일치하는 회원 정보가 없습니다.";
+    throw new Error(msg);
+  }
+}
+
+export async function verifyPasswordCode(phone, code) {
+  const res = await http.post("/api/user/find-password/verify", { phone, code }).then((r) => r.data);
+  if (!res?.ok) {
+    throw new Error(res?.message || "인증번호가 일치하지 않습니다.");
+  }
+  return res; // { ok:true, token }
+}
+
+export async function setNewPassword(token, newPassword) {
+  const res = await http.post("/api/user/find-password/reset", { token, newPassword }).then((r) => r.data);
+  if (!res?.ok) {
+    throw new Error(res?.message || "비밀번호 변경에 실패했습니다.");
+  }
+  return res;
+}
+
+// ========================
+// 비밀번호 변경(로그인 상태)
+// ========================
+
+export async function changePassword(currentPassword, newPassword, confirmPassword) {
+  const body = new URLSearchParams();
+  body.set("currentPassword", currentPassword ?? "");
+  body.set("newPassword", newPassword ?? "");
+  body.set("confirmPassword", confirmPassword ?? "");
+
+  const res = await http.post("/User/Change_Password", body, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    maxRedirects: 5,
+  });
+
+  throwIfRedirectError(res);
+  return { ok: true, message: extractRedirectErrorMessage(res) };
+}
+
+// ========================
+// OAuth2
+// ========================
+
+export function getOAuth2AuthorizationUrl(provider) {
+  // backend security config: /oauth2/authorization/{registrationId}
+  // Vite proxy를 쓰는 경우 같은 origin에서 접근 가능
+  return `/oauth2/authorization/${provider}`;
+}
+
+// Backward-compatible aliases (코드 일부가 구버전 함수명을 쓰는 경우 대비)
+export const getAuthStatus = checkAuthStatus;
+export const sendPhoneOtp = requestPhoneVerification;
+export const verifyPhoneOtp = verifyPhone;
