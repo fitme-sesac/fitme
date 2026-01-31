@@ -2,7 +2,7 @@ import { Home, Briefcase, FileText, User, Settings, LogIn, LogOut, Target, HelpC
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AIChatWidget } from "@/components/chat/AIChatWidget";
 
 // 구직자용 메뉴
@@ -37,6 +37,12 @@ export function Sidebar() {
   const { user, signOut, isCompany } = useAuth();
   const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatResetSeq, setChatResetSeq] = useState(0);
+
+        useEffect(() => {
+            setIsChatOpen(false);
+            setChatResetSeq((v) => v + 1);
+        }, [location.pathname]);
 
   // 기업 회원이면 기업용 메뉴, 아니면 구직자용 메뉴
   const navItems = isCompany ? companyNavItems : jobSeekerNavItems;
@@ -142,7 +148,11 @@ export function Sidebar() {
       </aside>
 
       {/* AI Chat Widget */}
-      <AIChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+        <AIChatWidget
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            resetSeq={chatResetSeq}   // ✅ 추가
+        />
     </>
   );
 }

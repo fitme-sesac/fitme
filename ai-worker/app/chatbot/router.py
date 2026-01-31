@@ -1,4 +1,3 @@
-# app/chatbot/router.py
 from __future__ import annotations
 
 import uuid
@@ -13,19 +12,15 @@ router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 
 @router.post("/query", response_model=ChatbotQueryResponse)
 async def chatbot_query(request: ChatbotQueryRequest):
-    """Chatbot endpoint.
-
+    """
     - request.conversation_id가 없으면 서버에서 새로 생성
     - agent에 conversation_id 전달(대화 메모리/컨텍스트 유지)
     - response_model(ChatbotQueryResponse) 필수 필드(conversation_id 포함) 항상 채움
     """
     try:
         rid = str(uuid.uuid4())
-
-        # conversation_id 보장 생성
         conv_id = request.conversation_id or str(uuid.uuid4())
 
-        # agent에 conversation_id 전달
         out = await chatbot_agent.ask(
             request.message,
             request_id=rid,

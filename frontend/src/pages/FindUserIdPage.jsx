@@ -34,6 +34,7 @@ export default function FindUserIdPage() {
     const [isVerifying, setIsVerifying] = useState(false);
     const [timer, setTimer] = useState(0);
     const [foundUserId, setFoundUserId] = useState(null);
+    const [serverError, setServerError] = useState("");
 
     const form = useForm({
         resolver: zodResolver(formSchema),
@@ -64,12 +65,17 @@ export default function FindUserIdPage() {
         if (!phone || !/^01[0-9]{8,9}$/.test(phone)) { form.setError("phone", { message: "올바른 휴대폰 번호를 입력해주세요" }); return; }
 
         try {
-            await findUserId(name, phone);
+            setServerError("");
+            const res = await findUserId(name, phone);
             setVerificationSent(true);
-            setTimer(300);
+            setTimer(Number(res?.expiresIn ?? 300));
             toast({ title: "인증번호 발송", description: "입력하신 번호로 인증번호를 보냈습니다." });
         } catch (e) {
-            toast({ title: "발송 실패", description: e.message || "일치하는 회원 정보가 없습니다.", variant: "destructive" });
+            setVerificationSent(false);
+            setTimer(0);
+            const msg = e?.message || "이름과 휴대폰 번호가 일치하는 회원이 없습니다.";
+            setServerError(msg);
+            toast({ title: "발송 실패", description: msg, variant: "destructive" });
         }
     };
 
@@ -83,15 +89,22 @@ export default function FindUserIdPage() {
 
         setIsVerifying(true);
         try {
+            setServerError("");
             const res = await verifyUserIdCode(phone, code);
-            if (res && res.userId) {
-                setFoundUserId(res.userId);
+            const userId = res?.userId;
+            if (userId) {
+                setFoundUserId(userId);
                 toast({ title: "인증 성공", description: "아이디를 찾았습니다." });
+                navigate(`/auth/find-id/result?userid=${encodeURIComponent(userId)}`);
             } else {
-                toast({ title: "인증 실패", description: "인증번호가 일치하지 않습니다.", variant: "destructive" });
+                const msg = "아이디를 찾지 못했습니다. 입력 정보를 다시 확인해주세요.";
+                setServerError(msg);
+                toast({ title: "실패", description: msg, variant: "destructive" });
             }
         } catch (e) {
-            toast({ title: "오류", description: e.message || "인증 확인 중 오류가 발생했습니다.", variant: "destructive" });
+            const msg = e?.message || "인증 확인 중 오류가 발생했습니다.";
+            setServerError(msg);
+            toast({ title: "오류", description: msg, variant: "destructive" });
         } finally {
             setIsVerifying(false);
         }
@@ -146,6 +159,12 @@ export default function FindUserIdPage() {
                                 {!foundUserId ? (
                                     <Form {...form}>
                                         <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                                            {serverError && (
+                                                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                                    {serverError}
+                                                </div>
+                                            )}
+
                                             <FormField
                                                 control={form.control}
                                                 name="name"
@@ -179,10 +198,10 @@ export default function FindUserIdPage() {
                                                         type="button"
                                                         variant="outline"
                                                         onClick={handleSendAuth}
-                                                        disabled={verificationSent}
+                                                        disabled={verificationSent && timer > 0}
                                                         className="w-24 shrink-0 bg-white"
                                                     >
-                                                        {verificationSent ? "발송됨" : "인증 요청"}
+                                                        {verificationSent ? (timer > 0 ? "발송됨" : "재발송") : "인증 요청"}
                                                     </Button>
                                                 </div>
                                             </div>
