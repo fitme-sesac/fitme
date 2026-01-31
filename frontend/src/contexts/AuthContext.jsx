@@ -18,6 +18,25 @@ export function AuthProvider({ children }) {
         const axiosMsg = err?.response?.data?.message || err?.response?.data?.error;
         if (axiosMsg) return axiosMsg;
 
+        // ✅ 백엔드가 redirect URL query(errorMessage=...)로 에러를 전달하는 경우
+        // - XHR이 redirect를 따라가면서 최종 responseURL에 남는다.
+        // - proxy/환경에 따라 최종 요청이 4xx/5xx로 떨어질 수 있으므로 여기서도 파싱한다.
+        const finalUrl =
+            err?.response?.request?.responseURL ||
+            err?.request?.responseURL ||
+            err?.config?.url ||
+            "";
+        if (finalUrl) {
+            try {
+                const u = new URL(finalUrl, window.location.origin);
+                const p = u.searchParams;
+                const msg = p.get("errorMessage") || p.get("error") || p.get("message");
+                if (msg) return decodeURIComponent(msg);
+            } catch {
+                // ignore
+            }
+        }
+
         // authApi may throw plain object like { ok:false, message: "..." }
         if (typeof err?.message === "string" && err.message.trim()) return err.message;
 

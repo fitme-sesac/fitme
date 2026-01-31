@@ -54,6 +54,7 @@ export function JobSeekerSignUpForm() {
     const [isVerified, setIsVerified] = useState(false);
     const [timer, setTimer] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [submitAttempted, setSubmitAttempted] = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
@@ -89,17 +90,6 @@ export function JobSeekerSignUpForm() {
             toast({ variant: "destructive", title: "입력 오류", description: "올바른 휴대폰 번호를 입력해주세요." });
             return;
         }
-
-        // Magic Number for Testing
-        if (phone === "01000000000") {
-            toast({ title: "[Test Mode]", description: "테스트 번호입니다. 가짜 인증번호를 발송합니다." });
-            setVerificationSent(true);
-            setIsVerified(false);
-            setFormData((p) => ({ ...p, verificationCode: "" }));
-            setTimer(180);
-            return;
-        }
-
         try {
             const { data, error } = await requestPhoneVerification(phone);
 
@@ -143,16 +133,6 @@ export function JobSeekerSignUpForm() {
             toast({ variant: "destructive", title: "입력 오류", description: "인증번호를 입력하세요" });
             return;
         }
-
-        // Magic Number Bypass
-        if (phone === "01000000000" && code === "123456") {
-            setIsVerified(true);
-            setIsVerifying(false);
-            setTimer(0);
-            toast({ title: "[Test Mode]", description: "테스트 인증 성공!" });
-            return;
-        }
-
         setIsVerifying(true);
         try {
             const { data, error } = await verifyPhone(phone, code);
@@ -192,13 +172,17 @@ export function JobSeekerSignUpForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSubmitAttempted(true);
+        setServerError(null);
 
         if (!termsAgreed) {
+            setServerError("필수 약관에 동의해주세요.");
             toast({ variant: "destructive", title: "약관 동의 필요", description: "필수 약관에 동의해주세요." });
             document.getElementById("section-terms")?.scrollIntoView({ behavior: "smooth" });
             return;
         }
         if (!isVerified) {
+            setServerError("휴대폰 인증을 완료해주세요.");
             toast({ variant: "destructive", title: "본인 인증 필요", description: "휴대폰 인증을 완료해주세요." });
             document.getElementById("section-verify")?.scrollIntoView({ behavior: "smooth" });
             return;
@@ -206,6 +190,7 @@ export function JobSeekerSignUpForm() {
 
         const result = formSchema.safeParse(formData);
         if (!result.success) {
+            setServerError(result.error.errors[0].message);
             toast({
                 variant: "destructive",
                 title: "입력 오류",
@@ -265,6 +250,11 @@ export function JobSeekerSignUpForm() {
                     약관 동의
                     {termsAgreed && <CheckCircle2 className="h-5 w-5 text-green-500 ml-auto" />}
                 </h3>
+                {submitAttempted && !termsAgreed && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        필수 약관 동의가 완료되지 않았습니다. 약관 동의 섹션의 <b>(필수)</b> 항목을 모두 체크해야 합니다.
+                    </div>
+                )}
                 <div className="p-4 bg-card rounded-xl border border-border">
                     <TermsAgreement onComplete={setTermsAgreed} onChange={setAgreements} type="jobSeeker" />
                 </div>
@@ -277,6 +267,11 @@ export function JobSeekerSignUpForm() {
                     본인 인증 및 계정 정보
                     {isVerified && <CheckCircle2 className="h-5 w-5 text-green-500 ml-auto" />}
                 </h3>
+                {submitAttempted && !isVerified && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        휴대폰 인증이 완료되지 않았습니다. 휴대폰 인증을 완료해야 회원가입을 진행할 수 있습니다.
+                    </div>
+                )}
                 <div className="space-y-4 p-4 bg-card rounded-xl border border-border">
                     {/* Phone Verification */}
                     <div className="space-y-2">

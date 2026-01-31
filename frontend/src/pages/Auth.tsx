@@ -1,16 +1,24 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Target, Sparkles, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 
 export default function Auth() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<"login" | "signup">(() =>
     tabParam === "signup" || tabParam === "register" ? "signup" : "login"
+  );
+  const { toast } = useToast();
+  const [flashError, setFlashError] = useState<string | null>(() =>
+    searchParams.get("errorMessage") || searchParams.get("error")
+  );
+  const [flashSuccess, setFlashSuccess] = useState<string | null>(() =>
+    searchParams.get("message") || searchParams.get("successMessage") || searchParams.get("success")
   );
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -18,7 +26,20 @@ export default function Auth() {
   useEffect(() => {
     const t = searchParams.get("tab");
     if (t === "signup" || t === "register") setActiveTab("signup");
+
+    const err = searchParams.get("errorMessage") || searchParams.get("error");
+    const ok = searchParams.get("message") || searchParams.get("successMessage") || searchParams.get("success");
+    setFlashError(err);
+    setFlashSuccess(ok);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (flashError) {
+      toast({ variant: "destructive", title: "오류", description: flashError });
+    } else if (flashSuccess) {
+      toast({ title: "안내", description: flashSuccess });
+    }
+  }, [flashError, flashSuccess, toast]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -95,6 +116,40 @@ export default function Auth() {
             {/* Tabs & Form Card */}
             {/* Background: White for card to match theme. */}
             <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 md:p-8 shadow-xl border border-slate-200">
+              {(flashError || flashSuccess) && (
+                <div
+                  className={`mb-4 rounded-xl border p-3 text-sm ${
+                    flashError
+                      ? "border-red-200 bg-red-50 text-red-800"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  }`}
+                  role="alert"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="leading-5">
+                      {flashError ? flashError : flashSuccess}
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md px-2 py-1 text-xs hover:bg-black/5"
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams.toString());
+                        next.delete("errorMessage");
+                        next.delete("error");
+                        next.delete("message");
+                        next.delete("successMessage");
+                        next.delete("success");
+                        setSearchParams(next, { replace: true });
+                        setFlashError(null);
+                        setFlashSuccess(null);
+                      }}
+                      aria-label="메시지 닫기"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </div>
+              )}
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "signup")}>
                 <TabsList className="grid w-full grid-cols-2 mb-8 bg-slate-100 p-1">
                   <TabsTrigger
