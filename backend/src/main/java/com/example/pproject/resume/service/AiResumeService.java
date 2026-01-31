@@ -3,7 +3,7 @@ package com.example.pproject.resume.service;
 import com.example.pproject.Constant.SummaryStatus;
 import com.example.pproject.Config.AiServerConfig;
 import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.resume.dto.AiResumeRequest;
 import com.example.pproject.resume.dto.AiResumeResponse;
 import com.example.pproject.resume.entity.Resume;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 public class AiResumeService {
 
     private final ResumeRepository resumeRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final AiServerConfig aiServerConfig;
 
     /**
@@ -77,7 +77,7 @@ public class AiResumeService {
         // 3. 채용공고 정보 조회 (있는 경우)
         AiResumeRequest aiRequestPayload;
         if (jobId != null) {
-            JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
+            JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId)
                     .orElse(null);
             
             if (job != null) {

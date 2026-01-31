@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "path";
 
 const bypassSpaGet = (req: any) => {
     const accept = req.headers?.accept || "";
@@ -11,8 +12,11 @@ const bypassSpaGet = (req: any) => {
 
 export default defineConfig(({ mode }) => {
     // Vite env (.env, .env.development 등) 로드
-    // prefix="" 로 했으니 VITE_가 아닌 값도 로드되지만, 아래에서 안전하게 선택해서 씀
-    const env = loadEnv(mode, process.cwd(), "");
+    // 프로젝트 루트(.env)와 frontend 폴더(.env) 모두 로드 시도
+    const env = {
+        ...loadEnv(mode, path.resolve(__dirname, ".."), ""),
+        ...loadEnv(mode, process.cwd(), ""),
+    };
 
     /**
      * 핵심: "프록시 타겟(서버/컨테이너 내부용)" 과
@@ -42,16 +46,18 @@ export default defineConfig(({ mode }) => {
 
     return {
         plugins: [react()],
-        // Docker 환경에서 process.env로 전달된 VITE_ 환경변수를 클라이언트에서 사용 가능하게 함
-        define: {
-            'import.meta.env.VITE_TOSS_CLIENT_KEY': JSON.stringify(
-                process.env.VITE_TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY || ''
-            ),
+        resolve: {
+            alias: {
+                "@": path.resolve(__dirname, "./src"),
+            },
         },
         server: {
             host: true,
             port: 5173,
             strictPort: true,
+            hmr: {
+                overlay: false,
+            },
             proxy: {
                 // ===== Backend proxies =====
                 "/Login": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
@@ -71,6 +77,8 @@ export default defineConfig(({ mode }) => {
                 "/Logout": { target: backendTarget, changeOrigin: true },
                 "/oauth2": { target: backendTarget, changeOrigin: true },
                 "/login": { target: backendTarget, changeOrigin: true },
+
+                // API 프록시 (백엔드)
                 "/api": { target: backendTarget, changeOrigin: true },
 
                 // ===== AI worker proxies =====
@@ -78,6 +86,8 @@ export default defineConfig(({ mode }) => {
                 "/resumes": { target: aiTarget, changeOrigin: true },
             },
         },
+        define: {
+            "import.meta.env.VITE_TOSS_CLIENT_KEY": JSON.stringify(process.env.TOSS_CLIENT_KEY || env.TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY),
+        },
     };
 });
-

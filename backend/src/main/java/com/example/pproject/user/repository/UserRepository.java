@@ -22,5 +22,8 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     // 인증된 휴대폰은 1계정에만 귀속(논리삭제 제외)
     Optional<UserEntity> findFirstByPhoneAndPhoneVerifiedAtIsNotNullAndDeletedAtIsNull(String phone);
 
+    // 아이디 찾기(휴대폰): 이름 + 휴대폰 번호로 사용자 조회(논리삭제 제외)
+    Optional<UserEntity> findFirstByUsernameAndPhoneAndDeletedAtIsNull(String username, String phone);
+
     UserEntity findByEmailAndBirthdayAndUsername(String email, String birthday, String username);
 }

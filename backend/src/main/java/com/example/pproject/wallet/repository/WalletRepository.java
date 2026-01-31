@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface WalletRepository extends JpaRepository<Wallet, Long> {
@@ -36,4 +37,7 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select w from Wallet w where w.employer.id = :employerId")
     Optional<Wallet> findByEmployerWithLock(@Param("employerId") Long employerId);
+
+    // [Phase 2] 예약금이 남아있는 지갑 조회 (정산용)
+    List<Wallet> findAllByReservedBalanceGreaterThan(long amount);
 }

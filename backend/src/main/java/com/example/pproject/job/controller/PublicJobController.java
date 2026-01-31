@@ -4,8 +4,10 @@ import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.job.dto.JobDTO;
 import com.example.pproject.job.dto.JobFilterOptionsDTO;
 import com.example.pproject.job.dto.JobListResponseDTO;
+import com.example.pproject.job.dto.JobMatchInfoDTO;
 import com.example.pproject.job.service.JobService;
 import com.example.pproject.job.service.JobViewLogService;
+import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 공개 채용공고 API (인증 없이 접근 가능)
@@ -29,6 +33,7 @@ public class PublicJobController {
 
     private final JobService jobService;
     private final JobViewLogService jobViewLogService;
+    private final ResumeSkillService resumeSkillService;
     private final UserRepository userRepository;
 
     /**
@@ -84,6 +89,59 @@ public class PublicJobController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("공개 채용공고 목록 조회 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 최근 본 공고 목록 조회 (로그인 사용자 전용)
+     */
+    /**
+     * 최근 본 공고 목록 조회 (로그인 사용자 전용)
+     */
+    @GetMapping("/recently-viewed")
+    public ResponseEntity<?> getRecentlyViewedJobs(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam(defaultValue = "6") int limit) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+
+        try {
+            Long memberId = getMemberIdFromPrincipal(principal);
+            if (memberId == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "회원 정보를 찾을 수 없습니다."));
+            }
+
+            log.info("최근 본 공고 조회 요청 - memberId: {}, limit: {}", memberId, limit);
+            List<JobDTO> recentJobs = jobViewLogService.getRecentViewedJobs(memberId, limit);
+
+            // 최근 본 공고에도 매칭 정보 포함 시도 (선택적)
+            try {
+                // 지원자의 기술 스택 조회
+                Set<String> candidateSkills = resumeSkillService.getSkillsByMemberId(memberId);
+                if (candidateSkills != null && !candidateSkills.isEmpty()) {
+                    recentJobs.forEach(job -> {
+                        try {
+                            // 단순 스택 매칭만 계산
+                            JobMatchInfoDTO matchInfo = jobService.calculateMatchInfo(
+                                    job.getStack(),
+                                    candidateSkills,
+                                    null,
+                                    memberId);
+                            job.setMatchInfo(matchInfo);
+                        } catch (Exception e) {
+                            // 개별 매칭 계산 실패 무시
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                log.warn("최근 본 공고 매칭 정보 계산 중 오류 (무시됨): {}", e.getMessage());
+            }
+
+            return ResponseEntity.ok(recentJobs);
+        } catch (Exception e) {
+            log.error("최근 본 공고 조회 중 오류 발생", e);
             return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
         }
     }

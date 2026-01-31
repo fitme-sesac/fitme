@@ -6,14 +6,16 @@ import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.dto.*;
 import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
+import com.example.pproject.common.constants.JobPositionConstants;
 import com.example.pproject.common.util.ArrayStringUtil;
+import com.example.pproject.common.util.JobPositionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,7 +34,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class JobService {
 
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
     private final UserRepository userRepository;
@@ -143,7 +145,7 @@ public class JobService {
     public JobListResponseDTO getJobsByEmployer(String userid, int page, int size) {
         EmployerEntity employer = getEmployerByUserid(userid);
 
-        Page<JobEntity> jobPage = jobRepository.findByEmployerIdAndNotDeleted(
+        Page<JobEntity> jobPage = jobEntityRepository.findByEmployerIdAndNotDeleted(
                 employer.getId(),
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
         );
@@ -167,7 +169,7 @@ public class JobService {
     public JobDTO getJob(String userid, Long jobId) {
         EmployerEntity employer = getEmployerByUserid(userid);
 
-        JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
+        JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
 
         // 본인 기업의 채용공고인지 확인
@@ -221,7 +223,7 @@ public class JobService {
                 .requiredQuestions(dto.getRequiredQuestions())
                 .build();
 
-        jobRepository.save(job);
+        jobEntityRepository.save(job);
         log.info("채용공고 생성: {} (기업: {}, 요약: {})", job.getTitle(), employer.getName(), summary);
 
         // 알림 이벤트 발행
@@ -250,7 +252,7 @@ public class JobService {
         UserEntity user = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
-        JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
+        JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
 
         // 본인 기업의 채용공고인지 확인
@@ -275,7 +277,7 @@ public class JobService {
         if (dto.getRecruitmentCapacity() != null) job.setRecruitmentCapacity(dto.getRecruitmentCapacity());
         if (dto.getRequiredQuestions() != null) job.setRequiredQuestions(dto.getRequiredQuestions());
 
-        jobRepository.save(job);
+        jobEntityRepository.save(job);
         log.info("채용공고 수정: {}", job.getTitle());
 
         // 알림 이벤트 발행
@@ -329,7 +331,7 @@ public class JobService {
         UserEntity user = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
-        JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
+        JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
 
         // 본인 기업의 채용공고인지 확인
@@ -341,7 +343,7 @@ public class JobService {
 
         job.setDeletedAt(Instant.now());
         job.setStatus("CLOSED");
-        jobRepository.save(job);
+        jobEntityRepository.save(job);
         log.info("채용공고 삭제: {}", jobTitle);
 
         // 알림 이벤트 발행
@@ -377,8 +379,8 @@ public class JobService {
      * 채용공고 필터 옵션 조회 (사용 가능한 스택/지역 목록)
      */
     public JobFilterOptionsDTO getFilterOptions() {
-        List<String> stacks = jobRepository.findDistinctStacks();
-        List<String> locations = jobRepository.findDistinctLocations();
+        List<String> stacks = jobEntityRepository.findDistinctStacks();
+        List<String> locations = jobEntityRepository.findDistinctLocations();
         
         // null 값 제거 및 빈 문자열 제거
         stacks = stacks.stream()
@@ -400,6 +402,7 @@ public class JobService {
         return JobFilterOptionsDTO.builder()
                 .stacks(stacks)
                 .locations(locations)
+                .positionCategories(JobPositionConstants.DISPLAY_POSITION_LABELS)
                 .experienceOptions(JobFilterOptionsDTO.getDefaultExperienceOptions())
                 .build();
     }
@@ -420,18 +423,18 @@ public class JobService {
             // 키워드 검색 (한글 → 영어 변환 포함) - 네이티브 쿼리 사용
             String searchKeyword = convertKoreanToEnglish(keyword.trim());
             log.info("검색 키워드 변환: '{}' → '{}'", keyword.trim(), searchKeyword);
-            jobPage = jobRepository.searchPublicJobs(searchKeyword, pageRequestNoSort);
+            jobPage = jobEntityRepository.searchPublicJobs(searchKeyword, pageRequestNoSort);
         } else if (stack != null && !stack.isBlank()) {
             // 스택 필터 (한글 → 영어 변환 포함) - 네이티브 쿼리 사용
             String searchStack = convertKoreanToEnglish(stack.trim());
             log.info("스택 필터 변환: '{}' → '{}'", stack.trim(), searchStack);
-            jobPage = jobRepository.findPublicJobsByStack(searchStack, pageRequestNoSort);
+            jobPage = jobEntityRepository.findPublicJobsByStack(searchStack, pageRequestNoSort);
         } else if (location != null && !location.isBlank()) {
             // 지역 필터 - JPQL 쿼리 사용
-            jobPage = jobRepository.findPublicJobsByLocation(location.trim(), pageRequestWithSort);
+            jobPage = jobEntityRepository.findPublicJobsByLocation(location.trim(), pageRequestWithSort);
         } else {
             // 전체 조회 - JPQL 쿼리 사용
-            jobPage = jobRepository.findPublicJobs(pageRequestWithSort);
+            jobPage = jobEntityRepository.findPublicJobs(pageRequestWithSort);
         }
 
         List<JobDTO> jobs = jobPage.getContent().stream()
@@ -483,11 +486,11 @@ public class JobService {
      */
     @Transactional
     public JobDTO getPublicJob(Long jobId) {
-        JobEntity job = jobRepository.findPublicJobById(jobId)
+        JobEntity job = jobEntityRepository.findPublicJobById(jobId)
                 .orElseThrow(() -> new IllegalStateException("채용공고를 찾을 수 없습니다."));
 
         // 조회수 증가 (별도 쿼리로 처리하여 embedding 필드 업데이트 방지)
-        jobRepository.incrementViewCount(jobId);
+        jobEntityRepository.incrementViewCount(jobId);
         
         // DTO 변환 시 조회수 +1 반영
         JobDTO dto = toPublicJobDTO(job);
@@ -515,6 +518,7 @@ public class JobService {
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
                 .stack(ArrayStringUtil.listToString(job.getStack()))
+                .position(JobPositionUtil.derivePosition(job.getStack()))
                 .requiredExperience(job.getRequiredExperience())
                 .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
@@ -600,6 +604,7 @@ public class JobService {
                 .salaryText(job.getSalaryText())
                 .salaryDisplay(formatSalary(job.getSalaryText()))
                 .stack(ArrayStringUtil.listToString(job.getStack()))
+                .position(JobPositionUtil.derivePosition(job.getStack()))
                 .requiredExperience(job.getRequiredExperience())
                 .recruitmentCapacity(job.getRecruitmentCapacity())
                 .viewCount(job.getViewCount() != null ? job.getViewCount() : 0)
@@ -710,7 +715,7 @@ public class JobService {
         
         try {
             // JobEntity 조회 (경력 매칭용)
-            JobEntity jobEntity = jobRepository.findPublicJobById(jobId).orElse(null);
+            JobEntity jobEntity = jobEntityRepository.findPublicJobById(jobId).orElse(null);
             
             // 지원자의 기술 스택 조회
             Set<String> candidateSkills;

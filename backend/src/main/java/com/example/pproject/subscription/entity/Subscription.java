@@ -10,15 +10,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 @Entity
 @Table(name = "subscription")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 public class Subscription extends BaseTimeEntity {
-
-    private static final int BILLING_CYCLE_DAYS = 30;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -97,7 +96,8 @@ public class Subscription extends BaseTimeEntity {
         subscription.billingKey = billingKey;
         subscription.status = SubscriptionStatus.ACTIVE;
         subscription.startedAt = Instant.now();
-        subscription.nextBillingAt = Instant.now().plus(BILLING_CYCLE_DAYS, ChronoUnit.DAYS);
+        // 다음 결제일: 현재로부터 1개월 뒤 (UTC 기준)
+        subscription.nextBillingAt = ZonedDateTime.now(ZoneId.of("UTC")).plusMonths(1).toInstant();
         return subscription;
     }
 
@@ -254,7 +254,7 @@ public class Subscription extends BaseTimeEntity {
 
     /**
      * 구독 재개 (결제 실패 상태에서 복구)
-     * - 재개 시, 다음 결제일은 재개일로부터 한 주기 후로 재설정됩니다.
+     * - 재개 시, 다음 결제일은 재개일로부터 1개월 후로 재설정됩니다.
      */
     public void resume() {
         // 멱등성: 이미 활성 상태면 무시
@@ -265,8 +265,8 @@ public class Subscription extends BaseTimeEntity {
             throw new IllegalStateException("재개할 수 없습니다. 결제 실패 상태가 아니거나 빌링 정보가 없습니다.");
         }
         this.status = SubscriptionStatus.ACTIVE;
-        // 다음 결제일을 재개한 날짜 기준으로 재설정
-        this.nextBillingAt = Instant.now().plus(BILLING_CYCLE_DAYS, ChronoUnit.DAYS);
+        // 다음 결제일을 재개한 날짜 기준으로 1개월 후로 재설정 (UTC 기준)
+        this.nextBillingAt = ZonedDateTime.now(ZoneId.of("UTC")).plusMonths(1).toInstant();
     }
 
     /**
@@ -292,10 +292,12 @@ public class Subscription extends BaseTimeEntity {
     }
 
     /**
-     * 다음 결제일 설정 (빌링 주기 후)
+     * 다음 결제일 설정 (1개월 후)
      */
     public void scheduleNextBilling() {
-        this.nextBillingAt = Instant.now().plus(BILLING_CYCLE_DAYS, ChronoUnit.DAYS);
+        Instant baseTime = (this.nextBillingAt != null) ? this.nextBillingAt : Instant.now();
+        // UTC 기준으로 1개월 더하기
+        this.nextBillingAt = baseTime.atZone(ZoneId.of("UTC")).plusMonths(1).toInstant();
     }
 
     /**

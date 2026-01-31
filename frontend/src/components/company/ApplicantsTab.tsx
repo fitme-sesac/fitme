@@ -1,0 +1,297 @@
+import { useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  Mail, 
+  Calendar, 
+  FileText, 
+  MessageSquare,
+  CheckCircle,
+  XCircle,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  AlertCircle
+} from "lucide-react";
+import { useApplicants } from "@/hooks/useEmployers";
+
+const statusConfig: Record<string, { label: string; className: string; icon: typeof Clock }> = {
+  SUBMITTED: { label: "지원완료", className: "bg-info/10 text-info border-info/20", icon: Clock },
+  submitted: { label: "지원완료", className: "bg-info/10 text-info border-info/20", icon: Clock },
+  VIEWED: { label: "검토중", className: "bg-info/10 text-info border-info/20", icon: Clock },
+  INTERVIEW: { label: "면접예정", className: "bg-warning/10 text-warning border-warning/20", icon: Calendar },
+  interview: { label: "면접예정", className: "bg-warning/10 text-warning border-warning/20", icon: Calendar },
+  HIRED: { label: "채용확정", className: "bg-success/10 text-success border-success/20", icon: CheckCircle },
+  hired: { label: "채용확정", className: "bg-success/10 text-success border-success/20", icon: CheckCircle },
+  REJECTED: { label: "불합격", className: "bg-muted text-muted-foreground border-border", icon: XCircle },
+  rejected: { label: "불합격", className: "bg-muted text-muted-foreground border-border", icon: XCircle },
+  CANCELED: { label: "취소", className: "bg-muted text-muted-foreground border-border", icon: XCircle },
+};
+
+const matchLevelLabel: Record<string, string> = {
+  EXCELLENT: "🎯 아주 잘 맞아요!",
+  GOOD: "👍 잘 맞는 인재예요",
+  MODERATE: "📚 도전해볼 만해요",
+  LOW: "🌱 새로운 인재예요",
+};
+
+function matchRateDisplay(matchInfo: { overallMatchRate?: number; matchRate?: number } | null | undefined): number {
+  if (!matchInfo) return 0;
+  return matchInfo.overallMatchRate ?? matchInfo.matchRate ?? 0;
+}
+
+export function ApplicantsTab() {
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"latest" | "match">("match");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data, isLoading, error } = useApplicants(statusFilter);
+  const applicants = data?.applicants ?? [];
+  const total = data?.total ?? 0;
+
+  const sortedApplicants = useMemo(() => {
+    const list = [...applicants];
+    if (sortBy === "match") {
+      list.sort((a, b) => matchRateDisplay(b.matchInfo) - matchRateDisplay(a.matchInfo));
+    } else {
+      list.sort((a, b) => (b.appliedAt || "").localeCompare(a.appliedAt || ""));
+    }
+    return list;
+  }, [applicants, sortBy]);
+
+  const stats = useMemo(() => {
+    const submitted = applicants.filter((a) => (a.status || "").toUpperCase() === "SUBMITTED" || a.status === "submitted").length;
+    const interview = applicants.filter((a) => (a.status || "").toUpperCase() === "INTERVIEW" || a.status === "interview").length;
+    const hired = applicants.filter((a) => (a.status || "").toUpperCase() === "HIRED" || a.status === "hired").length;
+    return { total, submitted, interview, hired };
+  }, [applicants, total]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center text-muted-foreground">
+          지원자 목록을 불러오지 못했습니다. 로그인(기업회원) 후 다시 시도해 주세요.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 필터 */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-4">
+            <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="상태" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 상태</SelectItem>
+                <SelectItem value="SUBMITTED">지원완료</SelectItem>
+                <SelectItem value="INTERVIEW">면접예정</SelectItem>
+                <SelectItem value="HIRED">채용확정</SelectItem>
+                <SelectItem value="REJECTED">불합격</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as "latest" | "match")}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="정렬" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="latest">최신순</SelectItem>
+                <SelectItem value="match">매칭률순</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 통계 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+            <p className="text-sm text-muted-foreground">전체 지원자</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-info">{stats.submitted}</p>
+            <p className="text-sm text-muted-foreground">검토대기</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-warning">{stats.interview}</p>
+            <p className="text-sm text-muted-foreground">면접예정</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-success">{stats.hired}</p>
+            <p className="text-sm text-muted-foreground">채용확정</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 지원자 목록 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">지원자 목록 (채용공고 vs 이력서 스택 매칭)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {sortedApplicants.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">지원자가 없습니다.</p>
+          ) : (
+            sortedApplicants.map((applicant) => {
+              const statusKey = (applicant.status || "").toUpperCase();
+              const config = statusConfig[applicant.status || ""] ?? statusConfig[statusKey] ?? statusConfig.SUBMITTED;
+              const StatusIcon = config.icon;
+              const matchInfo = applicant.matchInfo;
+              const rate = matchRateDisplay(matchInfo);
+              const isExpanded = expandedId === applicant.applicationId;
+
+              return (
+                <div
+                  key={applicant.applicationId}
+                  className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-12 w-12">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {(applicant.name || "?").slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-foreground">{applicant.name || "-"}</h3>
+                          <Badge variant="outline" className={config.className}>
+                            <StatusIcon className="h-3 w-3 mr-1" />
+                            {config.label}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{applicant.jobTitle || "-"}</p>
+                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {applicant.email || "-"}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {applicant.appliedAt ? new Date(applicant.appliedAt).toLocaleDateString("ko-KR") : "-"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      {/* AI 매칭 점수 (채용공고 stack vs 이력서 re_stack·tech_stack) */}
+                      <div className="text-center px-4 py-2 rounded-lg bg-primary/5 border border-primary/20">
+                        <p className="text-2xl font-bold text-primary">{rate}%</p>
+                        <p className="text-xs text-muted-foreground">AI 매칭</p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" title="이력서 보기 (추후 연동)">
+                          <FileText className="h-4 w-4 mr-1" />
+                          이력서
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setExpandedId(isExpanded ? null : applicant.applicationId)}
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+                          매칭 상세
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 매칭 상세 (구직자 채용공고 상세와 동일 구조) */}
+                  {isExpanded && matchInfo && (
+                    <div className="mt-4 pt-4 border-t space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <span className="font-semibold">나와의 매칭률 (공고 스택 vs 이력서 스택)</span>
+                      </div>
+                      <div className="flex flex-wrap gap-4">
+                        <div className="rounded-lg bg-muted/50 p-2 text-center min-w-[64px]">
+                          <span className="font-semibold text-green-600">{matchInfo.stackMatchRate ?? 0}%</span>
+                          <div className="text-muted-foreground text-xs">기술스택</div>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 p-2 text-center min-w-[64px]">
+                          <span className="font-semibold text-orange-500">{matchInfo.experienceMatchRate ?? 0}%</span>
+                          <div className="text-muted-foreground text-xs">경력</div>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 p-2 text-center min-w-[64px]">
+                          <span className="font-semibold text-violet-600">{matchInfo.vectorMatchRate ?? 0}%</span>
+                          <div className="text-muted-foreground text-xs">AI분석</div>
+                        </div>
+                      </div>
+                      {matchInfo.matchLevel && (
+                        <Badge variant="secondary">{matchLevelLabel[matchInfo.matchLevel] ?? matchInfo.matchLevel}</Badge>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-green-600 mb-1 flex items-center gap-1">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> 보유 기술 ({matchInfo.matchedStacks?.length ?? 0}개)
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {(matchInfo.matchedStacks?.length ?? 0) > 0
+                              ? matchInfo.matchedStacks.map((s, i) => (
+                                  <Badge key={i} variant="secondary" className="bg-green-500/10 text-green-700 text-xs">
+                                    {s}
+                                  </Badge>
+                                ))
+                              : <span className="text-muted-foreground text-xs">없음</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-amber-600 mb-1 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5" /> 부족 기술 ({matchInfo.missingStacks?.length ?? 0}개)
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {(matchInfo.missingStacks?.length ?? 0) > 0
+                              ? matchInfo.missingStacks.map((s, i) => (
+                                  <Badge key={i} variant="secondary" className="bg-amber-500/10 text-amber-700 text-xs">
+                                    {s}
+                                  </Badge>
+                                ))
+                              : <span className="text-muted-foreground text-xs">없음</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

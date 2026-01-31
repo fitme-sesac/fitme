@@ -11,11 +11,11 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class JobUpdateDTO {
-    
+
     private String title;
     private String description;
     private String status;
-    
+
     // ERD 기준 필드
     private String location;
     private String salaryText;  // VARCHAR(80) - 급여 정보

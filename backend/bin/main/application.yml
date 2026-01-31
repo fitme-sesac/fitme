@@ -2,6 +2,19 @@ spring:
   session:
     store-type: redis
 
+  batch:
+    jdbc:
+      # 개발 환경에서는 always로, 운영 환경에서는 never로 설정
+      initialize-schema: always
+    job:
+      # 애플리케이션 시작 시 Job 자동 실행 방지
+      enabled: false
+  task:
+    scheduling:
+      pool:
+        # 스케줄러 스레드 풀 크기 설정
+        size: 10
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
