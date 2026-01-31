@@ -153,31 +153,3 @@ export async function sendPhoneOtp(phone, purpose = "SIGNUP") {
 export async function verifyPhoneOtp(phone, code, purpose = "SIGNUP") {
     return http.post("/api/phone/otp/verify", { phone, code, purpose });
 }
-
-/**
- * 아이디 찾기 - 인증번호 발송
- */
-export async function sendFindIdOtp(name, phone) {
-    return http.post("/User/Find_Userid", { name, phone });
-}
-
-/**
- * 아이디 찾기 - 인증번호 확인
- */
-export async function verifyFindIdOtp(name, phone, code) {
-    return http.post("/User/Verify_Userid_Code", { name, phone, code });
-}
-
-/**
- * 비밀번호 찾기 - 인증번호 발송
- */
-export async function sendFindPwOtp(userid, phone) {
-    return http.post("/User/Find_Password", { userid, phone });
-}
-
-/**
- * 비밀번호 찾기 - 인증번호 검증 및 링크 발급
- */
-export async function verifyFindPwOtp(userid, phone, code) {
-    return http.post("/User/Verify_Code", { userid, phone, code });
-}
