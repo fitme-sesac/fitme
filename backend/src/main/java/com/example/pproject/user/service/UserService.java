@@ -200,6 +200,39 @@ public class UserService implements UserDetailsService {
         return userEntity.getUserid();
     }
 
+    /**
+     * 아이디 찾기(휴대폰): 이름 + 휴대폰 번호로 login_id(userid)를 조회
+     * - 논리삭제 계정 제외
+     * - 소셜 회원(비밀번호 없음)은 아이디 찾기 대상에서 제외(소셜 로그인으로 로그인 안내)
+     */
+    public String findUseridByNameAndPhone(String username, String phone) {
+        String name = (username == null) ? "" : username.trim();
+        String normalizedPhone = (phone == null) ? "" : phone.replaceAll("[^0-9]", "");
+
+        if (name.isBlank()) {
+            throw new IllegalStateException("이름을 입력해주세요.");
+        }
+        if (normalizedPhone.isBlank()) {
+            throw new IllegalStateException("휴대폰 번호를 입력해주세요.");
+        }
+
+        UserEntity userEntity = userRepository
+                .findFirstByUsernameAndPhoneAndDeletedAtIsNull(name, normalizedPhone)
+                .orElseThrow(() -> new IllegalStateException("이름과 휴대폰 번호가 일치하는 회원이 없습니다."));
+
+        // 기존 정책과 동일: 소셜 회원은 아이디 찾기 불가
+        if (userEntity.getPassword() == null || userEntity.getPassword().isBlank()) {
+            throw new IllegalStateException("소셜 로그인 계정입니다. 카카오/네이버/구글 로그인을 이용해주세요.");
+        }
+
+        String userid = userEntity.getUserid();
+        if (userid == null || userid.isBlank()) {
+            throw new IllegalStateException("아이디 정보가 없습니다. 고객센터에 문의해주세요.");
+        }
+
+        return userid;
+    }
+
     public boolean verifyPassword(String userid, String password) {
         UserEntity userEntity = userRepository.findByUserid(userid)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userid));

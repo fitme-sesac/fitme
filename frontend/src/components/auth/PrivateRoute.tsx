@@ -4,17 +4,12 @@ import { Loader2 } from "lucide-react";
 
 interface PrivateRouteProps {
     children: React.ReactNode;
+	requiredRole?: string;
 }
 
-export default function PrivateRoute({ children }: PrivateRouteProps) {
+export default function PrivateRoute({ children, requiredRole }: PrivateRouteProps) {
     const { user, loading } = useAuth() as any;
     const location = useLocation();
-
-    console.log("PrivateRoute Check:", {
-        path: location.pathname,
-        user: user?.email,
-        loading
-    });
 
     if (loading) {
         return (
@@ -25,9 +20,12 @@ export default function PrivateRoute({ children }: PrivateRouteProps) {
     }
 
     if (!user) {
-        console.log("PrivateRoute: No user, redirecting relative to", location.pathname);
         // Redirect to login page but save the attempted location
         return <Navigate to="/auth" state={{ from: location }} replace />;
+    }
+
+    if (requiredRole && user?.role && user.role !== requiredRole) {
+        return <Navigate to="/" replace />;
     }
 
     return <>{children}</>;
