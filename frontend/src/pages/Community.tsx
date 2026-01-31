@@ -158,9 +158,9 @@ export default function Community() {
             id: `new-${Date.now()}`,
             author: {
                 id: user?.id || "unknown",
-                name: user?.user_metadata?.display_name || "사용자",
+                name: user?.user_metadata?.name || user?.user_metadata?.display_name || user?.user_metadata?.handle || user?.username || "사용자",
                 title: "Member",
-                avatar: user?.user_metadata?.avatar_url,
+                avatar: user?.user_metadata?.avatar_url || user?.user_metadata?.profileImage,
             },
             content,
             category: category as 'general' | 'company_news' | 'career_tips' | 'qna',

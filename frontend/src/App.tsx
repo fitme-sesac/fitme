@@ -1,13 +1,13 @@
-// App.tsx
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { ProfileSetupModal } from "@/components/auth/ProfileSetupModal";
 
 import Index from "./pages/Index";
 import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
 import Talents from "./pages/Talents";
-import Companies from "./pages/Companies";
 import CompanyDetail from "./pages/CompanyDetail";
 import Community from "./pages/Community";
 import Interview from "./pages/Interview";
@@ -15,10 +15,15 @@ import Resume from "./pages/Resume";
 import Subscription from "./pages/Subscription";
 import MyPage from "./pages/MyPage";
 import CompanyDashboard from "./pages/CompanyDashboard";
+import CompanyManagement from "./pages/CompanyManagement";
 import JobSeekerMyPage from "./pages/JobSeekerMyPage";
+import JobSeekerSignup from "./pages/JobSeekerSignup";
 import AdminDashboard from "./pages/AdminDashboard";
 import Support from "./pages/Support";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
+import PaymentFailPage from "./pages/payment/PaymentFailPage";
 
 import Auth from "./pages/Auth";
 import FindUserIdPage from "./pages/FindUserIdPage";
@@ -54,6 +59,8 @@ function JumpToBackendSamePath() {
 export default function App() {
     return (
         <AuthProvider>
+            <Sonner />
+            <ProfileSetupModal />
             <BrowserRouter>
                 <Routes>
                     {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
@@ -94,17 +101,23 @@ export default function App() {
                     <Route path="/jobs" element={<Jobs />} />
                     <Route path="/jobs/:jobId" element={<JobDetail />} />
                     <Route path="/talents" element={<Talents />} />
-                    <Route path="/companies" element={<Companies />} />
+                    <Route path="/companies" element={<CompanyManagement />} />
                     <Route path="/companies/:companyId" element={<CompanyDetail />} />
                     <Route path="/community" element={<Community />} />
                     <Route path="/interview" element={<Interview />} />
                     <Route path="/support" element={<Support />} />
 
+                    <Route path="/payment/success" element={<PaymentSuccessPage />} />
+                    <Route path="/payment/fail" element={<PaymentFailPage />} />
+                    <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
+                    <Route path="/payment/products" element={<Subscription />} />
+
+                    <Route path="/resume" element={<Resume />} />
                     <Route
-                        path="/resume"
+                        path="/settings"
                         element={
                             <PrivateRoute>
-                                <Resume />
+                                <Settings />
                             </PrivateRoute>
                         }
                     />
@@ -116,14 +129,7 @@ export default function App() {
                             </PrivateRoute>
                         }
                     />
-                    <Route
-                        path="/mypage"
-                        element={
-                            <PrivateRoute>
-                                <MyPage />
-                            </PrivateRoute>
-                        }
-                    />
+                    <Route path="/mypage" element={<MyPage />} />
                     <Route
                         path="/company/dashboard"
                         element={
@@ -135,7 +141,7 @@ export default function App() {
                     <Route
                         path="/jobseeker/mypage"
                         element={
-                            <PrivateRoute requiredRole="JOB_SEEKER">
+                            <PrivateRoute requiredRole="CANDIDATE">
                                 <JobSeekerMyPage />
                             </PrivateRoute>
                         }
@@ -143,7 +149,7 @@ export default function App() {
                     <Route
                         path="/admin"
                         element={
-                            <PrivateRoute requiredRole="ADMIN">
+                            <PrivateRoute requiredRole="SERVICEADMIN">
                                 <AdminDashboard />
                             </PrivateRoute>
                         }

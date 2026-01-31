@@ -10,13 +10,13 @@ export interface InterviewDTO {
     applicationId: number;
 
     // 면접 정보
-    stage: "ROUND1" | "ROUND2" | "FINAL"; // Adjust based on Enum if needed, or string
-    method: "ONLINE" | "OFFLINE";
+    stage: "FIRST" | "SECOND" | "FINAL";
+    method: "ONSITE" | "VIDEO" | "PHONE";
     location?: string;
     meetingUrl?: string;
     startAt: string; // ISO string
     endAt: string; // ISO string
-    status: "SCHEDULED" | "COMPLETED" | "CANCELED"; // Adjust based on Enum
+    status: "PROPOSED" | "CONFIRMED" | "CANCELED" | "DONE";
 
     // 지원 정보
     jobId: number;

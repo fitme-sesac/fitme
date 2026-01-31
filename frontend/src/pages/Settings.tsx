@@ -11,6 +11,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Bell, Lock, UserX, ChevronRight, AlertTriangle, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PaymentResultModal } from "@/components/payment/PaymentResultModal";
 
 type SettingsTab = "notification" | "password" | "delete";
 
@@ -215,6 +216,7 @@ export default function Settings() {
                 </main>
                 <Footer />
             </div>
+            <PaymentResultModal />
         </div>
     );
 }

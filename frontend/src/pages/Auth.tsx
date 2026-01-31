@@ -20,7 +20,7 @@ export default function Auth() {
   const [flashSuccess, setFlashSuccess] = useState<string | null>(() =>
     searchParams.get("message") || searchParams.get("successMessage") || searchParams.get("success")
   );
-  const { user, loading } = useAuth();
+  const { user, loading, isCompany, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,10 +42,17 @@ export default function Auth() {
   }, [flashError, flashSuccess, toast]);
 
   useEffect(() => {
+    // 이미 로그인되어 있다면 역할에 맞는 대시보드로 이동
     if (!loading && user) {
-      navigate("/");
+      if (isCompany) {
+        navigate("/company/dashboard");
+      } else if (isAdmin) {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, isCompany, isAdmin]);
 
   if (loading) {
     return (
@@ -118,11 +125,10 @@ export default function Auth() {
             <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 md:p-8 shadow-xl border border-slate-200">
               {(flashError || flashSuccess) && (
                 <div
-                  className={`mb-4 rounded-xl border p-3 text-sm ${
-                    flashError
+                  className={`mb-4 rounded-xl border p-3 text-sm ${flashError
                       ? "border-red-200 bg-red-50 text-red-800"
                       : "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  }`}
+                    }`}
                   role="alert"
                 >
                   <div className="flex items-start justify-between gap-3">

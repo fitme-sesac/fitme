@@ -39,10 +39,10 @@ export function Sidebar() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatResetSeq, setChatResetSeq] = useState(0);
 
-        useEffect(() => {
-            setIsChatOpen(false);
-            setChatResetSeq((v) => v + 1);
-        }, [location.pathname]);
+  useEffect(() => {
+    setIsChatOpen(false);
+    setChatResetSeq((v) => v + 1);
+  }, [location.pathname]);
 
   // 기업 회원이면 기업용 메뉴, 아니면 구직자용 메뉴
   const navItems = isCompany ? companyNavItems : jobSeekerNavItems;
@@ -62,11 +62,11 @@ export function Sidebar() {
       <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar hidden lg:flex flex-col">
         {/* 로고 */}
         <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-teal-400 shadow-sm">
-              <Target className="h-5 w-5 text-white" strokeWidth={2.5} />
+          <Link to="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-teal-400 shadow-sm">
+              <Target className="h-6 w-6 text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-xl font-bold text-sky-600 tracking-tight">FitMe</span>
+            <span className="text-xl font-bold text-sky-600">FitMe</span>
           </Link>
         </div>
 
@@ -148,11 +148,11 @@ export function Sidebar() {
       </aside>
 
       {/* AI Chat Widget */}
-        <AIChatWidget
-            isOpen={isChatOpen}
-            onClose={() => setIsChatOpen(false)}
-            resetSeq={chatResetSeq}   // ✅ 추가
-        />
+      <AIChatWidget
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        resetSeq={chatResetSeq}   // ✅ 추가
+      />
     </>
   );
 }

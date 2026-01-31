@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -20,6 +20,13 @@ import {
     getPositionLabelsFromStack,
     getPositionSortOrder,
 } from "@/shared/constants/positionCategories";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 // --- Types ---
 export interface Job {
@@ -103,13 +110,26 @@ function getJobPositionLabels(job: Job): string[] {
 }
 
 export default function Jobs() {
-    const { isCompany } = useAuth();
+    const { isCompany, user } = useAuth();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [keyword, setKeyword] = useState(searchParams.get("keyword") || "");
     const [page, setPage] = useState(0);
     const [activePopup, setActivePopup] = useState<string | null>(null);
     const [locationDrillRegion, setLocationDrillRegion] = useState<string | null>(null);
     const filterScrollRef = useRef<HTMLDivElement>(null);
+
+    // Login Prompt Logic
+    const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+    useEffect(() => {
+        if (!user) {
+            const timer = setTimeout(() => {
+                setShowLoginPrompt(true);
+            }, 5000); // 5초 후 로그인 유도 (커뮤니티보다 조금 더 빠르게)
+            return () => clearTimeout(timer);
+        }
+    }, [user]);
 
     // 경력·연봉: 슬라이더로만 관리
     const [experienceRange, setExperienceRange] = useState<number[]>([0, 10]);
@@ -689,6 +709,27 @@ export default function Jobs() {
                 </main>
                 <Footer />
             </div>
+
+            {/* Login Prompt Dialog */}
+            <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>로그인이 필요합니다</DialogTitle>
+                        <DialogDescription>
+                            더 많은 채용 공고와 상세 정보를 확인하시려면 로그인이 필요합니다.<br />
+                            3초 만에 로그인하고 맞춤형 공고를 추천받아보세요!
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setShowLoginPrompt(false)}>
+                            구경하기
+                        </Button>
+                        <Button onClick={() => navigate("/auth")} className="bg-sky-500 hover:bg-sky-600">
+                            로그인 하러가기
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

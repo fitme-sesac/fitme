@@ -340,7 +340,7 @@ export default function Support() {
                     {/* Page Title Area (RocketPunch Style) */}
                     <div className="flex items-end justify-between mb-8 border-b pb-4">
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#5A639C] text-white">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-lg text-white" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}>
                                 <Target className="h-6 w-6" />
                             </div>
                             <h1 className="text-2xl font-bold">고객센터</h1>

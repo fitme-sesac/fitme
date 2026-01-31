@@ -301,12 +301,22 @@ export function Header() {
                 <div className="flex items-center justify-start gap-2 p-2">
                   <div className="flex flex-col space-y-1 leading-none">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{user.user_metadata?.display_name || user.email}</p>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                      <p className="font-medium truncate max-w-[120px]">
+                        {user.user_metadata?.name ||
+                          user.user_metadata?.display_name ||
+                          user.user_metadata?.full_name ||
+                          user.user_metadata?.handle ||
+                          user.username ||
+                          user.email?.split('@')[0] ||
+                          "사용자"}
+                      </p>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal shrink-0">
                         {isAdmin ? "관리자" : isCompany ? "기업" : "구직자"}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                      {user.email || "이메일 없음"}
+                    </p>
                   </div>
                 </div>
                 {/* 모바일에서 크레딧 표시 */}

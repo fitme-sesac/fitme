@@ -107,10 +107,11 @@ const InterviewPage = () => {
     if (!user && !authLoading) {
         return (
             <div className="min-h-screen bg-[#F8F9FA]">
+                {/* Guest View (Verified) */}
                 <Sidebar />
                 <div className="lg:pl-64 flex flex-col min-h-screen">
                     <Header />
-                    <main className="flex-1 p-6 lg:p-10 flex items-center justify-center">
+                    <main className="flex-1 p-6 lg:p-10 flex items-center justify-center min-h-[calc(100vh-80px)]">
                         <div className="max-w-2xl w-full">
                             <Card className="overflow-hidden border-none shadow-lg">
                                 <div className="bg-gradient-to-br from-sky-500/10 to-sky-500/5 p-10 text-center border-b border-sky-100/50">
@@ -123,13 +124,54 @@ const InterviewPage = () => {
                                     </p>
                                 </div>
                                 <CardContent className="p-8">
+                                    {/* 기능 안내 */}
+                                    <div className="grid gap-4 mb-8">
+                                        <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50/50 border border-gray-100/50">
+                                            <div className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                <CalendarIcon className="h-5 w-5 text-sky-500" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900">면접 캘린더</p>
+                                                <p className="text-sm text-gray-500">일정을 캘린더 형태의 깨끗한 화면으로 확인하세요</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50/50 border border-gray-100/50">
+                                            <div className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                <Briefcase className="h-5 w-5 text-sky-500" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900">맞춤 채용 제안</p>
+                                                <p className="text-sm text-gray-500">기업이 내 이력을 검토하고 먼저 보내는 제안을 받아보세요</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50/50 border border-gray-100/50">
+                                            <div className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                <Bell className="h-5 w-5 text-sky-500" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900">실시간 진행 알림</p>
+                                                <p className="text-sm text-gray-500">중요한 면접 일정과 결과 소식을 실시간으로 알려드립니다</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 로그인 버튼 */}
                                     <div className="flex flex-col gap-4">
-                                        <Button asChild className="w-full btn-gradient-primary h-12 border-0" size="lg">
+                                        <Button asChild className="w-full text-white h-12 shadow-md border-0 transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }} size="lg">
                                             <Link to="/auth">
                                                 <LogIn className="h-5 w-5 mr-2" />
                                                 로그인하고 시작하기
                                             </Link>
                                         </Button>
+
+                                        <p className="text-center text-sm text-gray-400">
+                                            아직 회원이 아니신가요?{" "}
+                                            <Link to="/auth?mode=signup" className="text-sky-500 font-bold hover:underline">
+                                                간편 회원가입
+                                            </Link>
+                                        </p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -151,9 +193,14 @@ const InterviewPage = () => {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case "SCHEDULED":
+            case "PROPOSED":
+                return <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-none">제안됨</Badge>;
+            case "CONFIRMED":
+                return <Badge className="bg-green-500 hover:bg-green-600 text-white border-none">확정됨</Badge>; // Changed color for confirmed
+            case "SCHEDULED": // Keeping purely for fallback if legacy data exists
                 return <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-none">예정</Badge>;
-            case "COMPLETED":
+            case "COMPLETED": // Legacy fallback
+            case "DONE":
                 return <Badge variant="secondary">완료</Badge>;
             case "CANCELED":
                 return <Badge variant="destructive">취소</Badge>;
@@ -302,7 +349,7 @@ const InterviewPage = () => {
                                                                                 {format(parseISO(interview.startAt), "a h:mm", { locale: ko })}
                                                                             </span>
                                                                             <span className="flex items-center gap-2">
-                                                                                {interview.method === "ONLINE" ? (
+                                                                                {interview.method === "VIDEO" || interview.method === "PHONE" ? (
                                                                                     <Video className="h-4 w-4 text-gray-400" />
                                                                                 ) : (
                                                                                     <MapPin className="h-4 w-4 text-gray-400" />
@@ -337,39 +384,50 @@ const InterviewPage = () => {
                                         <div className="space-y-4">
                                             <h2 className="text-lg font-bold text-gray-900 px-1">다가오는 면접 일정</h2>
                                             <div className="space-y-3">
-                                                {interviews.map((interview) => (
-                                                    <div
-                                                        key={interview.interviewId}
-                                                        className="flex items-center justify-between p-5 rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                                                    >
-                                                        <div className="flex items-center gap-5">
-                                                            <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors">
-                                                                {interview.method === "ONLINE" ? (
-                                                                    <Video className="h-7 w-7 text-sky-500" />
-                                                                ) : (
-                                                                    <Building2 className="h-7 w-7 text-sky-500" />
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-bold text-gray-900 group-hover:text-sky-600 transition-colors">
-                                                                    {interview.companyName} - {interview.jobTitle}
-                                                                </p>
-                                                                <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
-                                                                    <span className="flex items-center gap-1.5">
-                                                                        <CalendarIcon className="h-3.5 w-3.5" />
-                                                                        {format(parseISO(interview.startAt), "M월 d일 (EEE) a h:mm", { locale: ko })}
-                                                                    </span>
-                                                                    <span className="text-gray-200">|</span>
-                                                                    <span>{interview.method} 면접</span>
+                                                {interviews.length > 0 ? (
+                                                    interviews.map((interview) => (
+                                                        <div
+                                                            key={interview.interviewId}
+                                                            className="flex items-center justify-between p-5 rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                                                        >
+                                                            <div className="flex items-center gap-5">
+                                                                <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors">
+                                                                    {interview.method === "VIDEO" ? (
+                                                                        <Video className="h-7 w-7 text-sky-500" />
+                                                                    ) : interview.method === "PHONE" ? ( // PHONE case added if needed, or map appropriately
+                                                                        <Video className="h-7 w-7 text-sky-500" />
+                                                                    ) : (
+                                                                        <Building2 className="h-7 w-7 text-sky-500" />
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-gray-900 group-hover:text-sky-600 transition-colors">
+                                                                        {interview.companyName} - {interview.jobTitle}
+                                                                    </p>
+                                                                    <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <CalendarIcon className="h-3.5 w-3.5" />
+                                                                            {format(parseISO(interview.startAt), "M월 d일 (EEE) a h:mm", { locale: ko })}
+                                                                        </span>
+                                                                        <span className="text-gray-200">|</span>
+                                                                        <span>{interview.method === 'ONSITE' ? '대면' : interview.method === 'VIDEO' ? '화상' : '전화'} 면접</span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
+                                                            <div className="flex items-center gap-4">
+                                                                {getStatusBadge(interview.status)}
+                                                                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-sky-500 transition-colors" />
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center gap-4">
-                                                            {getStatusBadge(interview.status)}
-                                                            <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-sky-500 transition-colors" />
+                                                    ))
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center py-12 bg-white rounded-xl shadow-sm">
+                                                        <div className="h-12 w-12 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                                            <Briefcase className="h-6 w-6 text-gray-300" />
                                                         </div>
+                                                        <p className="text-gray-500 font-medium">예정된 면접 일정이 없습니다.</p>
                                                     </div>
-                                                ))}
+                                                )}
                                             </div>
                                         </div>
                                     </div>

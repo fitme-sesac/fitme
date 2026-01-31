@@ -14,6 +14,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { usePublicJob } from "@/hooks/useJobs";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApplyModal } from "@/components/jobs/ApplyModal";
 
 const matchRateDisplay = (matchInfo) => matchInfo?.overallMatchRate ?? matchInfo?.matchRate ?? 0;
 const matchLevelLabel = (level) => {
@@ -27,8 +28,9 @@ const matchLevelLabel = (level) => {
 export default function JobDetail() {
   const { jobId } = useParams();
   const { data: job, isLoading, error } = usePublicJob(jobId);
-  const { isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const [showMatchDetail, setShowMatchDetail] = useState(false);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
   // 스킬 배열 처리
   const skills = job?.stack
@@ -397,12 +399,19 @@ export default function JobDetail() {
               <div className="rounded-2xl bg-card p-6 border sticky top-24">
                 <h3 className="font-semibold mb-4">이 공고에 지원하기</h3>
 
-                {isAuthenticated ? (
-                  <Link to={`/jobs/${jobId}/apply`}>
-                    <Button className="w-full btn-gradient-primary" size="lg">
+                {user ? (
+                  <>
+                    <Button
+                      className="w-full btn-gradient-primary text-white border-0 shadow-lg shadow-sky-500/20"
+                      size="lg"
+                      onClick={() => setIsApplyModalOpen(true)}
+                    >
                       지원하기
                     </Button>
-                  </Link>
+                    <p className="text-xs text-center text-muted-foreground mt-3">
+                      {job.matchInfo ? `나와의 매칭률: ${matchRateDisplay(job.matchInfo)}%` : "지원 전 매칭률을 확인해보세요"}
+                    </p>
+                  </>
                 ) : (
                   <div className="space-y-3">
                     <Link to="/auth">
@@ -415,6 +424,13 @@ export default function JobDetail() {
                     </p>
                   </div>
                 )}
+
+                <ApplyModal
+                  isOpen={isApplyModalOpen}
+                  onClose={() => setIsApplyModalOpen(false)}
+                  jobTitle={job.title}
+                  jobId={jobId}
+                />
 
                 <Separator className="my-4" />
 

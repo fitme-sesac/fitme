@@ -91,10 +91,10 @@ export async function register(userData) {
   const emailParts =
     userData?.emailId && userData?.emailDomain && userData?.emailTLD
       ? {
-          emailId: String(userData.emailId),
-          emailDomain: String(userData.emailDomain),
-          emailTLD: String(userData.emailTLD),
-        }
+        emailId: String(userData.emailId),
+        emailDomain: String(userData.emailDomain),
+        emailTLD: String(userData.emailTLD),
+      }
       : splitEmailForBackend(userData?.email);
 
   // 필드명은 backend UserRequestDTO/컨트롤러 바인딩에 최대한 맞춤
@@ -236,6 +236,24 @@ export async function changePassword(currentPassword, newPassword, confirmPasswo
 // ========================
 // OAuth2
 // ========================
+
+// ========================
+// 프로필
+// ========================
+
+export async function updateProfile(formData) {
+  // formData contains name, handle, profileImage (file)
+  // assuming backend endpoint /api/user/profile handles multipart/form-data
+  const res = await http.post("/api/user/profile", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+
+  if (!res?.ok) {
+    // If the backend returns a structured error
+    throw new Error(res?.message || "프로필 업데이트에 실패했습니다.");
+  }
+  return res;
+}
 
 export function getOAuth2AuthorizationUrl(provider) {
   // backend security config: /oauth2/authorization/{registrationId}

@@ -36,7 +36,7 @@ export default function MyPage() {
                 <Sidebar />
                 <div className="lg:pl-64 transition-all duration-300">
                     <Header />
-                    <main className="p-6 lg:p-10 flex items-center justify-center min-h-[calc(100-80px)]">
+                    <main className="p-6 lg:p-10 flex items-center justify-center min-h-[calc(100vh-80px)]">
                         <div className="max-w-2xl w-full">
                             <Card className="overflow-hidden border-none shadow-lg">
                                 <div className="bg-gradient-to-br from-sky-500/10 to-sky-500/5 p-10 text-center border-b border-sky-100/50">
@@ -91,10 +91,10 @@ export default function MyPage() {
 
                                     {/* 로그인 버튼 */}
                                     <div className="flex flex-col gap-4">
-                                        <Button asChild className="w-full bg-sky-500 hover:bg-sky-600 text-white h-12 shadow-md shadow-sky-100" size="lg">
+                                        <Button asChild className="w-full text-white h-12 shadow-md border-0 transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }} size="lg">
                                             <Link to="/auth">
                                                 <LogIn className="h-5 w-5 mr-2" />
-                                                로그인
+                                                로그인하고 시작하기
                                             </Link>
                                         </Button>
                                         <p className="text-center text-sm text-gray-400">
