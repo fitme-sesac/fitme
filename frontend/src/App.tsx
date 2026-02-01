@@ -61,6 +61,13 @@ import JobEditPage from "./features/job/pages/JobEditPage";
 // Admin Pages (관리자 전용)
 // ============================================
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminMembers from "./pages/admin/AdminMembers";
+import AdminJobs from "./pages/admin/AdminJobs";
+import AdminCompanies from "./pages/admin/AdminCompanies";
+import AdminCommunity from "./pages/admin/AdminCommunity";
+import AdminReports from "./pages/admin/AdminReports";
+import AdminInquiries from "./pages/admin/AdminInquiries";
+import AdminSubscription from "./pages/admin/AdminSubscription";
 
 // ============================================
 // Payment Pages (결제)
@@ -238,11 +245,69 @@ export default function App() {
                             </PrivateRoute>
                         }
                     />
+                    {/* ✅ Admin Routes (관리자 전용) */}
                     <Route
                         path="/admin"
                         element={
                             <PrivateRoute requiredRole="SERVICEADMIN">
                                 <AdminDashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
+                    <Route
+                        path="/admin/members"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminMembers />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/jobs"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminJobs />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/companies"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminCompanies />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/community"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminCommunity />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/reports"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminReports />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/inquiries"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminInquiries />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/subscriptions"
+                        element={
+                            <PrivateRoute requiredRole="SERVICEADMIN">
+                                <AdminSubscription />
                             </PrivateRoute>
                         }
                     />

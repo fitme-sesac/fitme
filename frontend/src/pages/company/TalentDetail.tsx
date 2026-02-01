@@ -216,7 +216,18 @@ export default function TalentDetail() {
                                         <Button
                                             className="w-full mt-6 font-bold"
                                             style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}
-                                            onClick={() => setShowProposalModal(true)}
+                                            onClick={() => {
+                                                // TODO: 실제 열람권/구독 상태 확인 로직 연동 필요
+                                                // 예: const hasPass = user?.subscriptionStatus === 'ACTIVE';
+                                                const hasPass = true;
+                                                if (!hasPass) {
+                                                    if (window.confirm("포지션 제안은 열람권이 필요합니다.\n구독 페이지로 이동하시겠습니까?")) {
+                                                        navigate("/subscription");
+                                                    }
+                                                    return;
+                                                }
+                                                setShowProposalModal(true);
+                                            }}
                                         >
                                             <Send className="mr-2 h-4 w-4" />
                                             포지션 제안하기
@@ -232,8 +243,8 @@ export default function TalentDetail() {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                        <FileText className="h-5 w-5" />
-                                        자기소개
+                                        <Sparkles className="h-5 w-5 text-purple-600 fill-purple-100" />
+                                        AI 10줄 요약
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>

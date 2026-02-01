@@ -7,22 +7,24 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { WideTalentCard } from "@/components/home/WideTalentCard";
-import { SideJobList } from "@/components/home/SideJobList"; // Reusing SideJobList or create a SideTalentList later
+import { SideJobList } from "@/components/home/SideJobList";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTalents, type TalentListItem } from "@/api/talents";
-
-const FILTER_OPTIONS: Record<string, string[]> = {
-  "포지션": ["프론트엔드", "백엔드", "풀스택", "Android", "iOS", "DevOps", "데이터 엔지니어", "AI/ML", "PM/PO", "디자이너"],
-  "경력": [], // Slider
-  "스킬": ["Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "AWS", "Docker", "Figma"],
-  "희망 연봉": [], // Slider
-  "지역": ["서울", "판교", "강남", "서초", "송파", "경기", "인천", "대전", "대구", "부산", "광주", "제주"],
-};
+import { POSITION_DISPLAY_OPTIONS } from "@/shared/constants/positionCategories";
 
 const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
 const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] ?? "신입";
+
 const SALARY_LABELS = ["3,000만원", "4,000만원", "5,000만원", "6,000만원", "7,000만원", "8,000만원", "9,000만원", "1억원+"];
 const getSalaryLabel = (value: number) => SALARY_LABELS[value] ?? "3,000만원";
+
+const FILTER_OPTIONS: Record<string, string[]> = {
+  "포지션": POSITION_DISPLAY_OPTIONS,
+  "경력": [],
+  "스킬": ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"],
+  "희망 연봉": [],
+  "지역": ["서울", "경기", "인천", "부산", "대구", "대전", "광주", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주", "해외"],
+};
 
 export default function Talents() {
   const { isCompany } = useAuth();
@@ -142,7 +144,7 @@ export default function Talents() {
         <Header />
 
         <main className="container max-w-7xl mx-auto py-6 px-4 md:px-8">
-          {/* Top Banner similar to Jobs RecommendedSection but for Talents */}
+          {/* Top Banner */}
           <div className="mb-8 p-6 rounded-3xl bg-gradient-to-r from-indigo-50 to-blue-50 border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-blue-600 font-bold">
@@ -202,10 +204,10 @@ export default function Talents() {
                         key={key}
                         variant={activePopup === key ? "default" : "outline"}
                         className={`rounded-full border-gray-300 font-normal px-4 h-10 shrink-0 transition-colors ${activePopup === key
-                            ? "bg-gray-900 text-white border-transparent"
-                            : getSelectedArray(key).length > 0 || (key === "경력" && (experienceRange[0] > 0 || experienceRange[1] < 10)) || (key === "희망 연봉" && (salaryRange[0] > 0 || salaryRange[1] < 7))
-                              ? "bg-primary/10 text-primary border-primary"
-                              : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
+                          ? "bg-gray-900 text-white border-transparent"
+                          : getSelectedArray(key).length > 0 || (key === "경력" && (experienceRange[0] > 0 || experienceRange[1] < 10)) || (key === "희망 연봉" && (salaryRange[0] > 0 || salaryRange[1] < 7))
+                            ? "bg-primary/10 text-primary border-primary"
+                            : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
                           }`}
                         onClick={() => setActivePopup(activePopup === key ? null : key)}
                       >
@@ -342,7 +344,6 @@ export default function Talents() {
             {/* Right Sidebar (4 cols) */}
             <div className="hidden lg:block lg:col-span-4">
               <div className="sticky top-20 space-y-6">
-                {/* Can reuse SideJobList or create SideTalentList/Banners */}
                 <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 text-white shadow-xl">
                   <h3 className="text-lg font-bold mb-2">프리미엄 인재 열람권</h3>
                   <p className="text-gray-300 text-sm mb-4">

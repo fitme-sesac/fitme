@@ -1,6 +1,7 @@
 # FitMe 프론트엔드 수정 보고서
 
 ## 수정 일시
+
 2026-02-01
 
 ---
@@ -8,6 +9,7 @@
 ## 1. 프로젝트 구조 분석
 
 ### 프론트엔드 구조
+
 ```
 frontend/src/
 ├── api/                    # API 서비스 함수들
@@ -46,6 +48,7 @@ frontend/src/
 ```
 
 ### 주요 라우트 구성
+
 | 경로 | 컴포넌트 | 설명 | 권한 |
 |------|---------|------|------|
 | `/` | Index | 홈 (역할별 메인 표시) | 공개 |
@@ -67,6 +70,7 @@ frontend/src/
 ### 2.1 TalentRecommendationSection.tsx - 구문 오류 (Critical)
 
 **오류 내용:**
+
 ```
 Unexpected token, expected "," (149:12)
 ```
@@ -75,6 +79,7 @@ Unexpected token, expected "," (149:12)
 삼항 연산자의 닫는 괄호 누락으로 인한 JSX 파싱 오류
 
 **수정 전:**
+
 ```tsx
 {loading ? (
   <div>...</div>
@@ -85,6 +90,7 @@ Unexpected token, expected "," (149:12)
 ```
 
 **수정 후:**
+
 ```tsx
 {loading ? (
   <div>...</div>
@@ -105,6 +111,7 @@ Unexpected token, expected "," (149:12)
 `<Button>` 내부에 `<Link>` 컴포넌트가 있지만 `asChild` prop이 없어 정상적인 라우팅이 작동하지 않음
 
 **수정 전:**
+
 ```tsx
 <Button className="...">
     <Link to={`/talents/${id}`} className="w-full h-full flex items-center justify-center">
@@ -114,6 +121,7 @@ Unexpected token, expected "," (149:12)
 ```
 
 **수정 후:**
+
 ```tsx
 <Button className="..." asChild>
     <Link to={`/talents/${id}`}>
@@ -132,6 +140,7 @@ Unexpected token, expected "," (149:12)
 존재하지 않는 라우트 `/jobs/all` 사용
 
 **수정 전:**
+
 ```tsx
 <Link to="/jobs/all" className="...">
     더보기 <ChevronRight className="h-3 w-3" />
@@ -139,6 +148,7 @@ Unexpected token, expected "," (149:12)
 ```
 
 **수정 후:**
+
 ```tsx
 <Link to="/jobs" className="...">
     더보기 <ChevronRight className="h-3 w-3" />
@@ -155,12 +165,14 @@ Unexpected token, expected "," (149:12)
 존재하지 않는 라우트 `/jobs/new` 사용
 
 **수정 전:**
+
 ```tsx
 ctaText: "공고 등록하기",
 ctaLink: "/jobs/new",
 ```
 
 **수정 후:**
+
 ```tsx
 ctaText: "공고 등록하기",
 ctaLink: "/employer/jobs/create",
@@ -170,11 +182,31 @@ ctaLink: "/employer/jobs/create",
 
 ---
 
+### 2.5 Talents.tsx - Modal 팝업 롤백
+
+**변경 내용:** 인재 상세 정보를 팝업으로 띄우는 기능을 기존의 페이지 이동 방식으로 복구함.
+**파일:** `src/pages/company/Talents.tsx`
+
+### 2.6 AI Chatbot - 404 Not Found 오류 수정
+
+**오류 내용:** `/employer-chatbot` 요청 시 404 오류 발생
+**원인:** Vite 프록시 설정 누락
+**해결:** `vite.config.ts`에 `/employer-chatbot` 경로를 AI 서버(8000)로 포워딩하는 프록시 규칙 추가
+**파일:** `vite.config.ts`
+
+### 2.7 관리자 페이지 구현
+
+**내용:** 관리자 대시보드 및 각종 관리 페이지(회원, 공고, 기업 등) 구현 및 라우팅 추가
+**파일:** `src/pages/admin/*`, `src/components/admin/*`, `src/App.tsx`
+
+---
+
 ## 3. 프로젝트 기능 연결 상태
 
 ### 3.1 사이드바 메뉴 연결
 
 #### 구직자 메뉴
+
 | 메뉴 | 경로 | 상태 |
 |------|------|------|
 | 홈 | `/` | ✅ 정상 |
@@ -186,6 +218,7 @@ ctaLink: "/employer/jobs/create",
 | AI 챗봇 | 팝업 | ✅ 정상 |
 
 #### 기업 회원 메뉴
+
 | 메뉴 | 경로 | 상태 |
 |------|------|------|
 | 홈 | `/` | ✅ 정상 |
@@ -200,6 +233,7 @@ ctaLink: "/employer/jobs/create",
 ### 3.2 주요 페이지 버튼 기능
 
 #### 홈페이지 (비로그인)
+
 | 버튼 | 경로 | 상태 |
 |------|------|------|
 | 지금 시작하기 | `/auth?tab=signup` | ✅ 정상 |
@@ -208,6 +242,7 @@ ctaLink: "/employer/jobs/create",
 | 서비스 둘러보기 | `/jobs` | ✅ 정상 |
 
 #### 기업 회원 홈
+
 | 버튼 | 경로 | 상태 |
 |------|------|------|
 | 인재 보러가기 | `/talents` | ✅ 정상 |
@@ -217,6 +252,7 @@ ctaLink: "/employer/jobs/create",
 | 매칭 서비스 시작 | `/company/dashboard` | ✅ 정상 |
 
 #### 인재풀 페이지
+
 | 버튼 | 경로 | 상태 |
 |------|------|------|
 | 내 공고와 매칭된 인재 보기 | `/company/dashboard` | ✅ 정상 |
@@ -224,6 +260,7 @@ ctaLink: "/employer/jobs/create",
 | 열람권 구매하기 | (미구현) | ⚠️ 연결 필요 |
 
 #### 인재 상세 페이지
+
 | 버튼 | 경로 | 상태 |
 |------|------|------|
 | 뒤로가기 | `navigate(-1)` | ✅ 정상 |
@@ -247,12 +284,14 @@ ctaLink: "/employer/jobs/create",
 ## 4. 권장 사항
 
 ### 4.1 즉시 수정 권장
+
 - [x] TalentRecommendationSection.tsx 구문 오류 수정
 - [x] WideTalentCard.tsx 버튼 asChild prop 추가
 - [x] SideJobList.tsx 라우트 경로 수정
 - [x] EmployerHeroSection.tsx 라우트 경로 수정
 
 ### 4.2 추가 개선 권장
+
 - [ ] 인재풀 열람권 구매 버튼 기능 연결
 - [ ] 에러 바운더리 추가로 런타임 오류 처리 개선
 - [ ] API 응답 타입 검증 강화
@@ -263,6 +302,7 @@ ctaLink: "/employer/jobs/create",
 ## 5. 테스트 체크리스트
 
 ### 기본 기능
+
 - [ ] 홈페이지 정상 로딩
 - [ ] 로그인/로그아웃 정상 작동
 - [ ] 사이드바 메뉴 전환 정상 작동 (구직자/기업 회원)
@@ -271,6 +311,7 @@ ctaLink: "/employer/jobs/create",
 - [ ] 제안 보내기 기능 정상 작동
 
 ### 라우팅
+
 - [ ] 모든 메뉴 링크 정상 작동
 - [ ] 뒤로가기 버튼 정상 작동
 - [ ] 404 페이지 정상 표시

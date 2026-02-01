@@ -1,6 +1,7 @@
 # FitMe 프로젝트 구조 및 연결 현황
 
 ## 프로젝트 개요
+
 FitMe는 구직자와 기업을 연결하는 AI 기반 채용 플랫폼입니다.
 
 ---
@@ -46,6 +47,7 @@ fitme/
 ## 라우트 현황
 
 ### 공통 페이지
+
 | 경로 | 컴포넌트 | 설명 |
 |------|----------|------|
 | `/` | Index | 홈페이지 |
@@ -58,6 +60,7 @@ fitme/
 | `/settings` | Settings | 설정 (로그인 필요) |
 
 ### 인증 페이지
+
 | 경로 | 컴포넌트 | 설명 |
 |------|----------|------|
 | `/auth` | Auth | 로그인/회원가입 |
@@ -65,6 +68,7 @@ fitme/
 | `/auth/find-password` | FindPasswordPage | 비밀번호 찾기 |
 
 ### 구직자 전용
+
 | 경로 | 컴포넌트 | 설명 | 상태 |
 |------|----------|------|------|
 | `/interview` | Interview | 면접 일정 관리 | OK |
@@ -74,6 +78,7 @@ fitme/
 | `/applications` | Applications | 입사지원 현황 | NEW |
 
 ### 기업 전용
+
 | 경로 | 컴포넌트 | 설명 | 상태 |
 |------|----------|------|------|
 | `/company/dashboard` | CompanyDashboard | 기업 대시보드 | OK |
@@ -84,6 +89,18 @@ fitme/
 | `/employer/jobs/:jobId` | JobDetailPage | 공고 상세 | OK |
 | `/employer/jobs/:jobId/edit` | JobEditPage | 공고 수정 | OK |
 
+### 관리자 전용 (NEW)
+
+| 경로 | 컴포넌트 | 설명 | 상태 |
+|------|----------|------|------|
+| `/admin` | AdminDashboard | 관리자 대시보드 | OK |
+| `/admin/members` | AdminMembers | 회원 관리 | OK |
+| `/admin/jobs` | AdminJobs | 채용공고 관리 | OK |
+| `/admin/companies` | AdminCompanies | 기업 관리 | OK |
+| `/admin/community` | AdminCommunity | 커뮤니티 관리 | OK |
+| `/admin/reports` | AdminReports | 신고 관리 | OK |
+| `/admin/inquiries` | AdminInquiries | 문의 관리 | OK |
+
 ---
 
 ## API 엔드포인트
@@ -91,6 +108,7 @@ fitme/
 ### 백엔드 (Spring Boot - localhost:8080)
 
 #### 인재 제안 API (NEW)
+
 | Method | 경로 | 설명 |
 |--------|------|------|
 | POST | `/api/proposals` | 제안 생성 (기업용) |
@@ -102,6 +120,7 @@ fitme/
 | GET | `/api/proposals/pending-count` | 미확인 제안 수 |
 
 #### 지원 API
+
 | Method | 경로 | 설명 |
 |--------|------|------|
 | GET | `/api/v1/applications/me` | 내 지원 현황 |
@@ -109,6 +128,7 @@ fitme/
 | DELETE | `/api/v1/applications/{id}` | 지원 취소 |
 
 #### 알림 API
+
 | Method | 경로 | 설명 |
 |--------|------|------|
 | GET | `/api/notifications` | 알림 목록 |
@@ -117,14 +137,28 @@ fitme/
 | PATCH | `/api/notifications/{id}/read` | 읽음 처리 |
 | PATCH | `/api/notifications/read-all` | 전체 읽음 |
 
+#### 관리자 API (NEW)
+
+| Method | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/admin/dashboard` | 대시보드 통계 |
+| GET | `/api/admin/members` | 회원 목록 조회 |
+| PUT | `/api/admin/members/{id}/status` | 회원 상태 변경 |
+| GET | `/api/admin/jobs` | 공고 목록 조회 |
+| PUT | `/api/admin/jobs/{id}/status` | 공고 상태 변경 |
+| GET | `/api/admin/employers` | 기업 목록 조회 |
+| PUT | `/api/admin/employers/{id}/verify` | 기업 승인 처리 |
+
 ### AI 서버 (FastAPI - localhost:8000)
 
 #### 구직자용 챗봇
+
 | Method | 경로 | 설명 |
 |--------|------|------|
 | POST | `/chatbot/query` | 채용 정보 질의 |
 
 #### 기업용 챗봇 (NEW)
+
 | Method | 경로 | 설명 |
 |--------|------|------|
 | POST | `/employer-chatbot/query` | 지원자 현황 질의 |
@@ -136,6 +170,7 @@ fitme/
 ### 1. 인재 제안 기능 (Proposal)
 
 **백엔드 파일:**
+
 ```
 backend/src/main/java/com/example/pproject/
 ├── Constant/ProposalStatus.java
@@ -151,6 +186,7 @@ backend/src/main/java/com/example/pproject/
 ```
 
 **프론트엔드 파일:**
+
 ```
 frontend/src/
 ├── api/proposal.ts
@@ -159,6 +195,7 @@ frontend/src/
 ```
 
 **흐름:**
+
 1. 기업회원이 `/talents`에서 인재 클릭
 2. `/talents/:talentId`에서 "제안하기" 버튼 클릭
 3. 제안 모달에서 제목, 메시지, 연봉 등 입력 후 전송
@@ -168,6 +205,7 @@ frontend/src/
 ### 2. 기업용 AI 챗봇
 
 **백엔드 파일:**
+
 ```
 ai-worker/app/employer_chatbot/
 ├── __init__.py
@@ -181,6 +219,7 @@ ai-worker/app/employer_chatbot/
 ```
 
 **프론트엔드 파일:**
+
 ```
 frontend/src/
 ├── api/employer-chatbot.js
@@ -188,6 +227,7 @@ frontend/src/
 ```
 
 **지원 질문:**
+
 - 오늘 지원자 몇명이야?
 - 이번달 지원 현황 보여줘
 - 백엔드 공고 지원자 목록
@@ -198,11 +238,13 @@ frontend/src/
 ### 3. 입사지원 현황 페이지
 
 **프론트엔드 파일:**
+
 ```
 frontend/src/pages/jobseeker/Applications.tsx
 ```
 
 **기능:**
+
 - 지원한 공고 목록 조회
 - 상태별 필터 (진행중/완료)
 - 지원 취소
@@ -213,6 +255,7 @@ frontend/src/pages/jobseeker/Applications.tsx
 ## 데이터베이스 테이블
 
 ### talent_proposal (NEW)
+
 ```sql
 CREATE TABLE talent_proposal (
     proposal_id BIGSERIAL PRIMARY KEY,
@@ -239,6 +282,7 @@ CREATE TABLE talent_proposal (
 ## 사이드바 메뉴 구성
 
 ### 구직자용
+
 - 홈 → `/`
 - 채용공고 → `/jobs`
 - 면접 → `/interview`
@@ -249,6 +293,7 @@ CREATE TABLE talent_proposal (
 - 마이페이지 → `/mypage`
 
 ### 기업용
+
 - 홈 → `/`
 - 채용공고 → `/jobs`
 - 인재풀 → `/talents`
@@ -282,11 +327,13 @@ CREATE TABLE talent_proposal (
 ## 환경 변수
 
 ### Frontend (.env)
+
 ```
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
 ### Backend (application.yml)
+
 ```yaml
 spring:
   datasource:
@@ -294,6 +341,7 @@ spring:
 ```
 
 ### AI Worker (.env)
+
 ```
 OPENAI_API_KEY=sk-...
 REDIS_URL=redis://localhost:6379

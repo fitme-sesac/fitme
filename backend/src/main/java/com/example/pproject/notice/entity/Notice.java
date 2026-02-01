@@ -70,7 +70,7 @@ public class Notice {
     // ==================== 비즈니스 로직 ====================
 
     public void update(String title, String body, Boolean isPublic, NoticeType noticeType,
-                       NoticeStatus status, LocalDateTime purgeAfter, Long updatedBy) {
+            NoticeStatus status, LocalDateTime purgeAfter, Long updatedBy) {
         this.title = title;
         this.body = body;
         this.isPublic = isPublic;
@@ -105,6 +105,11 @@ public class Notice {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public enum NoticeType { OPS, POLICY, PRIVACY, TERMS }
-    public enum NoticeStatus { ACTIVE, PENDING_DELETE, DELETED }
+    public enum NoticeType {
+        OPS, POLICY, PRIVACY, TERMS, COMMUNITY
+    }
+
+    public enum NoticeStatus {
+        ACTIVE, PENDING_DELETE, DELETED
+    }
 }

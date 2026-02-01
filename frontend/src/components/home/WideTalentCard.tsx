@@ -20,6 +20,7 @@ interface TalentCardProps {
     avatar?: string | null;
     lastUpdated?: string;
     isNew?: boolean;
+    onProposeClick?: (id: number) => void;
 }
 
 export function WideTalentCard({
@@ -36,13 +37,11 @@ export function WideTalentCard({
     avatar,
     lastUpdated,
     isNew = false,
+    onProposeClick,
 }: TalentCardProps) {
     const [interested, setInterested] = useState(false);
 
-    // Dynamic gradient based on match score
-    const matchColor = matchScore >= 90 ? "text-blue-600 bg-blue-50 border-blue-200" :
-        matchScore >= 80 ? "text-green-600 bg-green-50 border-green-200" :
-            "text-yellow-600 bg-yellow-50 border-yellow-200";
+
 
     return (
         <div className="group relative w-full rounded-2xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20 hover:-translate-y-0.5">
@@ -66,8 +65,9 @@ export function WideTalentCard({
                                 NEW
                             </Badge>
                         )}
-                        <div className={cn("absolute -bottom-2 right-1/2 translate-x-1/2 sm:right-0 sm:translate-x-0 badge border font-bold text-xs px-2 py-0.5 rounded-full flex items-center gap-1 min-w-max", matchColor)}>
-                            <CheckCircle className="w-3 h-3" />
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 badge font-bold text-xs px-2 py-0.5 rounded-full flex items-center gap-1 min-w-max text-white border-none shadow-sm"
+                            style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}>
+                            <CheckCircle className="w-3 h-3 text-white" />
                             {matchScore}% 매칭
                         </div>
                     </div>
@@ -133,15 +133,25 @@ export function WideTalentCard({
                     </div>
 
                     <div className="mt-auto w-full space-y-2">
-                        <Button
-                            className="w-full font-bold shadow-md hover:shadow-lg transition-all"
-                            style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}
-                            asChild
-                        >
-                            <Link to={`/talents/${id}`}>
+                        {onProposeClick ? (
+                            <Button
+                                className="w-full font-bold shadow-md hover:shadow-lg transition-all"
+                                style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}
+                                onClick={() => onProposeClick(id)}
+                            >
                                 제안하기
-                            </Link>
-                        </Button>
+                            </Button>
+                        ) : (
+                            <Button
+                                className="w-full font-bold shadow-md hover:shadow-lg transition-all"
+                                style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}
+                                asChild
+                            >
+                                <Link to={`/talents/${id}`}>
+                                    제안하기
+                                </Link>
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             className={cn(
