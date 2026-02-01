@@ -84,9 +84,14 @@ export function Header() {
   const handleNotificationClick = (notification: any) => {
     markAsRead(notification.id);
     setNotifOpen(false);
-    // 알림 링크로 이동
-    if (notification.link) {
-      navigate(notification.link);
+    // 알림 링크로 이동 (백엔드 DTO: linkUrl)
+    const url = notification.linkUrl ?? notification.link;
+    if (url) {
+      if (url.startsWith("http")) {
+        window.location.href = url;
+      } else {
+        navigate(url);
+      }
     }
   };
 

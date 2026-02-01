@@ -12,7 +12,8 @@ import {
     Award,
     Plus,
     X,
-    Save
+    Save,
+    Loader2
 } from "lucide-react";
 
 export interface ResumeData {
@@ -47,9 +48,10 @@ interface ResumeEditorProps {
     resumeData: ResumeData;
     onUpdateResume: (data: ResumeData) => void;
     onSave: () => void;
+    saving?: boolean;
 }
 
-export function ResumeEditor({ resumeData, onUpdateResume, onSave }: ResumeEditorProps) {
+export function ResumeEditor({ resumeData, onUpdateResume, onSave, saving }: ResumeEditorProps) {
     const [newSkill, setNewSkill] = useState("");
     const updatePersonalInfo = (field: string, value: string) => {
         onUpdateResume({
@@ -430,9 +432,9 @@ export function ResumeEditor({ resumeData, onUpdateResume, onSave }: ResumeEdito
 
             {/* 저장 버튼 */}
             <div className="flex justify-end">
-                <Button onClick={onSave} size="lg" className="gap-2">
-                    <Save className="h-4 w-4" />
-                    이력서 저장
+                <Button onClick={onSave} size="lg" className="gap-2" disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {saving ? "저장 중..." : "이력서 저장"}
                 </Button>
             </div>
         </div>

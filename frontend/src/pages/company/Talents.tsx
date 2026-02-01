@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles, UserSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,17 +9,7 @@ import { Footer } from "@/components/layout/Footer";
 import { WideTalentCard } from "@/components/home/WideTalentCard";
 import { SideJobList } from "@/components/home/SideJobList"; // Reusing SideJobList or create a SideTalentList later
 import { useAuth } from "@/contexts/AuthContext";
-import { useApplicants } from "@/hooks/useEmployers"; // Assuming this or similar hook brings talent data
-
-// Mock Data for initial view / fallback
-const mockTalents = [
-  { id: 1, name: "김서연", title: "Senior Frontend Developer", summary: "대규모 서비스 성능 최적화와 접근성 개선에 관심이 많은 프론트엔드 개발자입니다.", experience: "5년", location: "서울", education: "컴퓨터공학과 학사", skills: ["React", "TypeScript", "Next.js", "GraphQL"], salary: "8,000만 ~ 1억 2,000만원", matchScore: 95, avatar: null, lastUpdated: "1일 전", isNew: true },
-  { id: 2, name: "박민준", title: "AI/ML Engineer", summary: "딥러닝과 MLOps를 활용한 서비스 적용 경험이 있으며, 실험 파이프라인 구축에 강점이 있습니다.", experience: "4년", location: "판교", education: "인공지능학과 석사", skills: ["Python", "TensorFlow", "PyTorch", "Deep Learning", "MLOps"], salary: "9,000만 ~ 1억 3,000만원", matchScore: 88, avatar: null, lastUpdated: "2일 전", isNew: false },
-  { id: 3, name: "이하은", title: "Product Designer", summary: "사용자 리서치와 디자인 시스템 구축을 통해 제품 경험을 개선해 온 디자이너입니다.", experience: "6년", location: "서울", education: "시각디자인학과 학사", skills: ["Figma", "UI/UX", "Prototyping", "Design System"], salary: "7,500만 ~ 1억원", matchScore: 82, avatar: null, lastUpdated: "3일 전", isNew: true },
-  { id: 4, name: "최준호", title: "Backend Developer", summary: "MSA와 클라우드 네이티브 아키텍처 설계 경험이 있으며, 고가용성 서비스를 지향합니다.", experience: "5년", location: "서울", education: "소프트웨어학과 학사", skills: ["Java", "Spring", "Kubernetes", "AWS", "MSA"], salary: "8,500만 ~ 1억 2,000만원", matchScore: 90, avatar: null, lastUpdated: "1일 전", isNew: false },
-  { id: 5, name: "정수진", title: "DevOps Engineer", summary: "CI/CD와 인프라 자동화로 배포 안정성과 개발 생산성을 높이는 데 기여해 왔습니다.", experience: "4년", location: "경기 성남", education: "컴퓨터공학과 학사", skills: ["Node.js", "PostgreSQL", "Docker", "Terraform", "CI/CD", "Monitoring"], salary: "8,000만 ~ 1억 1,000만원", matchScore: 85, avatar: null, lastUpdated: "2일 전", isNew: true },
-  { id: 6, name: "한지우", title: "Data Engineer", summary: "대용량 데이터 파이프라인과 실시간 스트리밍 구축 경험이 있습니다.", experience: "5년", location: "판교", education: "통계학과 석사", skills: ["Python", "Spark", "Airflow", "Kafka", "BigQuery"], salary: "9,000만 ~ 1억 2,000만원", matchScore: 87, avatar: null, lastUpdated: "4일 전", isNew: false },
-];
+import { getTalents, type TalentListItem } from "@/api/talents";
 
 const FILTER_OPTIONS: Record<string, string[]> = {
   "포지션": ["프론트엔드", "백엔드", "풀스택", "Android", "iOS", "DevOps", "데이터 엔지니어", "AI/ML", "PM/PO", "디자이너"],
@@ -36,11 +26,12 @@ const getSalaryLabel = (value: number) => SALARY_LABELS[value] ?? "3,000만원";
 
 export default function Talents() {
   const { isCompany } = useAuth();
-  // In a real scenario, useApplicants or a similar hook would fetch talents
-  const { data: applicantsData, isLoading } = useApplicants("");
+  const [talents, setTalents] = useState<TalentListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalElements, setTotalElements] = useState(0);
+  const [page, setPage] = useState(0);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [page, setPage] = useState(0);
   const [activePopup, setActivePopup] = useState<string | null>(null);
   const filterScrollRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +63,17 @@ export default function Talents() {
 
   const MULTI_SELECT_KEYS = ["포지션", "스킬", "지역"];
 
+  useEffect(() => {
+    setLoading(true);
+    getTalents(page, 12)
+      .then((res) => {
+        setTalents(res.content);
+        setTotalElements(res.totalElements);
+      })
+      .catch(() => setTalents([]))
+      .finally(() => setLoading(false));
+  }, [page]);
+
   const applyFilter = (filterKey: string, value: string) => {
     const newFilters = { ...selectedFilters };
     if (value === "전체") {
@@ -91,42 +93,33 @@ export default function Talents() {
     setActivePopup(null);
   };
 
-  // Data Processing (Mock + Applicants)
+  // 클라이언트 필터 (현재 페이지 데이터)
   const displayTalents = useMemo(() => {
-    // Simple logic: if company has applicants, maybe mix them or show them. 
-    // For 'Talent Pool' page, it usually shows ALL public talents, not just applicants.
-    // We will stick to 'mockTalents' for the 'pool' visualization if no API for public talents exists yet.
-    // Or if 'applicantsData' is effectively the 'talent pool' in this context. Use mockTalents as base.
-
-    let talents = [...mockTalents];
-
-    // Filter Logic Implementation (Client-side for mock)
+    let list = [...talents];
     const posSelected = getSelectedArray("포지션");
     const skillSelected = getSelectedArray("스킬");
     const locSelected = getSelectedArray("지역");
 
     if (posSelected.length > 0) {
-      talents = talents.filter(t => posSelected.some(p => t.title.includes(p) || t.summary.includes(p)));
+      list = list.filter(t => posSelected.some(p => (t.title || "").includes(p) || (t.summary || "").includes(p)));
     }
     if (skillSelected.length > 0) {
-      talents = talents.filter(t => skillSelected.some(s => t.skills.some(ts => ts.toLowerCase().includes(s.toLowerCase()))));
+      list = list.filter(t => (t.skills || []).some(ts => skillSelected.some(s => String(ts).toLowerCase().includes(s.toLowerCase()))));
     }
     if (locSelected.length > 0) {
-      talents = talents.filter(t => locSelected.some(l => t.location.includes(l)));
+      list = list.filter(t => locSelected.some(l => (t.location || "").includes(l)));
     }
 
-    // Experience Filter (Approximate parsing for mock strings like "5년")
     if (experienceRange[0] > 0 || experienceRange[1] < 10) {
-      talents = talents.filter(t => {
-        const expNum = parseInt(t.experience.replace(/[^0-9]/g, "")) || 0; // "5년" -> 5
-        // Handle "신입" -> 0
-        const flowExp = t.experience.includes("신입") ? 0 : expNum;
+      list = list.filter(t => {
+        const expNum = parseInt(String(t.experience || "0").replace(/[^0-9]/g, "")) || 0;
+        const flowExp = String(t.experience || "").includes("신입") ? 0 : expNum;
         return flowExp >= experienceRange[0] && flowExp <= experienceRange[1];
       });
     }
 
-    return talents;
-  }, [selectedFilters, experienceRange, mockTalents]);
+    return list;
+  }, [selectedFilters, experienceRange, talents]);
 
   const resetFilters = () => {
     setExperienceRange([0, 10]);
@@ -305,7 +298,11 @@ export default function Talents() {
               {/* Talent Count */}
               <div className="flex items-center justify-between">
                 <div className="text-sm font-bold text-gray-900">
-                  검색 결과 <span className="text-[#10B981]">{displayTalents.length}</span>명
+                  {loading ? (
+                    <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> 로딩 중...</span>
+                  ) : (
+                    <>검색 결과 <span className="text-[#10B981]">{totalElements}</span>명</>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-xs sm:text-sm">
                   <button className="text-gray-400 hover:text-gray-600 transition-colors">최신순</button>
@@ -317,13 +314,20 @@ export default function Talents() {
 
               {/* Talent Feed */}
               <div className="grid grid-cols-1 gap-6">
-                {displayTalents.map((talent) => (
-                  <WideTalentCard
-                    key={talent.id}
-                    {...talent}
-                  />
-                ))}
-                {displayTalents.length === 0 && (
+                {loading ? (
+                  <div className="flex justify-center py-20">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  displayTalents.map((talent) => (
+                    <WideTalentCard
+                      key={talent.resumeId ?? talent.id}
+                      {...talent}
+                      matchScore={talent.matchScore ?? 0}
+                    />
+                  ))
+                )}
+                {!loading && displayTalents.length === 0 && (
                   <div className="text-center py-20 bg-card rounded-3xl border border-dashed border-border">
                     <p className="text-lg font-medium text-muted-foreground">조건에 맞는 인재가 없습니다.</p>
                     <Button variant="link" onClick={resetFilters} className="mt-2 text-primary">

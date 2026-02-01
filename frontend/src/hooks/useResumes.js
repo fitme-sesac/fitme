@@ -10,15 +10,18 @@ import {
   requestResumeSummary,
   uploadResumeFile,
   deleteResumeAttachment,
+  copyResume,
 } from "@/api/resumes";
 
 /**
  * 내 이력서 목록 조회 hook (로그인 필요)
+ * @param {Object} options - useQuery options (e.g. { enabled: !!user })
  */
-export function useMyResumes() {
+export function useMyResumes(options = {}) {
   return useQuery({
     queryKey: ["myResumes"],
     queryFn: getMyResumes,
+    ...options,
   });
 }
 
@@ -71,6 +74,20 @@ export function useDeleteResume() {
 
   return useMutation({
     mutationFn: deleteResume,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["myResumes"] });
+    },
+  });
+}
+
+/**
+ * 이력서 복제 mutation hook
+ */
+export function useCopyResume() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: copyResume,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myResumes"] });
     },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
     FileText,
@@ -18,37 +18,34 @@ import {
     Trash2,
     MoreVertical,
     LogIn,
-    Sparkles,
-    User
+    Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ResumeTemplateSelector } from "@/components/resume/ResumeTemplateSelector";
 import { ResumeEditor, type ResumeData } from "@/components/resume/ResumeEditor";
 import { AIProofreadingPanel } from "@/components/resume/AIProofreadingPanel";
 import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-// 저장된 이력서 목록 (목데이터)
-const savedResumes = [
-    {
-        id: "1",
-        title: "프론트엔드 개발자 이력서",
-        template: "professional",
-        updatedAt: "2026-01-28",
-        isDefault: true,
-    },
-    {
-        id: "2",
-        title: "스타트업 지원용",
-        template: "creative",
-        updatedAt: "2026-01-25",
-        isDefault: false,
-    },
-];
+import {
+    useMyResumes,
+    useCreateResume,
+    useUpdateResume,
+    useDeleteResume,
+    useSetPrimaryResume,
+    useCopyResume,
+} from "@/hooks/useResumes";
+import { getResume } from "@/api/resumes";
 
 const initialResumeData: ResumeData = {
     personalInfo: {
@@ -64,31 +61,210 @@ const initialResumeData: ResumeData = {
     skills: [],
 };
 
+/** API 응답 → 에디터용 ResumeData */
+function mapApiResumeToResumeData(res: {
+    title?: string;
+    content?: string;
+    summary?: string;
+    profile?: { address?: string };
+    careers?: { id?: number; companyName?: string; department?: string; role?: string; startDate?: string; endDate?: string }[];
+    reStack?: string | string[];
+}): ResumeData {
+    const careers = res.careers ?? [];
+    const reStack = res.reStack;
+    const skills = Array.isArray(reStack) ? reStack : (typeof reStack === "string" ? reStack.split(",").map((s) => s.trim()).filter(Boolean) : []);
+    return {
+        personalInfo: {
+            name: res.title ?? "",
+            email: "",
+            phone: "",
+            address: res.profile?.address ?? "",
+            birthDate: "",
+        },
+        summary: res.content ?? res.summary ?? "",
+        experiences: careers.map((c) => ({
+            id: String(c.id ?? ""),
+            company: c.companyName ?? "",
+            position: c.role ?? "",
+            startDate: c.startDate ?? "",
+            endDate: c.endDate ?? "",
+            description: "",
+        })),
+        education: [],
+        skills,
+    };
+}
+
+/** 에디터 ResumeData → 백엔드 create/update 요청 body */
+function buildResumeRequest(resumeData: ResumeData) {
+    const title = resumeData.personalInfo?.name?.trim() || "제목 없는 이력서";
+    const careers = (resumeData.experiences ?? [])
+        .filter((e) => e.company || e.position)
+        .map((e) => ({
+            companyName: e.company || "(회사명)",
+            department: "-",
+            role: e.position || "(직책)",
+            startDate: e.startDate || "2020-01-01",
+            endDate: e.endDate || null,
+            current: !e.endDate,
+        }));
+    return {
+        title,
+        field: "RESUME",
+        content: resumeData.summary ?? "",
+        summary: resumeData.summary ?? "",
+        tagline: "",
+        primary: false,
+        reStack: resumeData.skills ?? [],
+        profile: {
+            address: resumeData.personalInfo?.address ?? "",
+            photoUrl: null,
+        },
+        careers,
+    };
+}
+
+function formatResumeDate(dateStr: string | undefined): string {
+    if (!dateStr) return "-";
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+    } catch {
+        return String(dateStr);
+    }
+}
+
 const ResumePage = () => {
     const { user, loading } = useAuth();
     const { toast } = useToast();
     const [selectedTemplate, setSelectedTemplate] = useState("basic");
     const [resumeData, setResumeData] = useState<ResumeData>(initialResumeData);
     const [activeTab, setActiveTab] = useState("list");
+    const [editingResumeId, setEditingResumeId] = useState<number | null>(null);
+    const [viewingResumeId, setViewingResumeId] = useState<number | null>(null);
+    const [viewingResumeData, setViewingResumeData] = useState<ResumeData | null>(null);
+    const [loadingViewing, setLoadingViewing] = useState(false);
 
-    const handleSaveResume = () => {
-        toast({
-            title: "이력서 저장 완료",
-            description: "이력서가 성공적으로 저장되었습니다.",
-        });
-    };
+    const { data: resumesList = [], isLoading: listLoading } = useMyResumes({ enabled: !!user });
+    const createMutation = useCreateResume();
+    const updateMutation = useUpdateResume();
+    const deleteMutation = useDeleteResume();
+    const setPrimaryMutation = useSetPrimaryResume();
+    const copyMutation = useCopyResume();
+
+    const list = Array.isArray(resumesList) ? resumesList : [];
+
+    const handleSaveResume = useCallback(() => {
+        const payload = buildResumeRequest(resumeData);
+        if (editingResumeId != null) {
+            updateMutation.mutate(
+                { resumeId: editingResumeId, resume: payload },
+                {
+                    onSuccess: () => {
+                        toast({ title: "이력서 저장 완료", description: "수정 내용이 반영되었습니다." });
+                        setActiveTab("list");
+                        setEditingResumeId(null);
+                        setResumeData(initialResumeData);
+                    },
+                    onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
+                        toast({
+                            variant: "destructive",
+                            title: "저장 실패",
+                            description: err?.response?.data?.message || err?.message || "다시 시도해 주세요.",
+                        });
+                    },
+                }
+            );
+        } else {
+            createMutation.mutate(payload, {
+                onSuccess: () => {
+                    toast({ title: "이력서 저장 완료", description: "새 이력서가 추가되었습니다." });
+                    setActiveTab("list");
+                    setEditingResumeId(null);
+                    setResumeData(initialResumeData);
+                },
+                onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
+                    toast({
+                        variant: "destructive",
+                        title: "저장 실패",
+                        description: err?.response?.data?.message || err?.message || "다시 시도해 주세요.",
+                    });
+                },
+            });
+        }
+    }, [resumeData, editingResumeId, updateMutation, createMutation, toast]);
 
     const handleApplySuggestion = (newContent: string) => {
-        setResumeData({
-            ...resumeData,
-            summary: newContent,
-        });
+        setResumeData((prev) => ({ ...prev, summary: newContent }));
     };
 
     const handleCreateNew = () => {
         setResumeData(initialResumeData);
+        setEditingResumeId(null);
         setActiveTab("edit");
     };
+
+    const handleEditResume = (resumeId: number) => {
+        setViewingResumeId(null);
+        setViewingResumeData(null);
+        getResume(resumeId)
+            .then((res) => {
+                setResumeData(mapApiResumeToResumeData(res));
+                setEditingResumeId(resumeId);
+                setActiveTab("edit");
+            })
+            .catch(() => {
+                toast({ variant: "destructive", title: "이력서를 불러올 수 없습니다." });
+            });
+    };
+
+    const handleViewResume = (resumeId: number) => {
+        setViewingResumeId(resumeId);
+        setViewingResumeData(null);
+        setLoadingViewing(true);
+        getResume(resumeId)
+            .then((res) => setViewingResumeData(mapApiResumeToResumeData(res)))
+            .catch(() => {
+                toast({ variant: "destructive", title: "이력서를 불러올 수 없습니다." });
+                setViewingResumeId(null);
+            })
+            .finally(() => setLoadingViewing(false));
+    };
+
+    const closeViewModal = () => {
+        setViewingResumeId(null);
+        setViewingResumeData(null);
+    };
+
+    const handleSetPrimary = (resumeId: number) => {
+        setPrimaryMutation.mutate(resumeId, {
+            onSuccess: () => toast({ title: "기본 이력서로 설정되었습니다." }),
+            onError: () => toast({ variant: "destructive", title: "설정에 실패했습니다." }),
+        });
+    };
+
+    const handleCopyResume = (resumeId: number) => {
+        copyMutation.mutate(resumeId, {
+            onSuccess: () => toast({ title: "이력서가 복사되었습니다." }),
+            onError: () => toast({ variant: "destructive", title: "복사에 실패했습니다." }),
+        });
+    };
+
+    const handleDeleteResume = (resumeId: number) => {
+        if (!window.confirm("이 이력서를 삭제하시겠습니까?")) return;
+        deleteMutation.mutate(resumeId, {
+            onSuccess: () => toast({ title: "이력서가 삭제되었습니다." }),
+            onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
+                toast({
+                    variant: "destructive",
+                    title: "삭제 실패",
+                    description: err?.response?.data?.message || err?.message || "이미 지원에 사용된 이력서는 삭제할 수 없습니다.",
+                });
+            },
+        });
+    };
+
+    const saving = createMutation.isPending || updateMutation.isPending;
 
     if (!user && !loading) {
         return (
@@ -164,6 +340,7 @@ const ResumePage = () => {
     }
 
     return (
+        <>
         <div className="min-h-screen bg-[#F8F9FA]">
             <Sidebar />
 
@@ -202,64 +379,77 @@ const ResumePage = () => {
                                 </TabsTrigger>
                             </TabsList>
 
-                            {/* 이력서 목록 */}
+                            {/* 이력서 목록 (DB 연동) */}
                             <TabsContent value="list" className="mt-6">
                                 <div className="grid gap-4">
-                                    {savedResumes.map((resume) => (
-                                        <Card key={resume.id} className="border-none shadow-sm hover:shadow-md transition-all bg-white overflow-hidden group">
-                                            <CardContent className="flex items-center justify-between p-6">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors">
-                                                        <FileText className="h-7 w-7 text-sky-500" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-3">
-                                                            <h3 className="font-bold text-lg text-gray-900">{resume.title}</h3>
-                                                            {resume.isDefault && (
-                                                                <Badge className="bg-sky-500 text-white border-none text-[10px] px-2 py-0">
-                                                                    기본
-                                                                </Badge>
-                                                            )}
+                                    {listLoading ? (
+                                        <div className="flex justify-center py-12">
+                                            <Loader2 className="h-10 w-10 animate-spin text-sky-500" />
+                                        </div>
+                                    ) : (
+                                        list.map((resume: { id: number; title?: string; lastModifiedAt?: string; primary?: boolean }) => (
+                                            <Card key={resume.id} className="border-none shadow-sm hover:shadow-md transition-all bg-white overflow-hidden group">
+                                                <CardContent className="flex items-center justify-between p-6">
+                                                    <div
+                                                        className="flex items-center gap-5 flex-1 min-w-0 cursor-pointer"
+                                                        onClick={() => handleViewResume(resume.id)}
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onKeyDown={(e) => e.key === "Enter" && handleViewResume(resume.id)}
+                                                        aria-label={`이력서 ${resume.title ?? "제목 없음"} 보기`}
+                                                    >
+                                                        <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors shrink-0">
+                                                            <FileText className="h-7 w-7 text-sky-500" />
                                                         </div>
-                                                        <p className="text-sm text-gray-400 mt-1">
-                                                            마지막 수정: {resume.updatedAt}
-                                                        </p>
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-3">
+                                                                <h3 className="font-bold text-lg text-gray-900 truncate">{resume.title ?? "제목 없음"}</h3>
+                                                                {resume.primary && (
+                                                                    <Badge className="bg-sky-500 text-white border-none text-[10px] px-2 py-0 shrink-0">
+                                                                        기본
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-sm text-gray-400 mt-1">
+                                                                마지막 수정: {formatResumeDate(resume.lastModifiedAt)}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Button variant="outline" size="sm" className="hidden md:flex gap-2 border-gray-200 text-gray-600 hover:bg-gray-50">
-                                                        <Eye className="h-4 w-4" />
-                                                        미리보기
-                                                    </Button>
-                                                    <Button variant="outline" size="sm" className="hidden md:flex gap-2 border-gray-200 text-gray-600 hover:bg-gray-50">
-                                                        <Download className="h-4 w-4" />
-                                                        다운로드
-                                                    </Button>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
-                                                                <MoreVertical className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="w-48 p-2">
-                                                            <DropdownMenuItem onClick={() => setActiveTab("edit")} className="rounded-md">
-                                                                수정하기
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem className="rounded-md">기본 이력서로 설정</DropdownMenuItem>
-                                                            <DropdownMenuItem className="rounded-md">복사하기</DropdownMenuItem>
-                                                            <DropdownMenuItem className="text-destructive rounded-md focus:bg-destructive/10">
-                                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                                삭제하기
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
+                                                    <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
+                                                                    <MoreVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-48 p-2">
+                                                                <DropdownMenuItem onClick={() => handleEditResume(resume.id)} className="rounded-md">
+                                                                    수정하기
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleSetPrimary(resume.id)} className="rounded-md" disabled={!!resume.primary}>
+                                                                    기본 이력서로 설정
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleCopyResume(resume.id)} className="rounded-md" disabled={copyMutation.isPending}>
+                                                                    복사하기
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    onClick={() => handleDeleteResume(resume.id)}
+                                                                    className="text-destructive rounded-md focus:bg-destructive/10"
+                                                                    disabled={deleteMutation.isPending}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-2" />
+                                                                    삭제하기
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ))
+                                    )}
 
                                     {/* 빈 상태 */}
-                                    {savedResumes.length === 0 && (
+                                    {!listLoading && list.length === 0 && (
                                         <Card className="border-none shadow-sm bg-white border-dashed border-2 border-gray-100">
                                             <CardContent className="flex flex-col items-center justify-center py-20">
                                                 <div className="h-16 w-16 bg-gray-50 rounded-full flex items-center justify-center mb-6">
@@ -298,6 +488,7 @@ const ResumePage = () => {
                                         resumeData={resumeData}
                                         onUpdateResume={setResumeData}
                                         onSave={handleSaveResume}
+                                        saving={saving}
                                     />
                                 </div>
                             </TabsContent>
@@ -374,6 +565,88 @@ const ResumePage = () => {
                 <Footer />
             </div>
         </div>
+
+        {/* 이력서 상세 보기 모달 */}
+        <Dialog open={viewingResumeId != null} onOpenChange={(open) => !open && closeViewModal()}>
+            <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>이력서 보기</DialogTitle>
+                </DialogHeader>
+                {loadingViewing ? (
+                    <div className="flex justify-center py-12">
+                        <Loader2 className="h-10 w-10 animate-spin text-sky-500" />
+                    </div>
+                ) : viewingResumeData ? (
+                    <div className="prose prose-sky max-w-none py-2">
+                        <h3 className="text-lg font-bold border-b border-sky-100 pb-2 mb-4 text-gray-900">
+                            {viewingResumeData.personalInfo?.name?.trim() || "제목 없는 이력서"}
+                        </h3>
+                        {viewingResumeData.summary ? (
+                            <>
+                                <h4 className="text-base font-semibold text-gray-800 mt-6 mb-2">자기소개</h4>
+                                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed text-sm">
+                                    {viewingResumeData.summary}
+                                </p>
+                            </>
+                        ) : null}
+                        {viewingResumeData.experiences?.length > 0 ? (
+                            <div className="mt-6">
+                                <h4 className="text-base font-semibold text-gray-800 mb-3">경력</h4>
+                                <ul className="space-y-4 list-none p-0 m-0">
+                                    {viewingResumeData.experiences.map((exp) => (
+                                        <li key={exp.id} className="border-b border-gray-100 pb-4 last:border-0">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <p className="font-semibold text-gray-900">{exp.company || "(회사명)"}</p>
+                                                <span className="text-xs text-gray-400 shrink-0">
+                                                    {exp.startDate || "-"} ~ {exp.endDate || "재직 중"}
+                                                </span>
+                                            </div>
+                                            <p className="text-sky-600 font-medium text-sm mt-1">{exp.position || "-"}</p>
+                                            {exp.description ? (
+                                                <p className="text-gray-600 text-sm mt-2 whitespace-pre-wrap">{exp.description}</p>
+                                            ) : null}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : null}
+                        {viewingResumeData.skills?.length > 0 ? (
+                            <div className="mt-6">
+                                <h4 className="text-base font-semibold text-gray-800 mb-2">기술 스택</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {viewingResumeData.skills.map((s, i) => (
+                                        <Badge key={i} variant="secondary" className="font-normal">
+                                            {s}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+                        {!viewingResumeData.summary && !viewingResumeData.experiences?.length && !viewingResumeData.skills?.length ? (
+                            <p className="text-gray-500 text-sm py-4">작성된 내용이 없습니다.</p>
+                        ) : null}
+                    </div>
+                ) : null}
+                <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={closeViewModal}>
+                        닫기
+                    </Button>
+                    {viewingResumeId != null && (
+                        <Button
+                            onClick={() => {
+                                if (viewingResumeId != null) handleEditResume(viewingResumeId);
+                                closeViewModal();
+                            }}
+                            className="bg-sky-500 hover:bg-sky-600 text-white"
+                        >
+                            <Layout className="h-4 w-4 mr-2" />
+                            수정하기
+                        </Button>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 };
 

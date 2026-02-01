@@ -7,21 +7,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
+import { getMyResumes } from "@/api/resumes";
+import { applyToJob } from "@/api/applications";
 
-// Mock API function (replace with actual API later)
-const fetchMyResumes = async () => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return [
-        { id: 1, title: "기본 이력서 (경력 중심)", isDefault: true, updatedAt: "2024.01.20" },
-        { id: 2, title: "프로젝트 포트폴리오 첨부", isDefault: false, updatedAt: "2023.12.15" },
-    ];
-};
-
-const submitApplication = async (jobId, resumeId, message) => {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return { ok: true };
-};
+/** API 이력서 목록 항목 → 모달 표시용 (id, title, isDefault, updatedAt) */
+function mapResumeItem(r) {
+    const updatedAt = r.lastModifiedAt
+        ? new Date(r.lastModifiedAt).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })
+        : "";
+    return {
+        id: r.id,
+        title: r.title || "제목 없는 이력서",
+        isDefault: !!r.primary,
+        updatedAt,
+    };
+}
 
 export function ApplyModal({ isOpen, onClose, jobTitle, jobId }) {
     const [resumes, setResumes] = useState([]);
@@ -34,17 +34,28 @@ export function ApplyModal({ isOpen, onClose, jobTitle, jobId }) {
     useEffect(() => {
         if (isOpen) {
             setIsLoading(true);
-            fetchMyResumes()
-                .then(data => {
-                    setResumes(data);
-                    const defaultResume = data.find(r => r.isDefault);
+            getMyResumes()
+                .then((data) => {
+                    const list = Array.isArray(data) ? data.map(mapResumeItem) : [];
+                    setResumes(list);
+                    const defaultResume = list.find((r) => r.isDefault);
                     if (defaultResume) setSelectedResumeId(defaultResume.id);
-                    else if (data.length > 0) setSelectedResumeId(data[0].id);
+                    else if (list.length > 0) setSelectedResumeId(list[0].id);
+                    else setSelectedResumeId(null);
                 })
-                .catch(console.error)
+                .catch((err) => {
+                    console.error(err);
+                    setResumes([]);
+                    setSelectedResumeId(null);
+                    toast({
+                        title: "이력서 목록 조회 실패",
+                        description: err?.response?.data?.message || err?.message || "로그인 후 다시 시도해주세요.",
+                        variant: "destructive",
+                    });
+                })
                 .finally(() => setIsLoading(false));
         }
-    }, [isOpen]);
+    }, [isOpen, toast]);
 
     const handleSubmit = async () => {
         if (!selectedResumeId) {
@@ -54,11 +65,12 @@ export function ApplyModal({ isOpen, onClose, jobTitle, jobId }) {
 
         setIsSubmitting(true);
         try {
-            await submitApplication(jobId, selectedResumeId, message);
+            await applyToJob(jobId, selectedResumeId, message?.trim() || null);
             toast({ title: "지원 완료", description: "성공적으로 지원했습니다. 좋은 결과 있기를 바랍니다!" });
             onClose();
         } catch (error) {
-            toast({ title: "지원 실패", description: "지원을 처리하는 중 오류가 발생했습니다.", variant: "destructive" });
+            const msg = error?.response?.data?.message || error?.message || "지원을 처리하는 중 오류가 발생했습니다.";
+            toast({ title: "지원 실패", description: msg, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }

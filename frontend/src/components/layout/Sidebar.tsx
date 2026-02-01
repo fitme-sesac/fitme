@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AIChatWidget } from "@/components/chat/AIChatWidget";
+import { EmployerAIChatWidget } from "@/components/chat/EmployerAIChatWidget";
 
 // 구직자용 메뉴
 const jobSeekerNavItems = [
@@ -147,12 +148,20 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* AI Chat Widget */}
-      <AIChatWidget
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        resetSeq={chatResetSeq}   // ✅ 추가
-      />
+      {/* AI Chat Widget - 구직자용 vs 기업용 */}
+      {isCompany ? (
+        <EmployerAIChatWidget
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          resetSeq={chatResetSeq}
+        />
+      ) : (
+        <AIChatWidget
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          resetSeq={chatResetSeq}
+        />
+      )}
     </>
   );
 }

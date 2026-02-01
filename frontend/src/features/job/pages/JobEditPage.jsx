@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import JobForm from '../components/JobForm';
 
@@ -59,8 +60,11 @@ export default function JobEditPage() {
 
   const layout = (content) => (
     <div className="min-h-screen bg-background">
-      <Header />
-      <main className="main">{content}</main>
+      <Sidebar />
+      <div className="lg:pl-64 transition-all duration-300">
+        <Header />
+        <main className="main">{content}</main>
+      </div>
     </div>
   );
 

@@ -56,7 +56,7 @@ const bannerSlides = [
     subtitleClass: "text-amber-600",
     indicatorClass: "bg-amber-500",
     ctaText: "공고 등록하기",
-    ctaLink: "/jobs/new",
+    ctaLink: "/employer/jobs/create",
   },
   {
     id: 4,

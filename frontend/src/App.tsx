@@ -38,6 +38,8 @@ import Interview from "./pages/jobseeker/Interview";
 import Resume from "./pages/jobseeker/Resume";
 import MyPage from "./pages/jobseeker/MyPage";
 import JobSeekerMyPage from "./pages/jobseeker/JobSeekerMyPage";
+import Proposals from "./pages/jobseeker/Proposals";
+import Applications from "./pages/jobseeker/Applications";
 
 // ============================================
 // Company Pages (기업회원 전용)
@@ -45,6 +47,7 @@ import JobSeekerMyPage from "./pages/jobseeker/JobSeekerMyPage";
 import CompanyDashboard from "./pages/company/CompanyDashboard";
 import CompanyManagement from "./pages/company/CompanyManagement";
 import Talents from "./pages/company/Talents";
+import TalentDetail from "./pages/company/TalentDetail";
 
 // ============================================
 // Employer Job Pages (채용공고 목록/상세/등록/수정 - /employer/jobs/*)
@@ -131,6 +134,14 @@ export default function App() {
                     <Route path="/jobs" element={<Jobs />} />
                     <Route path="/jobs/:jobId" element={<JobDetail />} />
                     <Route path="/talents" element={<Talents />} />
+                    <Route
+                        path="/talents/:talentId"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <TalentDetail />
+                            </PrivateRoute>
+                        }
+                    />
                     <Route path="/companies" element={<CompanyManagement />} />
                     <Route path="/companies/:companyId" element={<CompanyDetail />} />
                     <Route path="/community" element={<Community />} />
@@ -207,6 +218,23 @@ export default function App() {
                         element={
                             <PrivateRoute requiredRole="CANDIDATE">
                                 <JobSeekerMyPage />
+                            </PrivateRoute>
+                        }
+                    />
+                    {/* 구직자용: 받은 제안 / 입사지원 현황 */}
+                    <Route
+                        path="/proposals"
+                        element={
+                            <PrivateRoute requiredRole="CANDIDATE">
+                                <Proposals />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/applications"
+                        element={
+                            <PrivateRoute requiredRole="CANDIDATE">
+                                <Applications />
                             </PrivateRoute>
                         }
                     />

@@ -2,7 +2,7 @@ import { MapPin, Building2, Globe, Users, Bookmark, Heart, Sparkles, Coins } fro
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -75,6 +75,7 @@ export function WideJobCard({
     applyCount = 0,
     recruitmentCapacity = 0,
 }: JobCardProps) {
+    const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
     const [interested, setInterested] = useState(false);
     const rawSkills = Array.isArray(skillsProp)
@@ -98,10 +99,14 @@ export function WideJobCard({
 
     return (
         <div
+            role="button"
+            tabIndex={0}
             className={cn(
-                "group relative w-full rounded-2xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20",
+                "group relative w-full rounded-2xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20 cursor-pointer",
                 isAd && "ring-1 ring-primary/20"
             )}
+            onClick={() => navigate(`/jobs/${id}`)}
+            onKeyDown={(e) => e.key === "Enter" && navigate(`/jobs/${id}`)}
         >
             {/* Gradient Accent Line Top */}
             {isAd && <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#5AB2FA] to-[#3DCEC9]" />}
@@ -214,6 +219,7 @@ export function WideJobCard({
                             )}
                             onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 setInterested((v) => !v);
                             }}
                         >
@@ -226,7 +232,7 @@ export function WideJobCard({
                             className="h-11 px-8 text-base font-bold text-white shadow-md hover:shadow-lg transition-all hover:scale-[1.02] border-0"
                             style={{ background: mainGradient }}
                         >
-                            <Link to={`/jobs/${id}`}>
+                            <Link to={`/jobs/${id}`} onClick={(e) => e.stopPropagation()}>
                                 지원하기
                             </Link>
                         </Button>

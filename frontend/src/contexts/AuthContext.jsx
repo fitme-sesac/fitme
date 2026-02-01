@@ -50,7 +50,8 @@ export function AuthProvider({ children }) {
             const c = Number(res?.credits ?? 0);
             setCredits(Number.isFinite(c) ? c : 0);
         } catch {
-            // ignore
+            // 지갑 API 실패(401/400 등) 시 크레딧만 0으로 표시, 로그인 상태는 유지
+            setCredits(0);
         }
     }, []);
 

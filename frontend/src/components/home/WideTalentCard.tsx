@@ -136,8 +136,9 @@ export function WideTalentCard({
                         <Button
                             className="w-full font-bold shadow-md hover:shadow-lg transition-all"
                             style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}
+                            asChild
                         >
-                            <Link to={`/talents/${id}`} className="w-full h-full flex items-center justify-center">
+                            <Link to={`/talents/${id}`}>
                                 제안하기
                             </Link>
                         </Button>

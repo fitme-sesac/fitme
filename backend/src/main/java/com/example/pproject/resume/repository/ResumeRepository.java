@@ -1,6 +1,8 @@
 package com.example.pproject.resume.repository;
 
 import com.example.pproject.resume.entity.Resume;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -58,4 +60,15 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     default long countByUserId(Long userId) {
         return countByUser_Id(userId);
     }
+
+    /**
+     * 인재풀 목록: ACTIVE 이력서 보유 구직자 (CANDIDATE)
+     */
+    @Query("SELECT r FROM Resume r JOIN r.user u WHERE r.status = 'ACTIVE' AND r.deletedAt IS NULL " +
+            "AND u.roleType = 'CANDIDATE' AND u.status = 'ACTIVE' ORDER BY r.primary DESC, r.lastModifiedAt DESC")
+    Page<Resume> findActiveResumesForTalentPool(Pageable pageable);
+
+    @Query("SELECT COUNT(r) FROM Resume r WHERE r.status = 'ACTIVE' AND r.deletedAt IS NULL " +
+            "AND r.user.roleType = 'CANDIDATE' AND r.user.status = 'ACTIVE'")
+    long countActiveResumesForTalentPool();
 }

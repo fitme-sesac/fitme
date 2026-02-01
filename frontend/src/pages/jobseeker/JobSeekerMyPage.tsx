@@ -255,25 +255,44 @@ const JobSeekerMyPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      try {
-        const [profileData, recommendations, recentlyViewed, myApps, myScraps] = await Promise.all([
-          getMyProfileSummary(),
-          getAiRecommendations({ limit: 6 }),
-          getRecentlyViewedJobs(6),
-          getMyApplications(),
-          getMyScrapedJobs()
-        ]);
+      // 각 API를 독립적으로 호출해, 하나가 실패해도 나머지 결과는 반영 (지원 현황이 다른 API 실패로 사라지지 않도록)
+      const [profileResult, recResult, viewedResult, appsResult, scrapsResult] = await Promise.allSettled([
+        getMyProfileSummary(),
+        getAiRecommendations({ limit: 6 }),
+        getRecentlyViewedJobs(6),
+        getMyApplications(),
+        getMyScrapedJobs()
+      ]);
 
-        setProfileSummary(profileData);
-        setAiRecommendations(recommendations?.content || recommendations || []);
-        setViewedJobs(recentlyViewed?.content || recentlyViewed || []);
-        setApplications(myApps || []);
-        setSavedJobs(myScraps || []);
-      } catch (error) {
-        console.error("Failed to fetch MyPage data:", error);
-      } finally {
-        setLoading(false);
+      if (profileResult.status === "fulfilled") setProfileSummary(profileResult.value);
+      else console.warn("프로필 요약 조회 실패:", profileResult.reason);
+
+      if (recResult.status === "fulfilled") {
+        const r = recResult.value;
+        const list = Array.isArray(r?.content) ? r.content : (Array.isArray(r) ? r : []);
+        setAiRecommendations(list);
       }
+
+      if (viewedResult.status === "fulfilled") {
+        const v = viewedResult.value;
+        const list = Array.isArray(v?.content) ? v.content : (Array.isArray(v) ? v : []);
+        setViewedJobs(list);
+      }
+
+      if (appsResult.status === "fulfilled") {
+        const list = appsResult.value;
+        setApplications(Array.isArray(list) ? list : []);
+      } else {
+        console.warn("지원 현황 조회 실패:", appsResult.reason);
+        setApplications([]);
+      }
+
+      if (scrapsResult.status === "fulfilled") {
+        const s = scrapsResult.value;
+        const list = Array.isArray(s?.content) ? s.content : (Array.isArray(s) ? s : []);
+        setSavedJobs(list);
+      }
+      setLoading(false);
     };
     fetchData();
   }, []);
@@ -363,7 +382,7 @@ const JobSeekerMyPage = () => {
               <Card>
                 <CardContent className="p-4 text-center">
                   <Briefcase className="h-8 w-8 mx-auto text-primary mb-2" />
-                  <p className="text-2xl font-bold">{profileSummary?.applicationCount || 0}</p>
+                  <p className="text-2xl font-bold">{applications.length > 0 ? applications.length : (profileSummary?.applicationCount ?? 0)}</p>
                   <p className="text-sm text-muted-foreground">지원한 공고</p>
                 </CardContent>
               </Card>
@@ -407,30 +426,29 @@ const JobSeekerMyPage = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {applications.length > 0 ? (
-                        applications.map((app) => (
-                          <div
-                            key={app.applicationId || app.id}
-                            className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                        applications.map((app: { applicationId?: number; id?: number; jobId?: number; jobTitle?: string; status?: string; appliedAt?: string }) => (
+                          <Link
+                            key={app.applicationId ?? app.id}
+                            to={app.jobId ? `/jobs/${app.jobId}` : "#"}
+                            className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer block"
                           >
                             <div className="flex items-center gap-4">
                               {getStatusIcon(app.status)}
                               <div>
-                                <p className="font-medium">{app.job?.title || "채용공고"}</p>
+                                <p className="font-medium">{app.jobTitle ?? "채용공고"}</p>
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Building2 className="h-3 w-3" />
-                                  <span>{app.job?.companyName || "회사명"}</span>
-                                  <span>•</span>
-                                  <span>지원일: {app.appliedAt ? format(new Date(app.appliedAt), 'yyyy-MM-dd') : "-"}</span>
+                                  <span>지원일: {app.appliedAt ? format(new Date(app.appliedAt), "yyyy-MM-dd") : "-"}</span>
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
                               <Badge variant={getStatusBadgeVariant(app.status) as "default" | "secondary" | "destructive"}>
-                                {app.status}
+                                {app.status ?? "SUBMITTED"}
                               </Badge>
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             </div>
-                          </div>
+                          </Link>
                         ))
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">

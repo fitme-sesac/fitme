@@ -17,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 알림 서비스
@@ -42,6 +44,7 @@ public class NotificationService {
     private final NotificationDeliveryRepository deliveryRepository;
     private final NotificationTemplateRepository templateRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ==================== 알림 조회 ====================
 
@@ -144,7 +147,7 @@ public class NotificationService {
 
     /**
      * 간편 알림 생성 (PUSH 채널 기본)
-     * 
+     *
      * @param memberId 회원 ID
      * @param eventType 이벤트 타입
      * @param payload 페이로드 JSON
@@ -152,7 +155,7 @@ public class NotificationService {
      * @return 생성된 알림 DTO
      */
     @Transactional
-    public NotificationDTO createPushNotification(Long memberId, String eventType, 
+    public NotificationDTO createPushNotification(Long memberId, String eventType,
                                                    String payload, String linkUrl) {
         NotificationCreateRequest request = NotificationCreateRequest.builder()
                 .memberId(memberId)
@@ -161,8 +164,38 @@ public class NotificationService {
                 .payload(payload)
                 .linkUrl(linkUrl)
                 .build();
-        
+
         return createNotification(request);
+    }
+
+    /**
+     * Map 기반 알림 발송 (제안/지원 등에서 사용)
+     *
+     * @param memberId 회원 ID
+     * @param eventType 이벤트 타입 (PROPOSAL_RECEIVED, PROPOSAL_ACCEPTED 등)
+     * @param data 알림 데이터 (JSON 변환됨)
+     */
+    @Transactional
+    public void sendNotification(Long memberId, String eventType, Map<String, Object> data) {
+        try {
+            String payload = objectMapper.writeValueAsString(data);
+            String linkUrl = buildLinkUrl(eventType, data);
+            createPushNotification(memberId, eventType, payload, linkUrl);
+        } catch (Exception e) {
+            log.error("[알림] 알림 발송 실패 - memberId: {}, eventType: {}, error: {}",
+                    memberId, eventType, e.getMessage());
+        }
+    }
+
+    /**
+     * 이벤트 타입에 따른 링크 URL 생성
+     */
+    private String buildLinkUrl(String eventType, Map<String, Object> data) {
+        return switch (eventType) {
+            case "PROPOSAL_RECEIVED" -> "/proposals";
+            case "PROPOSAL_ACCEPTED", "PROPOSAL_REJECTED" -> "/company/dashboard";
+            default -> "/";
+        };
     }
 
     // ==================== 알림 상태 변경 ====================

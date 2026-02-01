@@ -42,7 +42,7 @@ export async function createResume(resume) {
  * @returns {Promise<ResumeDTO>}
  */
 export async function updateResume(resumeId, resume) {
-  const response = await http.put(`/api/v1/resumes/${resumeId}`, resume);
+  const response = await http.patch(`/api/v1/resumes/${resumeId}`, resume);
   return response.data;
 }
 
@@ -53,6 +53,16 @@ export async function updateResume(resumeId, resume) {
  */
 export async function deleteResume(resumeId) {
   const response = await http.delete(`/api/v1/resumes/${resumeId}`);
+  return response.data;
+}
+
+/**
+ * 이력서 복제 (로그인 필요)
+ * @param {number} resumeId - 이력서 ID
+ * @returns {Promise<number>} 새 이력서 ID
+ */
+export async function copyResume(resumeId) {
+  const response = await http.post(`/api/v1/resumes/${resumeId}/copy`);
   return response.data;
 }
 

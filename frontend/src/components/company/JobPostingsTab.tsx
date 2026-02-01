@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ interface JobPostingsTabProps {
 }
 
 export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProps) {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<{
     jobId: number;
     jobUid: string;
@@ -104,6 +105,7 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
     fetchJobs();
   }, [refetchKey]);
 
+  // 지원자 목록: getApplicants → /api/employer/applicants (DB 연동, Mock 아님)
   useEffect(() => {
     if (!applicantsModalJob) {
       setApplicantsList([]);
@@ -246,20 +248,22 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
             const techStack = job.stack
               ? job.stack.split(",").map((s) => s.trim()).filter(Boolean)
               : [];
+            const detailPath = `/employer/jobs/${job.jobUid ?? job.jobId}`;
             return (
               <div
                 key={job.jobUid}
-                className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all"
+                role="button"
+                tabIndex={0}
+                className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all cursor-pointer"
+                onClick={() => navigate(detailPath)}
+                onKeyDown={(e) => e.key === "Enter" && navigate(detailPath)}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <Link
-                        to={`/employer/jobs/${job.jobUid ?? job.jobId}`}
-                        className="font-semibold text-foreground hover:underline"
-                      >
+                      <span className="font-semibold text-foreground">
                         {job.title}
-                      </Link>
+                      </span>
                       <Badge variant="outline" className={status.className}>
                         {status.label}
                       </Badge>
@@ -287,7 +291,7 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-6" onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-6">
                       <div className="text-center">
                         <p className="text-2xl font-bold text-foreground">

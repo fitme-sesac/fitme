@@ -3,6 +3,8 @@ package com.example.pproject.notification.entity;
 import com.example.pproject.user.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -101,8 +103,13 @@ public class NotificationDelivery {
      * 페이로드 (JSONB NULL)
      * - 알림에 포함된 동적 데이터
      * - 예: {"jobTitle": "백엔드 개발자", "companyName": "ABC Company"}
+     * 
+     * Hibernate JSON 타입 매핑:
+     * - @JdbcTypeCode(SqlTypes.JSON): String 타입을 PostgreSQL JSONB로 자동 변환
+     * - JSON 문자열을 그대로 저장하되 DB에서는 JSONB 타입으로 처리
      */
     @Column(name = "payload", columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String payload;
 
     /**

@@ -189,8 +189,8 @@ export default function EmployerDashboardPage() {
                   <div className="list-group list-group-flush">
                     {recentJobs.map((job) => (
                       <Link
-                        key={job.jobUid}
-                        to={`/employer/jobs/${job.jobUid}`}
+                        key={job.jobUid ?? job.jobId}
+                        to={`/employer/jobs/${job.jobUid ?? job.jobId}`}
                         className="list-group-item list-group-item-action"
                       >
                         <div className="d-flex justify-content-between align-items-start">
