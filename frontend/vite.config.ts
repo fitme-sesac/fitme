@@ -83,6 +83,7 @@ export default defineConfig(({ mode }) => {
 
                 // ===== AI worker proxies =====
                 "/chatbot": { target: aiTarget, changeOrigin: true },
+                "/employer-chatbot": { target: aiTarget, changeOrigin: true },
                 "/resumes": { target: aiTarget, changeOrigin: true },
             },
         },

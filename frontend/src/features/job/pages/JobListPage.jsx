@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { Header } from '@/components/layout/Header';
 
 /**
  * 채용공고 목록 페이지
@@ -62,20 +64,30 @@ export default function JobListPage() {
 
   if (loading && jobs.length === 0) {
     return (
-      <main className="main">
-        <div className="container py-5">
-          <div className="text-center">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <div className="lg:pl-64 transition-all duration-300">
+          <Header />
+          <main className="main">
+            <div className="container py-5">
+              <div className="text-center">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </div>
             </div>
-          </div>
+          </main>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="main">
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      <div className="lg:pl-64 transition-all duration-300">
+        <Header />
+        <main className="main">
       <div className="container py-4">
         {/* 페이지 헤더 */}
         <div className="d-flex justify-content-between align-items-center mb-4">
@@ -135,15 +147,22 @@ export default function JobListPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {jobs.map((job) => (
-                      <tr key={job.jobId || job.jobUid}>
+                    {jobs.map((job) => {
+                      const detailPath = `/employer/jobs/${job.jobId || job.jobUid}`;
+                      return (
+                      <tr
+                        key={job.jobId || job.jobUid}
+                        role="button"
+                        tabIndex={0}
+                        className="table-row-clickable"
+                        onClick={() => navigate(detailPath)}
+                        onKeyDown={(e) => e.key === 'Enter' && navigate(detailPath)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <td>
-                          <Link 
-                            to={`/employer/jobs/${job.jobId || job.jobUid}`}
-                            className="text-decoration-none text-dark fw-semibold"
-                          >
+                          <span className="text-dark fw-semibold">
                             {job.title}
-                          </Link>
+                          </span>
                           {job.location && (
                             <small className="text-muted d-block">
                               <i className="bi bi-geo-alt me-1"></i>
@@ -157,17 +176,17 @@ export default function JobListPage() {
                         <td className="text-center small">
                           {job.createdAt ? new Date(job.createdAt).toLocaleDateString('ko-KR') : '-'}
                         </td>
-                        <td className="text-center">
+                        <td className="text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="btn-group btn-group-sm">
                             <Link
-                              to={`/employer/jobs/${job.jobId || job.jobUid}`}
+                              to={detailPath}
                               className="btn btn-outline-secondary"
                               title="상세보기"
                             >
                               <i className="bi bi-eye"></i>
                             </Link>
                             <Link
-                              to={`/employer/jobs/${job.jobId || job.jobUid}/edit`}
+                              to={`${detailPath}/edit`}
                               className="btn btn-outline-primary"
                               title="수정"
                             >
@@ -176,7 +195,7 @@ export default function JobListPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
@@ -224,7 +243,9 @@ export default function JobListPage() {
             </div>
           )}
         </div>
+        </div>
+      </main>
       </div>
-    </main>
+    </div>
   );
 }

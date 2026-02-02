@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { Header } from '@/components/layout/Header';
 import JobForm from '../components/JobForm';
 
 /**
@@ -56,38 +58,43 @@ export default function JobEditPage() {
     }
   };
 
+  const layout = (content) => (
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      <div className="lg:pl-64 transition-all duration-300">
+        <Header />
+        <main className="main">{content}</main>
+      </div>
+    </div>
+  );
+
   if (loading) {
-    return (
-      <main className="main">
-        <div className="container py-5">
-          <div className="text-center">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
+    return layout(
+      <div className="container py-5">
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error && !job) {
-    return (
-      <main className="main">
-        <div className="container py-4">
-          <div className="alert alert-danger">
-            <i className="bi bi-exclamation-triangle me-2"></i>
-            {error}
-            <Link to="/employer/jobs" className="btn btn-outline-danger btn-sm ms-3">
-              목록으로
-            </Link>
-          </div>
+    return layout(
+      <div className="container py-4">
+        <div className="alert alert-danger">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          {error}
+          <Link to="/employer/jobs" className="btn btn-outline-danger btn-sm ms-3">
+            목록으로
+          </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
-  return (
-    <main className="main">
+  return layout(
       <div className="container py-4">
         {/* 헤더 */}
         <div className="mb-4">
@@ -155,6 +162,5 @@ export default function JobEditPage() {
           </div>
         </div>
       </div>
-    </main>
   );
 }

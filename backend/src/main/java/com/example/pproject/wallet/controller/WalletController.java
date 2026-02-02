@@ -1,5 +1,6 @@
 package com.example.pproject.wallet.controller;
 
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.payment.entity.Payment;
 import com.example.pproject.payment.repository.PaymentRepository;
@@ -13,10 +14,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,14 +38,17 @@ public class WalletController {
 
         /**
          * 내 지갑 정보 조회
+         * - JWT에 DB 사용자 id가 있어야 함 (로그인 후 발급된 토큰 필요)
          */
         @GetMapping("/me")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<WalletInfoResponse> getMyWallet(
-                        @AuthenticationPrincipal UserDetails userDetails,
+                        @AuthenticationPrincipal JwtUserPrincipal user,
                         @RequestParam(defaultValue = "CANDIDATE") RoleType roleType) {
-                Long userId = Long.parseLong(userDetails.getUsername());
-                return ResponseEntity.ok(WalletInfoResponse.from(walletService.getMyWallet(userId, roleType)));
+                if (user == null || user.getId() == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
+                return ResponseEntity.ok(WalletInfoResponse.from(walletService.getMyWallet(user.getId(), roleType)));
         }
 
         /**
@@ -53,11 +57,13 @@ public class WalletController {
         @GetMapping("/me/ledgers")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Page<WalletLedgerResponse>> getMyLedgers(
-                        @AuthenticationPrincipal UserDetails userDetails,
+                        @AuthenticationPrincipal JwtUserPrincipal user,
                         @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
                         @PageableDefault(size = 20, sort = "occurredAt", direction = Sort.Direction.DESC) Pageable pageable) {
-                Long userId = Long.parseLong(userDetails.getUsername());
-                return ResponseEntity.ok(walletService.getMyLedgers(userId, roleType, pageable));
+                if (user == null || user.getId() == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
+                return ResponseEntity.ok(walletService.getMyLedgers(user.getId(), roleType, pageable));
         }
 
         /**
@@ -66,13 +72,15 @@ public class WalletController {
         @GetMapping("/me/ledgers/monthly")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Page<WalletLedgerResponse>> getMyLedgersByMonth(
-                        @AuthenticationPrincipal UserDetails userDetails,
+                        @AuthenticationPrincipal JwtUserPrincipal user,
                         @RequestParam(defaultValue = "CANDIDATE") RoleType roleType,
                         @RequestParam int year,
                         @RequestParam int month,
                         @PageableDefault(size = 20, sort = "occurredAt", direction = Sort.Direction.DESC) Pageable pageable) {
-                Long userId = Long.parseLong(userDetails.getUsername());
-                return ResponseEntity.ok(walletService.getMyLedgersByMonth(userId, roleType, year, month, pageable));
+                if (user == null || user.getId() == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
+                return ResponseEntity.ok(walletService.getMyLedgersByMonth(user.getId(), roleType, year, month, pageable));
         }
 
         /**
@@ -81,11 +89,13 @@ public class WalletController {
         @GetMapping("/me/credit-lots")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<List<WalletCreditLotResponse>> getMyCreditLots(
-                        @AuthenticationPrincipal UserDetails userDetails,
+                        @AuthenticationPrincipal JwtUserPrincipal user,
                         @RequestParam(defaultValue = "CANDIDATE") RoleType roleType) {
-                Long userId = Long.parseLong(userDetails.getUsername());
+                if (user == null || user.getId() == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
                 return ResponseEntity.ok(
-                                walletService.getMyCreditLots(userId, roleType).stream()
+                                walletService.getMyCreditLots(user.getId(), roleType).stream()
                                                 .map(WalletCreditLotResponse::from)
                                                 .collect(Collectors.toList()));
         }
@@ -96,14 +106,16 @@ public class WalletController {
         @PostMapping("/charge")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> chargeCredit(
-                        @AuthenticationPrincipal UserDetails userDetails,
+                        @AuthenticationPrincipal JwtUserPrincipal user,
                         @RequestBody @Valid WalletChargeRequest request) {
-                Long userId = Long.parseLong(userDetails.getUsername());
+                if (user == null || user.getId() == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
 
                 Payment payment = paymentRepository.findById(request.paymentId())
                                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다."));
 
-                walletService.chargeCredit(userId, request.buyerType(), request.amount(), request.toMoney(), payment);
+                walletService.chargeCredit(user.getId(), request.buyerType(), request.amount(), request.toMoney(), payment);
                 return ResponseEntity.ok().build();
         }
 
@@ -113,18 +125,20 @@ public class WalletController {
         @PostMapping("/use")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> useCredit(
-                        @AuthenticationPrincipal UserDetails userDetails,
+                        @AuthenticationPrincipal JwtUserPrincipal user,
                         @RequestBody @Valid WalletUseRequest request) {
-                Long userId = Long.parseLong(userDetails.getUsername());
+                if (user == null || user.getId() == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                }
 
                 // 분산 락 키 생성 (중복 요청 방지)
-                String lockKey = "wallet:use:" + userId + ":" + request.orderId();
+                String lockKey = "wallet:use:" + user.getId() + ":" + request.orderId();
                 if (!lockService.tryLock(lockKey)) {
                         throw new DuplicateRequestException("이미 처리 중인 요청입니다.");
                 }
 
                 try {
-                        walletService.useCredit(userId, request.buyerType(), request.amount(),
+                        walletService.useCredit(user.getId(), request.buyerType(), request.amount(),
                                         request.orderId(), request.sourceType());
                         return ResponseEntity.ok().build();
                 } finally {

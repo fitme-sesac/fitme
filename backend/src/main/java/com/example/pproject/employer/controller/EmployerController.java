@@ -1,6 +1,8 @@
 package com.example.pproject.employer.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.employer.service.EmployerService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,19 @@ import java.util.Map;
 public class EmployerController {
 
     private final EmployerService employerService;
+    private final UserRepository userRepository;
+
+    /** JWT principal에서 회원 PK(member_id) 조회. id 클레임 우선, 없으면 userid로 DB 조회 (OAuth 등 userid null 대응) */
+    private Long resolveMemberId(JwtUserPrincipal principal) {
+        if (principal == null) return null;
+        if (principal.getId() != null) return principal.getId();
+        if (principal.getUserid() != null && !principal.getUserid().isBlank()) {
+            return userRepository.findByUserid(principal.getUserid())
+                    .map(UserEntity::getId)
+                    .orElse(null);
+        }
+        return null;
+    }
 
     /**
      * 기업 대시보드 조회
@@ -90,7 +105,7 @@ public class EmployerController {
     // ===== 지원자 관리 API =====
 
     /**
-     * 지원자 목록 조회
+     * 지원자 목록 조회 (memberId 기반으로 기업 소속 조회 → OAuth/일반 로그인 모두 대응)
      */
     @GetMapping("/applicants")
     public ResponseEntity<?> getApplicants(
@@ -99,8 +114,12 @@ public class EmployerController {
         if (principal == null) {
             return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
         }
+        Long memberId = resolveMemberId(principal);
+        if (memberId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "회원 정보를 찾을 수 없습니다."));
+        }
         try {
-            ApplicantListDTO applicants = employerService.getApplicants(principal.getUserid(), status);
+            ApplicantListDTO applicants = employerService.getApplicants(memberId, status);
             return ResponseEntity.ok(applicants);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

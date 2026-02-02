@@ -91,10 +91,12 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
                     ? ue.getUsername()
                     : oauth2User.getAttribute("name");
 
+            java.util.Collection<org.springframework.security.core.GrantedAuthority> authorities =
+                    List.of(new SimpleGrantedAuthority("ROLE_" + ue.getRoleType().name()));
+            JwtUserPrincipal jwtPrincipal = new JwtUserPrincipal(
+                    ue.getId(), ue.getUserid(), displayName, email, authorities);
             Authentication authForToken = new UsernamePasswordAuthenticationToken(
-                    ue.getUserid(),
-                    null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + ue.getRoleType().name())));
+                    jwtPrincipal, null, jwtPrincipal.getAuthorities());
 
             String accessToken = jwtTokenProvider.createAccessToken(authForToken, displayName, email);
             CookieUtils.addHttpOnlyCookie(
@@ -110,11 +112,12 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
         }
 
         // 일반 로그인
+        Optional<UserEntity> ueOpt = Optional.empty();
         if (principal instanceof UserDetails userDetails) {
             String loginId = userDetails.getUsername();
-            Optional<UserEntity> ue = userRepository.findByUserid(loginId);
-            displayName = ue.map(UserEntity::getUsername).orElse(loginId);
-            email = ue.map(UserEntity::getEmail).orElse(null);
+            ueOpt = userRepository.findByUserid(loginId);
+            displayName = ueOpt.map(UserEntity::getUsername).orElse(loginId);
+            email = ueOpt.map(UserEntity::getEmail).orElse(null);
         } else {
             displayName = principal.toString();
         }
@@ -123,7 +126,18 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
             displayName = authentication.getName();
         }
 
-        String accessToken = jwtTokenProvider.createAccessToken(authentication, displayName, email);
+        // JWT에 회원 DB id(member_id) 포함: 이력서/지원 등 API에서 user.getId() 사용
+        String accessToken;
+        if (ueOpt.isPresent()) {
+            UserEntity ue = ueOpt.get();
+            JwtUserPrincipal jwtPrincipal = new JwtUserPrincipal(
+                    ue.getId(), ue.getUserid(), displayName, email, authentication.getAuthorities());
+            Authentication authForToken = new UsernamePasswordAuthenticationToken(
+                    jwtPrincipal, null, jwtPrincipal.getAuthorities());
+            accessToken = jwtTokenProvider.createAccessToken(authForToken, displayName, email);
+        } else {
+            accessToken = jwtTokenProvider.createAccessToken(authentication, displayName, email);
+        }
         CookieUtils.addHttpOnlyCookie(
                 request,
                 response,

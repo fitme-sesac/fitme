@@ -31,6 +31,10 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
   @Query("SELECT COALESCE(SUM(j.applicationCount), 0) FROM JobEntity j WHERE j.employerId = :employerId AND j.deletedAt IS NULL")
   long sumApplicationCountByEmployerId(@Param("employerId") Long employerId);
 
+  // 전체 조회수 합계 (기업 대시보드용)
+  @Query("SELECT COALESCE(SUM(j.viewCount), 0) FROM JobEntity j WHERE j.employerId = :employerId AND j.deletedAt IS NULL")
+  long sumViewCountByEmployerId(@Param("employerId") Long employerId);
+
   // ID로 삭제되지 않은 채용공고 조회
   @Query("SELECT j FROM JobEntity j WHERE j.id = :id AND j.deletedAt IS NULL")
   Optional<JobEntity> findByIdAndNotDeleted(@Param("id") Long id);

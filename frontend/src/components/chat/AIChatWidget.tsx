@@ -137,7 +137,10 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
         >
             <Card className="w-[360px] md:w-[400px] h-[600px] shadow-2xl border-border/50 flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-[#5A639C] to-[#9B86BD] p-4 flex items-center justify-between shrink-0">
+                <div
+                    className="p-4 flex items-center justify-between shrink-0"
+                    style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}
+                >
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <Avatar className="h-10 w-10 border-2 border-white/20">
@@ -146,7 +149,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                                     <Bot className="h-6 w-6" />
                                 </AvatarFallback>
                             </Avatar>
-                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#5A639C] rounded-full"></span>
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-sky-500 rounded-full"></span>
                         </div>
                         <div className="text-white">
                             <h3 className="font-bold text-base flex items-center gap-1">
@@ -185,7 +188,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                             >
                                 {msg.role === "assistant" && (
                                     <Avatar className="h-8 w-8 mt-1 border">
-                                        <AvatarFallback className="bg-[#5A639C]/10 text-[#5A639C]">
+                                        <AvatarFallback className="bg-sky-50 text-sky-500">
                                             <Bot className="h-4 w-4" />
                                         </AvatarFallback>
                                     </Avatar>
@@ -195,7 +198,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                                     className={cn(
                                         "p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm",
                                         msg.role === "user"
-                                            ? "bg-[#5A639C] text-white rounded-tr-none"
+                                            ? "bg-sky-500 text-white rounded-tr-none"
                                             : "bg-background border rounded-tl-none"
                                     )}
                                 >
@@ -203,11 +206,11 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                                 </div>
 
                                 <span className="text-[10px] text-muted-foreground self-end mb-1 px-1">
-                  {msg.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                  })}
-                </span>
+                                    {msg.timestamp.toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}
+                                </span>
                             </div>
                         ))}
                         <div ref={messagesEndRef} />
@@ -229,7 +232,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                             className={cn(
                                 "absolute right-1 bottom-1 h-10 w-10 rounded-lg transition-all",
                                 input.trim() && !isSending
-                                    ? "bg-[#5A639C] hover:bg-[#4A538C] text-white"
+                                    ? "bg-sky-500 hover:bg-sky-600 text-white"
                                     : "bg-transparent text-muted-foreground hover:bg-muted"
                             )}
                             onClick={() => void handleSend()}
@@ -240,9 +243,9 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                     </div>
 
                     <div className="text-center mt-2">
-            <span className="text-[10px] text-muted-foreground">
-              FitMe AI는 실수할 수 있습니다. 중요한 정보는 확인해 주세요.
-            </span>
+                        <span className="text-[10px] text-muted-foreground">
+                            FitMe AI는 실수할 수 있습니다. 중요한 정보는 확인해 주세요.
+                        </span>
                     </div>
                 </div>
             </Card>

@@ -5,6 +5,7 @@ import com.example.pproject.Constant.SourceType;
 import com.example.pproject.common.service.DistributedLockService;
 import com.example.pproject.global.exception.DuplicateRequestException;
 import com.example.pproject.payment.repository.PaymentRepository;
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.wallet.dto.WalletUseRequest;
 import com.example.pproject.wallet.service.WalletService;
 import org.junit.jupiter.api.DisplayName;
@@ -12,8 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,7 +50,7 @@ class WalletControllerConcurrencyTest {
     void withDistributedLock_ConcurrentRequests_OnlyOneSucceeds() throws InterruptedException {
         // 1. [Given]
         WalletController controller = new WalletController(walletService, paymentRepository, lockService);
-        UserDetails userDetails = new User("123", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(123L, "user123", "User", null, Collections.emptyList());
         WalletUseRequest request = new WalletUseRequest(
                 100L,
                 "order-concurrent-test",
@@ -80,7 +79,7 @@ class WalletControllerConcurrencyTest {
             executor.submit(() -> {
                 try {
                     startLatch.await(); // 모든 스레드 동시 시작
-                    controller.useCredit(userDetails, request);
+                    controller.useCredit(user, request);
                     successCount.incrementAndGet();
                 } catch (DuplicateRequestException e) {
                     duplicateCount.incrementAndGet();
@@ -123,7 +122,7 @@ class WalletControllerConcurrencyTest {
         // 1. [Given] 분산 락 없는 컨트롤러 시뮬레이션
         // 락을 항상 획득 성공으로 설정 (락이 없는 것처럼 동작)
         WalletController controller = new WalletController(walletService, paymentRepository, lockService);
-        UserDetails userDetails = new User("456", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(456L, "user456", "User", null, Collections.emptyList());
         WalletUseRequest request = new WalletUseRequest(
                 100L,
                 "order-no-lock-test",
@@ -146,7 +145,7 @@ class WalletControllerConcurrencyTest {
             executor.submit(() -> {
                 try {
                     startLatch.await();
-                    controller.useCredit(userDetails, request);
+                    controller.useCredit(user, request);
                     successCount.incrementAndGet();
                 } catch (DuplicateRequestException e) {
                     duplicateCount.incrementAndGet();

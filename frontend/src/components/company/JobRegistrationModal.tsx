@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,13 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Upload, Image as ImageIcon } from "lucide-react";
-// import { useJobMutation } from "../../features/job/hooks/useJobs";
-// import { useQueryClient } from "@tanstack/react-query";
+import { X, Plus, Upload } from "lucide-react";
+import { createJobPosting, getJobPosting, updateJobPosting } from "@/features/job/api/jobApi";
 
 interface JobRegistrationModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** 등록/수정 성공 시 호출 (목록 새로고침 등) */
+    onSuccess?: () => void;
+    /** 수정 모드: 채용공고 jobUid 지정 시 해당 공고를 불러와 수정 */
+    editJobUid?: string | null;
 }
 
 const POSITIONS = [
@@ -33,13 +36,16 @@ const POSITIONS = [
 
 const LOCATIONS = [
     "서울 강남구", "서울 서초구", "서울 송파구", "서울 구로구", "서울 금천구", "서울 마포구", "서울 성동구",
-    "경기 성남시 분당구 (판교)", "경기 성남시 수정구", "인천", "대전", "대구", "부산", "광주", "재택근무"
+    "경기 성남시 분당구 (판교)", "경기 성남시 수정구", "인천", "대전", "대구", "부산", "광주", "재택근무",
+    "부산광역시 수영구", "부산광역시 해운대구", "경기", "세종", "제주",
 ];
 
 const COMMON_STACKS = ["React", "Vue.js", "Next.js", "TypeScript", "Node.js", "Java", "Spring Boot", "Python", "Django", "FastAPI", "Go", "AWS", "Docker", "Kubernetes", "Flutter", "Swift", "Kotlin"];
 
-export function JobRegistrationModal({ open, onOpenChange }: JobRegistrationModalProps) {
+export function JobRegistrationModal({ open, onOpenChange, onSuccess, editJobUid }: JobRegistrationModalProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [loadingJob, setLoadingJob] = useState(false);
     const [formData, setFormData] = useState({
         title: "",
         position: "",
@@ -55,8 +61,54 @@ export function JobRegistrationModal({ open, onOpenChange }: JobRegistrationModa
     });
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
-    // const { create } = useJobMutation();
-    // const queryClient = useQueryClient();
+    const isEditMode = !!editJobUid;
+
+    // 등록 모드로 열릴 때 폼 초기화
+    useEffect(() => {
+        if (open && !editJobUid) {
+            setFormData({
+                title: "", position: "", location: "", experience: "", salary: "", deadline: "",
+                description: "", techStack: [], techInput: "", recruitmentCapacity: "", images: [],
+            });
+            setPreviewUrls([]);
+        }
+    }, [open, editJobUid]);
+
+    // 수정 모드: 공고 데이터 로드
+    useEffect(() => {
+        if (!open || !editJobUid) return;
+        let cancelled = false;
+        setLoadingJob(true);
+        getJobPosting(editJobUid)
+            .then((job: Record<string, unknown>) => {
+                if (cancelled) return;
+                const stackStr = (job.stack as string) ?? "";
+                const techStack = stackStr ? stackStr.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                const loc = (job.location as string) ?? "";
+                const locOptions = LOCATIONS.includes(loc) ? LOCATIONS : [loc, ...LOCATIONS];
+                setFormData({
+                    title: (job.title as string) ?? "",
+                    position: (job.position as string) ?? "",
+                    location: loc,
+                    experience: String((job.requiredExperience as number) ?? 0),
+                    salary: (job.salaryText as string) ?? "",
+                    deadline: "",
+                    description: (job.description as string) ?? "",
+                    techStack,
+                    techInput: "",
+                    recruitmentCapacity: String((job.recruitmentCapacity as number) ?? ""),
+                    images: [],
+                });
+                setPreviewUrls([]);
+            })
+            .catch(() => {
+                if (!cancelled) alert("채용공고를 불러오는데 실패했습니다.");
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingJob(false);
+            });
+        return () => { cancelled = true; };
+    }, [open, editJobUid]);
 
     const handleAddTech = (tech?: string) => {
         const value = tech || formData.techInput;
@@ -95,27 +147,93 @@ export function JobRegistrationModal({ open, onOpenChange }: JobRegistrationModa
     };
 
     const handleSubmit = async () => {
-        // Simple UI test mode
         if (!formData.title || !formData.position || !formData.location || !formData.description) {
             alert("필수 항목을 모두 입력해주세요.");
             return;
         }
 
-        console.log("Form Data:", formData);
-        alert("채용공고가 성공적으로 등록되었습니다. (UI 테스트 모드)");
-        onOpenChange(false);
+        setSubmitting(true);
+        try {
+            const payload = {
+                title: formData.title,
+                description: formData.description,
+                location: formData.location,
+                salaryText: formData.salary || null,
+                stack: formData.techStack.length > 0 ? formData.techStack.join(",") : null,
+                requiredExperience: formData.experience ? parseInt(formData.experience, 10) : 0,
+                recruitmentCapacity: formData.recruitmentCapacity ? parseInt(formData.recruitmentCapacity, 10) : 0,
+                status: "OPEN",
+            };
+            if (isEditMode && editJobUid) {
+                await updateJobPosting(editJobUid, payload);
+                alert("채용공고가 수정되었습니다.");
+            } else {
+                await createJobPosting(payload);
+                alert("채용공고가 등록되었습니다.");
+            }
+            onOpenChange(false);
+            setFormData({
+                title: "",
+                position: "",
+                location: "",
+                experience: "",
+                salary: "",
+                deadline: "",
+                description: "",
+                techStack: [],
+                techInput: "",
+                recruitmentCapacity: "",
+                images: [],
+            });
+            setPreviewUrls([]);
+            onSuccess?.();
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? (isEditMode ? "수정에 실패했습니다." : "등록에 실패했습니다.");
+            alert(msg);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
+    const handleOpenChange = (next: boolean) => {
+        if (!next) {
+            if (!isEditMode) {
+                setFormData({
+                    title: "", position: "", location: "", experience: "", salary: "", deadline: "",
+                    description: "", techStack: [], techInput: "", recruitmentCapacity: "", images: [],
+                });
+                setPreviewUrls([]);
+            }
+        }
+        onOpenChange(next);
+    };
+
+    const locationOptions = formData.location && !LOCATIONS.includes(formData.location)
+        ? [formData.location, ...LOCATIONS]
+        : LOCATIONS;
+    const positionOptions = formData.position && !POSITIONS.some((p) => p.value === formData.position)
+        ? [{ value: formData.position, label: formData.position }, ...POSITIONS]
+        : POSITIONS;
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="text-xl">새 채용공고 등록</DialogTitle>
+                    <DialogTitle className="text-xl">
+                        {isEditMode ? "채용공고 수정" : "새 채용공고 등록"}
+                    </DialogTitle>
                     <DialogDescription>
-                        우수한 인재를 찾기 위한 매력적인 채용공고를 작성해주세요.
+                        {isEditMode
+                            ? "내용을 수정한 뒤 아래 버튼으로 저장하세요."
+                            : "우수한 인재를 찾기 위한 매력적인 채용공고를 작성해주세요."}
                     </DialogDescription>
                 </DialogHeader>
-
+                {loadingJob ? (
+                    <div className="flex items-center justify-center py-8 text-muted-foreground">
+                        채용공고를 불러오는 중...
+                    </div>
+                ) : (
+                <>
                 <div className="grid gap-6 py-4">
                     {/* 1. 기본 정보 */}
                     <div className="space-y-4">
@@ -145,7 +263,9 @@ export function JobRegistrationModal({ open, onOpenChange }: JobRegistrationModa
                                             <SelectValue placeholder="직무 선택" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {POSITIONS.map(pos => <SelectItem key={pos.value} value={pos.value}>{pos.label}</SelectItem>)}
+                                            {positionOptions.map((pos) => (
+                                                <SelectItem key={pos.value} value={pos.value}>{pos.label}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -189,7 +309,7 @@ export function JobRegistrationModal({ open, onOpenChange }: JobRegistrationModa
                                         <SelectValue placeholder="근무지 선택" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {LOCATIONS.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
+                                        {locationOptions.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -328,9 +448,15 @@ export function JobRegistrationModal({ open, onOpenChange }: JobRegistrationModa
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
-                    <Button onClick={handleSubmit} className="btn-gradient-primary">공고 등록하기</Button>
+                    <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>취소</Button>
+                    <Button onClick={handleSubmit} className="btn-gradient-primary" disabled={submitting}>
+                        {submitting
+                            ? (isEditMode ? "수정 중..." : "등록 중...")
+                            : (isEditMode ? "수정 완료" : "공고 등록하기")}
+                    </Button>
                 </DialogFooter>
+                </>
+                )}
             </DialogContent>
         </Dialog>
     );
