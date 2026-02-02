@@ -40,6 +40,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Page<Payment> findByOrder_BuyerEmployer_Id(Long employerId, Pageable pageable);
 
     // 총 수익 계산 (결제 완료된 금액 합계)
-    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.status = 'DONE'")
+    @Query("SELECT COALESCE(SUM(p.paidAmount.amount), 0) FROM Payment p WHERE p.appStatus = com.example.pproject.Constant.PaymentAppStatus.APPROVED")
     Long sumTotalRevenue();
 }
