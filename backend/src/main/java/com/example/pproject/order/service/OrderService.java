@@ -11,6 +11,8 @@ import com.example.pproject.product.entity.Product;
 import com.example.pproject.product.repository.ProductRepository;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
+import com.example.pproject.employer.entity.EmployerMemberEntity;
+import com.example.pproject.employer.repository.EmployerMemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final EmployerRepository employerRepository;
+    private final EmployerMemberRepository employerMemberRepository;
     private final ProductRepository productRepository;
 
     /**
@@ -59,7 +62,9 @@ public class OrderService {
             buyer = userRepository.findById(buyerId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
         } else if (buyerType == BuyerType.EMPLOYER) {
-            employer = employerRepository.findByIdAndDeletedAtIsNull(buyerId)
+            EmployerMemberEntity em = employerMemberRepository.findFirstByMemberIdAndActiveTrue(buyerId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+            employer = employerRepository.findByIdAndDeletedAtIsNull(em.getEmployerId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업 회원입니다."));
         } else {
             throw new IllegalArgumentException("지원하지 않는 구매자 타입입니다.");
@@ -73,8 +78,7 @@ public class OrderService {
                 employer,
                 product,
                 product.getPrice(), // 상품 가격을 주문 금액으로 설정
-                idempotencyKey
-        );
+                idempotencyKey);
 
         return orderRepository.save(order);
     }
@@ -91,7 +95,7 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
         // 권한 검증
-        order.validateOwner(userId);
+        validateOrderOwner(order, userId);
 
         return order;
     }
@@ -126,7 +130,7 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
         // 권한 검증
-        order.validateOwner(userId);
+        validateOrderOwner(order, userId);
 
         // 취소 처리
         order.cancel();
@@ -143,5 +147,17 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
         order.fail();
+    }
+
+    private void validateOrderOwner(Orders order, Long userId) {
+        if (order.getBuyerType() == BuyerType.EMPLOYER) {
+            boolean isMember = employerMemberRepository.existsByEmployerIdAndMemberIdAndActiveTrue(
+                    order.getBuyerEmployer().getId(), userId);
+            if (!isMember) {
+                throw new IllegalStateException("본인의 기업 주문 내역만 접근할 수 있습니다.");
+            }
+        } else {
+            order.validateOwner(userId);
+        }
     }
 }

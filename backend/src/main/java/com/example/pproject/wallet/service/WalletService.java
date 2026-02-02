@@ -6,9 +6,10 @@ import com.example.pproject.Constant.SourceType;
 import com.example.pproject.Constant.TxType;
 import com.example.pproject.common.vo.Money;
 import com.example.pproject.employer.entity.EmployerEntity;
+import com.example.pproject.employer.entity.EmployerMemberEntity;
+import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.payment.entity.Payment;
-import com.example.pproject.payment.service.PaymentValidationService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.dto.WalletLedgerResponse;
@@ -51,9 +52,9 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final WalletCreditLotRepository creditLotRepository;
     private final WalletLedgerRepository ledgerRepository;
-    private final PaymentValidationService paymentValidationService;
     private final UserRepository userRepository;
     private final EmployerRepository employerRepository;
+    private final EmployerMemberRepository employerMemberRepository;
 
     // =================================================================================
     // 1. 조회 로직 (Read)
@@ -157,9 +158,9 @@ public class WalletService {
             return; // 이미 처리됨
         }
 
-        // 3. 결제 검증 (PaymentService 호출)
-        // PaymentService에 새로 추가된 validatePayment 메서드를 호출하여 검증
-        paymentValidationService.validatePayment(payment.getPaymentId(), userId, price);
+        // 결제 검증은 호출자(PaymentService.confirmPayment)에서 이미 완료됨
+        // - 소유권 검증: prepareConfirm()에서 validateOwner() 호출
+        // - 금액 검증: payment.approve()에서 토스 응답과 비교
 
         executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(),
                 "크레딧 충전 (결제)");
@@ -232,7 +233,7 @@ public class WalletService {
     /**
      * [관리자] 지갑을 수동으로 생성합니다.
      *
-     * @param userId   사용자 ID
+     * @param userId    사용자 ID
      * @param buyerType 사용자 역할
      * @return 생성된 지갑 ID
      * @throws IllegalStateException 이미 지갑이 존재하는 경우
@@ -445,7 +446,12 @@ public class WalletService {
             return walletRepository.findByMember(user)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
         } else if (roleType == RoleType.EMPLOYER) {
-            EmployerEntity employer = employerRepository.findById(userId)
+            // userId(MemberId) -> employerId 변환
+            EmployerMemberEntity em = employerMemberRepository.findFirstByMemberIdAndActiveTrue(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+            Long employerId = em.getEmployerId();
+
+            EmployerEntity employer = employerRepository.findById(employerId)
                     .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
             return walletRepository.findByEmployer(employer)
                     .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
@@ -463,8 +469,13 @@ public class WalletService {
             return walletRepository.findByMemberWithLock(userId)
                     .orElseGet(() -> createWalletForMember(userId));
         } else if (buyerType == BuyerType.EMPLOYER) {
-            return walletRepository.findByEmployerWithLock(userId)
-                    .orElseGet(() -> createWalletForEmployer(userId));
+            // userId(MemberId) -> employerId 변환
+            EmployerMemberEntity em = employerMemberRepository.findFirstByMemberIdAndActiveTrue(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+            Long employerId = em.getEmployerId();
+
+            return walletRepository.findByEmployerWithLock(employerId)
+                    .orElseGet(() -> createWalletForEmployer(employerId));
         } else {
             throw new IllegalArgumentException("잘못된 사용자 타입입니다.");
         }
