@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { PaymentResultModal } from "@/components/payment/PaymentResultModal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -216,6 +217,7 @@ export default function Settings() {
                 <Footer />
             </div>
 
+            <PaymentResultModal />
         </div>
     );
 }
