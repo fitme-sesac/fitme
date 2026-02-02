@@ -112,12 +112,16 @@ async def process_resume_by_id(resume_id: int):
         logger.info(f"   - Careers: {len(careers)}")
         
         # 4. Process AI Summary
+        # 4. Process AI Summary
         logger.info("🔄 Generating Summary & Embedding...")
-        result_obj = await summary_service.generate_summary(
+        # [Refactor] generate_summary returns (result, eval_info)
+        result_obj, eval_info = await summary_service.generate_summary(
             data=raw_data, 
             type="RESUME", 
             summary_type=SummaryType.STRUCTURED
         )
+        
+        logger.info(f"📊 Eval Info: {eval_info}")
         
         summary_text = result_obj.to_formatted_string(include_reasoning=False)
         
@@ -144,7 +148,7 @@ async def process_resume_by_id(resume_id: int):
         vector = await vector_service.generate_vector(embedding_text)
         
         # 6. Update DB
-        resume_repo.update_resume_data(resume_id, summary_text, vector)
+        resume_repo.update_resume_data(resume_id, summary_text, vector, eval_info=eval_info)
         logger.info(f"✅ Resume {resume_id} updated successfully!")
 
     except Exception as e:
@@ -154,18 +158,38 @@ async def process_resume_by_id(resume_id: int):
 # python scripts/batch_process_resume.py 123 처럼 ID를 명시하면 -> ID 123번 이력서를 처리
 # python scripts/batch_process_resume.py 처럼 그냥 실행하면 -> 자동으로 5002번 이력서(아마도 개발 중 자주 쓰던 테스트용 데이터)를 처리
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+    import sys
+    
+    # Usage: 
+    # 1. python scripts/batch_process_resume.py 5099 (Single)
+    # 2. python scripts/batch_process_resume.py 5090 5099 (Range)
+    
+    if len(sys.argv) == 3:
+        try:
+            start_id = int(sys.argv[1])
+            end_id = int(sys.argv[2])
+            print(f"🚀 Batch Processing IDs: {start_id} ~ {end_id}")
+            
+            for rid in range(start_id, end_id + 1):
+                print(f"\n[{rid}] Processing...")
+                asyncio.run(process_resume_by_id(rid))
+                
+        except ValueError:
+            print("Error: IDs must be integers.")
+            sys.exit(1)
+            
+    elif len(sys.argv) == 2:
         try:
             resume_id = int(sys.argv[1])
+            print(f"🚀 Processing Single ID: {resume_id}")
+            asyncio.run(process_resume_by_id(resume_id))
         except ValueError:
             print("Error: Resume ID must be an integer.")
             sys.exit(1)
     else:
-        print("Usage: python scripts/process_existing_resume.py <resume_id>")
+        print("Usage: python scripts/batch_process_resume.py <start_id> [end_id]")
         print("Defaulting to ID 5002 for testing.")
-        resume_id = 5002
-
-    asyncio.run(process_resume_by_id(resume_id))
+        asyncio.run(process_resume_by_id(5002))
 
     # [Optional] 검증을 위해 매칭 결과 즉시 확인
     # 스크립트 실행 시 같은 폴더에 있는 verify_matching 모듈을 불러와서 실행
