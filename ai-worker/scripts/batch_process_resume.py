@@ -53,7 +53,9 @@ async def process_resume_by_id(resume_id: int):
                     "major": resume_row[7] or ""
                 }
 
+
             raw_data = {
+                "resume_id": resume_id,  # [NEW] Log용 ID 추가
                 "content": resume_row[2],
                 "file_links": [], # DB doesn't store file links in a simple column yet, assuming empty or need separate table
                 "basic_info": {

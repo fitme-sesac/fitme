@@ -3,7 +3,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.core.config import settings
 import json
 from typing import Union
-
+import csv
+from datetime import datetime
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from app.resumes.schemas import ResumeSummary, ResumeInsightReport, SummaryType
 
@@ -49,6 +50,9 @@ class SummaryService:
         projects = data.get("projects", [])
         careers = data.get("careers", [])
         include_reasoning = data.get("include_reasoning", False)
+
+        # [Extraction] Resume ID (Log용)
+        resume_id = data.get("resume_id") or data.get("id") or "N/A"
 
         # Basic Info를 텍스트로 변환
         basic_info_text = ""
@@ -165,20 +169,21 @@ class SummaryService:
 
         common_constraints = """
         [Constraints]
-        1. 보안 준수(Critical): **개인 식별 정보(PII)는 '이름', '나이', '성별', '거주지', '사진'을 포함하여 일체 제외한다.** 
+        1. 보안 준수(Critical): **개인 식별 정보(PII)는 '이름', '나이', '성별', '거주지', '사진'을 포함하여 일체 제외한다. 
            - 후보자를 지칭할 때는 오직 '지원자' 또는 '후보자'로만 통일한다.
-           - [Negative Constraints - 절대 하지 말 것]
-             (X) "박지연(29세, 여) 지원자는..." -> 이름, 나이, 성별 노출 금지
-             (X) "판교에 거주하는..." -> 거주지 노출 금지
-             (X) "2024년 2월 졸업 예정인..." -> 학력은 기술하되, 특정 연도를 통해 나이를 유추할 수 있는 표현 자제
-           - [Positive Example - 권장]
-             (O) "해당 지원자는 5년차 백엔드 개발자로서..."
-             (O) "이전 직장에서 대규모 트래픽 처리를 경험하며..."
-        2. 성과 구체화: 프로젝트 설명에 포함된 수치나 구체적 방법론(예: N+1 해결, 인덱싱)을 최우선으로 반영한다.
-        3. 할루시네이션 방지(중요): 데이터에 없는 내용을 임의로 생성하거나 추측하지 않는다. 
-        4. 정보 부재 시 대응: 특정 항목을 작성할 데이터가 부족한 경우, 아래 예시와 같이 세련되게 표현한다.
-           - 예: "현재 데이터상으로는 확인되지 않으나, 관련 프로젝트 경험을 통해 [특정 역량]을 보유했을 것으로 기대됨"
-           - 예: "해당 분야에 대한 구체적인 경험 기록이 보완된다면 더욱 매력적인 후보자가 될 것으로 보임"
+        
+        [Strict Fact Rules - 절대 준수]
+        1. **Fact Preservation (사실 보존):** 원본의 수치나 상태를 자의적으로 해석하거나 변환하여 적지 마라.
+           - (X) '사용자 100명 달성' -> '사용자 폭증' (해석 금지)
+           - (O) '사용자 100명 달성' (있는 그대로 인용)
+           - (X) '300ms 유지' -> '300ms로 단축' (동사 왜곡 금지)
+        
+        2. **No Hallucination (날조 금지):** 원본 데이터에 명시되지 않은 수치(%, 시간, 금액 등)를 절대 창조하지 마라.
+           - 문맥상 수치가 없어 밋밋하더라도, 없는 숫자를 지어내는 것보다는 낫다.
+        
+        3. **성과 구체화:** 수치가 있다면 최우선으로 반영하되, 위 1번 규칙(보존)을 따른다. 수치가 없다면 기술적 방법론(Methodology)을 구체적으로 서술한다.
+        
+        4. 정보 부재 시 대응: "데이터상 확인되지 않으나..."와 같이 솔직하게 서술한다.
         5. 언어: 반드시 한국어로 작성한다.
         """
 
@@ -204,8 +209,6 @@ class SummaryService:
         - 분량 제어: 10~15줄 내외의 긴 호흡을 가진 문장들로 구성하여, 내용의 깊이감을 확보하라.
         - 정보 부재 시 대응: 'Constraints 4번'에 따라, 없는 정보를 지어내지 말고 "보유 기술의 특성상 ~한 잠재력이 기대됨"과 같이 리쿠르터 특유의 전문적 추론으로 문장을 완성하라.
         """
-            parser = self.text_parser
-            format_instructions = ""
 
             parser = self.text_parser
             format_instructions = ""
@@ -237,51 +240,37 @@ class SummaryService:
             structured_instruction = """
             [작성 가이드라인 - Dual Strategy (Display vs Embedding)]
             
-            **전략 1. Display Fields (사람이 읽는 용도): 문맥(Context)과 설득력 있는 서사 중심**
-            **전략 2. Embedding Fields (기계 매칭 용도): 채용 공고(JD) 표준 용어 중심**
+            **전략 1. Display Fields (사람이 읽는 용도): 문맥(Context)과 설득력 있는 서사 중심 + 수치적 성과(가용 시) 포함**
+            **전략 2. Embedding Fields (기계 매칭 용도): 채용 공고(JD) 표준 용어 중심 + 수치 제거(일반화)**
             
             1. professional_identity: (서사 중심) 후보자의 직무 정체성과 핵심 강점을 매력적인 문장으로 요약
                - 예: "대규모 트래픽 처리 경험을 보유한 5년차 백엔드 개발자로서, 안정적인 시스템 설계를 주도합니다."
             
             2. key_achievement: (성과 중심) 프로젝트의 수치적 성과와 기여도를 구체적으로 명시
                - 예: "결제 시스템 MSA 전환 프로젝트를 통해 TPS를 30% 개선하고 장애율을 0%로 낮춤"
+               - **경고: 원본 데이터에 수치가 명시되지 않았다면, 구체적인 기술적 구현 내용(방법론, 패턴)을 서술하고 절대 임의로 숫자를 지어내지 말 것.**
             
             3. problem_solving: (과정 중심) 어떤 상황에서 어떤 기술로 문제를 해결했는지 인과관계 명시
                - 예: "이벤트 발행 실패 문제를 해결하기 위해 Transactional Outbox 패턴을 도입하여 데이터 정합성 확보"
 
-            4. credibility: (팩트 중심) 학력(전공/비전공 여부, 학위), 자격증, 수상 내역 중 최상위 3개
-               - **[학력 강조]**: 컴퓨터공학 등 직무 연관 전공이 확인될 경우 반드시 "전공 지식 보유" 또는 "컴퓨터공학 학사" 등으로 명시하여 대외 신뢰도를 높여라.
-               
+            4. credibility: (팩트 중심) 학력, 자격증, 수상 내역 중 최상위 3개
+            
             5. collaboration: (태도 중심) 협업 스타일 및 리더십 경험
             6. matching_info: 희망 연봉 및 근무지
             
-            # [중요] universal_competencies (리스트): **매칭을 위한 '채용 공고(JD) 표준 용어'로 변환**
             7. universal_competencies (리스트):
-               - 위 내용들을 채용 공고에 자주 등장하는 '일반화된 역량 키워드'로 변환하여 리스트로 나열하라.
-               - **[Critical Constraint 1 - Hallucination Prevention]**:
-                 - 반드시 **입력 데이터에 명시된 사실**에 기반해야 한다.
-                 - **도구의 단순 사용을 해당 도구가 속한 전체 카테고리(General Concept)로 과대포장하지 마라.**
-                 - 예: 단순히 "Docker로 Redis를 띄워봤다"고 해서 "컨테이너 오케스트레이션 및 배포 자동화"라고 쓰지 말 것. (그냥 "Docker 활용 경험" 정도가 적절)
+               - 위 내용들을 채용 공고에 자주 등장하는 '일반화된 역량 키워드'로 변환하라.
                
-               - **[Critical Constraint 2 - Attribution Check (Individual vs Team)]**:
-                 - **팀 프로젝트에서 사용된 기술이라도, 후보자가 '직접' 다루거나 기여했다는 명확한 서술이 없으면 역량으로 포함하지 마라.**
-                 - 예: 팀이 MSA를 도입했어도, 후보자가 단순히 API 하나만 개발했다면 "MSA 아키텍처 설계"라고 쓰지 말고 "MSA 환경에서의 API 개발 경험" 정도로 한정할 것.
-                 - 주체적인 기여(Designed, Implemented, Solved)가 확인된 것만 "설계", "구축", "운영" 등의 단어를 사용하라. 그 외에는 "사용 경험", "활용 경험"으로 낮춰 표현하라.
+            8. job_category: 가장 적합한 표준 직무명 하나 (예: "백엔드 개발자")
+            
+            9. embedding_summary (필수 - 검색 최적화):
+               - **목표:** 채용 공고(JD)와의 매칭을 위해 **수치를 '의미 있는 단위'로 정규화(Normalization)**하여 요약하라.
+               - **규칙 1 (Noise Reduction):** 비교를 방해하는 미세 수치(예: 342ms, 23.5%)는 제거하거나 "대폭 개선", "sub-second" 등으로 일반화하라.
+               - **규칙 2 (Scale Preservation):** 규모를 나타내는 중요 수치는 **단위(Order of Magnitude)** 위주로 남겨라. (예: 120만 건 -> "대용량(수백만)", 5000 TPS -> "고트래픽")
+               - **규칙 3 (Tech Version):** 기술 스택의 버전 정보(Java 17, Spring 3.0)는 호환성 판단을 위해 **그대로 유지**하라.
+               - 예시: "이 지원자는 백엔드 개발자로서 MSA 아키텍처를 설계하고, Kafka를 도입하여 비동기 처리 파이프라인을 구축했습니다. 특히 대용량 트래픽 환경(수백만 건)에서 Redis 캐싱을 통해 응답 속도를 수십 배 개선한 경험이 있습니다. (Java 17 활용)"
 
-            8. job_category: 
-               - 후보자의 경험과 기술 스택을 종합하여 **가장 적합한 표준 직무명(Standard Job Category)** 하나를 추출하라.
-               - 예: "백엔드 개발자", "프론트엔드 개발자", "데이터 사이언티스트", "데브옵스 엔지니어", "모바일 앱 개발자" 등.
-               - 너무 긴 설명형 문장이 아닌, 명확한 직무 카테고리 명사를 **반드시 한국어**로 사용하라.
-
-            9. searchable_narrative (필수 - 검색 최적화):
-               - **채용 공고(JD)와의 벡터 유사도 매칭을 극대화하기 위해, 지원자의 모든 역량을 '문맥이 살아있는 완결된 서술문(Narrative)'으로 통합 요약하라.**
-               - **[작성 규칙]:**
-                 - **개조식 금지**, **명사형 종결(~함) 금지**. 반드시 '주어+목적어+서술어'가 있는 **완전한 문장**으로 작성하라.
-                 - 문장 구조: "이 지원자는 [직무]로서 [핵심 기술]을 활용하여 [구체적 경험/트러블슈팅]을 수행하였으며, 이를 통해 [정량적 성과]를 달성했습니다."
-                 - **학력/전공 통합**: "컴퓨터공학을 전공하여 CS 기초가 탄탄하며..." 와 같이 문맥에 자연스럽게 녹여라.
-                 - 예시: "이 지원자는 5년차 DevOps 엔지니어로서 AWS 및 Kubernetes 환경에서 CI/CD 파이프라인을 구축한 경험이 있습니다. 특히 Terraform을 도입하여 인프라를 코드화(IaC)함으로써 배포 시간을 50% 단축하였습니다. 정보처리기사 자격증을 보유하고 있으며, 대규모 트래픽 처리를 위한 로드밸런싱 아키텍처 설계 역량을 갖추고 있습니다."
-
-            10. ai_reasoning: 분석 근거 (Page/Section Reference)
+            10. ai_reasoning: 분석 근거
             """
 
             system_instruction = f"""{common_role}
@@ -349,16 +338,148 @@ class SummaryService:
         chain = prompt | self.llm | parser
 
         try:
+            # [Step 1] Initial Generation
+            print(f"🚀 [SummaryService] Initial Generation ({summary_type})")
             result = await chain.ainvoke({"input_text": final_input_text})
+            
+            # Text Only 모드면 바로 반환 (메타 정보 없음)
+            if summary_type not in [SummaryType.STRUCTURED, SummaryType.REPORT]:
+                return result, {}
 
-            if summary_type == SummaryType.STRUCTURED or summary_type == SummaryType.REPORT:
-                # Controller에서 용도(Display vs Embedding)에 따라 다르게 포맷팅할 수 있도록 객체 자체를 반환
-                return result
+            # [Step 2] Self-Correction Loop (Quality Check)
+            current_summary_obj = result
+            if hasattr(current_summary_obj, 'to_formatted_string'):
+                current_summary_text = current_summary_obj.to_formatted_string(include_reasoning=True)
             else:
-                return result
+                current_summary_text = str(current_summary_obj)
+
+            max_retries = 2
+            
+            # Metadata Logging for Experiment
+            meta_info = {
+                "try_count": 0,
+                "history": [] 
+            }
+
+            for i in range(max_retries):
+                meta_info["try_count"] = i + 1
+                
+                # 4점 이상 목표 (5점 만점)
+                score, feedback = await self._evaluate_quality(final_input_text, current_summary_text)
+                
+                print(f"🔍 [Self-Correction] Attempt {i+1} -> Score: {score}/5")
+                meta_info["history"].append({"score": score, "feedback": feedback})
+
+                # [CSV Logging] 실시간 평가 이력 기록
+                await self._log_to_csv(resume_id, i+1, score, feedback, current_summary_text)
+
+                if score >= 4:
+                    print("✅ Quality Passed!")
+                    break
+                
+                print(f"⚠️ Quality Low (Feedback: {feedback}). Regenerating...")
+                try:
+                    new_result_dict = await self._regenerate_summary(
+                        final_input_text, current_summary_text, feedback, format_instructions
+                    )
+                    # 재생성된 Dict를 다시 객체로 변환 (Schema에 따라 분기)
+                    if summary_type == SummaryType.STRUCTURED:
+                        current_summary_obj = ResumeSummary(**new_result_dict)
+                    elif summary_type == SummaryType.REPORT:
+                        current_summary_obj = ResumeInsightReport(**new_result_dict)
+                    
+                    if hasattr(current_summary_obj, 'to_formatted_string'):
+                        current_summary_text = current_summary_obj.to_formatted_string(include_reasoning=True)
+                except Exception as e:
+                    print(f"❌ Regeneration failed: {e}. Keeping original.")
+                    meta_info["history"].append({"error": str(e)})
+                    break
+            
+            return current_summary_obj, meta_info
 
         except Exception as e:
             print(f"Output Parsing Failed: {e}")
             raise e
+
+    # --- [Self-Correction Helpers] ---
+    
+    async def _evaluate_quality(self, original: str, summary: str):
+        """내부 평가용 (LLM-as-a-Judge)"""
+        from pydantic import BaseModel, Field # Fixed import
+        from langchain_core.output_parsers import JsonOutputParser
+        
+        class EvalOut(BaseModel):
+            score: int = Field(description="1~5 Score")
+            suggestions: str = Field(description="Actionable Feedback")
+            
+        parser = JsonOutputParser(pydantic_object=EvalOut)
+        llm = ChatOpenAI(model=settings.OPENAI_MODEL_NAME, temperature=0, openai_api_key=settings.OPENAI_API_KEY)
+        
+        # Escape Braces
+        safe_original = original[:2000].replace("{", "{{").replace("}", "}}")
+        safe_summary = summary.replace("{", "{{").replace("}", "}}")
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            너는 이력서 요약 평가 심사관이다. 다음 기준에 맞춰 유연하게(Flexible) 심사하라.
+            
+            [평가 기준]
+            1. **[Hallucination 기준 완화]** 원본에 없는 '사실'을 완전히 창조(예: 없는 회사명, 수상 이력)한 경우에만 1점을 부여하라.
+            2. **[표현 허용]** 원본의 내용을 바탕으로 한 '논리적 추론', '표현 변경(예: 달성->성공)', '수치 변환(예: 100건->대량)'은 허용하며, 오히려 가독성이 좋다면 5점(만점)을 부여하라.
+            3. **[불필요한 감점 금지]** 원본에 수치가 없어서 요약에도 수치가 없는 것은 감점 사유가 아니다.
+            4. User Preference(연봉, 근무지 등)나 Skill 정보가 [Basic Info]에 있다면 이를 반영한 요약은 정당하다.
+            """),
+            ("user", f"[Original]\n{safe_original}\n\n[Summary]\n{safe_summary}\n\n{{format_instructions}}")
+        ])
+        
+        chain = prompt | llm | parser
+        try:
+            res = await chain.ainvoke({"format_instructions": parser.get_format_instructions()})
+            return res.get('score', 3), res.get('suggestions', '')
+        except:
+            return 5, "" # Fail-safe
+
+    async def _regenerate_summary(self, original: str, prev_summary: str, feedback: str, fmt_instr: str):
+        """피드백 기반 재생성"""
+        llm = ChatOpenAI(model=settings.OPENAI_MODEL_NAME, temperature=0, openai_api_key=settings.OPENAI_API_KEY)
+        parser = self.json_parser
+        
+        # Escape Braces
+        safe_original = original[:2000].replace("{", "{{").replace("}", "}}")
+        safe_prev_summary = prev_summary.replace("{", "{{").replace("}", "}}")
+        safe_feedback = feedback.replace("{", "{{").replace("}", "}}")
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", f"이전 요약이 거절되었다. 심사관의 피드백을 반영하여 다시 작성해라.\n[Feedback]: {safe_feedback}"),
+            ("user", f"[Original]\n{safe_original}\n\n[Previous Summary]\n{safe_prev_summary}\n\n{{format_instructions}}")
+        ])
+        chain = prompt | llm | parser
+        return await chain.ainvoke({"format_instructions": fmt_instr})
+
+    async def _log_to_csv(self, resume_id, attempt, score, feedback, summary_text):
+        """평가 이력을 CSV 파일에 기록"""
+        try:
+            # logs 폴더는 프로젝트 루트 기준
+            log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../logs"))
+            os.makedirs(log_dir, exist_ok=True)
+            csv_file = os.path.join(log_dir, "summary_eval_log.csv")
+            
+            file_exists = os.path.isfile(csv_file)
+            
+            with open(csv_file, mode='a', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                if not file_exists:
+                    writer.writerow(["Timestamp", "ResumeID", "Attempt", "Score", "Feedback", "Summary_Snippet"])
+                
+                writer.writerow([
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    resume_id,
+                    attempt,
+                    score,
+                    feedback,
+                    summary_text[:100].replace("\n", " ") + "..." # 간략히 저장
+                ])
+        except Exception as e:
+            print(f"⚠️ CSV Logging Failed: {e}")
 
 summary_service = SummaryService()
