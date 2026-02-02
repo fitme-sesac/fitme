@@ -3,7 +3,7 @@ package com.example.pproject.resume.service;
 import com.example.pproject.Constant.SummaryStatus;
 import com.example.pproject.Config.AiServerConfig;
 import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.resume.dto.AiResumeRequest;
 import com.example.pproject.resume.dto.AiResumeResponse;
 import com.example.pproject.resume.entity.Resume;
@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
 public class AiResumeService {
 
     private final ResumeRepository resumeRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final AiServerConfig aiServerConfig;
 
     /**
@@ -78,11 +77,12 @@ public class AiResumeService {
         // 3. 채용공고 정보 조회 (있는 경우)
         AiResumeRequest aiRequestPayload;
         if (jobId != null) {
-            JobEntity job = jobRepository.findByIdAndNotDeleted(jobId)
+            JobEntity job = jobEntityRepository.findByIdAndNotDeleted(jobId)
                     .orElse(null);
             
             if (job != null) {
-                List<String> requiredSkills = parseStack(job.getStack());
+                // job.getStack()이 이미 List<String>이므로 직접 사용
+                List<String> requiredSkills = job.getStack() != null ? job.getStack() : Collections.emptyList();
                 aiRequestPayload = AiResumeRequest.from(
                         resume, 
                         summaryType,
@@ -91,7 +91,7 @@ public class AiResumeService {
                         job.getDescription(),
                         requiredSkills,
                         job.getLocation(),
-                        job.getSalaryText() != null ? formatSalary(job.getSalaryText()) : null,
+                        job.getSalaryText(),  // 이미 String 타입
                         null // companyName은 employer에서 가져와야 함
                 );
                 log.info("채용공고 맞춤 AI 분석 요청 - resumeId: {}, jobId: {}", resumeId, jobId);

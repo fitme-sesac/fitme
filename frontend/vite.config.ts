@@ -1,9 +1,18 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "path";
 
-const bypassSpaGet = (req: any) => {
-    const accept = req.headers?.accept || "";
-    if (req.method === "GET" && accept.includes("text/html")) {
+/**
+ * React Router(SPA) 경로는 Vite가 index.html을 내려줘야 한다.
+ *
+ * ⚠️ 브라우저 XHR(axios) 요청은 Accept 헤더에 text/html 이 없는 경우가 흔해서
+ * GET 요청이 프록시로 넘어가면(예: 백엔드가 /Login, /Register 로 redirect) 
+ * 백엔드에 해당 GET 핸들러가 없거나 재-redirect 루프가 발생하며 500으로 보일 수 있다.
+ *
+ * 따라서 "페이지 경로" 로 분류한 엔드포인트는 GET이면 항상 SPA로 우회한다.
+ */
+const bypassSpaPageGet = (req: any) => {
+    if (req.method === "GET") {
         return "/index.html";
     }
     return null;
@@ -11,8 +20,11 @@ const bypassSpaGet = (req: any) => {
 
 export default defineConfig(({ mode }) => {
     // Vite env (.env, .env.development 등) 로드
-    // prefix="" 로 했으니 VITE_가 아닌 값도 로드되지만, 아래에서 안전하게 선택해서 씀
-    const env = loadEnv(mode, process.cwd(), "");
+    // 프로젝트 루트(.env)와 frontend 폴더(.env) 모두 로드 시도
+    const env = {
+        ...loadEnv(mode, path.resolve(__dirname, ".."), ""),
+        ...loadEnv(mode, process.cwd(), ""),
+    };
 
     /**
      * 핵심: "프록시 타겟(서버/컨테이너 내부용)" 과
@@ -42,42 +54,41 @@ export default defineConfig(({ mode }) => {
 
     return {
         plugins: [react()],
-        // Docker 환경에서 process.env로 전달된 VITE_ 환경변수를 클라이언트에서 사용 가능하게 함
-        define: {
-            'import.meta.env.VITE_TOSS_CLIENT_KEY': JSON.stringify(
-                process.env.VITE_TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY || ''
-            ),
+        resolve: {
+            alias: {
+                "@": path.resolve(__dirname, "./src"),
+            },
         },
         server: {
             host: true,
             port: 5173,
             strictPort: true,
+            hmr: {
+                overlay: false,
+            },
             proxy: {
                 // ===== Backend proxies =====
-                "/Login": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Register": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/MyPage": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Find_Userid": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Verify_Userid_Code": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Result_Userid": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Find_password": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Verify_Code": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/New_Password": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Change_Password": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/First_Social_Login": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/Re_Enter_Credentials": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
-                "/User": { target: backendTarget, changeOrigin: true, bypass: bypassSpaGet },
+                // ✅ Spring Security form 로그인: POST /Login 은 백엔드로, GET /Login 은 SPA로
+                "/Login": { target: backendTarget, changeOrigin: true, bypass: bypassSpaPageGet },
+
+                // ✅ 백엔드 form 엔드포인트들 (/User/*)은 모두 백엔드로 전달
+                "/User": { target: backendTarget, changeOrigin: true },
 
                 "/Logout": { target: backendTarget, changeOrigin: true },
                 "/oauth2": { target: backendTarget, changeOrigin: true },
                 "/login": { target: backendTarget, changeOrigin: true },
+
+                // API 프록시 (백엔드)
                 "/api": { target: backendTarget, changeOrigin: true },
 
                 // ===== AI worker proxies =====
                 "/chatbot": { target: aiTarget, changeOrigin: true },
+                "/employer-chatbot": { target: aiTarget, changeOrigin: true },
                 "/resumes": { target: aiTarget, changeOrigin: true },
             },
         },
+        define: {
+            "import.meta.env.VITE_TOSS_CLIENT_KEY": JSON.stringify(process.env.TOSS_CLIENT_KEY || env.TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY),
+        },
     };
 });
-

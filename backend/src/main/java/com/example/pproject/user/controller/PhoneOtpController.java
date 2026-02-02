@@ -3,6 +3,7 @@ package com.example.pproject.user.controller;
 import com.example.pproject.Config.CookieUtils;
 import com.example.pproject.Config.JwtTokenProvider;
 import com.example.pproject.sms.PhoneVerificationService;
+import com.example.pproject.user.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,6 +24,7 @@ public class PhoneOtpController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final PhoneVerificationService phoneVerificationService;
+    private final UserRepository userRepository;
 
     private static final String PURPOSE_SIGNUP = "SIGNUP";
 
@@ -34,6 +36,14 @@ public class PhoneOtpController {
         String phone = body == null ? null : body.get("phone");
 
         try {
+            // ✅ 회원가입 목적(SIGNUP) 발송 전: 이미 다른 계정에서 "인증 완료"된 번호면 발송 자체를 막는다.
+            //    (UserService.register()의 중복검증 로직을 그대로 재사용)
+            String normalizedPhone = normalize(phone);
+            if (!normalizedPhone.isBlank() &&
+                    userRepository.findFirstByPhoneAndPhoneVerifiedAtIsNotNullAndDeletedAtIsNull(normalizedPhone).isPresent()) {
+                throw new IllegalStateException("이미 다른 계정에서 인증된 휴대폰 번호입니다.");
+            }
+
             String ip = getClientIp(request);
             String ua = request.getHeader("User-Agent");
 

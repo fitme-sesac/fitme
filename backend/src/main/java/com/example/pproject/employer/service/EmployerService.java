@@ -6,9 +6,12 @@ import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
+import com.example.pproject.job.dto.JobMatchInfoDTO;
+import com.example.pproject.job.service.JobService;
 import com.example.pproject.job.entity.JobEntity;
-import com.example.pproject.job.repository.JobRepository;
+import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
+import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,10 +36,12 @@ public class EmployerService {
 
     private final EmployerRepository employerRepository;
     private final EmployerMemberRepository employerMemberRepository;
-    private final JobRepository jobRepository;
+    private final JobEntityRepository jobEntityRepository;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
     private final OutboxEventProducer outboxEventProducer;
+    private final JobService jobService;
+    private final ResumeSkillService resumeSkillService;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -112,11 +119,11 @@ public class EmployerService {
         List<EmployerDashboardDTO.JobSummaryDTO> jobSummaries = List.of();
 
         try {
-            activeJobCount = jobRepository.countActiveByEmployerId(employer.getId());
-            totalApplicationCount = jobRepository.sumApplicationCountByEmployerId(employer.getId());
+            activeJobCount = jobEntityRepository.countActiveByEmployerId(employer.getId());
+            totalApplicationCount = jobEntityRepository.sumApplicationCountByEmployerId(employer.getId());
 
             // 최근 채용공고 5개
-            List<JobEntity> recentJobs = jobRepository.findByEmployerIdAndNotDeleted(employer.getId())
+            List<JobEntity> recentJobs = jobEntityRepository.findByEmployerIdAndNotDeleted(employer.getId())
                     .stream()
                     .limit(5)
                     .collect(Collectors.toList());
@@ -133,10 +140,8 @@ public class EmployerService {
                             .build())
                     .collect(Collectors.toList());
 
-            // 전체 조회수 합계
-            totalViewCount = recentJobs.stream()
-                    .mapToLong(job -> job.getViewCount() != null ? job.getViewCount() : 0)
-                    .sum();
+            // 전체 조회수 합계 (해당 기업의 모든 공고)
+            totalViewCount = jobEntityRepository.sumViewCountByEmployerId(employer.getId());
         } catch (Exception e) {
             log.warn("채용공고 통계 조회 중 오류 (무시됨): {}", e.getMessage());
         }
@@ -374,10 +379,22 @@ public class EmployerService {
     // ===== 지원자 관리 =====
 
     /**
-     * 지원자 목록 조회
+     * 지원자 목록 조회 (userid 기반, 일반 로그인용)
      */
     public ApplicantListDTO getApplicants(String userid, String status) {
         Long employerId = getEmployerIdByUserid(userid);
+        return getApplicantsByEmployerId(employerId, status);
+    }
+
+    /**
+     * 지원자 목록 조회 (member_id 기반, JWT id 클레임 또는 OAuth 사용자 대응)
+     */
+    public ApplicantListDTO getApplicants(Long memberId, String status) {
+        Long employerId = getEmployerIdByMemberId(memberId);
+        return getApplicantsByEmployerId(employerId, status);
+    }
+
+    private ApplicantListDTO getApplicantsByEmployerId(Long employerId, String status) {
         if (employerId == null) {
             return ApplicantListDTO.builder()
                     .applicants(List.of())
@@ -435,6 +452,32 @@ public class EmployerService {
                                     rs.getTimestamp("viewed_at").toLocalDateTime().toString() : null)
                             .build(),
                     params.toArray());
+
+            // 채용공고(stack) vs 구직자 이력서(re_stack, tech_stack) 기반 매칭 정보 계산
+            for (ApplicantListDTO.ApplicantDTO dto : applicants) {
+                try {
+                    JobEntity job = jobEntityRepository.findById(dto.getJobId()).orElse(null);
+                    if (job == null) {
+                        dto.setMatchInfo(emptyMatchInfo());
+                        continue;
+                    }
+                    String jobStack = ArrayStringUtil.listToString(job.getStack());
+                    Set<String> candidateSkills = dto.getMemberId() != null
+                            ? resumeSkillService.getSkillsByMemberId(dto.getMemberId())
+                            : Collections.emptySet();
+                    if (candidateSkills == null) candidateSkills = Collections.emptySet();
+                    JobMatchInfoDTO matchInfo = jobService.calculateMatchInfo(
+                            jobStack != null ? jobStack : "",
+                            candidateSkills,
+                            job,
+                            dto.getMemberId());
+                    dto.setMatchInfo(matchInfo);
+                } catch (Exception e) {
+                    log.warn("지원자 매칭률 계산 실패 applicationId={}, jobId={}, memberId={}: {}",
+                            dto.getApplicationId(), dto.getJobId(), dto.getMemberId(), e.getMessage());
+                    dto.setMatchInfo(emptyMatchInfo());
+                }
+            }
 
             return ApplicantListDTO.builder()
                     .applicants(applicants)
@@ -825,6 +868,22 @@ public class EmployerService {
     }
 
     // ===== Helper Methods =====
+
+    /**
+     * 매칭 정보 없을 때 사용할 빈 DTO
+     */
+    private static JobMatchInfoDTO emptyMatchInfo() {
+        JobMatchInfoDTO m = new JobMatchInfoDTO();
+        m.setOverallMatchRate(0);
+        m.setStackMatchRate(0);
+        m.setExperienceMatchRate(0);
+        m.setVectorMatchRate(0);
+        m.setMatchLevel("LOW");
+        m.setRequiredStacks(Collections.emptyList());
+        m.setMatchedStacks(Collections.emptyList());
+        m.setMissingStacks(Collections.emptyList());
+        return m;
+    }
 
     /**
      * userid로 employer_id 조회

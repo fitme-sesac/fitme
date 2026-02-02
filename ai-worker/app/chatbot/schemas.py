@@ -5,7 +5,7 @@ from datetime import date
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatbotIntent(str, Enum):
@@ -13,31 +13,51 @@ class ChatbotIntent(str, Enum):
     COMPETITION = "COMPETITION"
     LIST_POSTINGS = "LIST_POSTINGS"
     TOP_STACKS = "TOP_STACKS"
+    RATE_STATS = "RATE_STATS"  # ✅ 지원률/경쟁률(%) 통계
     HELP = "HELP"
 
 
 class ChatbotParsedSpec(BaseModel):
-    intent: ChatbotIntent = Field(..., description="User intent")
+    intent: ChatbotIntent
 
-    # half-open [start_date, end_date)
-    start_date: Optional[date] = Field(default=None, description="inclusive")
-    end_date: Optional[date] = Field(default=None, description="exclusive")
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
     keywords_all: List[str] = Field(default_factory=list, max_length=30)
     keywords_any: List[str] = Field(default_factory=list, max_length=30)
 
+    # ✅ 산업/업종 필터 (OR)
+    industries_any: List[str] = Field(default_factory=list, max_length=10)
+
     regions_any: List[str] = Field(default_factory=list, max_length=10)
     admin_areas_any: List[str] = Field(default_factory=list, max_length=10)
 
-    # ✅ 직군은 Enum 하드코딩 대신 free-form 문자열로 (확장성)
     job_role: Optional[str] = Field(default=None, max_length=40)
 
+    # salary (만원 단위)
     min_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
+    max_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
+
+    # ✅ 공고별 경쟁률(%) = apply_count / recruitment_capacity * 100
+    min_competition_pct: Optional[float] = Field(default=None, ge=0, le=100000)
+    max_competition_pct: Optional[float] = Field(default=None, ge=0, le=100000)
+
+    # ✅ required_experience(년) 필터
+    min_required_experience_years: Optional[int] = Field(default=None, ge=0, le=60)
+    max_required_experience_years: Optional[int] = Field(default=None, ge=0, le=60)
 
     limit: Optional[int] = Field(default=None, ge=1, le=20)
-    random: Optional[bool] = Field(default=None)
-
+    random: Optional[bool] = None
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+
+    @field_validator("keywords_all", "keywords_any", "industries_any", "regions_any", "admin_areas_any", mode="before")
+    @classmethod
+    def none_to_empty_list(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v]
+        return v
 
 
 class ChatbotQueryRequest(BaseModel):

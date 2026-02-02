@@ -242,7 +242,8 @@ public class PasswordResetController {
         // ✅ 플로우 쿠키 정리
         CookieUtils.deleteCookie(request, response, "PW_RESET_TMP");
 
-        return "redirect:/Login";
+        // 프록시(changeOrigin) 환경에서 상대 redirect("/Login")가 backend:8080로 튀는 문제를 방지
+        return redirectFrontWithQuery("/Login", null);
     }
 
     private String generateRandomCode() {

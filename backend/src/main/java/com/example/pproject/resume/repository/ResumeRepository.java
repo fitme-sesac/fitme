@@ -1,7 +1,11 @@
 package com.example.pproject.resume.repository;
 
 import com.example.pproject.resume.entity.Resume;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,12 +18,18 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     // [표준] 특정 유저의 대표 이력서 조회
     Optional<Resume> findByUser_IdAndPrimaryTrue(Long userId);
 
-    // [표준] 특정 유저의 최근 수정된 이력서 조회
+    // [표준] 특정 유저의 대표 이력서 조회 (첫 번째만 - 중복 방어용)
+    Optional<Resume> findFirstByUser_IdAndPrimaryTrueOrderByLastModifiedAtDesc(Long userId);
+
+    // [표준] 특정 유저의 최근 수정된 이력서 조회 (fallback용)
     Optional<Resume> findFirstByUser_IdOrderByLastModifiedAtDesc(Long userId);
 
     // [추가] 특정 유저의 이력서 개수 조회 (마이페이지 통계용)
     long countByUser_Id(Long userId);
 
+    // [성능 최적화] 광고 매칭용 임베딩만 조회 (불필요한 조인 방지)
+    @Query(value = "SELECT CAST(embedding AS text) FROM resume WHERE member_id = :userId AND is_primary = true", nativeQuery = true)
+    Optional<String> findEmbeddingByUserId(@Param("userId") Long userId);
 
     // 기존 findByUserIdAndPrimaryTrue 호출 시 -> 표준 메소드로 연결
     default Optional<Resume> findByUserIdAndPrimaryTrue(Long userId) {
@@ -31,6 +41,16 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
         return findByUser_IdAndPrimaryTrue(Long.valueOf(userId));
     }
 
+    /**
+     * [광고용] 대표 이력서 조회 with Fallback
+     * 1. is_primary = true인 것 조회 (첫 번째만)
+     * 2. 없으면 최근 수정된 이력서로 fallback
+     */
+    default Optional<Resume> findPrimaryOrLatest(Long userId) {
+        return findFirstByUser_IdAndPrimaryTrueOrderByLastModifiedAtDesc(userId)
+                .or(() -> findFirstByUser_IdOrderByLastModifiedAtDesc(userId));
+    }
+
     // findAllByUserId 호출 시 -> 표준 메소드로 연결
     default List<Resume> findAllByUserId(Long userId) {
         return findAllByUser_Id(userId);
@@ -40,4 +60,15 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     default long countByUserId(Long userId) {
         return countByUser_Id(userId);
     }
+
+    /**
+     * 인재풀 목록: ACTIVE 이력서 보유 구직자 (CANDIDATE)
+     */
+    @Query("SELECT r FROM Resume r JOIN r.user u WHERE r.status = 'ACTIVE' AND r.deletedAt IS NULL " +
+            "AND u.roleType = 'CANDIDATE' AND u.status = 'ACTIVE' ORDER BY r.primary DESC, r.lastModifiedAt DESC")
+    Page<Resume> findActiveResumesForTalentPool(Pageable pageable);
+
+    @Query("SELECT COUNT(r) FROM Resume r WHERE r.status = 'ACTIVE' AND r.deletedAt IS NULL " +
+            "AND r.user.roleType = 'CANDIDATE' AND r.user.status = 'ACTIVE'")
+    long countActiveResumesForTalentPool();
 }

@@ -1,4 +1,3 @@
-# app/chatbot/utils/keywords.py
 from __future__ import annotations
 
 import re

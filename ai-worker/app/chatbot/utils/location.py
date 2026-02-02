@@ -1,8 +1,10 @@
-# app/chatbot/utils/location.py
 from __future__ import annotations
 
 import re
 from typing import Any, Dict, List, Optional, Tuple
+
+# ✅ 추가: 조사/어미 제거
+_JOSA_RE = re.compile(r"(은|는|이|가|을|를|에|에서|으로|로|도|만|야|요|죠|까)$")
 
 REGION_SYNONYMS: Dict[str, str] = {
     "서울": "SEOUL", "서울시": "SEOUL", "서울특별시": "SEOUL", "seoul": "SEOUL",
@@ -71,6 +73,8 @@ STOPWORDS = {
     "공고","채용","개","건","알려줘","최신","랜덤","요즘","오늘","이번","올해","월",
     "연봉","이상","미만","직군","직업군","스택","요구","요구하는","관련","중","만","정도","몇",
     "개발","개발자","업무","포지션","포지션명",
+    "수","수는","건수","갯수","개수",
+    "지역", "몇개", "몇개야"
 }
 
 
@@ -114,12 +118,29 @@ def infer_admin_areas_from_text(text: str, regions_any: List[str]) -> List[str]:
 
     # 2) heuristic: take last non-stopword hangul token and attach allowed suffixes
     words = HANGUL_WORD_RE.findall(t)
+
+    # ✅ 조사 제거 + 공백 제거
+    words2: List[str] = []
+    for w in words:
+        w2 = _JOSA_RE.sub("", w)
+        if w2:
+            words2.append(w2)
+
     region_keys = {k for k in REGION_SYNONYMS.keys() if not k.isascii()}
-    candidates = [w for w in words if (w not in STOPWORDS and w not in region_keys)]
+    candidates = [
+        w for w in words2
+        if (w not in STOPWORDS and w not in region_keys and "지역" not in w)
+    ]
     if not candidates:
         return []
 
     base = candidates[-1]
+    if len(base) < 2:
+        return []
+
+    # ✅ 조사 제거 결과가 1글자면 행정구역 후보로 쓰지 않음
+    if len(base) < 2:
+        return []
 
     suffixes = set()
     for r in regions_any or []:

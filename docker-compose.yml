@@ -9,6 +9,7 @@ services:
       - ./.env.docker
     ports:
       - "5432:5432"
+    shm_size: 512mb
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -57,6 +58,11 @@ services:
     env_file:
       - ./.env.docker
     environment:
+      # DB (Docker 네트워크 내 postgres 서비스로 연결)
+      DB_URL: jdbc:postgresql://postgres:5432/fitme_project
+      DB_USERNAME: postgres
+      # DB_PASSWORD는 .env.docker에서 로드 (따옴표 없이 설정 권장)
+
       # Redis (used for OTP/cache etc.)
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -64,6 +70,13 @@ services:
       # Optional: keep file uploads inside container volume
       TEMP_FOLDER: /app/uploads/
       UPLOAD_PATH: file:/app/uploads/
+
+      # Browser-facing base URLs (OAuth redirect/CORS/redirect)
+      # - Local: defaults are fine (localhost)
+      # - Remote: set APP_BASE_URL / FRONT_BASE_URL to your public domain
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      FRONT_BASE_URL: ${FRONT_BASE_URL:-http://localhost:5173}
+
     ports:
       - "8080:8080"
     volumes:
@@ -85,7 +98,9 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      
+      DB_NAME: fitme_project
+      DB_USER: postgres
+      # DB_PASSWORD는 .env.docker에서 로드
     ports:
       - "8000:8000"
     depends_on:
@@ -104,6 +119,9 @@ services:
       - ./.env.docker
     environment:
       # Vite dev proxy target (server-side) -> Docker network
+      # Force frontend to use relative URLs so Vite proxy works
+      VITE_API_BASE_URL: ""
+
       VITE_BACKEND_URL: http://backend:8080
       VITE_AI_WORKER_URL: http://ai-worker:8000
 
@@ -115,15 +133,38 @@ services:
       VITE_TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY}
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
     depends_on:
       - backend
+      - ai-worker
 
+  # ==================================================
+  # [추가됨] nGrinder Controller & Agent
+  # ==================================================
+  ngrinder-controller:
+    image: ngrinder/controller:latest
+    container_name: fitme-ngrinder-controller
+    restart: unless-stopped
+    ports:
+      - "80:80"             # nGrinder 웹 (http://localhost)
+      - "16001:16001"
+      - "12000-12009:12000-12009"
+    volumes:
+      - ngrinder-data:/opt/ngrinder-controller
+    # backend가 켜질 때까지 기다릴 필요는 없으므로 depends_on은 생략하거나
+    # 필요시 추가하셔도 됩니다. 여기선 독립 실행되게 두었습니다.
+
+  ngrinder-agent:
+    image: ngrinder/agent:latest
+    container_name: fitme-ngrinder-agent
+    restart: unless-stopped
+    links:
+      - ngrinder-controller:controller
+    depends_on:
+      - ngrinder-controller
 
 volumes:
   pgdata:
   redisdata:
-  frontend_node_modules:
   uploads:
+  # [추가됨] nGrinder 데이터 저장소
+  ngrinder-data:
