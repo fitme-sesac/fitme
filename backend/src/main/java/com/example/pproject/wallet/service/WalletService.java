@@ -195,6 +195,73 @@ public class WalletService {
         executeUse(wallet, amount, sourceType, null, orderId, "크레딧 사용 (주문: " + orderId + ")");
     }
 
+    /**
+     * [시스템/환불] 결제 취소 시 크레딧을 회수합니다.
+     * <p>
+     * 1. 해당 결제로 생성된 CreditLot 조회
+     * 2. 사용 여부 검증 (이미 사용했으면 예외 발생)
+     * 3. 지갑 잔액 차감 및 Lot 삭제
+     * 4. Ledger 기록
+     * </p>
+     *
+     * @param userId    사용자 ID
+     * @param buyerType 사용자 역할
+     * @param payment   취소할 결제 정보
+     */
+    @Transactional
+    public void revokeCredit(Long userId, BuyerType buyerType, Payment payment) {
+        // 1. 락 획득
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
+
+        // 2. 해당 결제로 생성된 Lot 조회
+        WalletCreditLot lot = creditLotRepository.findByPayment(payment)
+                .orElseThrow(() -> new IllegalStateException("해당 결제로 충전된 크레딧 정보를 찾을 수 없습니다."));
+
+        // 3. 사용 여부 검증 (부분 환불 미지원 시, 전액 남아있어야 함)
+        if (!lot.isRefundable()) {
+            throw new IllegalStateException("이미 사용된 크레딧이 포함되어 있어 환불할 수 없습니다.");
+        }
+
+        long revokeAmount = lot.getRemainingCredit();
+        long balanceBefore = wallet.getBalance();
+
+        // 4. 지갑 잔액 차감 (회수)
+        wallet.revoke(revokeAmount);
+
+        // 5. Lot 삭제 (또는 만료 처리) - 여기서는 삭제하여 재사용 방지
+        creditLotRepository.delete(lot);
+
+        // 6. Ledger 기록 (DEBIT)
+        String idempotencyKey = "REVOKE:" + payment.getPaymentId();
+        if (!ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
+            WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.PAYMENT, payment.getPaymentId(),
+                    revokeAmount, balanceBefore, idempotencyKey, "결제 취소로 인한 크레딧 회수");
+            ledgerRepository.save(ledger);
+        }
+    }
+
+    /**
+     * [시스템/환불실패] 결제 취소 실패 시 회수했던 크레딧을 복구합니다. (보상 트랜잭션)
+     */
+    @Transactional
+    public void recoverCredit(Long userId, BuyerType buyerType, Payment payment) {
+        // 1. 락 획득
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
+
+        // 2. 이미 복구되었거나 Lot이 존재하는지 확인
+        if (creditLotRepository.existsByPayment(payment)) {
+            return;
+        }
+
+        // 3. 원래 충전했던 금액만큼 다시 충전 (기존 로직 재사용)
+        // 주의: Payment 엔티티의 paidAmount를 참조하여 원래 금액 복구
+        long amountToRecover = payment.getOrder().getProduct().getCreditAmount().longValue();
+        Money price = payment.getPaidAmount();
+
+        executeCharge(wallet, amountToRecover, price, SourceType.PAYMENT, payment,
+                "RECOVER:" + payment.getPaymentId(), "결제 취소 실패로 인한 크레딧 복구");
+    }
+
     // =================================================================================
     // 3. 관리자 기능 (Admin)
     // =================================================================================
