@@ -5,7 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "member_penalty_point") // ✅ 여기도 indexes 삭제!
+@Table(name = "member_penalty_point") //
 @Getter
 @Setter
 @NoArgsConstructor

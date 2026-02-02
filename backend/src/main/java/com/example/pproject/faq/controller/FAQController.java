@@ -3,6 +3,7 @@ package com.example.pproject.faq.controller;
 import com.example.pproject.faq.dto.*;
 import com.example.pproject.faq.service.FAQService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/faqs")
 @RequiredArgsConstructor
+@Slf4j
 public class FAQController {
 
     private final FAQService faqService;
@@ -118,6 +120,7 @@ public class FAQController {
     public ResponseEntity<FAQResponse> createFAQ(
             @Valid @RequestBody FAQCreateRequest request) {
 
+        log.info("FAQ 생성: question={}", request.getQuestion());
         FAQResponse faq = faqService.createFAQ(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(faq);
     }
@@ -210,6 +213,7 @@ public class FAQController {
             @PathVariable Long faqId,
             @Valid @RequestBody FAQUpdateRequest request) {
 
+        log.info("FAQ 수정: faqId={}", faqId);
         FAQResponse faq = faqService.updateFAQ(faqId, request);
         return ResponseEntity.ok(faq);
     }
@@ -221,6 +225,7 @@ public class FAQController {
     @PatchMapping("/admin/{faqId}/toggle-public")
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<FAQResponse> togglePublic(@PathVariable Long faqId) {
+        log.info("FAQ 공개/비공개 토글: faqId={}", faqId);
         FAQResponse faq = faqService.togglePublic(faqId);
         return ResponseEntity.ok(faq);
     }
@@ -232,6 +237,7 @@ public class FAQController {
     @PatchMapping("/admin/{faqId}/toggle-lock")
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<FAQResponse> toggleLock(@PathVariable Long faqId) {
+        log.info("FAQ 잠금/해제 토글: faqId={}", faqId);
         FAQResponse faq = faqService.toggleLock(faqId);
         return ResponseEntity.ok(faq);
     }
@@ -265,8 +271,9 @@ public class FAQController {
     @DeleteMapping("/admin/{faqId}")
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Void> deleteFAQ(@PathVariable Long faqId) {
+        log.info("FAQ 삭제: faqId={}", faqId);
         faqService.deleteFAQ(faqId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -276,8 +283,9 @@ public class FAQController {
     @PostMapping("/admin/bulk-delete")
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Void> bulkDeleteFAQs(@RequestBody List<Long> faqIds) {
+        log.info("FAQ 일괄 삭제: count={}", faqIds.size());
         faqService.bulkDeleteFAQs(faqIds);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -289,6 +297,7 @@ public class FAQController {
     public ResponseEntity<Void> bulkUpdatePublic(
             @RequestBody BulkUpdateRequest request) {
 
+        log.info("FAQ 일괄 공개 상태 변경: count={}, isPublic={}", request.getIds().size(), request.getIsPublic());
         faqService.bulkUpdatePublic(request.getIds(), request.getIsPublic());
         return ResponseEntity.ok().build();
     }
@@ -302,6 +311,7 @@ public class FAQController {
     public ResponseEntity<Void> bulkUpdateLocked(
             @RequestBody BulkUpdateRequest request) {
 
+        log.info("FAQ 일괄 잠금 상태 변경: count={}, locked={}", request.getIds().size(), request.getLocked());
         faqService.bulkUpdateLocked(request.getIds(), request.getLocked());
         return ResponseEntity.ok().build();
     }

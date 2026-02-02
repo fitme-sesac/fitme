@@ -13,7 +13,8 @@ public class MemberGradeChangeRequest {
 
     private Long memberId;
 
-    // ✅ 필수 제거 -> 선택 입력 가능 (Null 허용)
+    // 등급 변경 시 유효성 검증 (Null 허용, 값이 있으면 검증)
+    @Pattern(regexp = "^(VIP|PREMIUM|BASIC)$", message = "등급은 VIP, PREMIUM, BASIC 중 하나여야 합니다.")
     private String targetGrade; // VIP, PREMIUM, BASIC
 
     // ✅ 필수 제거 -> 선택 입력 가능

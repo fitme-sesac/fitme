@@ -45,14 +45,10 @@ public class ReportService {
         if (!memberRepository.existsById(request.getReporterMemberId())) {
             throw new ReportNotFoundException("신고자를 찾을 수 없습니다.");
         }
-        if ("MEMBER".equals(request.getTargetType())) {
-            if (request.getTargetMemberId() == null || !memberRepository.existsById(request.getTargetMemberId())) {
-                throw new ReportNotFoundException("신고 대상 회원을 찾을 수 없습니다.");
-            }
-        }
 
         Report report = new Report();
         report.setReporterMemberId(request.getReporterMemberId());
+
         report.setTargetType(request.getTargetType());
         report.setTargetJobId(request.getTargetJobId());
         report.setTargetMemberId(request.getTargetMemberId());
@@ -222,7 +218,6 @@ public class ReportService {
         if (!decision.matches("^(ACCEPT|REJECT)$")) throw new InvalidReportStatusException("Invalid decision");
     }
 
-    // ✅ [수정됨] updatedAt 제거
     private ReportResponse toReportResponse(Report r) {
         return ReportResponse.builder()
                 .reportId(r.getReportId())
@@ -234,7 +229,6 @@ public class ReportService {
                 .reasonDetail(r.getReasonDetail())
                 .status(r.getStatus())
                 .createdAt(r.getCreatedAt())
-                // .updatedAt(r.getUpdatedAt())  <-- 삭제 완료
                 .build();
     }
 

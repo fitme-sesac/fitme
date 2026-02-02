@@ -25,8 +25,6 @@ public class FAQService {
 
     private final FAQRepository faqRepository;
 
-    // ... (createFAQ, getFAQPublic 등 기존 조회 메서드는 변경 없음) ...
-    // ... createFAQ ~ updateFAQ까지는 기존 코드 유지 ...
 
     public FAQResponse createFAQ(FAQCreateRequest request) {
         if (faqRepository.existsByQuestion(request.getQuestion())) {

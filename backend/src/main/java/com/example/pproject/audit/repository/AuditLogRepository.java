@@ -20,11 +20,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSp
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (request.getActor_member_id() != null) {
-                predicates.add(criteriaBuilder.equal(root.get("actorMemberId"), request.getActor_member_id()));
+            if (request.getActorMemberId() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("actorMemberId"), request.getActorMemberId()));
             }
-            if (StringUtils.hasText(request.getTarget_type())) {
-                predicates.add(criteriaBuilder.equal(root.get("targetType"), request.getTarget_type()));
+            if (StringUtils.hasText(request.getTargetType())) {
+                predicates.add(criteriaBuilder.equal(root.get("targetType"), request.getTargetType()));
             }
             if (StringUtils.hasText(request.getAction())) {
                 predicates.add(criteriaBuilder.equal(root.get("action"), request.getAction()));
@@ -34,7 +34,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSp
                     predicates.add(criteriaBuilder.between(root.get("createdAt"),
                             LocalDate.parse(request.getStartDate()).atStartOfDay(),
                             LocalDate.parse(request.getEndDate()).atTime(LocalTime.MAX)));
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
 
             query.orderBy(criteriaBuilder.desc(root.get("createdAt")));
