@@ -45,6 +45,7 @@ import Applications from "./pages/jobseeker/Applications";
 // Company Pages (기업회원 전용)
 // ============================================
 import CompanyDashboard from "./pages/company/CompanyDashboard";
+import CompanyInterviews from "./pages/company/CompanyInterviews";
 import CompanyManagement from "./pages/company/CompanyManagement";
 import Talents from "./pages/company/Talents";
 import TalentDetail from "./pages/company/TalentDetail";
@@ -183,6 +184,14 @@ export default function App() {
                         element={
                             <PrivateRoute requiredRole="EMPLOYER">
                                 <CompanyDashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/company/interviews"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <CompanyInterviews />
                             </PrivateRoute>
                         }
                     />

@@ -2,10 +2,12 @@ package com.example.pproject.job.service;
 
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
+import com.example.pproject.employer.entity.EmployerStatus;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.dto.*;
 import com.example.pproject.job.entity.JobEntity;
+import com.example.pproject.job.entity.JobStatus;
 import com.example.pproject.job.repository.JobEntityRepository;
 import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.resume.entity.Resume;
@@ -15,6 +17,7 @@ import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.common.constants.JobPositionConstants;
 import com.example.pproject.common.util.ArrayStringUtil;
+import com.example.pproject.common.util.IndustryUtil;
 import com.example.pproject.common.util.JobPositionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -202,19 +205,25 @@ public class JobService {
                 .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
         // 기업 상태 확인 (ACTIVE만 등록 가능)
-        if (!"ACTIVE".equals(employer.getStatus())) {
+        EmployerStatus employerStatus = EmployerStatus.fromString(employer.getStatus());
+        if (!employerStatus.canPostJob()) {
             throw new IllegalStateException("기업이 활성 상태가 아닙니다.");
         }
 
         // description에서 자동 요약 생성
         String summary = generateSummary(dto.getDescription());
 
+        // 상태값 검증 및 기본값 설정
+        String jobStatus = dto.getStatus() != null 
+                ? JobStatus.fromString(dto.getStatus()).name() 
+                : JobStatus.DRAFT.name();
+
         JobEntity job = JobEntity.builder()
                 .employerId(employer.getId())
                 .title(dto.getTitle())
                 .description(dto.getDescription())
                 .summary(summary)  // 자동 생성된 요약
-                .status(dto.getStatus() != null ? dto.getStatus() : "DRAFT")
+                .status(jobStatus)
                 .location(dto.getLocation())
                 .salaryText(dto.getSalaryText())
                 .stack(ArrayStringUtil.stringToList(dto.getStack()))
@@ -342,7 +351,7 @@ public class JobService {
         String jobTitle = job.getTitle(); // 삭제 전 제목 저장
 
         job.setDeletedAt(Instant.now());
-        job.setStatus("CLOSED");
+        job.setStatus(JobStatus.CLOSED.name());
         jobEntityRepository.save(job);
         log.info("채용공고 삭제: {}", jobTitle);
 
@@ -376,11 +385,12 @@ public class JobService {
     // ===== 공개 채용공고 조회 (인증 없이 접근 가능) =====
 
     /**
-     * 채용공고 필터 옵션 조회 (사용 가능한 스택/지역 목록)
+     * 채용공고 필터 옵션 조회 (사용 가능한 스택/지역/포지션/업종 목록 - DB 기반)
      */
     public JobFilterOptionsDTO getFilterOptions() {
         List<String> stacks = jobEntityRepository.findDistinctStacks();
         List<String> locations = jobEntityRepository.findDistinctLocations();
+        List<String> rawIndustries = jobEntityRepository.findDistinctIndustries();
         
         // null 값 제거 및 빈 문자열 제거
         stacks = stacks.stream()
@@ -397,12 +407,27 @@ public class JobService {
                 .sorted()
                 .collect(Collectors.toList());
         
-        log.info("필터 옵션 조회 - 스택: {}개, 지역: {}개", stacks.size(), locations.size());
+        // 포지션 목록: 실제 채용공고 스택에서 도출 (DB 기반)
+        List<String> stackStrings = jobEntityRepository.findAllStacksAsStrings();
+        List<List<String>> allStacks = stackStrings.stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .map(JobPositionUtil::parseStackString)
+                .filter(list -> !list.isEmpty())
+                .collect(Collectors.toList());
+        
+        List<String> positionCategories = JobPositionUtil.deriveAvailablePositions(allStacks);
+        
+        // 서비스 분야(업종): 영어 → 한글 변환
+        List<String> industries = IndustryUtil.convertToKoreanList(rawIndustries);
+        
+        log.info("필터 옵션 조회 - 스택: {}개, 지역: {}개, 포지션: {}개, 업종: {}개", 
+                stacks.size(), locations.size(), positionCategories.size(), industries.size());
         
         return JobFilterOptionsDTO.builder()
                 .stacks(stacks)
                 .locations(locations)
-                .positionCategories(JobPositionConstants.DISPLAY_POSITION_LABELS)
+                .positionCategories(positionCategories)
+                .industries(industries)
                 .experienceOptions(JobFilterOptionsDTO.getDefaultExperienceOptions())
                 .build();
     }
@@ -411,31 +436,51 @@ public class JobService {
      * 공개 채용공고 목록 조회 (status='OPEN')
      * - 대소문자 구분 없이 검색
      * - 한글 기술스택 검색 지원 (자바 → Java)
+     * - 다중 필터 지원 (keyword + stack + location + experience)
      */
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location) {
-        Page<JobEntity> jobPage;
-        // JPQL 쿼리용 (정렬 포함)
-        PageRequest pageRequestWithSort = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        // 네이티브 쿼리용 (정렬은 쿼리 내부에서 처리하므로 제외)
-        PageRequest pageRequestNoSort = PageRequest.of(page, size);
+        return getPublicJobs(page, size, keyword, stack, location, null, null);
+    }
 
-        if (keyword != null && !keyword.isBlank()) {
-            // 키워드 검색 (한글 → 영어 변환 포함) - 네이티브 쿼리 사용
-            String searchKeyword = convertKoreanToEnglish(keyword.trim());
+    /**
+     * 공개 채용공고 목록 조회 (다중 필터 지원)
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @param keyword 검색 키워드 (제목, 스택, 지역)
+     * @param stack 기술 스택 필터
+     * @param location 지역 필터
+     * @param minExperience 최소 경력
+     * @param maxExperience 최대 경력
+     */
+    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, 
+                                             String location, Integer minExperience, Integer maxExperience) {
+        // 네이티브 쿼리용 (정렬은 쿼리 내부에서 처리하므로 제외)
+        PageRequest pageRequest = PageRequest.of(page, size);
+
+        // 한글 → 영어 변환
+        String searchKeyword = (keyword != null && !keyword.isBlank()) 
+                ? convertKoreanToEnglish(keyword.trim()) : null;
+        String searchStack = (stack != null && !stack.isBlank()) 
+                ? convertKoreanToEnglish(stack.trim()) : null;
+        String searchLocation = (location != null && !location.isBlank()) 
+                ? location.trim() : null;
+
+        if (searchKeyword != null) {
             log.info("검색 키워드 변환: '{}' → '{}'", keyword.trim(), searchKeyword);
-            jobPage = jobEntityRepository.searchPublicJobs(searchKeyword, pageRequestNoSort);
-        } else if (stack != null && !stack.isBlank()) {
-            // 스택 필터 (한글 → 영어 변환 포함) - 네이티브 쿼리 사용
-            String searchStack = convertKoreanToEnglish(stack.trim());
-            log.info("스택 필터 변환: '{}' → '{}'", stack.trim(), searchStack);
-            jobPage = jobEntityRepository.findPublicJobsByStack(searchStack, pageRequestNoSort);
-        } else if (location != null && !location.isBlank()) {
-            // 지역 필터 - JPQL 쿼리 사용
-            jobPage = jobEntityRepository.findPublicJobsByLocation(location.trim(), pageRequestWithSort);
-        } else {
-            // 전체 조회 - JPQL 쿼리 사용
-            jobPage = jobEntityRepository.findPublicJobs(pageRequestWithSort);
         }
+        if (searchStack != null) {
+            log.info("스택 필터 변환: '{}' → '{}'", stack.trim(), searchStack);
+        }
+
+        // 다중 필터 적용
+        Page<JobEntity> jobPage = jobEntityRepository.findPublicJobsWithFilters(
+                searchKeyword,
+                searchStack,
+                searchLocation,
+                minExperience,
+                maxExperience,
+                pageRequest
+        );
 
         List<JobDTO> jobs = jobPage.getContent().stream()
                 .map(this::toPublicJobDTO)

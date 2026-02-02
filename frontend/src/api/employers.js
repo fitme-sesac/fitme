@@ -78,6 +78,18 @@ export async function getApplicants(status = "") {
 }
 
 /**
+ * 특정 채용공고의 지원자 목록 조회 (로그인 필요)
+ * @param {number} jobId - 채용공고 ID
+ * @param {string} status - 상태 필터
+ * @returns {Promise<ApplicantListDTO>}
+ */
+export async function getApplicantsByJob(jobId, status = "") {
+  const params = status ? `?status=${status}` : "";
+  const response = await http.get(`/api/employer/jobs/${jobId}/applicants${params}`);
+  return response.data;
+}
+
+/**
  * 지원자 상태 변경 (로그인 필요)
  * @param {number} applicationId - 지원 ID
  * @param {string} status - 새 상태

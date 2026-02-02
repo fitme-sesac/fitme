@@ -127,6 +127,29 @@ public class EmployerController {
     }
 
     /**
+     * 특정 채용공고의 지원자 목록 조회
+     */
+    @GetMapping("/jobs/{jobId}/applicants")
+    public ResponseEntity<?> getApplicantsByJob(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long jobId,
+            @RequestParam(required = false) String status) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+        Long memberId = resolveMemberId(principal);
+        if (memberId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "회원 정보를 찾을 수 없습니다."));
+        }
+        try {
+            ApplicantListDTO applicants = employerService.getApplicantsByJob(memberId, jobId, status);
+            return ResponseEntity.ok(applicants);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * 지원자 상태 변경
      */
     @PatchMapping("/applicants/{applicationId}/status")

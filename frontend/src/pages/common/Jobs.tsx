@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { SideJobList } from "@/components/home/SideJobList";
 import { CompanySidebar } from "@/components/home/CompanySidebar";
 import { CompanyMarketingBanner } from "@/components/home/CompanyMarketingBanner";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePublicJobs } from "@/hooks/useJobs";
+import { usePublicJobs, useFilterOptions } from "@/hooks/useJobs";
 import {
     POSITION_DISPLAY_OPTIONS,
     derivePosition,
@@ -64,14 +64,10 @@ interface JobsResponse {
     totalElements: number;
 }
 
-const FILTER_OPTIONS: Record<string, string[]> = {
-    "포지션": POSITION_DISPLAY_OPTIONS,
-    "경력": [], // 슬라이더로 관리
-    "스킬": ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"],
-    "연봉": [], // 슬라이더로 관리
-    "근무지": [], // 2단계(광역→세부) UI로 별도 렌더
-    "서비스 분야": ["전체", "커머스", "금융/핀테크", "O2O", "소셜/커뮤니티", "게임", "SaaS", "인공지능", "블록체인", "모빌리티", "여행"]
-};
+// 기본 필터 옵션 (DB에서 로드 전 표시용)
+const DEFAULT_SKILL_OPTIONS = ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"];
+const DEFAULT_INDUSTRY_OPTIONS = ["전체", "커머스", "금융/핀테크", "O2O", "소셜/커뮤니티", "게임", "SaaS", "인공지능", "블록체인", "모빌리티", "여행", "헬스케어", "에듀테크", "HR테크", "부동산", "푸드테크", "보안", "IoT", "IT서비스"];
+const DEFAULT_POSITION_OPTIONS = ["전체", "서버/백엔드", "프론트엔드", "웹 풀스택", "안드로이드", "iOS", "크로스플랫폼", "머신러닝/AI", "데이터 엔지니어", "데이터 분석가", "데이터 사이언티스트", "DevOps", "시스템 엔지니어", "클라우드 엔지니어", "DBA", "SRE", "보안 엔지니어", "게임 클라이언트", "게임 서버", "임베디드", "시스템 프로그래머", "QA 엔지니어", "기술 PM", "프로덕트 매니저", "UX/UI 디자이너", "블록체인"];
 
 const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
 const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] ?? "신입";
@@ -158,12 +154,40 @@ export default function Jobs() {
         }
     };
 
-    // Cast the data to our interface or use generic if usePublicJobs supports it.
-    // Assuming usePublicJobs returns { data: JobsResponse, ... } structure roughly.
+    // DB에서 필터 옵션 조회
+    const { data: filterOptionsData } = useFilterOptions();
+    
+    // 필터 옵션 (DB 데이터 우선, 없으면 기본값 사용)
+    const FILTER_OPTIONS: Record<string, string[]> = useMemo(() => ({
+        // 포지션: DB 기반 동적 옵션 (실제 채용공고에 있는 포지션만 표시)
+        "포지션": filterOptionsData?.positionCategories?.length > 0
+            ? filterOptionsData.positionCategories
+            : DEFAULT_POSITION_OPTIONS,
+        "경력": [], // 슬라이더로 관리
+        "스킬": filterOptionsData?.stacks?.length > 0 
+            ? ["전체", ...filterOptionsData.stacks] 
+            : DEFAULT_SKILL_OPTIONS,
+        "연봉": [], // 슬라이더로 관리
+        "근무지": [], // 2단계(광역→세부) UI로 별도 렌더
+        // 서비스 분야: DB 기반 동적 옵션 (실제 기업 업종만 표시, 한글 변환됨)
+        "서비스 분야": filterOptionsData?.industries?.length > 0
+            ? filterOptionsData.industries
+            : DEFAULT_INDUSTRY_OPTIONS
+    }), [filterOptionsData]);
+
+    // 서버 사이드 필터링을 위한 파라미터 구성
+    const selectedSkills = getSelectedArray("스킬");
+    const selectedLocations = getSelectedArray("근무지");
+    
+    // 서버 API 호출 - 필터 파라미터 전달
     const { data: rawData, isLoading, error } = usePublicJobs({
         page,
         size: 12,
         keyword: searchParams.get("keyword") || "",
+        stack: selectedSkills.length > 0 ? selectedSkills.join(",") : "",
+        location: selectedLocations.length > 0 ? selectedLocations[0] : "", // 첫 번째 지역만 서버로 전달
+        minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
+        maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
     });
 
     const data = rawData as JobsResponse | undefined;
@@ -172,13 +196,14 @@ export default function Jobs() {
     const totalPages = data?.totalPages || 0;
     const totalElements = data?.totalElements || 0;
 
-    // 필터 적용 및 정렬 함수 (포지션/스킬/근무지/서비스분야: 스택·내용 기반, 다중 선택)
+    // 클라이언트 사이드 추가 필터링 (서버에서 지원하지 않는 필터만)
+    // 서버 필터: keyword, stack, location, experience
+    // 클라이언트 필터: position, salary, industry
     const getFilteredJobs = () => {
         let filteredJobs = [...jobs];
         const posSelected = getSelectedArray("포지션");
-        const skillSelected = getSelectedArray("스킬");
-        const locationSelected = getSelectedArray("근무지");
         const industrySelected = getSelectedArray("서비스 분야");
+        const locationSelected = getSelectedArray("근무지");
 
         // 포지션 필터: UI 포지션 라벨(서버/백엔드, 프론트엔드, 웹 풀스택, 안드로이드, iOS 등)로 필터
         if (posSelected.length > 0) {
@@ -188,31 +213,14 @@ export default function Jobs() {
             });
         }
 
-        // 경력 필터: 슬라이더 범위
-        if (experienceRange[0] > 0 || experienceRange[1] < 10) {
-            filteredJobs = filteredJobs.filter(job => {
-                const jobExp = job.requiredExperience ?? 0;
-                return jobExp >= experienceRange[0] && jobExp <= experienceRange[1];
-            });
-        }
-
-        // 스킬 필터: job.stack 기준, 다중 선택 시 하나라도 포함되면 통과
-        if (skillSelected.length > 0) {
-            filteredJobs = filteredJobs.filter(job => {
-                const stack = Array.isArray(job.stack) ? job.stack : (job.stack != null ? [String(job.stack)] : []);
-                const lowerStack = stack.map(s => String(s).toLowerCase());
-                return skillSelected.some(skill => lowerStack.some(s => s.includes(skill.toLowerCase())));
-            });
-        }
-
-        // 근무지 필터: 다중 선택
-        if (locationSelected.length > 0) {
+        // 근무지 추가 필터링: 서버는 첫 번째 지역만 처리하므로, 다중 지역은 클라이언트에서 추가 필터링
+        if (locationSelected.length > 1) {
             filteredJobs = filteredJobs.filter(job =>
                 locationSelected.some(loc => job.location?.includes(loc))
             );
         }
 
-        // 연봉 필터: 슬라이더 범위 (0~7 → 3,000만원~1억원+)
+        // 연봉 필터: 슬라이더 범위 (0~7 → 3,000만원~1억원+) - 클라이언트 사이드
         if (salaryRange[0] > 0 || salaryRange[1] < 7) {
             const minVal = 3000 + salaryRange[0] * 1000; // 만원: 0→3000, 1→4000, ..., 7→10000
             const maxVal = salaryRange[1] === 7 ? 99999 : 3000 + salaryRange[1] * 1000;
@@ -224,28 +232,40 @@ export default function Jobs() {
             });
         }
 
-        // 서비스 분야 필터: 다중 선택
-        if (industrySelected.length > 0) {
+        // 서비스 분야 필터: 다중 선택 - 클라이언트 사이드 (employer.industry 또는 description 기반)
+        if (industrySelected.length > 0 && !industrySelected.includes("전체")) {
             const industryKeywords: Record<string, string[]> = {
-                "커머스": ["커머스", "이커머스", "E-commerce", "ecommerce"],
-                "금융/핀테크": ["금융", "핀테크", "Fintech", "fintech", "금융IT"],
-                "O2O": ["O2O", "o2o"],
-                "소셜/커뮤니티": ["소셜", "커뮤니티", "Social", "Community"],
-                "게임": ["게임", "Game", "게임개발"],
-                "SaaS": ["SaaS", "saas", "사스"],
-                "인공지능": ["AI", "인공지능", "Artificial Intelligence"],
-                "블록체인": ["블록체인", "Blockchain", "blockchain"],
-                "모빌리티": ["모빌리티", "Mobility", "모빌리티서비스"],
-                "여행": ["여행", "Travel", "여행서비스"],
+                "커머스": ["커머스", "이커머스", "E-commerce", "ecommerce", "commerce", "retail", "shopping"],
+                "금융/핀테크": ["금융", "핀테크", "Fintech", "fintech", "finance", "banking", "insurance", "payment"],
+                "O2O": ["O2O", "o2o", "delivery", "logistics"],
+                "소셜/커뮤니티": ["소셜", "커뮤니티", "Social", "Community", "SNS", "Media", "Contents"],
+                "게임": ["게임", "Game", "gaming", "entertainment"],
+                "SaaS": ["SaaS", "saas", "B2B", "enterprise", "cloud"],
+                "인공지능": ["AI", "인공지능", "artificial intelligence", "machine learning", "ml", "data"],
+                "블록체인": ["블록체인", "Blockchain", "blockchain", "crypto", "web3", "nft"],
+                "모빌리티": ["모빌리티", "Mobility", "transportation", "automotive", "ev"],
+                "여행": ["여행", "Travel", "tourism", "hospitality"],
+                "헬스케어": ["헬스케어", "Healthcare", "health", "medical", "biotech", "pharma"],
+                "에듀테크": ["에듀테크", "Education", "EdTech", "learning"],
+                "HR테크": ["HR테크", "HR", "HRTech", "recruitment"],
+                "부동산": ["부동산", "Real Estate", "PropTech", "property"],
+                "푸드테크": ["푸드테크", "Food", "FoodTech", "F&B", "restaurant"],
+                "보안": ["보안", "Security", "cybersecurity"],
+                "IoT": ["IoT", "Hardware", "embedded"],
+                "IT서비스": ["IT서비스", "IT", "Software", "Tech", "technology"],
             };
-            filteredJobs = filteredJobs.filter(job =>
-                industrySelected.some(industry => {
+            filteredJobs = filteredJobs.filter(job => {
+                // employer.industry 필드 체크 (있으면 우선)
+                const employerIndustry = (job as any).employer?.industry?.toLowerCase() || "";
+                const employerDesc = job.employer?.description?.toLowerCase() || "";
+                const employerSummary = job.employer?.summary?.toLowerCase() || "";
+                const searchText = `${employerIndustry} ${employerDesc} ${employerSummary}`;
+                
+                return industrySelected.some(industry => {
                     const keywords = industryKeywords[industry] || [industry];
-                    return job.employer?.description && keywords.some(kw =>
-                        job.employer?.description?.toLowerCase().includes(kw.toLowerCase())
-                    );
-                })
-            );
+                    return keywords.some(kw => searchText.includes(kw.toLowerCase()));
+                });
+            });
         }
 
         // 정렬: (1) 매칭율 우선 (2) 포지션 카테고리순(프론트엔드→백엔드→풀스택) (3) 최신순

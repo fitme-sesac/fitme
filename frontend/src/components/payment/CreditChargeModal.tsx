@@ -23,6 +23,8 @@ interface CreditOption {
     isPopular?: boolean;
 }
 
+// TODO: 상품 정보는 백엔드 API(/api/v1/products)에서 조회하도록 개선 필요
+// 현재는 백엔드의 Product 테이블과 동기화되어야 함
 const CREDIT_OPTIONS: CreditOption[] = [
     { id: "1", credits: 1000, price: 11000 },
     { id: "2", credits: 5000, price: 55000, bonus: 250 },
@@ -95,13 +97,12 @@ export function CreditChargeModal({
             const orderId = backendOrder.orderId;
             console.log("Backend Order Created:", orderId);
 
-            // Dummy Simulation
-            if (!clientKey || clientKey === "test") {
-                window.location.href = `${window.location.origin}/payment/success?paymentKey=mock_${Date.now()}&orderId=${orderId}&amount=${selectedOption.price}`;
-                return;
+            // 프로덕션에서는 반드시 Toss Client Key가 설정되어 있어야 함
+            if (!clientKey) {
+                throw new Error("결제 설정이 올바르지 않습니다. 관리자에게 문의하세요.");
             }
 
-            // Real Toss Payments
+            // Toss Payments 결제 요청
             const tossPayments = await loadTossPayments(clientKey);
             const payment = tossPayments.payment({ customerKey });
 

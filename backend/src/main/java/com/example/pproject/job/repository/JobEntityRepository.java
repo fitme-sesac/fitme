@@ -83,6 +83,45 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
   @Query("SELECT j FROM JobEntity j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL AND LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))")
   Page<JobEntity> findPublicJobsByLocation(@Param("location") String location, Pageable pageable);
 
+  // 다중 필터 지원 공개 채용공고 검색 - 네이티브 쿼리 사용
+  @Query(value = """
+      SELECT * FROM job_posting j
+      WHERE j.status = 'OPEN'
+        AND j.deleted_at IS NULL
+        AND (:keyword IS NULL OR :keyword = '' OR
+             LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
+             OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%')
+             OR LOWER(j.location) LIKE LOWER('%' || :keyword || '%'))
+        AND (:stack IS NULL OR :stack = '' OR
+             EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
+        AND (:location IS NULL OR :location = '' OR
+             LOWER(j.location) LIKE LOWER('%' || :location || '%'))
+        AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+        AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+      ORDER BY j.created_at DESC
+      """, countQuery = """
+      SELECT COUNT(*) FROM job_posting j
+      WHERE j.status = 'OPEN'
+        AND j.deleted_at IS NULL
+        AND (:keyword IS NULL OR :keyword = '' OR
+             LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
+             OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%')
+             OR LOWER(j.location) LIKE LOWER('%' || :keyword || '%'))
+        AND (:stack IS NULL OR :stack = '' OR
+             EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
+        AND (:location IS NULL OR :location = '' OR
+             LOWER(j.location) LIKE LOWER('%' || :location || '%'))
+        AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+        AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+      """, nativeQuery = true)
+  Page<JobEntity> findPublicJobsWithFilters(
+      @Param("keyword") String keyword,
+      @Param("stack") String stack,
+      @Param("location") String location,
+      @Param("minExperience") Integer minExperience,
+      @Param("maxExperience") Integer maxExperience,
+      Pageable pageable);
+
   // ===== 필터 옵션 조회 =====
 
   // 공개 채용공고에서 사용된 모든 스택 목록 조회 (중복 제거)
@@ -111,6 +150,31 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       ORDER BY region
       """, nativeQuery = true)
   List<String> findDistinctLocations();
+
+  // 공개 채용공고의 모든 스택 배열 조회 (포지션 도출용)
+  @Query(value = """
+      SELECT array_to_string(j.stack, ',') AS stack_str
+      FROM job_posting j
+      WHERE j.status = 'OPEN'
+        AND j.deleted_at IS NULL
+        AND j.stack IS NOT NULL
+        AND array_length(j.stack, 1) > 0
+      """, nativeQuery = true)
+  List<String> findAllStacksAsStrings();
+
+  // 공개 채용공고의 기업 업종 목록 조회 (서비스 분야 필터용)
+  @Query(value = """
+      SELECT DISTINCT e.industry
+      FROM job_posting j
+      JOIN employer e ON e.employer_id = j.employer_id
+      WHERE j.status = 'OPEN'
+        AND j.deleted_at IS NULL
+        AND e.deleted_at IS NULL
+        AND e.industry IS NOT NULL
+        AND e.industry != ''
+      ORDER BY e.industry
+      """, nativeQuery = true)
+  List<String> findDistinctIndustries();
 
   // 공개 채용공고 단일 조회 (조회수 증가용)
   @Query("SELECT j FROM JobEntity j WHERE j.id = :id AND j.status = 'OPEN' AND j.deletedAt IS NULL")

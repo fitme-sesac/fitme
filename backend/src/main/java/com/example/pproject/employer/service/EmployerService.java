@@ -383,7 +383,7 @@ public class EmployerService {
      */
     public ApplicantListDTO getApplicants(String userid, String status) {
         Long employerId = getEmployerIdByUserid(userid);
-        return getApplicantsByEmployerId(employerId, status);
+        return getApplicantsByEmployerId(employerId, status, null);
     }
 
     /**
@@ -391,10 +391,29 @@ public class EmployerService {
      */
     public ApplicantListDTO getApplicants(Long memberId, String status) {
         Long employerId = getEmployerIdByMemberId(memberId);
-        return getApplicantsByEmployerId(employerId, status);
+        return getApplicantsByEmployerId(employerId, status, null);
     }
 
-    private ApplicantListDTO getApplicantsByEmployerId(Long employerId, String status) {
+    /**
+     * 특정 채용공고의 지원자 목록 조회
+     */
+    public ApplicantListDTO getApplicantsByJob(Long memberId, Long jobId, String status) {
+        Long employerId = getEmployerIdByMemberId(memberId);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+        // 해당 채용공고가 기업 소속인지 확인
+        JobEntity job = jobEntityRepository.findById(jobId).orElse(null);
+        if (job == null || job.getDeletedAt() != null) {
+            throw new IllegalStateException("채용공고를 찾을 수 없습니다.");
+        }
+        if (!job.getEmployerId().equals(employerId)) {
+            throw new IllegalStateException("해당 채용공고에 대한 권한이 없습니다.");
+        }
+        return getApplicantsByEmployerId(employerId, status, jobId);
+    }
+
+    private ApplicantListDTO getApplicantsByEmployerId(Long employerId, String status, Long jobId) {
         if (employerId == null) {
             return ApplicantListDTO.builder()
                     .applicants(List.of())
@@ -422,10 +441,19 @@ public class EmployerService {
                 JOIN member m ON m.member_id = ja.member_id
                 LEFT JOIN resume r ON r.resume_id = ja.resume_id
                 WHERE jp.employer_id = ?
+                  AND jp.deleted_at IS NULL
+                  AND m.deleted_at IS NULL
+                  AND ja.status != 'CANCELED'
                 """);
 
             List<Object> params = new ArrayList<>();
             params.add(employerId);
+
+            // 특정 채용공고 필터
+            if (jobId != null) {
+                sql.append(" AND ja.job_id = ?");
+                params.add(jobId);
+            }
 
             if (status != null && !status.isBlank()) {
                 sql.append(" AND ja.status = ?");
