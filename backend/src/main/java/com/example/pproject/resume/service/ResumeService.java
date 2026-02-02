@@ -11,8 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -244,5 +243,57 @@ public class ResumeService {
         if(request.getCertificates() != null) request.getCertificates().forEach(d -> resume.getCertificates().add(d.toEntity(resume)));
         if(request.getLinks() != null) request.getLinks().forEach(d -> resume.getLinks().add(d.toEntity(resume)));
         if(request.getAttachments() != null) request.getAttachments().forEach(d -> resume.getAttachments().add(d.toEntity(resume)));
+    }
+
+    /**
+     * 마이페이지용 프로필 요약 조회
+     * 사용자 기본 정보 + 대표 이력서 정보 반환
+     */
+    public Map<String, Object> getProfileSummary(Long userId) {
+        UserEntity user = getUser(userId);
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("id", user.getId());
+        summary.put("display_name", user.getUsername());
+        summary.put("email", user.getEmail());
+        summary.put("phone", user.getPhone() != null ? user.getPhone() : "");
+        summary.put("gender", user.getGender() != null ? user.getGender() : "");
+        summary.put("birthday", user.getBirthday() != null ? user.getBirthday() : "");
+        summary.put("status", user.getStatus() != null ? user.getStatus() : "");
+        summary.put("role", user.getRoleType() != null ? user.getRoleType().name() : "");
+        summary.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : "");
+
+        // 대표 이력서 정보
+        Optional<Resume> primaryResume = resumeRepository.findByUser_IdAndPrimaryTrue(userId);
+        if (primaryResume.isPresent()) {
+            Resume resume = primaryResume.get();
+            Map<String, Object> resumeSummary = new HashMap<>();
+            resumeSummary.put("id", resume.getId());
+            resumeSummary.put("title", resume.getTitle());
+            resumeSummary.put("field", resume.getField());
+            resumeSummary.put("tagline", resume.getTagline());
+            resumeSummary.put("careerYears", resume.getCareerYears());
+            resumeSummary.put("skills", resume.getReStack() != null ? resume.getReStack() : List.of());
+            resumeSummary.put("preferenceLocation", resume.getPreferenceLocation());
+            resumeSummary.put("preferenceSalary", resume.getPreferenceSalary());
+
+            if (resume.getProfile() != null) {
+                resumeSummary.put("photoUrl", resume.getProfile().getPhotoUrl());
+                summary.put("avatar_url", resume.getProfile().getPhotoUrl());
+            }
+
+            summary.put("primaryResume", resumeSummary);
+            summary.put("job_title", resume.getField()); // 직무 분야를 job_title로 표시
+        } else {
+            summary.put("primaryResume", null);
+            summary.put("avatar_url", "");
+            summary.put("job_title", "");
+        }
+
+        // 이력서 개수
+        List<Resume> allResumes = resumeRepository.findAllByUser_Id(userId);
+        summary.put("resumeCount", allResumes.size());
+
+        return summary;
     }
 }

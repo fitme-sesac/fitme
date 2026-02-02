@@ -50,22 +50,37 @@ export function AuthProvider({ children }) {
             const c = Number(res?.credits ?? 0);
             setCredits(Number.isFinite(c) ? c : 0);
         } catch {
-            // ignore
+            // 지갑 API 실패(401/400 등) 시 크레딧만 0으로 표시, 로그인 상태는 유지
+            setCredits(0);
         }
     }, []);
+
+    // 세션 확인 (외부 노출용)
+    const checkSession = useCallback(async () => {
+        try {
+            const status = await authApi.checkAuthStatus();
+            setUser(status?.authenticated ? status : null);
+            await refreshCredits();
+            return status;
+        } catch {
+            setUser(null);
+            setCredits(0);
+            return null;
+        }
+    }, [refreshCredits]);
 
     // 로그인
     const signIn = async (userid, password) => {
         try {
             const response = await authApi.login(userid, password);
             // 로그인 성공시 상태 갱신
-			const status = await authApi.checkAuthStatus();
-			if (!status?.authenticated) {
-				setUser(null);
-				setCredits(0);
-				return { data: null, error: "로그인 상태 확인에 실패했습니다." };
-			}
-			setUser(status);
+            const status = await authApi.checkAuthStatus();
+            if (!status?.authenticated) {
+                setUser(null);
+                setCredits(0);
+                return { data: null, error: "로그인 상태 확인에 실패했습니다." };
+            }
+            setUser(status);
             await refreshCredits();
             return { data: response, error: null };
         } catch (error) {
@@ -106,41 +121,41 @@ export function AuthProvider({ children }) {
         window.location.href = authApi.getOAuth2AuthorizationUrl("naver");
     };
 
-	// 아이디 찾기(휴대폰)
-	const findUserId = async (name, phone) => {
+    // 아이디 찾기(휴대폰)
+    const findUserId = async (name, phone) => {
         try {
-			const response = await authApi.findUserId(name, phone);
+            const response = await authApi.findUserId(name, phone);
             return { data: response, error: null };
         } catch (error) {
             return {
                 data: null,
-				error: extractErrorMessage(error, "아이디 찾기에 실패했습니다.")
+                error: extractErrorMessage(error, "아이디 찾기에 실패했습니다.")
             };
         }
     };
 
-	// 아이디 찾기 코드 검증
-	const verifyUserIdCode = async (phone, code) => {
+    // 아이디 찾기 코드 검증
+    const verifyUserIdCode = async (phone, code) => {
         try {
-			const response = await authApi.verifyUserIdCode(phone, code);
+            const response = await authApi.verifyUserIdCode(phone, code);
             return { data: response, error: null };
         } catch (error) {
             return {
                 data: null,
-				error: extractErrorMessage(error, "인증 코드 확인에 실패했습니다.")
+                error: extractErrorMessage(error, "인증 코드 확인에 실패했습니다.")
             };
         }
     };
 
-	// 아이디 찾기 결과
-	const getUserIdResult = async () => {
+    // 아이디 찾기 결과
+    const getUserIdResult = async () => {
         try {
-			const response = await authApi.getUserIdResult();
+            const response = await authApi.getUserIdResult();
             return { data: response, error: null };
         } catch (error) {
             return {
                 data: null,
-				error: extractErrorMessage(error, "아이디 조회에 실패했습니다.")
+                error: extractErrorMessage(error, "아이디 조회에 실패했습니다.")
             };
         }
     };
@@ -242,11 +257,41 @@ export function AuthProvider({ children }) {
         }
     };
 
+    // 프로필 업데이트
+    const updateProfile = async (formData) => {
+        try {
+            const response = await authApi.updateProfile(formData);
+            // 업데이트 성공 시 세션 갱신
+            await checkSession();
+            return { data: response, error: null };
+        } catch (error) {
+            return {
+                data: null,
+                error: extractErrorMessage(error, "프로필 업데이트에 실패했습니다."),
+            };
+        }
+    };
+
+    // Role helpers
+    const userRole = user?.role || "";
+    // Backend RoleType: EMPLOYER
+    const isCompany = userRole === "EMPLOYER" || userRole === "ROLE_COMPANY"; // keeping legacy fallback just in case
+    // Backend RoleType: SERVICEADMIN, APPROVEADMIN, MASTER
+    const isAdmin = ["SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN", "ROLE_ADMIN"].includes(userRole);
+    // Backend RoleType: CANDIDATE
+    const isJobSeeker = userRole === "CANDIDATE" || userRole === "JOB_SEEKER" || userRole === "USER";
+
     const value = {
         user,
+        userRole,
+        isCompany,
+        isAdmin,
+        isJobSeeker,
         loading,
         credits,
         refreshCredits,
+        checkSession,
+        updateProfile,
         signIn,
         signUp,
         signOut,
@@ -267,10 +312,10 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         (async () => {
             try {
-				const status = await authApi.checkAuthStatus();
-				// authenticated=false인 경우에는 user를 null로 유지해서
-				// 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
-				setUser(status?.authenticated ? status : null);
+                const status = await authApi.checkAuthStatus();
+                // authenticated=false인 경우에는 user를 null로 유지해서
+                // 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
+                setUser(status?.authenticated ? status : null);
                 await refreshCredits();
             } catch {
                 setUser(null);

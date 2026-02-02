@@ -21,9 +21,9 @@ export function useNotifications() {
     const fetchUnreadCount = useCallback(async () => {
         try {
             const response = await notificationApi.getUnreadCount();
-            if (response?.data) {
-                setUnreadCount(response.data.unreadCount || 0);
-            }
+            // 백엔드: { success, data: { unreadCount } }
+            const count = response?.data?.unreadCount ?? response?.unreadCount ?? 0;
+            setUnreadCount(Number(count) || 0);
         } catch (err) {
             // 로그인하지 않은 경우, API 미구현(500), 또는 Not Found(404) 에러 무시
             const status = err.response?.status;
@@ -43,9 +43,9 @@ export function useNotifications() {
         setError(null);
         try {
             const response = await notificationApi.getRecentNotifications(limit);
-            if (response?.data) {
-                setNotifications(response.data);
-            }
+            // 백엔드: { success, data: notifications[] }
+            const list = Array.isArray(response?.data) ? response.data : (response || []);
+            setNotifications(list);
         } catch (err) {
             const status = err.response?.status;
             // 로그인하지 않은 경우, API 미구현(500), 또는 Not Found(404) 에러 무시
@@ -68,19 +68,19 @@ export function useNotifications() {
         setError(null);
         try {
             const response = await notificationApi.getNotifications(pageNum, size);
-            if (response?.data) {
-                const { notifications: newNotifications, hasNext: hasMore, unreadCount: count } = response.data;
-                
-                if (pageNum === 0) {
-                    setNotifications(newNotifications || []);
-                } else {
-                    setNotifications(prev => [...prev, ...(newNotifications || [])]);
-                }
-                
-                setHasNext(hasMore || false);
-                setUnreadCount(count || 0);
-                setPage(pageNum);
+            // 백엔드: { success, data: content[], page: { hasNext, ... } }
+            const list = Array.isArray(response?.data) ? response.data : [];
+            const hasMore = response?.page?.hasNext ?? false;
+            if (pageNum === 0) {
+                setNotifications(list);
+            } else {
+                setNotifications(prev => [...prev, ...list]);
             }
+            setHasNext(hasMore);
+            if (response?.page?.totalElements !== undefined && pageNum === 0) {
+                // unreadCount는 별도 API로만 제공되므로 유지
+            }
+            setPage(pageNum);
         } catch (err) {
             const status = err.response?.status;
             // 로그인하지 않은 경우, API 미구현(500), 또는 Not Found(404) 에러 무시

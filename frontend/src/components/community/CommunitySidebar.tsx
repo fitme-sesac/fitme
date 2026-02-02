@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -9,29 +10,87 @@ import {
     Bell,
     ChevronRight,
     Flame,
-    X
+    Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityManagement } from "@/components/mypage/CommunityManagement";
 import { CompanyCommunityManagement } from "@/components/company/CompanyCommunityManagement";
-
 import {
-    POPULAR_POSTS,
-    RECOMMENDED_MEMBERS,
-    ANNOUNCEMENTS,
-    MY_POSTS,
-    MY_COMMENTS,
-    LIKED_POSTS,
-    COMPANY_MY_POSTS,
-    COMPANY_MY_COMMENTS,
-    COMPANY_LIKED_POSTS
-} from "@/data/mockCommunityData";
+    getPopularPosts,
+    getRecommendedMembers,
+    getAnnouncements,
+    getMyCommunityStats
+} from "@/api/community";
+
+interface PopularPost {
+    id: string;
+    title: string;
+    author: string;
+    likes: number;
+}
+
+interface RecommendedMember {
+    id: string;
+    name: string;
+    title: string;
+    company?: string;
+    avatar?: string;
+}
+
+interface Announcement {
+    id: string;
+    title: string;
+    date: string;
+    isNew: boolean;
+}
+
+interface CommunityStats {
+    postCount: number;
+    commentCount: number;
+    receivedLikes: number;
+}
 
 export function CommunitySidebar() {
     const { user, isCompany } = useAuth();
     const [showActivity, setShowActivity] = useState(false);
+
+    // 데이터 상태
+    const [popularPosts, setPopularPosts] = useState<PopularPost[]>([]);
+    const [recommendedMembers, setRecommendedMembers] = useState<RecommendedMember[]>([]);
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+    const [myStats, setMyStats] = useState<CommunityStats>({ postCount: 0, commentCount: 0, receivedLikes: 0 });
+    const [loading, setLoading] = useState(true);
+
+    // 데이터 로드
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const [popular, members, notices] = await Promise.all([
+                    getPopularPosts(5),
+                    getRecommendedMembers(3),
+                    getAnnouncements(3)
+                ]);
+
+                setPopularPosts(popular?.content || popular || []);
+                setRecommendedMembers(members?.content || members || []);
+                setAnnouncements(notices?.content || notices || []);
+
+                // 로그인한 경우 내 통계도 가져옴
+                if (user) {
+                    const stats = await getMyCommunityStats();
+                    setMyStats(stats || { postCount: 0, commentCount: 0, receivedLikes: 0 });
+                }
+            } catch (error) {
+                console.error("Failed to fetch community sidebar data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [user]);
 
     return (
         <div className="space-y-6">
@@ -52,11 +111,11 @@ export function CommunitySidebar() {
                                 <Avatar className="h-12 w-12 border">
                                     <AvatarImage src={user.user_metadata?.avatar_url} />
                                     <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                                        {user.user_metadata?.display_name?.charAt(0) || "U"}
+                                        {(user.user_metadata?.display_name || user.name)?.charAt(0) || "U"}
                                     </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <p className="font-bold text-base group-hover:text-primary transition-colors">{user.user_metadata?.display_name || "사용자"}</p>
+                                    <p className="font-bold text-base group-hover:text-primary transition-colors">{user.user_metadata?.display_name || user.name || "사용자"}</p>
                                     <p className="text-xs text-muted-foreground">{user.user_metadata?.job_title || "FitMe 회원"}</p>
                                 </div>
                             </div>
@@ -64,32 +123,15 @@ export function CommunitySidebar() {
                             <div className="grid grid-cols-3 gap-2 text-center border-t border-border pt-4">
                                 <div>
                                     <p className="text-xs text-muted-foreground">작성글</p>
-                                    <p className="font-bold text-sm">
-                                        {isCompany ? COMPANY_MY_POSTS.length : MY_POSTS.length}
-                                    </p>
+                                    <p className="font-bold text-sm">{myStats.postCount}</p>
                                 </div>
                                 <div>
                                     <p className="text-xs text-muted-foreground">댓글</p>
-                                    <p className="font-bold text-sm">
-                                        {isCompany ? COMPANY_MY_COMMENTS.length : MY_COMMENTS.length}
-                                    </p>
+                                    <p className="font-bold text-sm">{myStats.commentCount}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground">{isCompany ? "좋아요" : "받은 좋아요"}</p>
-                                    <p className="font-bold text-sm">
-                                        {/* For demo purposes, we'll sum up likes or just use a fixed number if checking "Received Likes" is too complex for this structure. 
-                                           Let's keep it simple and just show the count like before but maybe dynamic if possible. 
-                                           Actually, "Received Likes" isn't in my mock data structure easily. 
-                                           I'll just use a static 45 for received likes as placeholder or calculate from posts if I had that data in the object.
-                                           Let's use the LIKED_POSTS.length for "Likes Given" if that's what it meant, or stick to a dummy number for "Received".
-                                           The UI says "받은 좋아요" (Received Likes).
-                                           I'll just make it 45 for now as the user asked to connect to dummy, but the dummy data doesn't have "received likes" count.
-                                           Wait, I can just use a number that matches the sum of likes in MY_POSTS.
-                                         */}
-                                        {isCompany
-                                            ? COMPANY_MY_POSTS.reduce((acc, post) => acc + post.likes, 0)
-                                            : MY_POSTS.reduce((acc, post) => acc + post.likes, 0)}
-                                    </p>
+                                    <p className="text-xs text-muted-foreground">받은 좋아요</p>
+                                    <p className="font-bold text-sm">{myStats.receivedLikes}</p>
                                 </div>
                             </div>
                             <div className="mt-4 text-center">
@@ -122,31 +164,41 @@ export function CommunitySidebar() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-0">
-                        <div className="space-y-3">
-                            {POPULAR_POSTS.map((post, idx) => (
-                                <Link
-                                    key={post.id}
-                                    to={`/community/post/${post.id}`}
-                                    className="flex items-start gap-3 group"
-                                >
-                                    <span className={`text-sm font-bold ${idx < 3 ? "text-sky-600" : "text-muted-foreground"}`}>
-                                        {idx + 1}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate group-hover:text-sky-600 transition-colors">
-                                            {post.title}
-                                        </p>
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                                            <span>{post.author}</span>
-                                            <span className="flex items-center gap-1">
-                                                <Heart className="h-3 w-3" fill="currentColor" />
-                                                {post.likes}
-                                            </span>
+                        {loading ? (
+                            <div className="flex justify-center py-4">
+                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : popularPosts.length > 0 ? (
+                            <div className="space-y-3">
+                                {popularPosts.map((post, idx) => (
+                                    <Link
+                                        key={post.id}
+                                        to={`/community/post/${post.id}`}
+                                        className="flex items-start gap-3 group"
+                                    >
+                                        <span className={`text-sm font-bold ${idx < 3 ? "text-sky-600" : "text-muted-foreground"}`}>
+                                            {idx + 1}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium truncate group-hover:text-sky-600 transition-colors">
+                                                {post.title}
+                                            </p>
+                                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                                <span>{post.author}</span>
+                                                <span className="flex items-center gap-1">
+                                                    <Heart className="h-3 w-3" fill="currentColor" />
+                                                    {post.likes}
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                                인기 게시물이 없습니다.
+                            </p>
+                        )}
                     </CardContent>
                 </Card>
             )}
@@ -160,22 +212,32 @@ export function CommunitySidebar() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                    <div className="space-y-3">
-                        {RECOMMENDED_MEMBERS.map((member) => (
-                            <div key={member.id} className="flex items-center gap-3">
-                                <Avatar className="h-9 w-9">
-                                    <AvatarImage src={member.avatar} />
-                                    <AvatarFallback className="bg-gradient-to-br from-sky-500 to-teal-400 text-white text-xs font-bold">
-                                        {member.name.charAt(0)}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="text-sm font-medium">{member.name}</p>
-                                    <p className="text-xs text-muted-foreground">{member.title}</p>
+                    {loading ? (
+                        <div className="flex justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : recommendedMembers.length > 0 ? (
+                        <div className="space-y-3">
+                            {recommendedMembers.map((member) => (
+                                <div key={member.id} className="flex items-center gap-3">
+                                    <Avatar className="h-9 w-9">
+                                        <AvatarImage src={member.avatar} />
+                                        <AvatarFallback className="bg-gradient-to-br from-sky-500 to-teal-400 text-white text-xs font-bold">
+                                            {member.name?.charAt(0)}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="text-sm font-medium">{member.name}</p>
+                                        <p className="text-xs text-muted-foreground">{member.title}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            추천 멤버가 없습니다.
+                        </p>
+                    )}
                 </CardContent>
             </Card>
 
@@ -193,23 +255,33 @@ export function CommunitySidebar() {
                     </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                    <div className="space-y-3">
-                        {ANNOUNCEMENTS.map((notice) => (
-                            <Link
-                                key={notice.id}
-                                to={`/announcements/${notice.id}`}
-                                className="block p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <p className="text-sm font-medium flex-1 truncate">{notice.title}</p>
-                                    {notice.isNew && (
-                                        <Badge className="bg-sky-500 text-white text-[10px] px-1.5 py-0">NEW</Badge>
-                                    )}
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">{notice.date}</p>
-                            </Link>
-                        ))}
-                    </div>
+                    {loading ? (
+                        <div className="flex justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : announcements.length > 0 ? (
+                        <div className="space-y-3">
+                            {announcements.map((notice) => (
+                                <Link
+                                    key={notice.id}
+                                    to={`/announcements/${notice.id}`}
+                                    className="block p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm font-medium flex-1 truncate">{notice.title}</p>
+                                        {notice.isNew && (
+                                            <Badge className="bg-sky-500 text-white text-[10px] px-1.5 py-0">NEW</Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">{notice.date}</p>
+                                </Link>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            공지사항이 없습니다.
+                        </p>
+                    )}
                 </CardContent>
             </Card>
 

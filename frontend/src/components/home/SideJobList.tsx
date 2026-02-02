@@ -11,7 +11,7 @@ export function SideJobList() {
         <div className="bg-card rounded-2xl border border-border p-5">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-lg">새로운 채용 공고</h3>
-                <Link to="/jobs/all" className="text-xs text-muted-foreground hover:text-primary flex items-center">
+                <Link to="/jobs" className="text-xs text-muted-foreground hover:text-primary flex items-center">
                     더보기 <ChevronRight className="h-3 w-3" />
                 </Link>
             </div>

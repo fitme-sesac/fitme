@@ -67,11 +67,16 @@ export function ProfileSetupModal() {
         }
 
         if (user) {
+            // 이미 로컬 세션에서 완료했다면 패스
+            if (localStorage.getItem("profile_setup_completed") === "true") {
+                setOpen(false);
+                return;
+            }
+
             // user_metadata에 handle이 없으면 모달을 띄움
             // 주의: user_metadata 구조는 백엔드에 따라 다를 수 있음.
-            // 여기서는 handle이 없거나 null일 때 띄우는 로직으로 구현
             const handle = user.user_metadata?.handle;
-            const displayName = user.user_metadata?.display_name;
+            const displayName = user.user_metadata?.name || user.user_metadata?.display_name;
 
             if (!handle) {
                 setOpen(true);
@@ -120,6 +125,7 @@ export function ProfileSetupModal() {
             // 세션 갱신 (핸들 정보 가져오기 위함)
             await checkSession();
 
+            localStorage.setItem("profile_setup_completed", "true");
             toast.success("프로필 설정이 완료되었습니다.");
             setOpen(false);
         } catch (error: any) {

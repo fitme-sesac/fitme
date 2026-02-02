@@ -5,6 +5,7 @@ import com.example.pproject.Constant.SourceType;
 import com.example.pproject.common.service.DistributedLockService;
 import com.example.pproject.global.exception.DuplicateRequestException;
 import com.example.pproject.payment.repository.PaymentRepository;
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.wallet.dto.WalletUseRequest;
 import com.example.pproject.wallet.service.WalletService;
 import org.junit.jupiter.api.DisplayName;
@@ -13,8 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collections;
 
@@ -50,7 +49,7 @@ class WalletControllerTest {
     @DisplayName("정상 크레딧 사용 - 락 획득 성공")
     void useCredit_Success() {
         // 1. [Given]
-        UserDetails userDetails = new User("123", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(123L, "user123", "User", null, Collections.emptyList());
         WalletUseRequest request = new WalletUseRequest(
                 100L,
                 "order-123",
@@ -61,7 +60,7 @@ class WalletControllerTest {
         given(lockService.tryLock("wallet:use:123:order-123")).willReturn(true);
 
         // 2. [When]
-        var response = walletController.useCredit(userDetails, request);
+        var response = walletController.useCredit(user, request);
 
         // 3. [Then]
         assertEquals(200, response.getStatusCode().value());
@@ -78,7 +77,7 @@ class WalletControllerTest {
     @DisplayName("EMPLOYER 타입 크레딧 사용 - 정상 처리")
     void useCredit_Employer_Success() {
         // 1. [Given]
-        UserDetails userDetails = new User("456", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(456L, "user456", "User", null, Collections.emptyList());
         WalletUseRequest request = new WalletUseRequest(
                 200L,
                 "order-456",
@@ -88,7 +87,7 @@ class WalletControllerTest {
         given(lockService.tryLock("wallet:use:456:order-456")).willReturn(true);
 
         // 2. [When]
-        var response = walletController.useCredit(userDetails, request);
+        var response = walletController.useCredit(user, request);
 
         // 3. [Then]
         assertEquals(200, response.getStatusCode().value());
@@ -109,7 +108,7 @@ class WalletControllerTest {
     @DisplayName("중복 요청 - 락 획득 실패 시 DuplicateRequestException 발생")
     void useCredit_DuplicateRequest_ThrowsException() {
         // 1. [Given]
-        UserDetails userDetails = new User("123", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(123L, "user123", "User", null, Collections.emptyList());
         WalletUseRequest request = new WalletUseRequest(
                 100L,
                 "order-123",
@@ -122,7 +121,7 @@ class WalletControllerTest {
         // 2. [When & Then]
         DuplicateRequestException exception = assertThrows(
                 DuplicateRequestException.class,
-                () -> walletController.useCredit(userDetails, request));
+                () -> walletController.useCredit(user, request));
 
         assertEquals("이미 처리 중인 요청입니다.", exception.getMessage());
 
@@ -140,7 +139,7 @@ class WalletControllerTest {
     @DisplayName("서비스 예외 발생 시에도 락 해제 보장")
     void useCredit_ServiceException_UnlockGuaranteed() {
         // 1. [Given]
-        UserDetails userDetails = new User("123", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(123L, "user123", "User", null, Collections.emptyList());
         WalletUseRequest request = new WalletUseRequest(
                 100L,
                 "order-123",
@@ -156,7 +155,7 @@ class WalletControllerTest {
         // 2. [When & Then]
         assertThrows(
                 IllegalStateException.class,
-                () -> walletController.useCredit(userDetails, request));
+                () -> walletController.useCredit(user, request));
 
         // 예외 발생해도 unlock은 반드시 호출되어야 함 (finally 블록)
         verify(lockService).unlock("wallet:use:123:order-123");
@@ -170,7 +169,7 @@ class WalletControllerTest {
     @DisplayName("동일 사용자 다른 주문 - 각각 독립적인 락")
     void useCredit_SameUser_DifferentOrders_IndependentLocks() {
         // 1. [Given]
-        UserDetails userDetails = new User("123", "password", Collections.emptyList());
+        JwtUserPrincipal user = new JwtUserPrincipal(123L, "user123", "User", null, Collections.emptyList());
         WalletUseRequest request1 = new WalletUseRequest(
                 100L,
                 "order-aaa",
@@ -186,8 +185,8 @@ class WalletControllerTest {
         given(lockService.tryLock("wallet:use:123:order-bbb")).willReturn(true);
 
         // 2. [When]
-        var response1 = walletController.useCredit(userDetails, request1);
-        var response2 = walletController.useCredit(userDetails, request2);
+        var response1 = walletController.useCredit(user, request1);
+        var response2 = walletController.useCredit(user, request2);
 
         // 3. [Then] - 둘 다 성공
         assertEquals(200, response1.getStatusCode().value());
