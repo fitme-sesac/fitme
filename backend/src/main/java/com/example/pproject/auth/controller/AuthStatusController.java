@@ -22,11 +22,10 @@ public class AuthStatusController {
     @GetMapping("/api/auth/status")
     public Map<String, Object> status(Authentication auth) {
 
-        boolean jwtAuthenticated =
-                auth != null
-                        && auth.isAuthenticated()
-                        && !(auth instanceof AnonymousAuthenticationToken)
-                        && (auth.getPrincipal() instanceof JwtUserPrincipal);
+        boolean jwtAuthenticated = auth != null
+                && auth.isAuthenticated()
+                && !(auth instanceof AnonymousAuthenticationToken)
+                && (auth.getPrincipal() instanceof JwtUserPrincipal);
 
         if (!jwtAuthenticated) {
             Map<String, Object> result = new HashMap<>();
@@ -73,7 +72,7 @@ public class AuthStatusController {
 
         if (userOpt.isPresent()) {
             UserEntity user = userOpt.get();
-            result.put("id", user.getId());
+            result.put("id", String.valueOf(user.getId()));
             result.put("name", user.getUsername()); // DB의 실제 이름
             // 이메일: DB 우선, 없으면 JWT 값
             String email = (user.getEmail() != null && !user.getEmail().isBlank())

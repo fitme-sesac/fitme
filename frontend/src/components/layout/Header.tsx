@@ -67,9 +67,14 @@ export function Header() {
     }
   }, [user, creditOpen, userRole]);
 
-  // URL에 결제 성공 파라미터가 있으면 모달을 자동으로 엽니다.
+  // URL에 결제 성공/실패/확인 파라미터가 있으면 모달을 자동으로 엽니다.
   useEffect(() => {
-    if (searchParams.get("payment_success") === "true") {
+    const shouldOpen =
+        searchParams.get("payment_success") === "true" ||
+        searchParams.get("payment_fail") === "true" ||
+        searchParams.get("payment_confirm") === "true";
+
+    if (shouldOpen) {
       setChargeModalOpen(true);
     }
   }, [searchParams]);
