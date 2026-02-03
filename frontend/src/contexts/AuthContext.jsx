@@ -45,23 +45,18 @@ export function AuthProvider({ children }) {
     };
 
     const refreshCredits = useCallback(async (role) => {
-        try {
-            // Role Normalization (Backend RoleType)
-            // If the user has "EMPLOYER" role, explicitly ask for EMPLOYER wallet.
-            // Otherwise default to CANDIDATE.
-            let roleType = "CANDIDATE";
-            if (role && (role.includes("EMPLOYER") || role.includes("COMPANY"))) {
-                roleType = "EMPLOYER";
-            }
-
-            const res = await getMyWallet(roleType);
-            // Backend returns 'balance' field.
-            const c = Number(res?.balance ?? 0);
-            setCredits(Number.isFinite(c) ? c : 0);
-        } catch {
-            // 지갑 API 실패(401/400 등) 시 크레딧만 0으로 표시, 로그인 상태는 유지
-            setCredits(0);
+        // Role Normalization (Backend RoleType)
+        // If the user has "EMPLOYER" role, explicitly ask for EMPLOYER wallet.
+        // Otherwise default to CANDIDATE.
+        let roleType = "CANDIDATE";
+        if (role && (role.includes("EMPLOYER") || role.includes("COMPANY"))) {
+            roleType = "EMPLOYER";
         }
+
+        const res = await getMyWallet(roleType);
+        // Backend returns 'balance' field.
+        const c = Number(res?.balance ?? 0);
+        setCredits(Number.isFinite(c) ? c : 0);
     }, []);
 
     // 세션 확인 (외부 노출용)
@@ -71,11 +66,22 @@ export function AuthProvider({ children }) {
             setUser(status?.authenticated ? status : null);
 
             // Pass the user role to ensure we fetch the correct wallet
-            await refreshCredits(status?.role);
+            if (status?.authenticated) {
+                try {
+                    await refreshCredits(status?.role);
+                } catch (error) {
+                    console.error("Failed to refresh credits during session check:", error);
+                    // 지갑 조회 실패 시 기존 크레딧 값 유지 (0으로 초기화하지 않음)
+                }
+            } else {
+                // 로그아웃 상태일 때만 크레딧 0으로 설정
+                setCredits(0);
+            }
 
             return status;
         } catch {
             setUser(null);
+            // 세션 확인 실패 시에만 크레딧 0으로 설정 (로그아웃 상태)
             setCredits(0);
             return null;
         }
@@ -95,7 +101,12 @@ export function AuthProvider({ children }) {
             setUser(status);
 
             // Pass the user role to ensure we fetch the correct wallet
-            await refreshCredits(status?.role);
+            try {
+                await refreshCredits(status?.role);
+            } catch (error) {
+                console.error("Failed to refresh credits during sign in:", error);
+                // 로그인은 성공했지만 지갑 조회 실패 시 기존 크레딧 값 유지
+            }
 
             return { data: response, error: null };
         } catch (error) {
@@ -333,7 +344,17 @@ export function AuthProvider({ children }) {
                 setUser(status?.authenticated ? status : null);
 
                 // Pass the user role to ensure we fetch the correct wallet
-                await refreshCredits(status?.role);
+                if (status?.authenticated) {
+                    try {
+                        await refreshCredits(status?.role);
+                    } catch (error) {
+                        console.error("Failed to refresh credits during initialization:", error);
+                        // 초기화 시 지갑 조회 실패해도 기존 크레딧 값 유지
+                    }
+                } else {
+                    // 로그아웃 상태일 때만 크레딧 0으로 설정
+                    setCredits(0);
+                }
             } catch {
                 setUser(null);
                 setCredits(0);

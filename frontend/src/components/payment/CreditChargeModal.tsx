@@ -39,7 +39,7 @@ export function CreditChargeModal({
     open: boolean;
     onOpenChange: (open: boolean) => void
 }) {
-    const { user, isCompany, refreshCredits } = useAuth() as any;
+    const { user, isCompany, refreshCredits, userRole, checkSession } = useAuth() as any;
     const [selectedId, setSelectedId] = useState<string>("3");
     const [searchParams, setSearchParams] = useSearchParams();
     const isSuccess = searchParams.get("payment_success") === "true";
@@ -78,13 +78,39 @@ export function CreditChargeModal({
 
             setIsInternalConfirming(true);
             try {
-                await confirmPayment({
+                const confirmResult = await confirmPayment({
                     paymentKey,
                     orderId,
                     amount
                 });
 
-                await refreshCredits?.();
+                // 결제 승인 API가 성공하면 백엔드에서 이미 크레딧 충전이 완료된 상태
+                // 하지만 트랜잭션 커밋 타이밍 이슈로 즉시 조회 시 반영 안될 수 있음
+                // 재시도 로직으로 안정적으로 최신 크레딧 조회
+                let retryCount = 0;
+                const maxRetries = 3;
+                let lastError = null;
+
+                while (retryCount < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, retryCount === 0 ? 300 : 500));
+
+                    try {
+                        // 세션 확인을 통해 최신 권한과 크레딧을 함께 갱신
+                        await checkSession?.();
+                        lastError = null;
+                        break; // 성공하면 루프 종료
+                    } catch (error) {
+                        lastError = error;
+                        retryCount++;
+                        console.warn(`크레딧 갱신 재시도 ${retryCount}/${maxRetries}:`, error);
+                    }
+                }
+
+                if (lastError && retryCount >= maxRetries) {
+                    console.error("크레딧 갱신 실패, 최대 재시도 횟수 초과:", lastError);
+                    // 크레딧 갱신 실패해도 결제는 성공했으므로 성공 화면 표시
+                    // 사용자가 페이지 새로고침하면 정상적으로 반영됨
+                }
 
                 // 성공 파라미터로 전환
                 // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
@@ -109,7 +135,7 @@ export function CreditChargeModal({
         };
 
         confirm();
-    }, [isConfirming, searchParams, setSearchParams, refreshCredits]);
+    }, [isConfirming, searchParams, setSearchParams, refreshCredits, userRole, checkSession]);
 
     const selectedOption = CREDIT_OPTIONS.find(opt => opt.id === selectedId) || CREDIT_OPTIONS[2];
     const totalCredits = selectedOption.credits + (selectedOption.bonus || 0);
