@@ -1,18 +1,14 @@
-import { useState, useEffect, useRef } from "react";
-import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
-import { createPayment, confirmPayment } from "@/api/payment";
+import { useState } from "react";
+import { useCreditPayment } from "@/features/payment/hooks/useCreditPayment";
 import {
     Dialog,
     DialogContent,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Coins, CheckCircle2, ShieldCheck, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 interface CreditOption {
@@ -39,103 +35,27 @@ export function CreditChargeModal({
     open: boolean;
     onOpenChange: (open: boolean) => void
 }) {
-    const { user, isCompany, refreshCredits, userRole, checkSession } = useAuth() as any;
+    const { user } = useAuth() as any;
     const [selectedId, setSelectedId] = useState<string>("3");
-    const [searchParams, setSearchParams] = useSearchParams();
-    const isSuccess = searchParams.get("payment_success") === "true";
-    const isFail = searchParams.get("payment_fail") === "true";
-    const isConfirming = searchParams.get("payment_confirm") === "true";
 
-    const successOrderId = searchParams.get("orderId");
-    const successAmount = searchParams.get("amount");
-    const failMessage = searchParams.get("message");
-
-    const [isInternalConfirming, setIsInternalConfirming] = useState(false);
-    const [isCharging, setIsCharging] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState("SIMPLE"); // SIMPLE, CARD, PHONE, TRANSFER, GIFT
-    const [simplePayType, setSimplePayType] = useState<string | null>(null);
-    const [agreed, setAgreed] = useState(false);
-
-    const confirmRef = useRef(false);
-
-    // 결제 승인 처리 (Confirmation)
-    useEffect(() => {
-        if (!isConfirming) {
-            confirmRef.current = false;
-            return;
-        }
-
-        if (confirmRef.current || isInternalConfirming) return;
-
-        confirmRef.current = true;
-
-        const confirm = async () => {
-            const paymentKey = searchParams.get("paymentKey");
-            const orderId = searchParams.get("orderId");
-            const amount = Number(searchParams.get("amount"));
-
-            if (!paymentKey || !orderId || !amount) return;
-
-            setIsInternalConfirming(true);
-            try {
-                const confirmResult = await confirmPayment({
-                    paymentKey,
-                    orderId,
-                    amount
-                });
-
-                // 결제 승인 API가 성공하면 백엔드에서 이미 크레딧 충전이 완료된 상태
-                // 하지만 트랜잭션 커밋 타이밍 이슈로 즉시 조회 시 반영 안될 수 있음
-                // 재시도 로직으로 안정적으로 최신 크레딧 조회
-                let retryCount = 0;
-                const maxRetries = 3;
-                let lastError = null;
-
-                while (retryCount < maxRetries) {
-                    await new Promise(resolve => setTimeout(resolve, retryCount === 0 ? 300 : 500));
-
-                    try {
-                        // 세션 확인을 통해 최신 권한과 크레딧을 함께 갱신
-                        await checkSession?.();
-                        lastError = null;
-                        break; // 성공하면 루프 종료
-                    } catch (error) {
-                        lastError = error;
-                        retryCount++;
-                        console.warn(`크레딧 갱신 재시도 ${retryCount}/${maxRetries}:`, error);
-                    }
-                }
-
-                if (lastError && retryCount >= maxRetries) {
-                    console.error("크레딧 갱신 실패, 최대 재시도 횟수 초과:", lastError);
-                    // 크레딧 갱신 실패해도 결제는 성공했으므로 성공 화면 표시
-                    // 사용자가 페이지 새로고침하면 정상적으로 반영됨
-                }
-
-                // 성공 파라미터로 전환
-                // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
-                const newParams = new URLSearchParams();
-                newParams.set("payment_success", "true");
-                newParams.set("orderId", orderId);
-                newParams.set("amount", String(amount));
-                setSearchParams(newParams, { replace: true });
-            } catch (err: any) {
-                console.error("Payment confirmation failed:", err);
-                const errorMsg = err.response?.data?.message || "결제 승인 중 오류가 발생했습니다.";
-
-                // 실패 파라미터로 전환
-                // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
-                const newParams = new URLSearchParams();
-                newParams.set("payment_fail", "true");
-                newParams.set("message", errorMsg);
-                setSearchParams(newParams, { replace: true });
-            } finally {
-                setIsInternalConfirming(false);
-            }
-        };
-
-        confirm();
-    }, [isConfirming, searchParams, setSearchParams, refreshCredits, userRole, checkSession]);
+    const {
+        isCharging,
+        isInternalConfirming,
+        isConfirming,
+        isSuccess,
+        isFail,
+        paymentMethod,
+        simplePayType,
+        agreed,
+        successAmount,
+        failMessage,
+        setPaymentMethod,
+        setSimplePayType,
+        setAgreed,
+        requestPayment,
+        resetParams,
+        closeResultAndReset
+    } = useCreditPayment({ onOpenChange });
 
     const selectedOption = CREDIT_OPTIONS.find(opt => opt.id === selectedId) || CREDIT_OPTIONS[2];
     const totalCredits = selectedOption.credits + (selectedOption.bonus || 0);
@@ -150,113 +70,14 @@ export function CreditChargeModal({
         return "0";
     };
 
-    const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
-    const customerKey = user?.id || user?.email?.replace(/[^a-zA-Z0-9]/g, "") || "ANONYMOUS";
-
-    const handleCharge = async () => {
-        if (!agreed) {
-            alert("구매 조건 및 결제 진행 동의가 필요합니다.");
-            return;
-        }
-
-        console.log("handleCharge triggered", { isCharging, price: selectedOption.price, customerKey });
-        setIsCharging(true);
-
-        try {
-            const productCodeMapValue: Record<number, string> = {
-                1000: "CREDIT_1000",
-                5000: "CREDIT_5000",
-                10000: "CREDIT_10000",
-                30000: "CREDIT_30000",
-                50000: "CREDIT_50000",
-                100000: "CREDIT_100000",
-            };
-
-            const productCode = productCodeMapValue[selectedOption.credits] || "CREDIT_GENERIC";
-
-            let backendOrder;
-            try {
-                backendOrder = await createPayment({
-                    amount: selectedOption.price,
-                    orderName: `${selectedOption.credits.toLocaleString()} 크레딧 충전`,
-                    buyerType: isCompany ? "EMPLOYER" : "MEMBER",
-                    productCode: productCode,
-                    idempotencyKey: `ORDER-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-                });
-            } catch (err: any) {
-                console.error("Backend payment creation failed:", err);
-                throw new Error(err.response?.data?.message || "서버 결제 요청 생성에 실패했습니다.");
-            }
-
-            const orderId = backendOrder.orderId;
-            console.log("Backend Order Created:", orderId);
-
-            // Dummy Simulation
-            if (!clientKey || clientKey === "test") {
-                const currentPath = encodeURIComponent(window.location.pathname + window.location.search);
-                window.location.href = `${window.location.origin}/payment/success?paymentKey=mock_${Date.now()}&orderId=${orderId}&amount=${selectedOption.price}&next=${currentPath}`;
-                return;
-            }
-
-            // Real Toss Payments
-            const tossPayments = await loadTossPayments(clientKey);
-            const payment = tossPayments.payment({ customerKey });
-
-            // method mapping based on tabs/selection
-            let method = "CARD";
-
-            if (paymentMethod === "SIMPLE") {
-                if (simplePayType === "kakao") {
-                    method = "CARD";
-                }
-            } else if (paymentMethod === "PHONE") {
-                method = "MOBILE_PHONE";
-            } else if (paymentMethod === "TRANSFER") {
-                method = "TRANSFER";
-            } else if (paymentMethod === "GIFT") {
-                method = "GIFT_CERTIFICATE";
-            }
-
-            await payment.requestPayment({
-                method: method as any,
-                amount: {
-                    value: selectedOption.price,
-                    currency: "KRW",
-                },
-                orderId: orderId,
-                orderName: `${selectedOption.credits.toLocaleString()} 크레딧 충전`,
-                customerEmail: user?.email,
-                customerName: user?.user_metadata?.display_name || "사용자",
-                successUrl: `${window.location.origin}/payment/success?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
-                failUrl: `${window.location.origin}/payment/fail?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
-                card: {
-                    useEscrow: false,
-                    flowMode: "DEFAULT",
-                    useCardPoint: false,
-                    useAppCardOnly: false,
-                },
-            });
-
-        } catch (error: any) {
-            console.error("Payment Error:", error);
-            setIsCharging(false);
-            alert(`결제 오류: ${error?.message || "결제 진행 중 오류가 발생했습니다."}`);
-        }
-    };
-
-    const handleClose = () => {
-        if (isResultView) {
-            // URL 파라미터 정리
-            const newParams = new URLSearchParams();
-            setSearchParams(newParams, { replace: true });
-        }
-        onOpenChange(false);
+    const handleCharge = () => {
+        requestPayment(selectedOption);
     };
 
     const isResultView = isSuccess || isFail || isConfirming;
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
+        <Dialog open={open} onOpenChange={() => closeResultAndReset()}>
             <DialogContent className={cn(
                 "max-w-5xl p-0 overflow-hidden border-none bg-white rounded-2xl shadow-2xl transition-all [&>button]:hidden",
                 isResultView ? "max-w-md" : "w-[95vw] max-h-[90vh] h-[750px] flex flex-col"
@@ -313,19 +134,12 @@ export function CreditChargeModal({
                         </div>
                         <div className="pt-4 flex gap-2">
                             {!isConfirming && !isInternalConfirming && isFail && (
-                                <Button variant="outline" onClick={() => {
-                                    const newParams = new URLSearchParams(searchParams);
-                                    newParams.delete("payment_fail");
-                                    newParams.delete("message");
-                                    newParams.delete("code");
-                                    setSearchParams(newParams, { replace: true });
-                                    // Stay in modal, reset to charge state
-                                }} className="flex-1 text-lg py-6 rounded-xl">
+                                <Button variant="outline" onClick={resetParams} className="flex-1 text-lg py-6 rounded-xl">
                                     다시 시도
                                 </Button>
                             )}
                             {!isInternalConfirming && !isConfirming && (
-                                <Button onClick={handleClose} className={cn("flex-1 text-lg py-6 rounded-xl text-white", isSuccess ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800")}>
+                                <Button onClick={closeResultAndReset} className={cn("flex-1 text-lg py-6 rounded-xl text-white", isSuccess ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800")}>
                                     확인
                                 </Button>
                             )}
