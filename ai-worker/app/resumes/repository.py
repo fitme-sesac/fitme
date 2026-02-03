@@ -1,25 +1,26 @@
 from app.core.database import get_db_connection, init_db_extensions
 
 class ResumeRepository:
-    def update_resume_data(self, id: int, summary: str, vector: list[float]):
+    def update_resume_data(self, id: int, summary: str, vector: list[float], eval_info: dict = None):
         """
         이력서의 요약 내용과 임베딩 벡터를 DB에 업데이트하는 함수입니다.
-
-        Args:
-            id (int): 이력서 ID (Primary Key)
-            summary (str): AI가 생성한 8줄 요약 텍스트
-            vector (list[float]): 1536차원의 임베딩 벡터 리스트
-
-        Note:
-            - `pgvector` 확장이 미리 등록되어 있어야 벡터 저장이 가능합니다.
-            - `init_db_extensions(conn)`을 호출하여 세션마다 확장을 등록합니다.
-            - `vector` 타입 컬럼에 리스트를 파이썬 리스트 그대로 넘기면 adapter가 자동으로 변환해줍니다.
+        eval_info (optional): {"score": int, "try_count": int, "reason": str}
         """
         conn = get_db_connection()
         try:
             # pgvector 확장 등록 (벡터 타입 인식을 위해 필수)
             init_db_extensions(conn)
             
+            # [평가 정보 저장] DB 컬럼 부재로 인해 Summary 텍스트 하단에 메타데이터로 부착
+            final_summary = summary
+            if eval_info:
+                score = eval_info.get("score", 0)
+                try_count = eval_info.get("try_count", 0)
+                reason = eval_info.get("feedback", "No feedback")
+                # HTML 주석 스타일로 숨김 처리 (화면엔 안 보이고 데이터엔 남음) 또는 명시적 부록
+                meta_text = f"\n\n[System Info]\n- Quality Score: {score}/5\n- Retries: {try_count}\n- Reason: {reason}"
+                final_summary += meta_text
+
             with conn.cursor() as cur:
                 # SQL 실행: summary, embedding 컬럼 업데이트
                 # summary_status를 'COMPLETED'로 변경하여 처리가 끝났음을 표시합니다.
@@ -31,7 +32,7 @@ class ResumeRepository:
                         updated_at = NOW()
                     WHERE resume_id = %s
                 """
-                cur.execute(sql, (summary, vector, id))
+                cur.execute(sql, (final_summary, vector, id))
             
             # 트랜잭션 커밋 (영구 저장)
             conn.commit()
