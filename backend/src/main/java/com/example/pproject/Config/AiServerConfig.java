@@ -13,7 +13,8 @@ public class AiServerConfig {
     
     private String baseUrl = "http://localhost:8000";
     private String resumeAnalyzePath = "/api/ai/resume/analyze";
-    private int timeoutSeconds = 60;
+    private String resumeSummaryPath = "/resumes/generate-summary"; // [NEW] 요약 생성 경로
+    private int timeoutSeconds = 120;
     private RetryConfig retry = new RetryConfig();
     
     @Getter
@@ -25,5 +26,10 @@ public class AiServerConfig {
     
     public String getResumeAnalyzeUrl() {
         return baseUrl + resumeAnalyzePath;
+    }
+
+    // [NEW] 요약 생성 URL
+    public String getResumeSummaryUrl() {
+        return baseUrl + resumeSummaryPath;
     }
 }

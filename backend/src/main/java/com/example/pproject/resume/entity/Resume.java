@@ -188,10 +188,22 @@ public class Resume extends BaseSoftDeleteEntity {
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    // AI 분석 결과 업데이트용
+    // AI 분석 결과 업데이트 (Legacy: 기술 스택 포함)
     public void updateAiAnalysis(String summary, List<String> techStack) {
-        if (summary != null) this.summary = summary;
-        if (techStack != null) this.reStack = techStack;
+        if (summary != null)
+            this.summary = summary;
+        if (techStack != null)
+            this.reStack = techStack;
+        this.summaryStatus = SummaryStatus.COMPLETED;
+        this.lastModifiedAt = LocalDateTime.now();
+    }
+
+    // AI 분석 결과 업데이트 (New: 임베딩 포함)
+    public void updateAiAnalysisWithEmbedding(String summary, List<Double> embedding) {
+        if (summary != null)
+            this.summary = summary;
+        if (embedding != null)
+            this.embedding = embedding;
         this.summaryStatus = SummaryStatus.COMPLETED;
         this.lastModifiedAt = LocalDateTime.now();
     }

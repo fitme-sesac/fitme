@@ -5,6 +5,7 @@ import com.example.pproject.global.response.ApiResponse;
 import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.resume.dto.AiResumeResponse;
 import com.example.pproject.resume.service.AiResumeService;
+import com.example.pproject.resume.service.ResumeSummaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 public class AiResumeController {
 
     private final AiResumeService aiResumeService;
+    private final ResumeSummaryService resumeSummaryService;
 
     /**
      * 이력서 AI 첨삭 및 요약 요청 (기본)
@@ -70,12 +72,49 @@ public class AiResumeController {
 
         return ApiResponse.success(
                 "채용공고 맞춤 AI 분석 요청이 접수되었습니다. 완료 시 알림을 보내드립니다.",
-                request.getResumeId().toString()
-        );
+                request.getResumeId().toString());
     }
 
     /**
-     * AI 분석 상태 조회
+     * [NEW] 이력서 요약 생성 요청 (Stateless Worker 사용)
+     * POST /api/v1/ai/resumes/{resumeId}/summarize
+     */
+    @PostMapping("/resumes/{resumeId}/summarize")
+    public ApiResponse<SummaryRequestResponse> requestSummary(
+            @PathVariable Long resumeId,
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+
+        Long userId = getUserId(principal);
+
+        // 비동기 처리 시작 (fire-and-forget)
+        resumeSummaryService.requestSummary(resumeId, userId);
+
+        log.info("[요약 요청] resumeId: {}, userId: {}", resumeId, userId);
+
+        return ApiResponse.success(
+                "AI 요약 요청이 접수되었습니다.",
+                new SummaryRequestResponse(resumeId, "PENDING", "요약이 진행 중입니다. 잠시 후 확인해주세요."));
+    }
+
+    /**
+     * [NEW] 요약 상태 조회
+     * GET /api/v1/ai/resumes/{resumeId}/summary-status
+     */
+    @GetMapping("/resumes/{resumeId}/summary-status")
+    public ApiResponse<SummaryStatusResponse> getSummaryStatus(
+            @PathVariable Long resumeId,
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+
+        Long userId = getUserId(principal);
+        SummaryStatus status = resumeSummaryService.getStatus(resumeId, userId);
+
+        return ApiResponse.success(
+                "조회 성공",
+                new SummaryStatusResponse(resumeId, status.name(), getStatusMessage(status)));
+    }
+
+    /**
+     * AI 분석 상태 조회 (기존)
      */
     @GetMapping("/resumes/{resumeId}/status")
     public ApiResponse<AiAnalysisStatusResponse> getAnalysisStatus(
@@ -117,6 +156,22 @@ public class AiResumeController {
         private String message;
     }
 
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class SummaryRequestResponse {
+        private Long resumeId;
+        private String status;
+        private String message;
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class SummaryStatusResponse {
+        private Long resumeId;
+        private String status;
+        private String message;
+    }
+
     // ========== Helper Methods ==========
 
     private Long getUserId(JwtUserPrincipal principal) {
@@ -130,10 +185,10 @@ public class AiResumeController {
     private String getStatusMessage(SummaryStatus status) {
         return switch (status) {
             case NONE -> "AI 분석을 요청하지 않았습니다.";
-            case PENDING -> "AI 분석 요청이 대기 중입니다.";
-            case PROCESSING -> "AI가 이력서를 분석하고 있습니다.";
-            case COMPLETED -> "AI 분석이 완료되었습니다.";
-            case FAILED -> "AI 분석이 실패했습니다. 다시 시도해주세요.";
+            case PENDING -> "AI 분석/요약 요청이 대기 중입니다.";
+            case PROCESSING -> "AI가 이력서를 분석/요약하고 있습니다.";
+            case COMPLETED -> "AI 작업이 완료되었습니다.";
+            case FAILED -> "AI 작업이 실패했습니다. 다시 시도해주세요.";
         };
     }
 }
