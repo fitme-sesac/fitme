@@ -18,12 +18,12 @@ interface UseCreditPaymentProps {
     onOpenChange?: (open: boolean) => void;
 }
 
-interface CreditOption {
-    id: string;
+export interface PaymentProduct {
+    id: string | number;
     credits: number;
     price: number;
-    bonus?: number;
-    isPopular?: boolean;
+    productCode: string;
+    name?: string;
 }
 
 export function useCreditPayment({ onOpenChange }: UseCreditPaymentProps = {}) {
@@ -128,7 +128,7 @@ export function useCreditPayment({ onOpenChange }: UseCreditPaymentProps = {}) {
     }, [isConfirming, searchParams, setSearchParams, checkSession]);
 
     // Payment Request Logic
-    const requestPayment = useCallback(async (option: CreditOption) => {
+    const requestPayment = useCallback(async (option: PaymentProduct) => {
         if (!agreed) {
             alert("구매 조건 및 결제 진행 동의가 필요합니다.");
             return;
@@ -140,24 +140,14 @@ export function useCreditPayment({ onOpenChange }: UseCreditPaymentProps = {}) {
         setIsCharging(true);
 
         try {
-            // Product Code Mapping
-            const productCodeMapValue: Record<number, string> = {
-                1000: "CREDIT_1000",
-                5000: "CREDIT_5000",
-                10000: "CREDIT_10000",
-                30000: "CREDIT_30000",
-                50000: "CREDIT_50000",
-                100000: "CREDIT_100000",
-            };
-
-            const productCode = productCodeMapValue[option.credits] || "CREDIT_GENERIC";
+            const productCode = option.productCode;
 
             // 1. Create Order on Backend
             let backendOrder;
             try {
                 backendOrder = await createPayment({
                     amount: option.price,
-                    orderName: `${option.credits.toLocaleString()} 크레딧 충전`,
+                    orderName: option.name || `${option.credits.toLocaleString()} 크레딧 충전`,
                     buyerType: isCompany ? "EMPLOYER" : "MEMBER",
                     productCode: productCode,
                     idempotencyKey: `ORDER-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`

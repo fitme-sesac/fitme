@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCreditPayment } from "@/features/payment/hooks/useCreditPayment";
 import {
     Dialog,
@@ -10,23 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Coins, CheckCircle2, ShieldCheck, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-
-interface CreditOption {
-    id: string;
-    credits: number;
-    price: number;
-    bonus?: number;
-    isPopular?: boolean;
-}
-
-const CREDIT_OPTIONS: CreditOption[] = [
-    { id: "1", credits: 1000, price: 11000 },
-    { id: "2", credits: 5000, price: 55000, bonus: 250 },
-    { id: "3", credits: 10000, price: 110000, bonus: 1000, isPopular: true },
-    { id: "4", credits: 30000, price: 330000, bonus: 4500 },
-    { id: "5", credits: 50000, price: 550000, bonus: 10000 },
-    { id: "6", credits: 100000, price: 990000, bonus: 25000 },
-];
+import { fetchProducts, Product } from "@/api/product";
+import { PaymentProduct } from "@/features/payment/hooks/useCreditPayment";
 
 export function CreditChargeModal({
     open,
@@ -36,7 +21,9 @@ export function CreditChargeModal({
     onOpenChange: (open: boolean) => void
 }) {
     const { user } = useAuth() as any;
-    const [selectedId, setSelectedId] = useState<string>("3");
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
     const {
         isCharging,
@@ -57,21 +44,58 @@ export function CreditChargeModal({
         closeResultAndReset
     } = useCreditPayment({ onOpenChange });
 
-    const selectedOption = CREDIT_OPTIONS.find(opt => opt.id === selectedId) || CREDIT_OPTIONS[2];
-    const totalCredits = selectedOption.credits + (selectedOption.bonus || 0);
+    useEffect(() => {
+        if (open) {
+            const loadProducts = async () => {
+                setIsLoadingProducts(true);
+                try {
+                    const data = await fetchProducts("ONE_TIME");
+                    setProducts(data.content);
+                    if (data.content.length > 0 && selectedId === null) {
+                        // Default select logic (maybe the middle one or first)
+                        // Selecting the 3rd one if exists, else first
+                        if (data.content.length >= 3) {
+                            setSelectedId(data.content[2].productId);
+                        } else {
+                            setSelectedId(data.content[0].productId);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to load products", error);
+                } finally {
+                    setIsLoadingProducts(false);
+                }
+            };
+            loadProducts();
+        }
+    }, [open]);
+
+    const selectedProduct = products.find(p => p.productId === selectedId) || products[0];
+    const totalCredits = selectedProduct ? selectedProduct.creditAmount : 0;
+    const totalPrice = selectedProduct ? selectedProduct.priceAmount : 0;
 
     // 성공 시 표시할 크레딧 계산 (금액 기반 역추적)
     const getCreditsFromAmount = (amount: number) => {
-        const option = CREDIT_OPTIONS.find(opt => opt.price === amount);
-        if (option) {
-            const total = option.credits + (option.bonus || 0);
-            return total.toLocaleString();
+        const product = products.find(p => p.priceAmount === amount);
+        if (product) {
+            return product.creditAmount.toLocaleString();
         }
         return "0";
     };
 
     const handleCharge = () => {
-        requestPayment(selectedOption);
+        if (!selectedProduct) return;
+
+        // Convert to PaymentProduct interface expected by hook
+        const paymentOption: PaymentProduct = {
+            id: selectedProduct.productId,
+            credits: selectedProduct.creditAmount,
+            price: selectedProduct.priceAmount,
+            productCode: selectedProduct.productCode,
+            name: selectedProduct.name
+        };
+
+        requestPayment(paymentOption);
     };
 
     const isResultView = isSuccess || isFail || isConfirming;
@@ -172,12 +196,6 @@ export function CreditChargeModal({
                                         <span className="text-[10px] text-blue-400 block font-bold">CREDITS</span>
                                     </div>
                                 </div>
-                                {selectedOption.bonus && (
-                                    <div className="flex justify-between items-baseline text-xs font-bold text-emerald-500">
-                                        <span>보너스 합산됨</span>
-                                        <span>+{selectedOption.bonus.toLocaleString()}</span>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="mt-auto">
@@ -188,7 +206,7 @@ export function CreditChargeModal({
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="font-bold text-slate-500 text-sm">결제 금액</span>
-                                        <span className="text-lg font-black text-slate-900">{selectedOption.price.toLocaleString()}원</span>
+                                        <span className="text-lg font-black text-slate-900">{totalPrice.toLocaleString()}원</span>
                                     </div>
                                 </div>
                             </div>
@@ -210,41 +228,39 @@ export function CreditChargeModal({
                             {/* Scrollable Content */}
                             <div className="flex-1 overflow-y-auto p-6 pt-2">
                                 {/* Step 1: Grid */}
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
-                                    {CREDIT_OPTIONS.map((opt) => (
-                                        <div
-                                            key={opt.id}
-                                            onClick={() => setSelectedId(opt.id)}
-                                            className={cn(
-                                                "relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md",
-                                                selectedId === opt.id
-                                                    ? "border-blue-500 bg-white ring-2 ring-blue-50/50"
-                                                    : "border-slate-100 bg-white hover:border-slate-200"
-                                            )}
-                                        >
-                                            {opt.isPopular && (
-                                                <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-100 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                                                    인기
+                                {isLoadingProducts ? (
+                                    <div className="flex justify-center items-center h-40">
+                                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+                                        {products.map((opt) => (
+                                            <div
+                                                key={opt.productId}
+                                                onClick={() => setSelectedId(opt.productId)}
+                                                className={cn(
+                                                    "relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md",
+                                                    selectedId === opt.productId
+                                                        ? "border-blue-500 bg-white ring-2 ring-blue-50/50"
+                                                        : "border-slate-100 bg-white hover:border-slate-200"
+                                                )}
+                                            >
+                                                {/* Popular badge logic could go here if we had data, currently omitted */}
+
+                                                {selectedId === opt.productId && (
+                                                    <div className="absolute top-2 right-2 text-blue-500">
+                                                        <CheckCircle2 className="h-4 w-4 fill-blue-50" />
+                                                    </div>
+                                                )}
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">CREDITS</p>
+                                                    <p className="text-xl font-black text-slate-800">{opt.creditAmount.toLocaleString()}</p>
+                                                    <p className="text-sm font-medium text-slate-500">{opt.priceAmount.toLocaleString()}원</p>
                                                 </div>
-                                            )}
-                                            {selectedId === opt.id && (
-                                                <div className="absolute top-2 right-2 text-blue-500">
-                                                    <CheckCircle2 className="h-4 w-4 fill-blue-50" />
-                                                </div>
-                                            )}
-                                            <div className="space-y-0.5">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">CREDITS</p>
-                                                <p className="text-xl font-black text-slate-800">{opt.credits.toLocaleString()}</p>
-                                                <p className="text-sm font-medium text-slate-500">{opt.price.toLocaleString()}원</p>
                                             </div>
-                                            {opt.bonus && (
-                                                <div className="mt-2 inline-flex items-center rounded-md bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                                                    +{opt.bonus.toLocaleString()} 보너스
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {/* Step 2: Payment Method */}
                                 <div className="mb-6">
@@ -328,7 +344,7 @@ export function CreditChargeModal({
 
                                     <Button
                                         onClick={handleCharge}
-                                        disabled={isCharging}
+                                        disabled={isCharging || !selectedProduct}
                                         className={cn(
                                             "w-full h-12 text-base font-black rounded-xl transition-all shadow-lg shadow-blue-100",
                                             "bg-blue-600 hover:bg-blue-700 text-white"
