@@ -38,14 +38,12 @@ public class AiResumeController {
         CompletableFuture<AiResumeResponse> future = aiResumeService.requestAnalysis(
                 request.getResumeId(),
                 request.getSummaryType(),
-                userId
-        );
+                userId);
 
         // 비동기이므로 바로 응답
         return ApiResponse.success(
                 "AI 분석 요청이 성공적으로 접수되었습니다. 완료 시 알림을 보내드립니다.",
-                request.getResumeId().toString()
-        );
+                request.getResumeId().toString());
     }
 
     /**
@@ -64,8 +62,7 @@ public class AiResumeController {
                 request.getResumeId(),
                 request.getSummaryType(),
                 request.getJobId(),
-                userId
-        );
+                userId);
 
         log.info("채용공고 맞춤 AI 분석 요청 - resumeId: {}, jobId: {}, userId: {}",
                 request.getResumeId(), request.getJobId(), userId);
@@ -127,8 +124,7 @@ public class AiResumeController {
         AiAnalysisStatusResponse response = new AiAnalysisStatusResponse(
                 resumeId,
                 status.name(),
-                getStatusMessage(status)
-        );
+                getStatusMessage(status));
 
         return ApiResponse.success("조회 성공", response);
     }
@@ -178,8 +174,8 @@ public class AiResumeController {
         if (principal == null) {
             throw new SecurityException("로그인이 필요합니다.");
         }
-        // JwtUserPrincipal에서 userId 추출 (구현에 따라 다를 수 있음)
-        return Long.valueOf(principal.getUserid());
+        // JwtUserPrincipal에서 DB PK(id) 반환
+        return principal.getId();
     }
 
     private String getStatusMessage(SummaryStatus status) {

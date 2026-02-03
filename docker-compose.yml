@@ -77,6 +77,9 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       FRONT_BASE_URL: ${FRONT_BASE_URL:-http://localhost:5173}
 
+      # AI Worker (Docker Network)
+      AI_SERVER_BASE_URL: http://ai-worker:8000
+
     ports:
       - "8080:8080"
     volumes:

@@ -167,22 +167,39 @@ public class ResumeSummaryService {
     }
 
     /**
-     * Python API 호출 (RestClient)
+     * Python API 호출 (RestTemplate)
+     * RestClient는 기본 MessageConverter 설정 문제로 Body 전송 실패
+     * RestTemplate은 Jackson이 자동 등록되어 안정적으로 작동
      */
     private AiSummaryResponse callPythonApi(Map<String, Object> request) {
-        RestClient restClient = RestClient.builder()
-                .baseUrl(aiServerConfig.getBaseUrl())
-                .build();
+        org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
 
-        return restClient.post()
-                .uri(aiServerConfig.getResumeSummaryPath())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, (req, res) -> {
-                    throw new RuntimeException("AI Worker 오류: " + res.getStatusCode());
-                })
-                .body(AiSummaryResponse.class);
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        org.springframework.http.HttpEntity<Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(
+                request, headers);
+
+        String url = aiServerConfig.getBaseUrl() + aiServerConfig.getResumeSummaryPath();
+
+        // 디버깅: 전체 요청 Body JSON 출력
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper debugMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            debugMapper.enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT);
+            String jsonBody = debugMapper.writeValueAsString(request);
+            log.info("[AI Worker] 요청 URL: {}\n[AI Worker] Body JSON:\n{}", url, jsonBody);
+        } catch (Exception e) {
+            log.warn("[AI Worker] JSON 로깅 실패: {}", e.getMessage());
+        }
+
+        org.springframework.http.ResponseEntity<AiSummaryResponse> response = restTemplate.postForEntity(url, entity,
+                AiSummaryResponse.class);
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            return response.getBody();
+        } else {
+            throw new RuntimeException("AI Worker 오류: " + response.getStatusCode());
+        }
     }
 
     /**

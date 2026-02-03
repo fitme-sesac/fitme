@@ -23,7 +23,7 @@ class SummaryService:
     def __init__(self):
         self.llm = ChatOpenAI(
             model=settings.OPENAI_MODEL_NAME,
-            temperature=0,
+            # temperature=0, # o1/o3 모델은 temperature 지원 안 할 수 있음
             openai_api_key=settings.OPENAI_API_KEY
         )
         # Output Parser 설정
@@ -37,7 +37,7 @@ class SummaryService:
 
         self.pdf_handler = PDFHandler(tesseract_cmd_path=tesseract_path, poppler_path=poppler_path)
 
-    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> Union[str, ResumeSummary, ResumeInsightReport]:
+    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED, resume_id: int = None) -> Union[str, ResumeSummary, ResumeInsightReport]:
         """
         이력서 데이터를 받아 요약을 생성합니다.
         data: ResumeRequest 객체 (Schema Validation을 거친 데이터가 들어옴)
@@ -165,8 +165,22 @@ class SummaryService:
         {file_content}
         """
 
+        # [NEW] Target Job Info 처리 (맞춤형 첨삭/요약)
+        target_job = data.get("target_job")
+        if target_job:
+            # dict 변환 (Pydantic model or dict)
+            if hasattr(target_job, 'dict'): 
+                target_job = target_job.dict()
+            
+            job_text = f"""
+            - Job Title: {target_job.get('title', 'N/A')}
+            - Key Skills: {', '.join(target_job.get('required_skills', []))}
+            - Description: {target_job.get('description', '')}
+            """
+            final_input_text += f"\n\n[Target Job Description]\n{job_text}"
+
         # [Common System Instruction]
-        common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘."
+        common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘. 만약 [Target Job Description]이 제공되었다면, 해당 채용 공고와의 연관성을 중심으로 분석해."
 
         common_constraints = """
         [Constraints]

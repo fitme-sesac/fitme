@@ -3,9 +3,9 @@ from typing import Dict, Any, List, Optional, Union
 from enum import Enum
 
 class Preference(BaseModel):
-    location: str = Field(description="희망 근무지")
-    salary: str = Field(description="희망 연봉")
-    employment_type: str = Field(description="고용 형태")
+    location: Optional[str] = Field(default=None, description="희망 근무지")
+    salary: Optional[str] = Field(default=None, description="희망 연봉")
+    employment_type: Optional[str] = Field(default=None, description="고용 형태")
 
 class Education(BaseModel):
     status: str = Field(description="학적 상태 (예: 졸업, 재학, 휴학)")
@@ -14,10 +14,20 @@ class Education(BaseModel):
 
 class BasicInfo(BaseModel):
     title: str = Field(description="한줄 소개")
+    tagline: Optional[str] = Field(default=None, description="태그라인 (선택)")
     re_stack: List[str] = Field(description="종합 보유 기술 (나의 정체성)")
-    field: str = Field(description="데이터 타입 (RESUME 또는 SELF_INTRO)")
+    field: str = Field(description="데이터 타입 (RESUME, PORTFOLIO, INTRO)")
     education: Optional[Education] = Field(default=None, description="학력 정보")
     preference: Preference
+
+class TargetJobInfo(BaseModel):
+    job_id: int
+    title: str
+    description: str
+    required_skills: List[str] = []
+    location: Optional[str] = None
+    salary_text: Optional[str] = None
+    company_name: Optional[str] = None
 
 class SummaryType(str, Enum):
     STRUCTURED = "STRUCTURED"
@@ -48,6 +58,7 @@ class ResumeRequest(BaseModel):
     careers: List[Union[Career, str]]
     summary_type: SummaryType = Field(default=SummaryType.STRUCTURED, description="요약 형태 (STRUCTURED: 구조화, TEXT: 줄글, REPORT: 인사이트 보고서)")
     include_reasoning: bool = Field(default=False, description="AI 분석 근거(Page/Section Reference) 포함 여부")
+    target_job: Optional[TargetJobInfo] = Field(default=None, description="맞춤 상담을 위한 타겟 채용공고 정보")
 
 class AIProcessResult(BaseModel):
     id: str
