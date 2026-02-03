@@ -280,7 +280,49 @@ public final class JobPositionUtil {
     }
 
     private static boolean hasMatch(Set<String> stackLower, Set<String> keywords) {
-        return stackLower.stream().anyMatch(s -> 
+        return stackLower.stream().anyMatch(s ->
                 keywords.stream().anyMatch(kw -> s.contains(kw) || kw.contains(s)));
+    }
+
+    /**
+     * 포지션 이름으로 해당 포지션의 키워드 목록 반환 (필터링용)
+     * @param positionName 포지션 이름 (예: "프론트엔드", "서버/백엔드")
+     * @return 키워드 Set (없으면 빈 Set)
+     */
+    public static Set<String> getKeywordsByPosition(String positionName) {
+        if (positionName == null || positionName.isBlank()) {
+            return Collections.emptySet();
+        }
+        return POSITION_KEYWORDS.getOrDefault(positionName.trim(), Collections.emptySet());
+    }
+
+    /**
+     * 포지션 이름 목록으로 해당 포지션들의 키워드 목록 반환 (다중 포지션 필터링용)
+     * @param positionNames 포지션 이름 목록 (쉼표 구분 문자열)
+     * @return 키워드 Set (합집합)
+     */
+    public static Set<String> getKeywordsByPositions(String positionNames) {
+        if (positionNames == null || positionNames.isBlank()) {
+            return Collections.emptySet();
+        }
+
+        Set<String> allKeywords = new HashSet<>();
+        for (String pos : positionNames.split(",")) {
+            String trimmed = pos.trim();
+            if (!trimmed.isEmpty() && !"전체".equals(trimmed)) {
+                allKeywords.addAll(getKeywordsByPosition(trimmed));
+            }
+        }
+        return allKeywords;
+    }
+
+    /**
+     * 모든 포지션 카테고리 목록 반환 (전체 포함)
+     */
+    public static List<String> getAllPositionCategories() {
+        List<String> result = new ArrayList<>();
+        result.add("전체");
+        result.addAll(POSITION_ORDER);
+        return result;
     }
 }

@@ -245,7 +245,7 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
             const techStack = job.stack
               ? job.stack.split(",").map((s) => s.trim()).filter(Boolean)
               : [];
-            const detailPath = `/employer/jobs/${job.jobUid ?? job.jobId}`;
+            const detailPath = `/jobs/${job.jobUid ?? job.jobId}`;
             return (
               <div
                 key={job.jobUid}

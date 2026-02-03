@@ -10,7 +10,6 @@ import { WideTalentCard } from "@/components/home/WideTalentCard";
 import { SideJobList } from "@/components/home/SideJobList";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTalents, type TalentListItem } from "@/api/talents";
-import { POSITION_DISPLAY_OPTIONS } from "@/shared/constants/positionCategories";
 
 const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
 const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] ?? "신입";
@@ -19,11 +18,10 @@ const SALARY_LABELS = ["3,000만원", "4,000만원", "5,000만원", "6,000만원
 const getSalaryLabel = (value: number) => SALARY_LABELS[value] ?? "3,000만원";
 
 const FILTER_OPTIONS: Record<string, string[]> = {
-  "포지션": POSITION_DISPLAY_OPTIONS,
   "경력": [],
   "스킬": ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"],
   "희망 연봉": [],
-  "지역": ["서울", "경기", "인천", "부산", "대구", "대전", "광주", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주", "해외"],
+  "지역": ["전체", "서울", "경기", "인천", "부산", "대구", "대전", "광주", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주", "해외"],
 };
 
 export default function Talents() {
@@ -44,7 +42,6 @@ export default function Talents() {
   // Filters
   type FilterValue = string | string[];
   const [selectedFilters, setSelectedFilters] = useState<Record<string, FilterValue>>({
-    "포지션": [],
     "경력": [],
     "스킬": [],
     "희망 연봉": [],
@@ -63,7 +60,7 @@ export default function Talents() {
     }
   };
 
-  const MULTI_SELECT_KEYS = ["포지션", "스킬", "지역"];
+  const MULTI_SELECT_KEYS = ["스킬", "지역"];
 
   useEffect(() => {
     setLoading(true);
@@ -98,13 +95,9 @@ export default function Talents() {
   // 클라이언트 필터 (현재 페이지 데이터)
   const displayTalents = useMemo(() => {
     let list = [...talents];
-    const posSelected = getSelectedArray("포지션");
     const skillSelected = getSelectedArray("스킬");
     const locSelected = getSelectedArray("지역");
 
-    if (posSelected.length > 0) {
-      list = list.filter(t => posSelected.some(p => (t.title || "").includes(p) || (t.summary || "").includes(p)));
-    }
     if (skillSelected.length > 0) {
       list = list.filter(t => (t.skills || []).some(ts => skillSelected.some(s => String(ts).toLowerCase().includes(s.toLowerCase()))));
     }
@@ -127,7 +120,6 @@ export default function Talents() {
     setExperienceRange([0, 10]);
     setSalaryRange([0, 7]);
     setSelectedFilters({
-      "포지션": [],
       "경력": [],
       "스킬": [],
       "희망 연봉": [],

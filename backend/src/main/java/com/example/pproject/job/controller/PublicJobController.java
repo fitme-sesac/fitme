@@ -56,7 +56,7 @@ public class PublicJobController {
     /**
      * 공개 채용공고 목록 조회
      * - status='OPEN'인 공고만 반환
-     * - 다중 필터 지원 (keyword + stack + location + experience)
+     * - 다중 필터 지원 (keyword + stack + location + experience + position)
      * - 로그인 사용자의 경우 기술 스택 매칭 정보 포함
      */
     @GetMapping
@@ -68,11 +68,12 @@ public class PublicJobController {
             @RequestParam(required = false) String location,
             @RequestParam(required = false) Integer minExperience,
             @RequestParam(required = false) Integer maxExperience,
+            @RequestParam(required = false) String position,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
-            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, experience: {}-{}, memberId: {}",
-                    page, size, keyword, stack, location, minExperience, maxExperience, memberId);
+            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, experience: {}-{}, position: {}, memberId: {}",
+                    page, size, keyword, stack, location, minExperience, maxExperience, position, memberId);
 
             JobListResponseDTO response;
             if (memberId != null) {
@@ -82,11 +83,11 @@ public class PublicJobController {
                 } catch (Exception matchError) {
                     // 매칭 계산 실패 시 기본 조회로 폴백
                     log.warn("매칭 정보 계산 실패, 기본 조회로 전환: {}", matchError.getMessage());
-                    response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience);
+                    response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position);
                 }
             } else {
                 // 비로그인 사용자: 기본 조회 (다중 필터 적용)
-                response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience);
+                response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position);
             }
             return ResponseEntity.ok(response);
         } catch (Exception e) {

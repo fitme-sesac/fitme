@@ -83,7 +83,7 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
   @Query("SELECT j FROM JobEntity j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL AND LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))")
   Page<JobEntity> findPublicJobsByLocation(@Param("location") String location, Pageable pageable);
 
-  // 다중 필터 지원 공개 채용공고 검색 - 네이티브 쿼리 사용
+  // 다중 필터 지원 공개 채용공고 검색 - 네이티브 쿼리 사용 (포지션 키워드 필터 포함)
   @Query(value = """
       SELECT * FROM job_posting j
       WHERE j.status = 'OPEN'
@@ -98,6 +98,8 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
              LOWER(j.location) LIKE LOWER('%' || :location || '%'))
         AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+        AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+             EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
       ORDER BY j.created_at DESC
       """, countQuery = """
       SELECT COUNT(*) FROM job_posting j
@@ -113,6 +115,8 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
              LOWER(j.location) LIKE LOWER('%' || :location || '%'))
         AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+        AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+             EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
       """, nativeQuery = true)
   Page<JobEntity> findPublicJobsWithFilters(
       @Param("keyword") String keyword,
@@ -120,6 +124,7 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       @Param("location") String location,
       @Param("minExperience") Integer minExperience,
       @Param("maxExperience") Integer maxExperience,
+      @Param("positionKeywords") String positionKeywords,
       Pageable pageable);
 
   // ===== 필터 옵션 조회 =====

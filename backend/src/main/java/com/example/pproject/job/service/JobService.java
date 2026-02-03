@@ -436,10 +436,10 @@ public class JobService {
      * 공개 채용공고 목록 조회 (status='OPEN')
      * - 대소문자 구분 없이 검색
      * - 한글 기술스택 검색 지원 (자바 → Java)
-     * - 다중 필터 지원 (keyword + stack + location + experience)
+     * - 다중 필터 지원 (keyword + stack + location + experience + position)
      */
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location) {
-        return getPublicJobs(page, size, keyword, stack, location, null, null);
+        return getPublicJobs(page, size, keyword, stack, location, null, null, null);
     }
 
     /**
@@ -452,18 +452,48 @@ public class JobService {
      * @param minExperience 최소 경력
      * @param maxExperience 최대 경력
      */
-    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, 
+    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack,
                                              String location, Integer minExperience, Integer maxExperience) {
+        return getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, null);
+    }
+
+    /**
+     * 공개 채용공고 목록 조회 (다중 필터 지원 + 포지션 필터)
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @param keyword 검색 키워드 (제목, 스택, 지역)
+     * @param stack 기술 스택 필터
+     * @param location 지역 필터
+     * @param minExperience 최소 경력
+     * @param maxExperience 최대 경력
+     * @param position 포지션 필터 (쉼표 구분: "프론트엔드,백엔드")
+     */
+    public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack,
+                                             String location, Integer minExperience, Integer maxExperience,
+                                             String position) {
         // 네이티브 쿼리용 (정렬은 쿼리 내부에서 처리하므로 제외)
         PageRequest pageRequest = PageRequest.of(page, size);
 
         // 한글 → 영어 변환
-        String searchKeyword = (keyword != null && !keyword.isBlank()) 
+        String searchKeyword = (keyword != null && !keyword.isBlank())
                 ? convertKoreanToEnglish(keyword.trim()) : null;
-        String searchStack = (stack != null && !stack.isBlank()) 
+        String searchStack = (stack != null && !stack.isBlank())
                 ? convertKoreanToEnglish(stack.trim()) : null;
-        String searchLocation = (location != null && !location.isBlank()) 
+        String searchLocation = (location != null && !location.isBlank())
                 ? location.trim() : null;
+
+        // 포지션 → 키워드 변환 (예: "프론트엔드" → "%react%,%vue%,%angular%,...")
+        String positionKeywords = null;
+        if (position != null && !position.isBlank() && !"전체".equals(position.trim())) {
+            Set<String> keywords = JobPositionUtil.getKeywordsByPositions(position);
+            if (!keywords.isEmpty()) {
+                // SQL LIKE ANY 패턴용으로 변환: "react" -> "%react%"
+                positionKeywords = keywords.stream()
+                        .map(kw -> "%" + kw.toLowerCase() + "%")
+                        .collect(Collectors.joining(","));
+                log.info("포지션 필터 변환: '{}' → 키워드 {}개", position, keywords.size());
+            }
+        }
 
         if (searchKeyword != null) {
             log.info("검색 키워드 변환: '{}' → '{}'", keyword.trim(), searchKeyword);
@@ -472,13 +502,14 @@ public class JobService {
             log.info("스택 필터 변환: '{}' → '{}'", stack.trim(), searchStack);
         }
 
-        // 다중 필터 적용
+        // 다중 필터 적용 (포지션 키워드 포함)
         Page<JobEntity> jobPage = jobEntityRepository.findPublicJobsWithFilters(
                 searchKeyword,
                 searchStack,
                 searchLocation,
                 minExperience,
                 maxExperience,
+                positionKeywords,
                 pageRequest
         );
 

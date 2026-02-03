@@ -16,6 +16,7 @@ import { http } from "./http";
  * @param {string} params.location - 지역 필터
  * @param {number} params.minExperience - 최소 경력 (년)
  * @param {number} params.maxExperience - 최대 경력 (년)
+ * @param {string} params.position - 포지션 필터 (쉼표 구분: "프론트엔드,백엔드")
  * @returns {Promise<JobListResponse>}
  */
 export async function getPublicJobs({
@@ -26,6 +27,7 @@ export async function getPublicJobs({
   location = "",
   minExperience = null,
   maxExperience = null,
+  position = "",
 } = {}) {
   const params = new URLSearchParams();
   params.append("page", page);
@@ -35,6 +37,7 @@ export async function getPublicJobs({
   if (location) params.append("location", location);
   if (minExperience !== null && minExperience > 0) params.append("minExperience", minExperience);
   if (maxExperience !== null && maxExperience < 10) params.append("maxExperience", maxExperience);
+  if (position) params.append("position", position);
 
   const response = await http.get(`/api/public/jobs?${params.toString()}`);
   return response.data;

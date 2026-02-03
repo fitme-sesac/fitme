@@ -15,12 +15,6 @@ import { CompanyMarketingBanner } from "@/components/home/CompanyMarketingBanner
 import { useAuth } from "@/contexts/AuthContext";
 import { usePublicJobs, useFilterOptions } from "@/hooks/useJobs";
 import {
-    POSITION_DISPLAY_OPTIONS,
-    derivePosition,
-    getPositionLabelsFromStack,
-    getPositionSortOrder,
-} from "@/shared/constants/positionCategories";
-import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -67,7 +61,6 @@ interface JobsResponse {
 // 기본 필터 옵션 (DB에서 로드 전 표시용)
 const DEFAULT_SKILL_OPTIONS = ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"];
 const DEFAULT_INDUSTRY_OPTIONS = ["전체", "커머스", "금융/핀테크", "O2O", "소셜/커뮤니티", "게임", "SaaS", "인공지능", "블록체인", "모빌리티", "여행", "헬스케어", "에듀테크", "HR테크", "부동산", "푸드테크", "보안", "IoT", "IT서비스"];
-const DEFAULT_POSITION_OPTIONS = ["전체", "서버/백엔드", "프론트엔드", "웹 풀스택", "안드로이드", "iOS", "크로스플랫폼", "머신러닝/AI", "데이터 엔지니어", "데이터 분석가", "데이터 사이언티스트", "DevOps", "시스템 엔지니어", "클라우드 엔지니어", "DBA", "SRE", "보안 엔지니어", "게임 클라이언트", "게임 서버", "임베디드", "시스템 프로그래머", "QA 엔지니어", "기술 PM", "프로덕트 매니저", "UX/UI 디자이너", "블록체인"];
 
 const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
 const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] ?? "신입";
@@ -95,15 +88,6 @@ const LOCATION_REGIONS: { region: string; subRegions: string[] }[] = [
     { region: "제주", subRegions: ["제주시", "서귀포시"] },
 ];
 
-/** 채용공고 stack/API position → API용 포지션 (정렬용) */
-function getJobPosition(job: Job): string | null {
-    return derivePosition(job.stack, job.position);
-}
-
-/** 채용공고 stack/API position → UI용 포지션 라벨 목록 (필터 매칭용) */
-function getJobPositionLabels(job: Job): string[] {
-    return getPositionLabelsFromStack(job.stack, job.position);
-}
 
 export default function Jobs() {
     const { isCompany, user } = useAuth();
@@ -134,7 +118,6 @@ export default function Jobs() {
     // 필터 상태: 다중 선택은 string[], 경력/연봉은 슬라이더 사용
     type FilterValue = string | string[];
     const [selectedFilters, setSelectedFilters] = useState<Record<string, FilterValue>>({
-        포지션: [],
         경력: [],
         스킬: [],
         연봉: [],
@@ -159,13 +142,9 @@ export default function Jobs() {
     
     // 필터 옵션 (DB 데이터 우선, 없으면 기본값 사용)
     const FILTER_OPTIONS: Record<string, string[]> = useMemo(() => ({
-        // 포지션: DB 기반 동적 옵션 (실제 채용공고에 있는 포지션만 표시)
-        "포지션": filterOptionsData?.positionCategories?.length > 0
-            ? filterOptionsData.positionCategories
-            : DEFAULT_POSITION_OPTIONS,
         "경력": [], // 슬라이더로 관리
-        "스킬": filterOptionsData?.stacks?.length > 0 
-            ? ["전체", ...filterOptionsData.stacks] 
+        "스킬": filterOptionsData?.stacks?.length > 0
+            ? ["전체", ...filterOptionsData.stacks]
             : DEFAULT_SKILL_OPTIONS,
         "연봉": [], // 슬라이더로 관리
         "근무지": [], // 2단계(광역→세부) UI로 별도 렌더
@@ -198,20 +177,11 @@ export default function Jobs() {
 
     // 클라이언트 사이드 추가 필터링 (서버에서 지원하지 않는 필터만)
     // 서버 필터: keyword, stack, location, experience
-    // 클라이언트 필터: position, salary, industry
+    // 클라이언트 필터: salary, industry
     const getFilteredJobs = () => {
         let filteredJobs = [...jobs];
-        const posSelected = getSelectedArray("포지션");
         const industrySelected = getSelectedArray("서비스 분야");
         const locationSelected = getSelectedArray("근무지");
-
-        // 포지션 필터: UI 포지션 라벨(서버/백엔드, 프론트엔드, 웹 풀스택, 안드로이드, iOS 등)로 필터
-        if (posSelected.length > 0) {
-            filteredJobs = filteredJobs.filter(job => {
-                const jobLabels = getJobPositionLabels(job);
-                return posSelected.some((p) => jobLabels.includes(p));
-            });
-        }
 
         // 근무지 추가 필터링: 서버는 첫 번째 지역만 처리하므로, 다중 지역은 클라이언트에서 추가 필터링
         if (locationSelected.length > 1) {
@@ -278,9 +248,6 @@ export default function Jobs() {
             }
             if (aRate !== undefined && bRate === undefined) return -1;
             if (aRate === undefined && bRate !== undefined) return 1;
-            const posOrderA = getPositionSortOrder(getJobPosition(a));
-            const posOrderB = getPositionSortOrder(getJobPosition(b));
-            if (posOrderA !== posOrderB) return posOrderA - posOrderB;
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
@@ -289,7 +256,7 @@ export default function Jobs() {
 
     const filteredJobs = getFilteredJobs();
 
-    const MULTI_SELECT_KEYS = ["포지션", "스킬", "근무지", "서비스 분야"];
+    const MULTI_SELECT_KEYS = ["스킬", "근무지", "서비스 분야"];
 
     // 필터 적용 함수: 다중 선택 시 토글 (추가/제거), "전체" 시 비우기
     const applyFilter = (filterKey: string, value: string) => {
@@ -365,7 +332,6 @@ export default function Jobs() {
                                                 setExperienceRange([0, 10]);
                                                 setSalaryRange([0, 7]);
                                                 setSelectedFilters({
-                                                    포지션: [],
                                                     경력: [],
                                                     스킬: [],
                                                     연봉: [],
@@ -646,7 +612,6 @@ export default function Jobs() {
                                         setExperienceRange([0, 10]);
                                         setSalaryRange([0, 7]);
                                         setSelectedFilters({
-                                            포지션: [],
                                             경력: [],
                                             스킬: [],
                                             연봉: [],
