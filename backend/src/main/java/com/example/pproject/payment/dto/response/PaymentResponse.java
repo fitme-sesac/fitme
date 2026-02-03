@@ -17,7 +17,7 @@ public record PaymentResponse(
         String orderName,
         PaymentMethod method,
         BigDecimal totalAmount,
-        PaymentAppStatus status,
+        String status,
         LocalDateTime approvedAt,
         String receiptUrl // 토스 영수증 URL (pgPayload에서 추출)
 ) {
@@ -44,7 +44,7 @@ public record PaymentResponse(
                 payment.getOrderName(),
                 payment.getMethod(),
                 payment.getPaidAmount().getAmount(),
-                payment.getAppStatus(),
+                payment.getAppStatus().getDescription(),
                 payment.getApprovedAt(),
                 receiptUrl
         );

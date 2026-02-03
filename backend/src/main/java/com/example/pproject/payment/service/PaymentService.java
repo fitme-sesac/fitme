@@ -6,6 +6,8 @@ import com.example.pproject.Constant.PaymentMethod;
 import com.example.pproject.Constant.RoleType;
 import com.example.pproject.common.vo.Money;
 import com.example.pproject.employer.entity.EmployerEntity;
+import com.example.pproject.employer.entity.EmployerMemberEntity;
+import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.order.entity.Orders;
 import com.example.pproject.order.repository.OrderRepository;
@@ -57,6 +59,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final EmployerRepository employerRepository;
+    private final EmployerMemberRepository employerMemberRepository;
     private final ProductRepository productRepository;
     private final PaymentPort paymentPort;
     private final WalletService walletService;
@@ -291,7 +294,10 @@ public class PaymentService {
             buyer = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         } else if (request.buyerType() == BuyerType.EMPLOYER) {
-            employer = employerRepository.findById(userId)
+            // userId는 memberId이므로, employer_member를 통해 employer 조회
+            EmployerMemberEntity employerMember = employerMemberRepository.findFirstByMemberIdAndActiveTrue(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+            employer = employerRepository.findById(employerMember.getEmployerId())
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기업입니다."));
         }
 
@@ -317,8 +323,16 @@ public class PaymentService {
         Payment payment = paymentRepository.findByOrder_OrderUidWithLock(orderUid)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주문입니다."));
 
-        // 본인 확인 (엔티티 로직 위임)
-        payment.getOrder().validateOwner(userId);
+        // 본인 확인 (엔티티 로직 위임 및 기업 멤버십 확인)
+        if (payment.getOrder().getBuyerType() == BuyerType.EMPLOYER) {
+            boolean isMember = employerMemberRepository.existsByEmployerIdAndMemberIdAndActiveTrue(
+                    payment.getOrder().getBuyerEmployer().getId(), userId);
+            if (!isMember) {
+                throw new IllegalStateException("본인의 기업 주문 내역만 접근할 수 있습니다.");
+            }
+        } else {
+            payment.getOrder().validateOwner(userId);
+        }
 
         payment.confirm(paymentKey);
     }
@@ -345,7 +359,7 @@ public class PaymentService {
             walletService.chargeCredit(
                     userId,
                     payment.getOrder().getBuyerType(),
-                    payment.getPaidAmount().getAmount().longValue(),
+                    payment.getOrder().getProduct().getCreditAmount().longValue(),
                     payment.getPaidAmount(),
                     payment);
         } catch (Exception e) {
@@ -459,7 +473,7 @@ public class PaymentService {
         walletService.chargeCredit(
                 userId,
                 payment.getOrder().getBuyerType(),
-                payment.getPaidAmount().getAmount().longValue(),
+                payment.getOrder().getProduct().getCreditAmount().longValue(),
                 payment.getPaidAmount(),
                 payment);
     }

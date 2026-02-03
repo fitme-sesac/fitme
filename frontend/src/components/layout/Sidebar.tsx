@@ -2,8 +2,9 @@ import { Home, Briefcase, FileText, User, Settings, LogIn, LogOut, Target, HelpC
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AIChatWidget } from "@/components/chat/AIChatWidget";
+import { EmployerAIChatWidget } from "@/components/chat/EmployerAIChatWidget";
 
 // 구직자용 메뉴
 const jobSeekerNavItems = [
@@ -37,6 +38,12 @@ export function Sidebar() {
   const { user, signOut, isCompany } = useAuth();
   const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatResetSeq, setChatResetSeq] = useState(0);
+
+  useEffect(() => {
+    setIsChatOpen(false);
+    setChatResetSeq((v) => v + 1);
+  }, [location.pathname]);
 
   // 기업 회원이면 기업용 메뉴, 아니면 구직자용 메뉴
   const navItems = isCompany ? companyNavItems : jobSeekerNavItems;
@@ -56,16 +63,16 @@ export function Sidebar() {
       <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar hidden lg:flex flex-col">
         {/* 로고 */}
         <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-teal-400 shadow-sm">
-              <Target className="h-5 w-5 text-white" strokeWidth={2.5} />
+          <Link to="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-teal-400 shadow-sm">
+              <Target className="h-6 w-6 text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-xl font-bold text-sky-600 tracking-tight">FitMe</span>
+            <span className="text-xl font-bold text-sky-600">FitMe</span>
           </Link>
         </div>
 
         {/* 메인 네비게이션 */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-2 px-3 py-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href || (item.action === "chat" && isChatOpen);
             const badge = 'badge' in item ? (item as { badge?: string }).badge : undefined;
@@ -93,7 +100,7 @@ export function Sidebar() {
         </nav>
 
         {/* 하단 섹션 */}
-        <div className="border-t border-sidebar-border px-3 py-4">
+        <div className="border-t border-sidebar-border px-3 py-4 space-y-2">
           {bottomItems.map((item) => {
             const href = item.label === "마이페이지" ? getMypageHref() : item.href;
             const isActive = location.pathname === href;
@@ -124,7 +131,8 @@ export function Sidebar() {
           ) : (
             <Link
               to="/auth"
-              className="mt-3 w-full bg-gradient-to-r from-sky-500 via-sky-400 to-teal-400 text-white shadow-md hover:shadow-lg hover:from-teal-400 hover:to-sky-500 transition-all duration-300 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold"
+              className="mt-4 w-full text-white shadow-md transition-all duration-300 flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold border-0 hover:scale-[1.02]"
+              style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}
             >
               <LogIn className="h-4 w-4" />
               <span>로그인</span>
@@ -140,8 +148,20 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* AI Chat Widget */}
-      <AIChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      {/* AI Chat Widget - 구직자용 vs 기업용 */}
+      {isCompany ? (
+        <EmployerAIChatWidget
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          resetSeq={chatResetSeq}
+        />
+      ) : (
+        <AIChatWidget
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          resetSeq={chatResetSeq}
+        />
+      )}
     </>
   );
 }

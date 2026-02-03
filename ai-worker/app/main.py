@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.resumes.api.controller import router as resume_router
 from app.jobpostings.api.controller import router as job_router
 from app.chatbot.router import router as chatbot_router
+from app.employer_chatbot.router import router as employer_chatbot_router
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -29,6 +31,20 @@ app = FastAPI(
     version=settings.APP_VERSION
 )
 
+# CORS (frontend에서 직접 호출 시 필요)
+origins = [o.strip() for o in getattr(settings, "CORS_ORIGINS", "").split(",") if o.strip()]
+if not origins:
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost", "http://127.0.0.1"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 # Health Check
 @app.get("/")
 def health_check():
@@ -37,4 +53,5 @@ def health_check():
 # Register Routers
 app.include_router(resume_router)
 app.include_router(chatbot_router)
+app.include_router(employer_chatbot_router)
 app.include_router(job_router)

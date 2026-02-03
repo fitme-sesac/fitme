@@ -45,12 +45,15 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
     const brandColor = getBrandColor(job.company);
     const mainGradient = "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)";
 
+    // For guests, show a rich mock match score if not provided
+    const matchScore = job.matchScore ?? (Math.floor(Math.random() * 21) + 75); // 75% ~ 95%
+
     return (
         <Card className="hover:shadow-lg transition-all duration-300 border-border group overflow-hidden h-full flex flex-col">
             <CardContent className="p-6 flex-1 flex flex-col">
                 {/* Header: Company Info */}
                 <div className="flex items-start justify-between mb-5">
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start gap-4 w-full">
                         {/* Logo Avatar */}
                         <div
                             className="h-14 w-14 rounded-2xl flex-shrink-0 flex items-center justify-center text-xl font-bold text-white shadow-sm overflow-hidden"
@@ -62,24 +65,29 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
                                 job.logo || job.company[0]
                             )}
                         </div>
-                        <div className="space-y-0.5">
-                            {job.isNew && (
-                                <Badge variant="secondary" className="bg-orange-50 text-orange-600 text-[10px] h-5 px-1.5 w-fit mb-1 border-orange-100 pointer-events-none">
-                                    NEW
-                                </Badge>
-                            )}
-                            <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 leading-tight">{job.company}</h3>
-                            <p className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug pt-0.5">{job.position}</p>
-                            <div className="flex items-center gap-2 text-xs text-slate-500 pt-1.5">
+                        <div className="flex flex-col h-[90px] justify-between flex-1 min-w-0">
+                            <div className="flex items-center gap-2 h-6">
+                                {job.isNew && (
+                                    <Badge variant="secondary" className="bg-orange-50 text-orange-600 text-[10px] h-5 px-1.5 border-orange-100 pointer-events-none flex-shrink-0">
+                                        NEW
+                                    </Badge>
+                                )}
+                                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 leading-tight truncate">{job.company}</h3>
+                            </div>
+                            {/* Enforce 2 lines height for position */}
+                            <p className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug h-10 flex items-start">
+                                {job.position}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 h-5">
                                 <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> {job.experience}</span>
                                 <span className="text-slate-300">|</span>
-                                <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>
+                                <span className="flex items-center gap-1 truncate"><MapPin className="w-3 h-3" /> {job.location}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Match Score */}
+                {/* Match Score - Fixed Height Container */}
                 <div className="mb-4 space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                         <span className="font-medium text-slate-500">AI 매칭률</span>
@@ -87,7 +95,7 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
                             className="font-black text-transparent bg-clip-text"
                             style={{ backgroundImage: mainGradient }}
                         >
-                            {job.matchScore}%
+                            {matchScore}%
                         </span>
                     </div>
 
@@ -96,29 +104,29 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
                         <div
                             className="h-full rounded-full"
                             style={{
-                                width: `${job.matchScore}%`,
+                                width: `${matchScore}%`,
                                 background: mainGradient
                             }}
                         />
                     </div>
                 </div>
 
-                {/* Skills */}
-                <div className="flex flex-wrap gap-1.5 mb-6">
+                {/* Skills - Enforce 1 line height or consistent height */}
+                <div className="flex flex-wrap gap-1.5 mb-6 h-[26px] overflow-hidden">
                     {job.skills.slice(0, 4).map((skill, i) => (
-                        <Badge key={i} variant="secondary" className="bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium">
+                        <Badge key={i} variant="secondary" className="bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium whitespace-nowrap">
                             {skill}
                         </Badge>
                     ))}
                     {job.skills.length > 4 && (
-                        <Badge variant="secondary" className="bg-slate-50 border border-slate-200 text-slate-400 font-medium">+{job.skills.length - 4}</Badge>
+                        <Badge variant="secondary" className="bg-slate-50 border border-slate-200 text-slate-400 font-medium whitespace-nowrap">+{job.skills.length - 4}</Badge>
                     )}
                 </div>
 
                 {/* Push to bottom */}
                 <div className="mt-auto">
                     {/* Competition Rate (Previously Salary) */}
-                    <div className="text-sm font-semibold text-slate-700 mb-4">
+                    <div className="text-sm font-semibold text-slate-700 mb-4 h-5 flex items-center">
                         경쟁률: {job.competitionRate || "집계중"}
                     </div>
 
@@ -132,7 +140,7 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
                                 지원하기
                             </Button>
                         </Link>
-                        <Button variant="outline" size="icon" className="border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50">
+                        <Button variant="outline" size="icon" className="border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 shrink-0">
                             <Bookmark className="w-4 h-4" />
                         </Button>
                     </div>

@@ -34,7 +34,6 @@ import { Link } from "react-router-dom";
 
 // API base URL
 const API_BASE = "http://localhost:8080/api/v1";
-
 interface FAQ {
     id: number;
     question: string;
@@ -150,8 +149,8 @@ export default function Support() {
             <div className="mb-8 border-b pb-6">
                 <div className="flex items-center gap-3 mb-4">
                     {Icon && (
-                        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-sky-100 dark:bg-sky-900/20">
-                            <Icon className="h-6 w-6 text-sky-600" />
+                        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#5A639C]/10">
+                            <Icon className="h-6 w-6 text-[#5A639C]" />
                         </div>
                     )}
                     <div>
@@ -201,15 +200,15 @@ export default function Support() {
 
                         {isLoading ? (
                             <div className="flex justify-center py-12">
-                                <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+                                <Loader2 className="h-8 w-8 animate-spin text-[#5A639C]" />
                             </div>
                         ) : displayedFAQs.length > 0 ? (
                             <Accordion type="single" collapsible className="w-full space-y-2">
                                 {displayedFAQs.map((faq) => (
                                     <AccordionItem key={faq.id} value={`faq-${faq.id}`} className="border rounded-xl px-4 hover:bg-muted/30 transition-colors">
-                                        <AccordionTrigger className="text-left hover:text-sky-600 hover:no-underline py-4 text-base font-medium">
+                                        <AccordionTrigger className="text-left hover:text-[#5A639C] hover:no-underline py-4 text-base font-medium">
                                             <span className="flex items-center gap-3">
-                                                <span className="text-sky-600 font-bold">Q.</span>
+                                                <span className="text-[#5A639C] font-bold">Q.</span>
                                                 {faq.question}
                                             </span>
                                         </AccordionTrigger>
@@ -233,11 +232,11 @@ export default function Support() {
                         <ContentHeader title="공지사항" icon={FileText} />
                         <div className="space-y-4">
                             {[1, 2, 3].map((i) => (
-                                <div key={i} className="group p-5 border rounded-xl hover:border-sky-200 hover:shadow-md transition-all cursor-pointer">
+                                <div key={i} className="group p-5 border rounded-xl hover:border-[#5A639C]/50 hover:shadow-md transition-all cursor-pointer">
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2">
-                                            <Badge variant="secondary" className="bg-sky-100 text-sky-700 hover:bg-sky-200 border-0">중요</Badge>
-                                            <h3 className="font-semibold text-lg group-hover:text-sky-600 transition-colors">2024년 개인정보처리방침 개정 안내</h3>
+                                            <Badge variant="secondary" className="bg-[#5A639C]/10 text-[#5A639C] hover:bg-[#5A639C]/20 border-0">중요</Badge>
+                                            <h3 className="font-semibold text-lg group-hover:text-[#5A639C] transition-colors">2024년 개인정보처리방침 개정 안내</h3>
                                         </div>
                                     </div>
                                     <p className="text-muted-foreground line-clamp-2 mb-3">
@@ -290,7 +289,7 @@ export default function Support() {
                                     />
                                 </div>
                                 <div className="flex justify-end pt-4">
-                                    <Button className="h-11 px-8 bg-gradient-to-r from-sky-500 to-teal-400 hover:from-sky-600 hover:to-teal-500 text-white">
+                                    <Button className="h-11 px-8 bg-gradient-to-r from-[#5A639C] to-[#9B86BD] hover:from-[#4A538C] hover:to-[#8B76AD] text-white">
                                         문의 접수하기
                                     </Button>
                                 </div>
@@ -369,7 +368,7 @@ export default function Support() {
                                                         onClick={() => setActiveTab(item.id)}
                                                         className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200
                                                             ${isActive
-                                                                ? "bg-sky-500 text-white shadow-md shadow-sky-200"
+                                                                ? "bg-[#5A639C] text-white shadow-md shadow-[#5A639C]/20"
                                                                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                                             }`}
                                                     >
@@ -386,8 +385,8 @@ export default function Support() {
                                 <div className="mt-8 bg-gradient-to-br from-slate-100 to-white dark:from-slate-900 dark:to-background border rounded-2xl p-5 shadow-sm">
                                     <p className="text-xs font-bold text-muted-foreground mb-2">고객센터 운영안내</p>
                                     <div className="flex items-baseline gap-2 mb-2">
-                                        <Phone className="h-4 w-4 text-sky-600" />
-                                        <p className="text-lg font-bold text-sky-600">1588-0000</p>
+                                        <Phone className="h-4 w-4 text-[#5A639C]" />
+                                        <p className="text-lg font-bold text-[#5A639C]">1588-0000</p>
                                     </div>
                                     <p className="text-xs text-muted-foreground leading-relaxed">
                                         평일 09:00 - 18:00<br />

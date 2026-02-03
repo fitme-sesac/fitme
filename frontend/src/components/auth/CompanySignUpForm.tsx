@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,12 @@ import { TermsAgreement } from "./TermsAgreement";
 
 // Validation Schema
 const formSchema = z.object({
-    userid: z.string().min(4, "아이디는 4자 이상이어야 합니다").regex(/^[a-z0-9]+$/, "영문 소문자와 숫자만 가능합니다"),
-    password: z.string()
+    userid: z
+        .string()
+        .min(4, "아이디는 4자 이상이어야 합니다")
+        .regex(/^[a-z0-9]+$/, "영문 소문자와 숫자만 가능합니다"),
+    password: z
+        .string()
         .min(8, "비밀번호는 8자 이상이어야 합니다")
         .regex(/^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[!@#$%^&*])/, "영문, 숫자, 특수문자를 포함해야 합니다"),
     confirmPassword: z.string(),
@@ -20,7 +25,7 @@ const formSchema = z.object({
     bizNo: z.string().length(10, "사업자번호는 10자리 숫자입니다").regex(/^[0-9]+$/, "숫자만 입력해주세요"),
     managerName: z.string().min(1, "담당자명을 입력해주세요"),
     phone: z.string().regex(/^01[0-9]{8,9}$/, "유효한 휴대폰 번호를 입력해주세요."),
-    verificationCode: z.string().optional(), // Only for UI state, not final payload
+    verificationCode: z.string().optional(),
     email: z.string().email("유효한 이메일 주소를 입력해주세요"),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "비밀번호가 일치하지 않습니다",
@@ -43,61 +48,85 @@ export function CompanySignUpForm() {
 
     // Steps State
     const [termsAgreed, setTermsAgreed] = useState(false);
+    const [agreements, setAgreements] = useState<Record<string, boolean>>({});
     const [verificationSent, setVerificationSent] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isVerified, setIsVerified] = useState(false);
     const [timer, setTimer] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [submitAttempted, setSubmitAttempted] = useState(false);
+    const [serverError, setServerError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
     const { signUp, requestPhoneVerification, verifyPhone } = useAuth();
     const { toast } = useToast();
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
-        setFormData(prev => ({ ...prev, [id]: value }));
+        setFormData((prev) => ({ ...prev, [id]: value }));
+        if (serverError) setServerError(null);
     };
 
     useEffect(() => {
-        let interval;
+        let interval: ReturnType<typeof setInterval> | undefined;
+
         if (verificationSent && timer > 0 && !isVerified) {
             interval = setInterval(() => {
                 setTimer((prev) => prev - 1);
             }, 1000);
         } else if (timer === 0) {
-            clearInterval(interval);
+            if (interval) clearInterval(interval);
         }
-        return () => clearInterval(interval);
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
     }, [verificationSent, timer, isVerified]);
 
-    // Phone Verification Handlers (Same as JobSeeker)
+    // Phone Verification
     const handlePhoneVerification = async () => {
         const phone = formData.phone;
+
         if (!phone || !/^01[0-9]{8,9}$/.test(phone)) {
             toast({ variant: "destructive", title: "입력 오류", description: "올바른 휴대폰 번호를 입력해주세요." });
             return;
         }
-
-        // Magic Number for Testing
-        if (phone === "01000000000") {
-            toast({ title: "[Test Mode]", description: "테스트 번호입니다. 가짜 인증번호를 발송합니다." });
-            setVerificationSent(true);
-            setTimer(180);
-            return;
-        }
-
         try {
-            const res = await requestPhoneVerification(phone);
-            if (res && res.ok !== false) {
-                setVerificationSent(true);
-                setTimer(300);
-                toast({ title: "인증번호 발송", description: "인증번호가 발송되었습니다. 5분 이내에 입력해주세요." });
-            } else {
-                toast({ title: "발송 실패", description: res?.message || "오류가 발생했습니다.", variant: "destructive" });
+            // ✅ AuthContext는 { data, error } 형태로 반환
+            const { data, error } = await requestPhoneVerification(phone);
+
+            if (error) {
+                toast({
+                    title: "발송 실패",
+                    description: String(error),
+                    variant: "destructive",
+                });
+                return;
             }
-        } catch (error: any) {
-            toast({ title: "오류 발생", description: error.message || "인증번호 발송 중 오류가 발생했습니다.", variant: "destructive" });
+
+            if (!data?.ok) {
+                toast({
+                    title: "발송 실패",
+                    description: data?.message || "인증번호 발송에 실패했습니다.",
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            // ✅ 성공일 때만 타이머 시작
+            setVerificationSent(true);
+            setIsVerified(false);
+            setFormData((p) => ({ ...p, verificationCode: "" }));
+            setTimer(300);
+
+            toast({ title: "인증번호 발송", description: "인증번호가 발송되었습니다. 5분 이내에 입력해주세요." });
+        } catch (err: any) {
+            toast({
+                title: "오류 발생",
+                description: err?.message || "인증번호 발송 중 오류가 발생했습니다.",
+                variant: "destructive",
+            });
         }
     };
 
@@ -109,48 +138,65 @@ export function CompanySignUpForm() {
             toast({ variant: "destructive", title: "입력 오류", description: "인증번호를 입력하세요" });
             return;
         }
-
-        // Magic Number Bypass
-        if (phone === "01000000000" && code === "123456") {
-            setIsVerified(true);
-            setIsVerifying(false);
-            toast({ title: "[Test Mode]", description: "테스트 인증 성공!" });
-            return;
-        }
-
         setIsVerifying(true);
         try {
-            const res = await verifyPhone(phone, code);
-            if (res && (res.verified || res.ok)) {
+            // ✅ AuthContext는 { data, error } 형태로 반환
+            const { data, error } = await verifyPhone(phone, code);
+
+            if (error) {
+                toast({
+                    title: "인증 오류",
+                    description: String(error),
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            const ok = Boolean(data?.verified ?? data?.ok);
+
+            if (ok) {
                 setIsVerified(true);
+                setTimer(0);
                 toast({ title: "인증 성공", description: "휴대폰 인증이 완료되었습니다." });
             } else {
-                toast({ title: "인증 실패", description: res?.message || "인증번호가 일치하지 않습니다.", variant: "destructive" });
+                toast({
+                    title: "인증 실패",
+                    description: data?.message || "인증번호가 일치하지 않습니다.",
+                    variant: "destructive",
+                });
             }
         } catch (e: any) {
-            toast({ title: "인증 오류", description: e.message || "인증 확인 중 오류가 발생했습니다.", variant: "destructive" });
+            toast({
+                title: "인증 오류",
+                description: e?.message || "인증 확인 중 오류가 발생했습니다.",
+                variant: "destructive",
+            });
         } finally {
             setIsVerifying(false);
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        setSubmitAttempted(true);
+        setServerError(null);
 
         if (!termsAgreed) {
+            setServerError("필수 약관에 동의해주세요.");
             toast({ variant: "destructive", title: "약관 동의 필요", description: "필수 약관에 동의해주세요." });
             document.getElementById("section-terms")?.scrollIntoView({ behavior: "smooth" });
             return;
         }
         if (!isVerified) {
+            setServerError("휴대폰 인증을 완료해주세요.");
             toast({ variant: "destructive", title: "본인 인증 필요", description: "휴대폰 인증을 완료해주세요." });
             document.getElementById("section-verify")?.scrollIntoView({ behavior: "smooth" });
             return;
         }
 
-        // Validate
         const result = formSchema.safeParse(formData);
         if (!result.success) {
+            setServerError(result.error.errors[0].message);
             toast({
                 variant: "destructive",
                 title: "입력 오류",
@@ -162,91 +208,61 @@ export function CompanySignUpForm() {
         setIsLoading(true);
 
         const userData = {
-            loginId: formData.userid,
-            userid: formData.userid, // backend uses userid
+            // 백엔드(UserController.registerProc/UserService.register)가 기대하는 필드명에 최대한 맞춘다.
+            userid: formData.userid,
             password: formData.password,
-            name: formData.corpName, // User name as Corp Name? Or Manager Name? Layout asks for both. 
-            // In JobSeeker, name maps to username.
-            // In Company, we have Corp Name and CEO Name and Manager Name.
-            // backend register expects: username, phone, email. And specific fields?
-            // UserRequestDTO: username, email, phone.
-            // EmployerController might handle extra data? 
-            // Currently auth.js calls /User/Register which is generic.
-            // It seems "name" in User table should probably be the Manager Name or Company Name?
-            // Usually Company User -> Name = Manager Name or Company Name.
-            // Let's map `username` to `formData.managerName` (Person) and store company info elsewhere?
-            // Wait, standard backend user model usually has `name`.
-            // Let's send `name: formData.managerName` as the "User Name".
-            // And we need to send Company Info.
-            // `auth.js` `register` function maps `userData.name` to `formData.append("username", ...)`
-            // Does `auth.js` handle company fields?
-            // Checking `auth.js`... it only appends standard fields.
-            // If I need to send Company Info (CorpName, BizNo, CEO), I might need to update `auth.js` OR `UserRequestDTO` doesn't support it?
-            // `UserRequestDTO` has NO company fields.
-            // This suggests Company Registration might be a 2-step process OR `roleType=EMPLOYER` triggers a different flow?
-            // OR I should use `EmployerController`?
-            // Checking `EmployerController`...
-            // But for now, I will send what I can.
-            // If `auth.js` only sends standard fields, I will send standard fields.
-            // Note: The previous logic (Step 601) sent `name: formData.corpName`.
-            // I will change `name` to `formData.managerName` (Personal Name) or `formData.corpName`?
-            // 'username' in backend usually means Real Name.
-            // I'll stick to `name: formData.corpName` if that was the convention, OR `managerName`.
-            // Given "Manager Info" section exists, likely `managerName` is the user.
-            // I'll use `managerName` for `name`.
-            // And I will try to append extra fields if `auth.js` allows? 
-            // Actually `auth.js` `register` function constructs `FormData` manually. It does NOT iterate over all keys.
-            // So `corpName`, `ceoName`, `bizNo` will be IGNORED by `auth.js` unless I update it.
-            // Use `userId` + `password` + `email` + `phone` + `role=EMPLOYER`.
-            // The Company Details might need to be saved *after* login?
-            // Or `auth.js` needs update. 
-            // I will NOT update `auth.js` right now to avoid breaking changes unless I'm sure.
-            // I will send `name: formData.corpName` to ensure the account is identifiable as the company.
-
-            username: formData.managerName, // Map to User Name
-            corpName: formData.corpName,
-            ceoName: formData.ceoName,
-            bizNo: formData.bizNo,
-            phone: formData.phone,
+            passwordConfirm: formData.confirmPassword,
+            username: formData.managerName,
             email: formData.email,
-            role: 'EMPLOYER'
+            phone: formData.phone,
+            agreeTerms: Boolean(agreements?.service),
+            // 회사 회원의 필수 동의 항목 중 개인정보 성격은 bizInfo로 매핑
+            agreePrivacy: Boolean(agreements?.bizInfo),
+            // 백엔드는 agreePolicy도 필수로 체크
+            agreePolicy: Boolean(agreements?.policy ?? agreements?.sms),
+            marketingOptIn: Boolean(agreements?.marketing),
         };
 
-        // Note: auth.js register function needs to be checked if it supports corp fields.
-        // It does NOT. 
-        // User said "Connect logic". 
-        // I will assume for now we just `signUp`. 
-        // If data is missing, I might need to follow up.
-        // But first, UI match.
-
-        const { error } = await signUp(userData);
-
-        if (error) {
-            toast({
-                variant: "destructive",
-                title: "회원가입 실패",
-                description: typeof error === 'string' ? error : "회원가입 중 오류가 발생했습니다",
-            });
-        } else {
-            toast({
-                title: "회원가입 성공",
-                description: "환영합니다! 기업 회원으로 가입되었습니다.",
-            });
+        try {
+            const { data, error } = await signUp(userData);
+            if (error) {
+                setServerError(String(error));
+                toast({ variant: "destructive", title: "회원가입 실패", description: error });
+            } else {
+                setServerError(null);
+                toast({ title: "회원가입 성공!", description: "기업 회원으로 가입되었습니다." });
+                window.location.href = "/auth?tab=login";
+            }
+        } catch (err: any) {
+            setServerError(err?.message || "알 수 없는 오류가 발생했습니다.");
+            toast({ variant: "destructive", title: "오류", description: err.message || "알 수 없는 오류가 발생했습니다." });
+        } finally {
+            setIsLoading(false);
         }
-
-        setIsLoading(false);
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
+        <form onSubmit={handleSubmit} className="space-y-8">
+            {serverError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {serverError}
+                </div>
+            )}
             {/* 1. 약관 동의 */}
             <section id="section-terms" className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 border-b pb-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">1</span>
                     약관 동의
+                    {termsAgreed && <CheckCircle2 className="h-5 w-5 text-green-500 ml-auto" />}
                 </h3>
-                <TermsAgreement onComplete={setTermsAgreed} type="company" />
+                {submitAttempted && !termsAgreed && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        필수 약관 동의가 완료되지 않았습니다. 약관 동의 섹션의 <b>(필수)</b> 항목을 모두 체크해야 합니다.
+                    </div>
+                )}
+                <div className="p-4 bg-card rounded-xl border border-border">
+                    <TermsAgreement onComplete={setTermsAgreed} onChange={setAgreements} type="company" />
+                </div>
             </section>
 
             {/* 2. 본인 인증 및 계정 */}
@@ -256,10 +272,17 @@ export function CompanySignUpForm() {
                     본인 인증 및 계정 정보
                     {isVerified && <CheckCircle2 className="h-5 w-5 text-green-500 ml-auto" />}
                 </h3>
+                {submitAttempted && !isVerified && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        휴대폰 인증이 완료되지 않았습니다. 휴대폰 인증을 완료해야 회원가입을 진행할 수 있습니다.
+                    </div>
+                )}
                 <div className="space-y-4 p-4 bg-card rounded-xl border border-border">
                     {/* Phone Verification */}
                     <div className="space-y-2">
-                        <Label htmlFor="phone">휴대폰 번호 <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="phone">
+                            휴대폰 번호 <span className="text-destructive">*</span>
+                        </Label>
                         <div className="flex gap-2">
                             <Input
                                 id="phone"
@@ -279,6 +302,7 @@ export function CompanySignUpForm() {
                                 {verificationSent ? "재전송" : "인증번호 받기"}
                             </Button>
                         </div>
+
                         {verificationSent && !isVerified && (
                             <div className="flex gap-2 relative">
                                 <div className="flex-1 relative">
@@ -290,29 +314,35 @@ export function CompanySignUpForm() {
                                         className="w-full"
                                     />
                                     <span className="absolute right-3 top-2.5 text-sm text-destructive font-medium">
-                                        {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')}
-                                    </span>
+                    {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, "0")}
+                  </span>
                                 </div>
-                                <Button
-                                    type="button"
-                                    onClick={handleVerifyCode}
-                                    disabled={isVerifying || timer === 0}
-                                    className="w-28"
-                                >
+
+                                <Button type="button" onClick={handleVerifyCode} disabled={isVerifying || timer === 0} className="w-28">
                                     {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "확인"}
                                 </Button>
-                                {timer === 0 && <div className="absolute -bottom-6 left-0 text-destructive text-xs">인증 시간이 만료되었습니다. 재전송 버튼을 눌러주세요.</div>}
+
+                                {timer === 0 && (
+                                    <div className="absolute -bottom-6 left-0 text-destructive text-xs">
+                                        인증 시간이 만료되었습니다. 재전송 버튼을 눌러주세요.
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="userid">아이디 <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="userid">
+                            아이디 <span className="text-destructive">*</span>
+                        </Label>
                         <Input id="userid" placeholder="아이디를 입력해주세요" value={formData.userid} onChange={handleChange} required />
                     </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="password">비밀번호 <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="password">
+                                비밀번호 <span className="text-destructive">*</span>
+                            </Label>
                             <div className="relative">
                                 <Input
                                     id="password"
@@ -333,8 +363,11 @@ export function CompanySignUpForm() {
                                 </Button>
                             </div>
                         </div>
+
                         <div className="space-y-2">
-                            <Label htmlFor="confirmPassword">비밀번호 확인 <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="confirmPassword">
+                                비밀번호 확인 <span className="text-destructive">*</span>
+                            </Label>
                             <div className="relative">
                                 <Input
                                     id="confirmPassword"
@@ -359,12 +392,13 @@ export function CompanySignUpForm() {
                 </div>
             </section>
 
-            {/* 3. 기업 정보 (Renumbered from 4) */}
+            {/* 3. 기업 정보 */}
             <section className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 border-b pb-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">3</span>
                     기업 정보
                 </h3>
+
                 <div className="space-y-4 p-4 bg-card rounded-xl border border-border">
                     <div className="space-y-2">
                         <Label htmlFor="corpName" className="flex items-center gap-2">
@@ -375,23 +409,28 @@ export function CompanySignUpForm() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="ceoName">대표자명 <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="ceoName">
+                                대표자명 <span className="text-destructive">*</span>
+                            </Label>
                             <Input id="ceoName" placeholder="대표자 성함" value={formData.ceoName} onChange={handleChange} required />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="bizNo">사업자등록번호 <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="bizNo">
+                                사업자등록번호 <span className="text-destructive">*</span>
+                            </Label>
                             <Input id="bizNo" placeholder="- 없이 숫자만 입력" value={formData.bizNo} maxLength={10} onChange={handleChange} required />
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* 4. 담당자 정보 (Renumbered from 5) */}
+            {/* 4. 담당자 정보 */}
             <section className="space-y-4">
                 <h3 className="text-lg font-bold flex items-center gap-2 border-b pb-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">4</span>
                     담당자 정보
                 </h3>
+
                 <div className="space-y-4 p-4 bg-card rounded-xl border border-border">
                     <div className="space-y-2">
                         <Label htmlFor="managerName" className="flex items-center gap-2">
@@ -399,9 +438,11 @@ export function CompanySignUpForm() {
                         </Label>
                         <Input id="managerName" placeholder="채용 담당자 이름" value={formData.managerName} onChange={handleChange} required />
                     </div>
-                    {/* Removed Manager Phone as it is collected in Step 2 */}
+
                     <div className="space-y-2">
-                        <Label htmlFor="email">담당자 이메일 <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="email">
+                            담당자 이메일 <span className="text-destructive">*</span>
+                        </Label>
                         <Input id="email" type="email" placeholder="hr@company.com" value={formData.email} onChange={handleChange} required />
                     </div>
                 </div>

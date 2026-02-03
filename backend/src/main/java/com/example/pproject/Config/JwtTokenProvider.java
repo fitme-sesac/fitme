@@ -96,10 +96,19 @@ public class JwtTokenProvider {
         String displayName = claims.get("displayName", String.class);
         String email = claims.get("email", String.class);
 
-        // [추가] 토큰에서 ID 꺼내기 (없으면 null 방지용 0L 또는 null 처리)
-        Long id = claims.get("id", Long.class);
+        // 토큰에서 ID 꺼내기 (JSON에 Integer로 저장된 경우 Long으로 변환)
+        Long id = null;
+        Object idObj = claims.get("id");
+        if (idObj instanceof Number num) {
+            id = num.longValue();
+        } else if (idObj != null) {
+            try {
+                id = Long.valueOf(idObj.toString());
+            } catch (NumberFormatException ignored) {
+            }
+        }
 
-        // [수정] ID를 포함하는 새로운 생성자 사용 (MyPageController를 위해 필수)
+        // ID를 포함하는 Principal (이력서/지갑 등 API에서 user.getId() 사용)
         JwtUserPrincipal principal = new JwtUserPrincipal(id, username, displayName, email, authorities);
 
         return new UsernamePasswordAuthenticationToken(principal, token, authorities);

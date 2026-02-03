@@ -56,7 +56,7 @@ const bannerSlides = [
     subtitleClass: "text-amber-600",
     indicatorClass: "bg-amber-500",
     ctaText: "공고 등록하기",
-    ctaLink: "/jobs/new",
+    ctaLink: "/employer/jobs/create",
   },
   {
     id: 4,
@@ -149,7 +149,7 @@ export function EmployerHeroSection() {
 
                     {/* CTA - Brand Gradient Applied */}
                     <div className="flex flex-wrap justify-center gap-3 pt-6">
-                      <Button asChild size="lg" className="h-12 px-8 text-base font-bold border-none shadow-lg bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-blue-200/50">
+                      <Button asChild size="lg" className="h-12 px-8 text-base font-bold border-none shadow-lg text-white shadow-blue-200/50 transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}>
                         <Link to={slide.ctaLink}>
                           {slide.ctaText}
                         </Link>

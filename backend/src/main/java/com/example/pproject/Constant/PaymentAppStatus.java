@@ -3,11 +3,21 @@ package com.example.pproject.Constant;
 import java.util.Set;
 
 public enum PaymentAppStatus {
-    REQUESTED,          // 결제 요청
-    APPROVED,           // 승인 완료
-    FAILED,             // 승인/요청 실패
-    CANCELED,           // 전체 취소
-    PARTIAL_CANCELED;   // 부분 취소
+    REQUESTED("결제 요청"),
+    APPROVED("승인 완료"),
+    FAILED("승인/요청 실패"),
+    CANCELED("전체 취소"),
+    PARTIAL_CANCELED("부분 취소");
+
+    private final String description;
+
+    PaymentAppStatus(String description) {
+        this.description = description;
+    }
+
+    public String getDescription() {
+        return description;
+    }
 
     /**
      * 상태 전이 가능 여부를 확인합니다.

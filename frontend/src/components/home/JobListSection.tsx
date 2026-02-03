@@ -18,6 +18,8 @@ const mapJobToCardProps = (job: any) => ({
   postedAt: getRelativeTime(job.createdAt),
   isAd: (job.adBidCredit || 0) > 0,
   matchScore: job.matchScore,
+  applyCount: job.applyCount,
+  recruitmentCapacity: job.recruitmentCapacity,
 });
 
 // 상대 시간 계산

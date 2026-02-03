@@ -1,102 +1,33 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Sparkles, 
-  Bookmark, 
-  MessageSquare, 
+import {
+  Sparkles,
+  Bookmark,
+  MessageSquare,
   MapPin,
   Briefcase,
   ArrowRight,
   RefreshCw,
-  Filter
+  Filter,
+  Loader2
 } from "lucide-react";
 import { Link } from "react-router-dom";
-
-const mockTalents = [
-  {
-    id: 1,
-    name: "김개발",
-    title: "시니어 프론트엔드 개발자",
-    experience: "8년",
-    skills: ["React", "TypeScript", "Next.js", "Vue.js", "Tailwind CSS"],
-    matchScore: 98,
-    location: "서울 강남구",
-    salary: "1억 ~ 1.2억",
-    avatar: null,
-    isNew: true,
-    lastActive: "방금 전",
-  },
-  {
-    id: 2,
-    name: "이백엔드",
-    title: "백엔드 개발자",
-    experience: "5년",
-    skills: ["Node.js", "Python", "PostgreSQL", "AWS", "Docker"],
-    matchScore: 95,
-    location: "서울 서초구",
-    salary: "8,000만 ~ 1억",
-    avatar: null,
-    isNew: true,
-    lastActive: "10분 전",
-  },
-  {
-    id: 3,
-    name: "박풀스택",
-    title: "풀스택 개발자",
-    experience: "6년",
-    skills: ["React", "Node.js", "TypeScript", "MongoDB", "GraphQL"],
-    matchScore: 92,
-    location: "경기 성남시",
-    salary: "9,000만 ~ 1.1억",
-    avatar: null,
-    isNew: false,
-    lastActive: "1시간 전",
-  },
-  {
-    id: 4,
-    name: "최데이터",
-    title: "데이터 엔지니어",
-    experience: "4년",
-    skills: ["Python", "Spark", "Airflow", "BigQuery", "Kafka"],
-    matchScore: 89,
-    location: "서울 마포구",
-    salary: "7,500만 ~ 9,000만",
-    avatar: null,
-    isNew: false,
-    lastActive: "3시간 전",
-  },
-  {
-    id: 5,
-    name: "정클라우드",
-    title: "DevOps 엔지니어",
-    experience: "5년",
-    skills: ["Kubernetes", "AWS", "Terraform", "CI/CD", "Linux"],
-    matchScore: 87,
-    location: "서울 영등포구",
-    salary: "8,500만 ~ 1억",
-    avatar: null,
-    isNew: false,
-    lastActive: "5시간 전",
-  },
-  {
-    id: 6,
-    name: "한디자인",
-    title: "UI/UX 디자이너",
-    experience: "7년",
-    skills: ["Figma", "Sketch", "Prototyping", "Design System", "Framer"],
-    matchScore: 85,
-    location: "서울 강남구",
-    salary: "7,000만 ~ 8,500만",
-    avatar: null,
-    isNew: true,
-    lastActive: "30분 전",
-  },
-];
+import { getTalents, type TalentListItem } from "@/api/talents";
 
 export function TalentRecommendationSection() {
+  const [talents, setTalents] = useState<TalentListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getTalents(0, 6)
+      .then((res) => setTalents(res.content))
+      .catch(() => setTalents([]))
+      .finally(() => setLoading(false));
+  }, []);
   return (
     <section className="py-12 lg:py-16">
       <div className="container">
@@ -127,8 +58,13 @@ export function TalentRecommendationSection() {
 
         {/* 인재 그리드 */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {mockTalents.map((talent) => (
-            <Card key={talent.id} className="group hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
+          {loading ? (
+            <div className="col-span-full flex justify-center py-12">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            </div>
+          ) : (
+            talents.map((talent) => (
+            <Card key={talent.resumeId ?? talent.id} className="group hover:shadow-lg transition-all duration-300 border-border hover:border-primary/30">
               <CardContent className="p-5">
                 {/* 상단: 프로필 */}
                 <div className="flex items-start gap-4 mb-4">
@@ -172,14 +108,14 @@ export function TalentRecommendationSection() {
 
                 {/* 스킬 태그 */}
                 <div className="flex flex-wrap gap-1.5 mb-4">
-                  {talent.skills.slice(0, 4).map((skill) => (
+                  {(talent.skills ?? []).slice(0, 4).map((skill) => (
                     <Badge key={skill} variant="secondary" className="text-xs">
                       {skill}
                     </Badge>
                   ))}
-                  {talent.skills.length > 4 && (
+                  {(talent.skills ?? []).length > 4 && (
                     <Badge variant="outline" className="text-xs text-muted-foreground">
-                      +{talent.skills.length - 4}
+                      +{(talent.skills ?? []).length - 4}
                     </Badge>
                   )}
                 </div>
@@ -191,22 +127,27 @@ export function TalentRecommendationSection() {
 
                 {/* 액션 버튼 */}
                 <div className="flex gap-2">
-                  <Button size="sm" className="flex-1 btn-gradient-primary">
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                    연락하기
+                  <Button size="sm" className="flex-1 text-white shadow-md transition-all hover:scale-[1.02] border-0 font-bold" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }} asChild>
+                    <Link to={`/talents/${talent.id}`}>
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      연락하기
+                    </Link>
                   </Button>
                   <Button variant="outline" size="sm">
                     <Bookmark className="h-4 w-4" />
                   </Button>
                 </div>
 
-                {/* 마지막 활동 */}
-                <p className="text-[11px] text-muted-foreground text-center mt-3">
-                  마지막 활동: {talent.lastActive}
-                </p>
+                {/* 마지막 업데이트 */}
+                {talent.lastUpdated && (
+                  <p className="text-[11px] text-muted-foreground text-center mt-3">
+                    {talent.lastUpdated} 업데이트
+                  </p>
+                )}
               </CardContent>
             </Card>
-          ))}
+          ))
+          )}
         </div>
 
         {/* 더보기 */}

@@ -67,9 +67,14 @@ export function Header() {
     }
   }, [user, creditOpen, userRole]);
 
-  // URL에 결제 성공 파라미터가 있으면 모달을 자동으로 엽니다.
+  // URL에 결제 성공/실패/확인 파라미터가 있으면 모달을 자동으로 엽니다.
   useEffect(() => {
-    if (searchParams.get("payment_success") === "true") {
+    const shouldOpen =
+      searchParams.get("payment_success") === "true" ||
+      searchParams.get("payment_fail") === "true" ||
+      searchParams.get("payment_confirm") === "true";
+
+    if (shouldOpen) {
       setChargeModalOpen(true);
     }
   }, [searchParams]);
@@ -84,9 +89,14 @@ export function Header() {
   const handleNotificationClick = (notification: any) => {
     markAsRead(notification.id);
     setNotifOpen(false);
-    // 알림 링크로 이동
-    if (notification.link) {
-      navigate(notification.link);
+    // 알림 링크로 이동 (백엔드 DTO: linkUrl)
+    const url = notification.linkUrl ?? notification.link;
+    if (url) {
+      if (url.startsWith("http")) {
+        window.location.href = url;
+      } else {
+        navigate(url);
+      }
     }
   };
 
@@ -170,7 +180,11 @@ export function Header() {
                       className="w-full h-9 text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center justify-center gap-1"
                       onClick={() => {
                         setCreditOpen(false);
-                        navigate("/settings?tab=history");
+                        if (isCompany) {
+                          navigate("/companies?tab=billing");
+                        } else {
+                          navigate("/mypage?tab=history");
+                        }
                       }}
                     >
                       전체 내역 확인하기 <ArrowRight className="h-3 w-3" />
@@ -286,9 +300,9 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ""} />
+                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || (user as any).userid || ""} />
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      {user.email?.charAt(0).toUpperCase()}
+                      {(user.email || (user as any).userid || (user as any).name || "U").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -297,12 +311,22 @@ export function Header() {
                 <div className="flex items-center justify-start gap-2 p-2">
                   <div className="flex flex-col space-y-1 leading-none">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{user.user_metadata?.display_name || user.email}</p>
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                      <p className="font-medium truncate max-w-[120px]">
+                        {user.user_metadata?.name ||
+                          user.user_metadata?.display_name ||
+                          user.user_metadata?.full_name ||
+                          user.user_metadata?.handle ||
+                          user.username ||
+                          user.email?.split('@')[0] ||
+                          "사용자"}
+                      </p>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal shrink-0">
                         {isAdmin ? "관리자" : isCompany ? "기업" : "구직자"}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                      {user.email || (user as any).userid || (user as any).name || "이메일 없음"}
+                    </p>
                   </div>
                 </div>
                 {/* 모바일에서 크레딧 표시 */}

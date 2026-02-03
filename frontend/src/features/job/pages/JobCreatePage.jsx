@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { http } from '../../../api/http';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { Header } from '@/components/layout/Header';
 import JobForm from '../components/JobForm';
 
 /**
@@ -33,7 +35,11 @@ export default function JobCreatePage() {
   };
 
   return (
-    <main className="main">
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      <div className="lg:pl-64 transition-all duration-300">
+        <Header />
+        <main className="main">
       <div className="container py-4">
         {/* 헤더 */}
         <div className="mb-4">
@@ -102,6 +108,8 @@ export default function JobCreatePage() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+      </div>
+    </div>
   );
 }

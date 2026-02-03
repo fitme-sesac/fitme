@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { X, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getMyPayments } from "@/api/payment";
 
 export function JobSeekerWidgets() {
     return (
@@ -22,24 +24,73 @@ export function JobSeekerWidgets() {
                 </div>
             </div>
 
-            {/* Banner */}
-            <div className="bg-gradient-to-br from-[#5A639C]/10 to-[#9B86BD]/20 rounded-2xl p-6 text-center cursor-pointer border border-[#5A639C]/20 hover:shadow-md transition-all group relative overflow-hidden">
-                <div className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/5 rounded-full">
-                    <X className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <h3 className="font-bold text-[#5A639C] text-xl mb-2 leading-tight">
-                    합격을<br />부르는<br />강점 찾기
-                </h3>
-                <div className="mt-4 bg-gradient-to-r from-[#5A639C] to-[#9B86BD] text-white text-xs py-2 px-4 rounded-full inline-flex items-center shadow-lg group-hover:scale-105 transition-transform font-bold">
-                    역량테스트 하기 <ChevronRight className="h-3 w-3 ml-1" />
-                </div>
+            {/* Payment History Widget */}
+            <PaymentHistoryWidget />
+        </div>
+    );
+}
 
-                {/* Decorative elements */}
-                <div className="mt-6 flex justify-center gap-2 opacity-80">
-                    <div className="w-8 h-10 bg-white/50 border border-white/60 rounded-lg shadow-sm transform -rotate-12 backdrop-blur-sm"></div>
-                    <div className="w-8 h-10 bg-white/80 border border-white rounded-lg shadow-md transform rotate-0 -mt-2 backdrop-blur-sm z-10"></div>
-                    <div className="w-8 h-10 bg-white/50 border border-white/60 rounded-lg shadow-sm transform rotate-12 backdrop-blur-sm"></div>
-                </div>
+function PaymentHistoryWidget() {
+    const [payments, setPayments] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchPayments = async () => {
+            try {
+                const response = await getMyPayments();
+                // Check if response has content (Page<PaymentResponse>)
+                const content = response?.content || (Array.isArray(response) ? response : []);
+                setPayments(content.slice(0, 3));
+            } catch (error) {
+                console.error("Failed to fetch payments:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchPayments();
+    }, []);
+
+    return (
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <div className="p-5 border-b flex justify-between items-center">
+                <h3 className="font-bold text-foreground">최근 결제 내역</h3>
+                <ChevronRight className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-[#5A639C]" />
+            </div>
+
+            <div className="divide-y">
+                {loading ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">
+                        로딩 중...
+                    </div>
+                ) : payments.length > 0 ? (
+                    payments.map((payment) => (
+                        <div key={payment.paymentId} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center group cursor-pointer">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium text-foreground group-hover:text-[#5A639C] transition-colors">
+                                    {payment.orderName}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                    {new Date(payment.approvedAt).toLocaleDateString()}
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="font-bold text-sm">
+                                    {payment.totalAmount.toLocaleString()}원
+                                </div>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${payment.status === 'DONE' ? 'bg-green-100 text-green-700' :
+                                    payment.status === 'CANCELED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                    {payment.status === 'DONE' ? '결제완료' : payment.status === 'CANCELED' ? '취소됨' : payment.status}
+                                </span>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="p-8 text-center text-sm text-muted-foreground">
+                        결제 내역이 없습니다.
+                    </div>
+                )}
             </div>
 
             {/* Top button */}

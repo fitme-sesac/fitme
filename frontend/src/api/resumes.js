@@ -11,7 +11,7 @@ import { http } from "./http";
  * @returns {Promise<ResumeListResponse>}
  */
 export async function getMyResumes() {
-  const response = await http.get("/api/resumes");
+  const response = await http.get("/api/v1/resumes");
   return response.data;
 }
 
@@ -21,7 +21,7 @@ export async function getMyResumes() {
  * @returns {Promise<ResumeDTO>}
  */
 export async function getResume(resumeId) {
-  const response = await http.get(`/api/resumes/${resumeId}`);
+  const response = await http.get(`/api/v1/resumes/${resumeId}`);
   return response.data;
 }
 
@@ -31,7 +31,7 @@ export async function getResume(resumeId) {
  * @returns {Promise<ResumeDTO>}
  */
 export async function createResume(resume) {
-  const response = await http.post("/api/resumes", resume);
+  const response = await http.post("/api/v1/resumes", resume);
   return response.data;
 }
 
@@ -42,7 +42,7 @@ export async function createResume(resume) {
  * @returns {Promise<ResumeDTO>}
  */
 export async function updateResume(resumeId, resume) {
-  const response = await http.put(`/api/resumes/${resumeId}`, resume);
+  const response = await http.patch(`/api/v1/resumes/${resumeId}`, resume);
   return response.data;
 }
 
@@ -52,7 +52,17 @@ export async function updateResume(resumeId, resume) {
  * @returns {Promise<void>}
  */
 export async function deleteResume(resumeId) {
-  const response = await http.delete(`/api/resumes/${resumeId}`);
+  const response = await http.delete(`/api/v1/resumes/${resumeId}`);
+  return response.data;
+}
+
+/**
+ * 이력서 복제 (로그인 필요)
+ * @param {number} resumeId - 이력서 ID
+ * @returns {Promise<number>} 새 이력서 ID
+ */
+export async function copyResume(resumeId) {
+  const response = await http.post(`/api/v1/resumes/${resumeId}/copy`);
   return response.data;
 }
 
@@ -62,7 +72,7 @@ export async function deleteResume(resumeId) {
  * @returns {Promise<ResumeDTO>}
  */
 export async function setPrimaryResume(resumeId) {
-  const response = await http.patch(`/api/resumes/${resumeId}/primary`);
+  const response = await http.patch(`/api/v1/resumes/${resumeId}/primary`);
   return response.data;
 }
 
@@ -73,7 +83,7 @@ export async function setPrimaryResume(resumeId) {
  * @returns {Promise<ResumeDTO>}
  */
 export async function setResumeVisibility(resumeId, isPublic) {
-  const response = await http.patch(`/api/resumes/${resumeId}/visibility`, {
+  const response = await http.patch(`/api/v1/resumes/${resumeId}/visibility`, {
     isPublic,
   });
   return response.data;
@@ -85,7 +95,7 @@ export async function setResumeVisibility(resumeId, isPublic) {
  * @returns {Promise<{message: string}>}
  */
 export async function requestResumeSummary(resumeId) {
-  const response = await http.post(`/api/resumes/${resumeId}/summarize`);
+  const response = await http.post(`/api/v1/resumes/${resumeId}/summarize`);
   return response.data;
 }
 
@@ -99,7 +109,7 @@ export async function uploadResumeFile(resumeId, file) {
   const formData = new FormData();
   formData.append("file", file);
   const response = await http.post(
-    `/api/resumes/${resumeId}/attachments`,
+    `/api/v1/resumes/${resumeId}/attachments`,
     formData,
     {
       headers: {
@@ -118,7 +128,7 @@ export async function uploadResumeFile(resumeId, file) {
  */
 export async function deleteResumeAttachment(resumeId, attachmentId) {
   const response = await http.delete(
-    `/api/resumes/${resumeId}/attachments/${attachmentId}`
+    `/api/v1/resumes/${resumeId}/attachments/${attachmentId}`
   );
   return response.data;
 }
@@ -127,21 +137,6 @@ export async function deleteResumeAttachment(resumeId, attachmentId) {
  * @returns {Promise<Object>}
  */
 export async function getMyProfileSummary() {
-  // TODO: 백엔드 API 구현 후 실제 호출로 변경
-  // const response = await http.get("/api/resumes/my-profile-summary");
-  // return response.data;
-
-  // Mock Data
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        name: "양**",
-        lastCompany: "(주)에스씨케이컴퍼니",
-        totalExperience: "1년 8개월",
-        recentInfo: "1년 2개월 근무",
-        recentPosition: "바리스타",
-        skills: ["풀스택", "JAVA", "CSS", "React", "ReactJS", "Redux", "Git", "CSS3", "HTML", "Javascript"]
-      });
-    }, 500); // Simulate network delay
-  });
+  const response = await http.get("/api/v1/resumes/my-profile-summary");
+  return response.data;
 }

@@ -30,7 +30,7 @@ export function CTASection() {
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Button asChild size="lg" className="h-14 bg-white px-8 text-sky-600 font-bold hover:bg-white/90 shadow-lg border-none">
                 <Link to="/auth?tab=signup">
-                  무료로 시작하기
+                  로그인하고 시작하기
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>

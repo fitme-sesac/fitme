@@ -4,9 +4,11 @@ import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.resume.dto.ResumeRequest;
 import com.example.pproject.resume.dto.ResumeResponse;
 import com.example.pproject.resume.service.ResumeService;
+import com.example.pproject.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,19 @@ import java.util.Map;
 public class ResumeController {
 
     private final ResumeService resumeService;
+    private final UserRepository userRepository;
+
+    /** JWT에 id가 없을 때 userid로 DB 조회하여 memberId 반환 (구 토큰 호환) */
+    private Long resolveMemberId(JwtUserPrincipal user) {
+        if (user == null) return null;
+        if (user.getId() != null) return user.getId();
+        if (user.getUserid() != null && !user.getUserid().isBlank()) {
+            return userRepository.findByUserid(user.getUserid())
+                    .map(u -> u.getId())
+                    .orElse(null);
+        }
+        return null;
+    }
 
     /**
      * 나의 이력서 목록 조회
@@ -29,7 +44,11 @@ public class ResumeController {
     @Operation(summary = "내 이력서 목록 조회", description = "사용자의 이력서 목록을 반환합니다. 대표 이력서(is_primary) 여부를 확인할 수 있습니다.")
     @GetMapping
     public ResponseEntity<List<ResumeResponse>> getMyResumes(@AuthenticationPrincipal JwtUserPrincipal user) {
-        return ResponseEntity.ok(resumeService.getResumes(user.getId()));
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(resumeService.getResumes(memberId));
     }
 
     /**
@@ -50,7 +69,11 @@ public class ResumeController {
     @PostMapping
     public ResponseEntity<Long> createResume(@RequestBody ResumeRequest request,
                                              @AuthenticationPrincipal JwtUserPrincipal user) {
-        return ResponseEntity.ok(resumeService.createResume(request, user.getId()));
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(resumeService.createResume(request, memberId));
     }
 
     /**
@@ -62,7 +85,9 @@ public class ResumeController {
     public ResponseEntity<Long> updateResume(@PathVariable Long resumeId,
                                              @RequestBody ResumeRequest request,
                                              @AuthenticationPrincipal JwtUserPrincipal user) {
-        return ResponseEntity.ok(resumeService.updateResume(resumeId, request, user.getId()));
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return ResponseEntity.ok(resumeService.updateResume(resumeId, request, memberId));
     }
 
     /**
@@ -73,7 +98,9 @@ public class ResumeController {
     @DeleteMapping("/{resumeId}")
     public ResponseEntity<Void> deleteResume(@PathVariable Long resumeId,
                                              @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.deleteResume(resumeId, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.deleteResume(resumeId, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -85,7 +112,9 @@ public class ResumeController {
     @PostMapping("/{resumeId}/copy")
     public ResponseEntity<Long> copyResume(@PathVariable Long resumeId,
                                            @AuthenticationPrincipal JwtUserPrincipal user) {
-        return ResponseEntity.ok(resumeService.copyResume(resumeId, user.getId()));
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return ResponseEntity.ok(resumeService.copyResume(resumeId, memberId));
     }
 
     @Operation(summary = "경력 추가", description = "이력서에 경력 사항을 추가합니다.")
@@ -93,7 +122,9 @@ public class ResumeController {
     public ResponseEntity<Void> addCareer(@PathVariable Long resumeId,
                                           @RequestBody ResumeRequest.CareerDto dto,
                                           @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.addCareer(resumeId, dto, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.addCareer(resumeId, dto, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -102,7 +133,9 @@ public class ResumeController {
     public ResponseEntity<Void> deleteCareer(@PathVariable Long resumeId,
                                              @PathVariable Long careerId,
                                              @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.deleteCareer(resumeId, careerId, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.deleteCareer(resumeId, careerId, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -111,7 +144,9 @@ public class ResumeController {
     public ResponseEntity<Void> addProject(@PathVariable Long resumeId,
                                            @RequestBody ResumeRequest.ProjectDto dto,
                                            @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.addProject(resumeId, dto, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.addProject(resumeId, dto, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -120,7 +155,9 @@ public class ResumeController {
     public ResponseEntity<Void> deleteProject(@PathVariable Long resumeId,
                                               @PathVariable Long projectId,
                                               @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.deleteProject(resumeId, projectId, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.deleteProject(resumeId, projectId, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -129,7 +166,9 @@ public class ResumeController {
     public ResponseEntity<Void> addCertificate(@PathVariable Long resumeId,
                                                @RequestBody ResumeRequest.CertificateDto dto,
                                                @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.addCertificate(resumeId, dto, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.addCertificate(resumeId, dto, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -138,7 +177,9 @@ public class ResumeController {
     public ResponseEntity<Void> deleteCertificate(@PathVariable Long resumeId,
                                                   @PathVariable Long certId,
                                                   @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.deleteCertificate(resumeId, certId, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.deleteCertificate(resumeId, certId, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -147,7 +188,9 @@ public class ResumeController {
     public ResponseEntity<Void> addLink(@PathVariable Long resumeId,
                                         @RequestBody ResumeRequest.LinkDto dto,
                                         @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.addLink(resumeId, dto, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.addLink(resumeId, dto, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -156,7 +199,9 @@ public class ResumeController {
     public ResponseEntity<Void> deleteLink(@PathVariable Long resumeId,
                                            @PathVariable Long linkId,
                                            @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.deleteLink(resumeId, linkId, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.deleteLink(resumeId, linkId, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -165,9 +210,10 @@ public class ResumeController {
     public ResponseEntity<Void> updateProfileImage(@PathVariable Long resumeId,
                                                    @RequestBody Map<String, String> body, // {"photoUrl": "..."}
                                                    @AuthenticationPrincipal JwtUserPrincipal user) {
-        // 실제 파일 업로드는 별도 유틸리티/API로 수행 후 URL만 전달한 가정
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         String photoUrl = body.get("photoUrl");
-        resumeService.updateProfileImage(resumeId, photoUrl, user.getId());
+        resumeService.updateProfileImage(resumeId, photoUrl, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -180,7 +226,9 @@ public class ResumeController {
     public ResponseEntity<Void> addAttachment(@PathVariable Long resumeId,
                                               @RequestBody ResumeRequest.AttachmentDto dto,
                                               @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.addAttachment(resumeId, dto, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.addAttachment(resumeId, dto, memberId);
         return ResponseEntity.ok().build();
     }
 
@@ -193,7 +241,22 @@ public class ResumeController {
     public ResponseEntity<Void> deleteAttachment(@PathVariable Long resumeId,
                                                  @PathVariable Long attachmentId,
                                                  @AuthenticationPrincipal JwtUserPrincipal user) {
-        resumeService.deleteAttachment(resumeId, attachmentId, user.getId());
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        resumeService.deleteAttachment(resumeId, attachmentId, memberId);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 내 프로필 요약 조회 (마이페이지용)
+     * 설명: 사용자 기본 정보와 대표 이력서 요약 정보를 반환합니다.
+     */
+    @Operation(summary = "내 프로필 요약 조회", description = "마이페이지에 표시할 사용자 기본 정보와 대표 이력서 요약을 반환합니다.")
+    @GetMapping("/my-profile-summary")
+    public ResponseEntity<Map<String, Object>> getMyProfileSummary(@AuthenticationPrincipal JwtUserPrincipal user) {
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Map<String, Object> summary = resumeService.getProfileSummary(memberId);
+        return ResponseEntity.ok(summary);
     }
 }

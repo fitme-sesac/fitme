@@ -5,8 +5,11 @@ import com.example.pproject.application.dto.JobApplicationRequest;
 import com.example.pproject.application.dto.JobApplicationResponse;
 import com.example.pproject.application.entity.JobApplication;
 import com.example.pproject.application.repository.JobApplicationRepository;
+import com.example.pproject.employer.entity.EmployerEntity;
+import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.entity.JobEntity;
 import com.example.pproject.job.repository.JobEntityRepository;
+import com.example.pproject.outbox.producer.OutboxEventProducer;
 import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.user.entity.UserEntity;
@@ -27,6 +30,8 @@ public class JobApplicationService {
     private final JobEntityRepository jobEntityRepository;
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
+    private final OutboxEventProducer outboxEventProducer;
+    private final EmployerRepository employerRepository;
 
     @Transactional
     public Long apply(JobApplicationRequest request, Long userId) {
@@ -59,15 +64,25 @@ public class JobApplicationService {
         job.setApplicationCount(job.getApplicationCount() + 1);
         jobEntityRepository.save(job);
 
-        return jobApplicationRepository.save(application).getId();
+        Long applicationId = jobApplicationRepository.save(application).getId();
+
+        // 지원 완료 알림 발행 (Outbox → Consumer에서 구직자/기업 알림 생성)
+        String companyName = employerRepository.findById(job.getEmployerId())
+                .map(EmployerEntity::getName)
+                .orElse("");
+        outboxEventProducer.publishApplicationSubmittedEvent(
+                applicationId, job.getId(), userId.intValue(),
+                job.getTitle(), companyName);
+
+        return applicationId;
     }
 
     @Transactional
-    public void cancel(Long applicationId, Integer userId) {
+    public void cancel(Long applicationId, Long memberId) {
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found"));
 
-        if (!application.getMember().getId().equals(userId)) {
+        if (!application.getMember().getId().equals(memberId)) {
             throw new IllegalArgumentException("본인의 지원 내역만 취소할 수 있습니다.");
         }
 
@@ -83,8 +98,8 @@ public class JobApplicationService {
         }
     }
 
-    public List<JobApplicationResponse> getMyApplications(Integer userId) {
-        return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(userId.longValue()).stream()
+    public List<JobApplicationResponse> getMyApplications(Long memberId) {
+        return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(memberId).stream()
                 .map(JobApplicationResponse::from)
                 .collect(Collectors.toList());
     }

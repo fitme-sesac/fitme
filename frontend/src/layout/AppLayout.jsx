@@ -8,19 +8,19 @@ import Header from "../components/Header";
  * main.js를 중복 로드하지 않기 위한 헬퍼
  */
 function loadScriptOnce(src) {
-    return new Promise((resolve, reject) => {
-        if (document.querySelector(`script[data-src="${src}"]`)) {
-            resolve();
-            return;
-        }
-        const s = document.createElement("script");
-        s.src = src;
-        s.defer = true;
-        s.dataset.src = src;
-        s.onload = resolve;
-        s.onerror = reject;
-        document.body.appendChild(s);
-    });
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[data-src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.defer = true;
+    s.dataset.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.body.appendChild(s);
+  });
 }
 
 const footerHtml = `
@@ -68,60 +68,60 @@ const scrollTopHtml = `
 `;
 
 export default function AppLayout() {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-    const { pathname } = useLocation();
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [displayName, setDisplayName] = useState("");
-    const [role, setRole] = useState("");
+  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+  const { pathname } = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [role, setRole] = useState("");
 
-    useEffect(() => {
-        let alive = true;
-        (async () => {
-            try {
-                const res = await http.get("/api/auth/status");
-                if (!alive) return;
-                setIsAuthenticated(!!res?.data?.authenticated);
-                setDisplayName(res?.data?.name || "");
-                setRole(res?.data?.role || "");
-            } catch (e) {
-                if (!alive) return;
-                setIsAuthenticated(false);
-                setDisplayName("");
-                setRole("");
-            }
-        })();
-        return () => {
-            alive = false;
-        };
-    }, [pathname]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await http.get("/api/auth/status");
+        if (!alive) return;
+        setIsAuthenticated(!!res?.data?.authenticated);
+        setDisplayName(res?.data?.name || "");
+        setRole(res?.data?.role || "");
+      } catch (e) {
+        if (!alive) return;
+        setIsAuthenticated(false);
+        setDisplayName("");
+        setRole("");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [pathname]);
 
-    useEffect(() => {
-        document.body.classList.remove("mobile-nav-active");
+  useEffect(() => {
+    document.body.classList.remove("mobile-nav-active");
 
-        const t = setTimeout(async () => {
-            try {
-                await loadScriptOnce("/assets/js/main.js");
-                window.dispatchEvent(new Event("load"));
-                window.dispatchEvent(new Event("scroll"));
-            } catch (e) {
-                console.error("Failed to load /assets/js/main.js", e);
-            }
-        }, 0);
+    const t = setTimeout(async () => {
+      try {
+        await loadScriptOnce("/assets/js/main.js");
+        window.dispatchEvent(new Event("load"));
+        window.dispatchEvent(new Event("scroll"));
+      } catch (e) {
+        console.error("Failed to load /assets/js/main.js", e);
+      }
+    }, 0);
 
-        return () => clearTimeout(t);
-    }, [pathname]);
+    return () => clearTimeout(t);
+  }, [pathname]);
 
-    return (
-        <>
-            <Header 
-                isAuthenticated={isAuthenticated}
-                displayName={displayName}
-                apiBase={apiBase}
-                role={role}
-            />
-            <Outlet />
-            <HtmlPage html={footerHtml} />
-            <HtmlPage html={scrollTopHtml} />
-        </>
-    );
+  return (
+    <>
+      <Header
+        isAuthenticated={isAuthenticated}
+        displayName={displayName}
+        apiBase={apiBase}
+        role={role}
+      />
+      <Outlet />
+      <HtmlPage html={footerHtml} />
+      <HtmlPage html={scrollTopHtml} />
+    </>
+  );
 }

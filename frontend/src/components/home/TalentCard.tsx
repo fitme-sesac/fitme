@@ -131,7 +131,7 @@ export function TalentCard({
           <Heart className={`h-4 w-4 ${interested ? "fill-current" : ""}`} />
           관심
         </Button>
-        <Button asChild size="sm" className="ml-auto bg-primary hover:bg-primary/90 text-white gap-1.5">
+        <Button asChild size="sm" className="ml-auto text-white shadow-md transition-all hover:scale-[1.02] border-0 font-bold" style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}>
           <Link to={`/talents/${id}`}>
             프로필 보기
             <ArrowRight className="h-4 w-4" />

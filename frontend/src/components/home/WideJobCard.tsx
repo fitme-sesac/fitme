@@ -1,9 +1,10 @@
-import { MapPin, Building2, Globe, Users, Bookmark, Heart, Sparkles } from "lucide-react";
+import { MapPin, Building2, Globe, Users, Bookmark, Heart, Sparkles, Coins } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface JobCardProps {
     id: number;
@@ -20,6 +21,8 @@ interface JobCardProps {
     companySummary?: string;
     employmentType?: string;
     createdAt?: string;
+    applyCount?: number;
+    recruitmentCapacity?: number;
 }
 
 // Brand color mapping (reused)
@@ -64,12 +67,16 @@ export function WideJobCard({
     skills: skillsProp,
     postedAt,
     isAd = false,
-    matchScore,
     requiredExperience,
     companySummary,
     employmentType = "정규직",
     createdAt,
+    matchScore: matchScoreProp,
+    applyCount = 0,
+    recruitmentCapacity = 0,
 }: JobCardProps) {
+    const navigate = useNavigate();
+    const { isAuthenticated } = useAuth();
     const [interested, setInterested] = useState(false);
     const rawSkills = Array.isArray(skillsProp)
         ? skillsProp
@@ -78,21 +85,28 @@ export function WideJobCard({
             : [];
 
     // Ensure all comma-separated values are split into individual tags
-    const skills = rawSkills.flatMap(s => s.split(",")).map(s => s.trim()).filter(s => s.length > 0);
+    const skills = rawSkills.flatMap(s => typeof s === "string" ? s.split(",") : String(s).split(",")).map(s => s.trim()).filter(s => s.length > 0);
 
     const postedLabel = formatPostedAt(createdAt, postedAt);
     const brandColor = getBrandColor(company);
     const mainGradient = "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)";
+
+    // For guests, show a rich mock match score if not provided
+    const displayMatchScore = matchScoreProp ?? (Math.floor(Math.random() * 26) + 70); // 70% ~ 95%
 
     const displayLocation = location.split(" ").slice(0, 2).join(" ");
     const experienceLabel = requiredExperience ? `경력 ${requiredExperience}년+` : "신입/경력";
 
     return (
         <div
+            role="button"
+            tabIndex={0}
             className={cn(
-                "group relative w-full rounded-2xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20",
+                "group relative w-full rounded-2xl bg-white border border-gray-100 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-primary/20 cursor-pointer",
                 isAd && "ring-1 ring-primary/20"
             )}
+            onClick={() => navigate(`/jobs/${id}`)}
+            onKeyDown={(e) => e.key === "Enter" && navigate(`/jobs/${id}`)}
         >
             {/* Gradient Accent Line Top */}
             {isAd && <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#5AB2FA] to-[#3DCEC9]" />}
@@ -149,12 +163,12 @@ export function WideJobCard({
                             <span className="text-gray-800 font-medium text-sm">{experienceLabel}</span>
 
                             {/* AI Match Score Badge */}
-                            {matchScore !== undefined && matchScore !== null && (
+                            {isAuthenticated && displayMatchScore !== undefined && displayMatchScore !== null && (
                                 <span
                                     className="ml-1 text-xs font-black text-transparent bg-clip-text px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50"
                                     style={{ backgroundImage: mainGradient }}
                                 >
-                                    AI 매칭률 {matchScore}%
+                                    AI 매칭률 {displayMatchScore}%
                                 </span>
                             )}
 
@@ -170,16 +184,28 @@ export function WideJobCard({
                             )}
                         </div>
 
-                        {/* Skills Section - Moved to Bottom */}
-                        {skills.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {skills.slice(0, 8).map((skill, i) => (
-                                    <span key={i} className="px-2 py-1 bg-gray-50 border border-gray-200 text-gray-600 text-xs font-bold rounded-md">
+                        {/* Skills & Salary - Distinct Boxes */}
+                        <div className="space-y-3 mb-6">
+                            {/* Skills Box */}
+                            <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100/50">
+                                {skills.slice(0, 6).map((skill, i) => (
+                                    <Badge key={i} variant="secondary" className="bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-medium whitespace-nowrap">
                                         {skill}
-                                    </span>
+                                    </Badge>
                                 ))}
+                                {skills.length > 6 && (
+                                    <Badge variant="secondary" className="bg-white border-slate-200 text-slate-400 font-medium">+{skills.length - 6}</Badge>
+                                )}
                             </div>
-                        )}
+
+                            {/* Salary/Experience Box */}
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50 flex items-center gap-2">
+                                <Coins className="h-4 w-4 text-emerald-500" />
+                                <span className="text-sm font-semibold text-slate-700">
+                                    희망 연봉: {salary} ({experienceLabel})
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
@@ -193,6 +219,7 @@ export function WideJobCard({
                             )}
                             onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 setInterested((v) => !v);
                             }}
                         >
@@ -205,7 +232,7 @@ export function WideJobCard({
                             className="h-11 px-8 text-base font-bold text-white shadow-md hover:shadow-lg transition-all hover:scale-[1.02] border-0"
                             style={{ background: mainGradient }}
                         >
-                            <Link to={`/jobs/${id}`}>
+                            <Link to={`/jobs/${id}`} onClick={(e) => e.stopPropagation()}>
                                 지원하기
                             </Link>
                         </Button>
