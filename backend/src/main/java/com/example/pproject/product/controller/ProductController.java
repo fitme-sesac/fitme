@@ -1,5 +1,6 @@
 package com.example.pproject.product.controller;
 
+import com.example.pproject.Constant.ProductType;
 import com.example.pproject.product.dto.ProductResponse;
 import com.example.pproject.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,8 @@ public class ProductController {
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<ProductResponse>> getAllProducts(
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(productService.getAllProducts(pageable));
+            @RequestParam(required = false) ProductType type,
+            @PageableDefault(size = 10, sort = "price.amount", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(productService.getAllProducts(type, pageable));
     }
 }
