@@ -7,16 +7,19 @@ import com.example.pproject.resume.entity.Resume;
 import com.example.pproject.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -172,7 +175,12 @@ public class ResumeSummaryService {
      * RestTemplate은 Jackson이 자동 등록되어 안정적으로 작동
      */
     private AiSummaryResponse callPythonApi(Map<String, Object> request) {
-        org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+        // [Timeout 설정] AI 호출은 오래 걸릴 수 있으므로 연결 5초, 읽기 60초 설정
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(60000);
+
+        RestTemplate restTemplate = new RestTemplate(factory);
 
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -317,5 +325,26 @@ public class ResumeSummaryService {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * [ZOMBIE CLEANUP] 장시간 PROCESSING 상태인 항목 정리
+     * 서버 재시작이나 예상치 못한 오류로 '처리 중'에 멈춘 이력서를 FAILED로 되돌립니다.
+     * 매 10분마다 실행하며, 15분 이상 업데이트가 없는 PROCESSING 항목을 대상으로 합니다.
+     */
+    @Scheduled(fixedDelay = 600000) // 10분
+    @Transactional
+    public void cleanupStuckTasks() {
+        Instant tenMinutesAgo = Instant.now().minus(15, ChronoUnit.MINUTES);
+        List<Resume> stuckResumes = resumeRepository.findAllBySummaryStatusAndUpdatedAtBefore(
+                SummaryStatus.PROCESSING, tenMinutesAgo);
+
+        if (!stuckResumes.isEmpty()) {
+            log.info("[Cleanup] 장시간 PROCESSING 중인 이력서 {}건 발견. FAILED로 전환합니다.", stuckResumes.size());
+            for (Resume resume : stuckResumes) {
+                resume.updateSummaryStatus(SummaryStatus.FAILED);
+            }
+            // Transactional에 의해 자동 저장됨
+        }
     }
 }

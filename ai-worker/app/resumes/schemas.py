@@ -89,17 +89,16 @@ class ResumeSummary(BaseModel):
     ai_reasoning: List[str] = Field(description="분석 근거: 각 항목을 작성하기 위해 참고한 문서의 페이지 번호나 섹션 출처 (리스트 형태)")
 
     def to_formatted_string(self, include_reasoning: bool = False) -> str:
+        # 마크다운 리스트 문법을 배제하고 일반 텍스트 기호 사용 (여백 조절용)
         base_text = (
-            f"전문성 및 기술 역량: {self.professional_identity}\n"
-            f"핵심 프로젝트 성과: {self.key_achievement}\n"
-            f"문제 해결 능력: {self.problem_solving}\n"
-            f"대외 신뢰도: {self.credibility}\n"
-            f"협업 및 가치관: {self.collaboration}\n"
-            f"채용 매칭 정보: {self.matching_info}"
+            f"**🎯 전문성 및 기술 역량**\n{self.professional_identity}\n\n"
+            f"**🏆 핵심 프로젝트 성과**\n{self.key_achievement}\n\n"
+            f"**🛠️ 문제 해결 능력**\n{self.problem_solving}\n\n"
+            f"**🤝 협업 및 가치관**\n{self.collaboration}"
         )
         if include_reasoning:
             reasoning_str = "\n".join(self.ai_reasoning)
-            base_text += f"\n\n[AI 분석 근거]\n{reasoning_str}"
+            base_text += f"\n\n---\n**[AI 분석 근거]**\n{reasoning_str}"
         return base_text
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
@@ -153,18 +152,17 @@ class ResumeInsightReport(BaseModel):
         achievements_str = "\n".join([f"  • {item}" for item in self.technical_achievements])
 
         base_text = (
-            f"### {self.headline}\n\n"
-            f"**[전문가 프로필]**\n{self.professional_profile}\n\n"
-            f"**[핵심 기술적 성과]**\n{achievements_str}\n\n"
-            f"**[기술적 깊이 및 해결 능력]**\n{self.deep_dive}\n\n"
-            f"**[리쿠르터의 관전 포인트]**\n💡 {self.recruiter_insight}\n\n"
-            f"--- \n"
-            f"**[추가 정보]**\n- 협업/가치관: {self.soft_skills}\n- 매칭 정보: {self.matching_info}"
+            f"#### {self.headline}\n"
+            f"**👤 전문가 프로필**: {self.professional_profile}\n"
+            f"**🚀 핵심 기술적 성과**\n{achievements_str}\n"
+            f"**🎓 기술적 깊이 및 해결 능력**\n{self.deep_dive}\n"
+            f"**💡 리쿠르터의 관전 포인트**: {self.recruiter_insight}\n"
+            f"**🤝 협업/가치관**: {self.soft_skills}"
         )
 
         if include_reasoning:
             reasoning_str = "\n".join(self.ai_reasoning)
-            base_text += f"\n\n**[AI 분석 근거]**\n{reasoning_str}"
+            base_text += f"\n\n---\n**[AI 분석 근거]**\n{reasoning_str}"
 
         return base_text
 
