@@ -6,6 +6,7 @@ import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.resume.dto.AiResumeResponse;
 import com.example.pproject.resume.service.AiResumeService;
 import com.example.pproject.resume.service.ResumeSummaryService;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -111,6 +112,22 @@ public class AiResumeController {
     }
 
     /**
+     * [NEW] 사용자가 수동으로 요약 수정
+     * PUT /api/v1/ai/resumes/{resumeId}/summary
+     */
+    @PutMapping("/resumes/{resumeId}/summary")
+    public ApiResponse<String> updateSummary(
+            @PathVariable Long resumeId,
+            @RequestBody ManualSummaryUpdateRequest request,
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+
+        Long userId = getUserId(principal);
+        resumeSummaryService.updateManualSummary(resumeId, userId, request.getSummary());
+
+        return ApiResponse.success("요약이 수정되었습니다.", resumeId.toString());
+    }
+
+    /**
      * AI 분석 상태 조회 (기존)
      */
     @GetMapping("/resumes/{resumeId}/status")
@@ -166,6 +183,12 @@ public class AiResumeController {
         private Long resumeId;
         private String status;
         private String message;
+    }
+
+    @lombok.Data
+    @NoArgsConstructor
+    public static class ManualSummaryUpdateRequest {
+        private String summary;
     }
 
     // ========== Helper Methods ==========

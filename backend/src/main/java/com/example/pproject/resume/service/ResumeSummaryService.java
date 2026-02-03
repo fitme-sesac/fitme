@@ -347,4 +347,23 @@ public class ResumeSummaryService {
             // Transactional에 의해 자동 저장됨
         }
     }
+
+    /**
+     * 사용자가 수동으로 요약을 수정함 (정정권 보장)
+     */
+    @Transactional
+    public void updateManualSummary(Long resumeId, Long userId, String newSummary) {
+        Resume resume = resumeRepository.findById(resumeId)
+                .orElseThrow(() -> new IllegalArgumentException("이력서를 찾을 수 없습니다."));
+
+        if (!resume.getUser().getId().equals(userId)) {
+            throw new SecurityException("본인의 이력서만 수정할 수 있습니다.");
+        }
+
+        // 기존 임베딩은 유지하고 요약 텍스트만 교체 (상태는 COMPLETED로 보장)
+        resume.updateAiAnalysisWithEmbedding(newSummary, resume.getEmbedding());
+        resumeRepository.save(resume);
+
+        log.info("[Manual Update] 요약 수정 완료 - resumeId: {}, userId: {}", resumeId, userId);
+    }
 }

@@ -249,7 +249,7 @@ export default function TalentDetail() {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap space-y-2">
+                                    <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap space-y-2 px-1">
                                         <ReactMarkdown>{talent.summary}</ReactMarkdown>
                                     </div>
                                 </CardContent>
