@@ -90,12 +90,14 @@ public class EmployerController {
      * 광고 통계 조회
      */
     @GetMapping("/ad-stats")
-    public ResponseEntity<?> getAdStats(@AuthenticationPrincipal JwtUserPrincipal principal) {
+    public ResponseEntity<?> getAdStats(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam(name = "demo", defaultValue = "false") boolean demo) {
         if (principal == null) {
             return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
         }
         try {
-            AdStatsDTO stats = employerService.getAdStats(principal.getUserid());
+            AdStatsDTO stats = employerService.getAdStats(principal.getUserid(), demo);
             return ResponseEntity.ok(stats);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

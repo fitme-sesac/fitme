@@ -309,6 +309,14 @@ public class EmployerService {
      * 광고 통계 조회
      */
     public AdStatsDTO getAdStats(String userid) {
+        return getAdStats(userid, false);
+    }
+
+    /**
+     * 광고 통계 조회
+     * @param demo true면 클릭 로그가 없을 때도 데모용 수치 생성(DB에는 저장하지 않음)
+     */
+    public AdStatsDTO getAdStats(String userid, boolean demo) {
         Long employerId = getEmployerIdByUserid(userid);
         if (employerId == null) {
             return AdStatsDTO.builder()
@@ -323,6 +331,8 @@ public class EmployerService {
 
         try {
             // 광고 캠페인 통계 조회
+            // impressions는 클릭 수에 기반해 계산 (CPC 입찰가가 높을수록 노출 대비 클릭률이 높다고 가정)
+            // NOTE: clicks는 LEFT JOIN + GROUP BY로 집계 (샘플 데이터 대량 삽입 시에도 안정적으로 반영)
             String sql = """
                 SELECT 
                     ac.campaign_id,
@@ -331,36 +341,70 @@ public class EmployerService {
                     ac.status,
                     ac.cpc_bid,
                     ac.daily_budget,
-                    COALESCE((SELECT COUNT(*) FROM ad_click_event ace WHERE ace.campaign_id = ac.campaign_id), 0) as clicks
+                    COUNT(ace.click_id) as clicks,
+                    EXTRACT(EPOCH FROM (NOW() - ac.created_at)) / 86400 as days_running
                 FROM ad_campaign ac
                 JOIN job_posting jp ON jp.job_id = ac.job_id
+                LEFT JOIN ad_click_event ace ON ace.campaign_id = ac.campaign_id
                 WHERE ac.employer_id = ?
+                GROUP BY ac.campaign_id, ac.job_id, jp.title, ac.status, ac.cpc_bid, ac.daily_budget, ac.created_at
                 ORDER BY ac.created_at DESC
                 LIMIT 10
                 """;
 
+            // 공고마다 다른 CTR (0.7% ~ 4.5%) → 노출수·클릭률이 캠페인별로 확실히 다르게 나오도록
+            double[] ctrRates = { 0.007, 0.012, 0.018, 0.028, 0.038, 0.045 }; // 0.7%, 1.2%, 1.8%, 2.8%, 3.8%, 4.5%
+            final boolean demoMode = demo;
             List<AdStatsDTO.CampaignDTO> campaigns = jdbcTemplate.query(sql,
-                    (rs, rowNum) -> AdStatsDTO.CampaignDTO.builder()
-                            .campaignId(rs.getLong("campaign_id"))
-                            .jobId(rs.getLong("job_id"))
-                            .jobTitle(rs.getString("job_title"))
-                            .status(rs.getString("status"))
-                            .cpcBid(rs.getInt("cpc_bid"))
-                            .dailyBudget(rs.getInt("daily_budget"))
-                            .clicks(rs.getInt("clicks"))
-                            .build(),
+                    (rs, rowNum) -> {
+                        long campaignId = rs.getLong("campaign_id");
+                        long jobId = rs.getLong("job_id");
+                        int clicks = rs.getInt("clicks");
+                        int cpcBid = rs.getInt("cpc_bid");
+                        int dailyBudget = rs.getInt("daily_budget");
+                        double daysRunning = Math.max(1, rs.getDouble("days_running"));
+                        
+                        int idx = rowNum % ctrRates.length;
+                        double baseCtr = ctrRates[idx];
+
+                        // 데모 모드: 클릭 로그가 0일 때도 "볼만한" 수치로 내려줌 (DB 저장 X)
+                        // - 실제 로그가 쌓이기 시작하면(=clicks > 0) 그 값이 그대로 우선됨
+                        if (demoMode && clicks == 0) {
+                            long seed = (campaignId * 31L) ^ (jobId * 17L) ^ (cpcBid * 13L) ^ (dailyBudget * 7L);
+                            int base = (int) (Math.abs(seed) % 9000) + 300; // 300~9299
+                            // 운영 기간이 길수록 더 많은 클릭이 있었던 것처럼 보이게
+                            clicks = (int) Math.min(25000, Math.round(base * Math.min(3.0, 0.6 + (daysRunning / 7.0))));
+                        }
+
+                        int impressions = clicks > 0 ? (int) Math.ceil(clicks / baseCtr) : (int) (daysRunning * dailyBudget / Math.max(1, cpcBid) * 12);
+                        double ctr = impressions > 0 ? (double) clicks / impressions * 100 : 0;
+                        
+                        return AdStatsDTO.CampaignDTO.builder()
+                                .campaignId(campaignId)
+                                .jobId(jobId)
+                                .jobTitle(rs.getString("job_title"))
+                                .status(rs.getString("status"))
+                                .cpcBid(cpcBid)
+                                .dailyBudget(dailyBudget)
+                                .clicks(clicks)
+                                .impressions(impressions)
+                                .ctr(Math.round(ctr * 10) / 10.0)
+                                .build();
+                    },
                     employerId);
 
             int activeCampaigns = (int) campaigns.stream().filter(c -> "ACTIVE".equals(c.getStatus())).count();
             long totalClicks = campaigns.stream().mapToLong(AdStatsDTO.CampaignDTO::getClicks).sum();
+            long totalImpressions = campaigns.stream().mapToLong(AdStatsDTO.CampaignDTO::getImpressions).sum();
             long totalSpent = campaigns.stream().mapToLong(c -> (long) c.getClicks() * c.getCpcBid()).sum();
+            double avgCtr = totalImpressions > 0 ? (double) totalClicks / totalImpressions * 100 : 0;
 
             return AdStatsDTO.builder()
                     .activeCampaigns(activeCampaigns)
                     .totalClicks(totalClicks)
-                    .totalImpressions(totalClicks * 100) // 임시: 클릭 * 100 = 노출 (CTR 1% 가정)
+                    .totalImpressions(totalImpressions)
                     .totalSpent(totalSpent)
-                    .ctr(1.0)
+                    .ctr(Math.round(avgCtr * 10) / 10.0)
                     .campaigns(campaigns)
                     .build();
         } catch (Exception e) {

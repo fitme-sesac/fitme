@@ -60,7 +60,8 @@ async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
         # 1. AI 요약 생성 (LLM 호출)
         # LangChain Output Parser를 통해 구조화된 텍스트가 반환됩니다.
         # request 전체를 dict로 변환하여 전달 (새로운 스키마 대응)
-        summary_result = await summary_service.generate_summary(request.model_dump(), request.basic_info.field, request.summary_type)
+        # [Refactor] 이제 (result, meta_info) 튜플을 반환합니다.
+        summary_result, eval_info = await summary_service.generate_summary(request.model_dump(), request.basic_info.field, request.summary_type)
 
         # [NEW] 표시용 텍스트와 임베딩용 텍스트 분리
         # 구조화된 객체(ResumeSummary, ResumeInsightReport)인 경우,
@@ -85,8 +86,8 @@ async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
 
         # 3. DB 저장 (DB 커넥션 및 트랜잭션 처리)
         # 사용자에게 보여줄 원본 요약(display_summary)을 저장합니다.
-        # resume_repo.update_resume_data(request.id, display_summary, vector) # TODO: DB연결 설정 후 주석 해제
-        resume_repo.update_resume_data(request.resume_id, display_summary, vector)
+        # eval_info를 함께 전달하여 점수 정보를 기록합니다.
+        resume_repo.update_resume_data(request.resume_id, display_summary, vector, eval_info=eval_info)
 
         # 4. 결과 반환
         return AIProcessResult(
