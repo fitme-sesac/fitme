@@ -1,10 +1,96 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import List, Dict, Any
 from app.resumes.schemas import ResumeRequest, AIProcessResult
 from app.resumes.services.summary import summary_service
 from app.resumes.services.vector import vector_service
 from app.resumes.repository import resume_repo
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
+
+
+# ============================================================================
+# [NEW] Stateless Worker 응답 스키마
+# Java가 받아서 DB에 저장할 데이터
+# ============================================================================
+class SummaryResponse(BaseModel):
+    """Python → Java로 반환하는 AI 처리 결과"""
+    summary: str                    # 화면 표시용 요약 (to_formatted_string)
+    embedding: List[float]          # 1536차원 벡터
+    embedding_text: str             # 임베딩에 사용된 텍스트 (디버깅용)
+    eval_info: Dict[str, Any]       # 평가 메타데이터 (score, similarity, history)
+
+
+# ============================================================================
+# [NEW] Stateless Summary Generation
+# Java에서 호출 → AI 계산만 수행 → JSON 반환 (DB 저장 X)
+# ============================================================================
+@router.post("/generate-summary", response_model=SummaryResponse)
+async def generate_summary(request: ResumeRequest):
+    """
+    [Stateless Worker Endpoint]
+    
+    Java 백엔드에서 호출하여 AI 요약 + 임베딩을 생성합니다.
+    DB 저장은 Java가 담당하므로, 여기서는 계산 결과만 반환합니다.
+    
+    흐름:
+    1. 이력서 데이터 수신 (JSON)
+    2. AI 요약 생성 (Self-Correction 포함)
+    3. 임베딩 벡터 생성 (1536차원)
+    4. JSON 반환 (DB 저장 없음!)
+    
+    Args:
+        request: 이력서 데이터 (resume_id, basic_info, content, projects, careers 등)
+    
+    Returns:
+        SummaryResponse: {
+            "summary": "화면 표시용 요약문",
+            "embedding": [0.1, 0.2, ...],  // 1536차원
+            "embedding_text": "임베딩에 사용된 텍스트",
+            "eval_info": {"try_count": 1, "history": [...]}
+        }
+    """
+    try:
+        # 1. AI 요약 생성 (Self-Correction 포함)
+        summary_result, eval_info = await summary_service.generate_summary(
+            request.model_dump(), 
+            request.basic_info.field, 
+            request.summary_type,
+            resume_id=request.resume_id  # 로깅용
+        )
+
+        # 2. 표시용 텍스트와 임베딩용 텍스트 분리
+        if isinstance(summary_result, str):
+            display_summary = summary_result
+            embedding_text = summary_result
+        else:
+            # 구조화된 객체인 경우
+            meta_title = request.basic_info.title or ""
+            meta_stack = ", ".join(request.basic_info.re_stack) if request.basic_info.re_stack else ""
+            
+            display_summary = summary_result.to_formatted_string(include_reasoning=request.include_reasoning)
+            embedding_text = summary_result.to_embedding_string(title=meta_title, tech_stack=meta_stack)
+
+        # 3. 임베딩 생성
+        embedding = await vector_service.generate_vector(embedding_text)
+
+        # 4. JSON 반환 (DB 저장 없음!)
+        return SummaryResponse(
+            summary=display_summary,
+            embedding=embedding,
+            embedding_text=embedding_text,
+            eval_info=eval_info
+        )
+
+    except Exception as e:
+        print(f"[ERROR] generate_summary failed for resume {request.resume_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# [LEGACY] 기존 엔드포인트 - 호환성 유지
+# Python이 직접 DB에 저장하는 방식 (점진적 마이그레이션 후 삭제 예정)
+# ============================================================================
 
 @router.post("/process", response_model=AIProcessResult)
 async def process_resume(request: ResumeRequest):
@@ -26,12 +112,18 @@ async def process_resume(request: ResumeRequest):
     """
     return await _process_resume_pipeline(request)
 
+
 @router.post("/{resume_id}/summary", response_model=AIProcessResult)
 async def process_resume_by_id(resume_id: int):
     """
     [신규 로직] 이력서 ID 기반 처리 파이프라인 엔드포인트
 
     DB에 저장된 이력서 데이터를 조회하여 AI 요약 및 임베딩을 수행합니다.
+    
+    흐름:
+    1. DB에서 이력서 데이터 조회
+    2. ResumeRequest 객체로 변환
+    3. 파이프라인 실행 (요약 + 임베딩 + DB 저장)
     """
     try:
         # 1. DB에서 데이터 조회
@@ -52,16 +144,28 @@ async def process_resume_by_id(resume_id: int):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
 
+
 async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
     """
     내부 처리 파이프라인 (공통 로직)
+    
+    이 함수는 실제 AI 처리 로직을 수행합니다:
+    1. AI 요약 생성 (LLM 호출)
+    2. 임베딩 생성 (Embedding API 호출)
+    3. DB 저장
+    4. 결과 반환
     """
     try:
         # 1. AI 요약 생성 (LLM 호출)
         # LangChain Output Parser를 통해 구조화된 텍스트가 반환됩니다.
         # request 전체를 dict로 변환하여 전달 (새로운 스키마 대응)
         # [Refactor] 이제 (result, meta_info) 튜플을 반환합니다.
-        summary_result, eval_info = await summary_service.generate_summary(request.model_dump(), request.basic_info.field, request.summary_type)
+        summary_result, eval_info = await summary_service.generate_summary(
+            request.model_dump(), 
+            request.basic_info.field, 
+            request.summary_type,
+            resume_id=request.resume_id
+        )
 
         # [NEW] 표시용 텍스트와 임베딩용 텍스트 분리
         # 구조화된 객체(ResumeSummary, ResumeInsightReport)인 경우,
