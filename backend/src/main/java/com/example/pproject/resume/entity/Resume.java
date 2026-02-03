@@ -98,10 +98,6 @@ public class Resume extends BaseSoftDeleteEntity {
     @JdbcTypeCode(SqlTypes.VECTOR)
     private List<Double> embedding;
 
-    // 임베딩 생성에 사용된 텍스트 (검색/매칭용)
-    @Column(name = "embedding_text", columnDefinition = "TEXT")
-    private String embeddingText;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "summary_status", nullable = false, length = 20)
     @ColumnDefault("'NONE'")
@@ -216,14 +212,12 @@ public class Resume extends BaseSoftDeleteEntity {
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    // AI 분석 결과 업데이트 (New: 임베딩 + 임베딩 텍스트 포함)
-    public void updateAiAnalysisWithEmbedding(String summary, List<Double> embedding, String embeddingText) {
+    // AI 분석 결과 업데이트 (New: 임베딩 포함)
+    public void updateAiAnalysisWithEmbedding(String summary, List<Double> embedding) {
         if (summary != null)
             this.summary = summary;
         if (embedding != null)
             this.embedding = embedding;
-        if (embeddingText != null)
-            this.embeddingText = embeddingText;
         this.summaryStatus = SummaryStatus.COMPLETED;
         this.lastModifiedAt = LocalDateTime.now();
     }
