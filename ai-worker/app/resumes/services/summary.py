@@ -2,6 +2,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from app.core.config import settings
 import json
+import numpy as np
 from typing import Union
 import csv
 from datetime import datetime
@@ -361,32 +362,42 @@ class SummaryService:
                 "history": [] 
             }
 
+            # [NEW] 원문 임베딩 1회 캐싱 (유사도 측정용)
+            from app.resumes.services.vector import vector_service
+            E_orig = await vector_service.generate_vector(final_input_text[:8000])  # 토큰 제한
+            print(f"[Similarity] Original embedding cached (dim: {len(E_orig)})")
+
             for i in range(max_retries):
                 meta_info["try_count"] = i + 1
+                
+                # [NEW] 임베딩용 요약으로 유사도 측정 (실제 DB 저장 형식과 동일)
+                if hasattr(current_summary_obj, 'to_embedding_string'):
+                    embedding_text = current_summary_obj.to_embedding_string()
+                else:
+                    embedding_text = current_summary_text[:2000]
+                E_sum = await vector_service.generate_vector(embedding_text)
+                similarity = float(np.dot(E_orig, E_sum) / (np.linalg.norm(E_orig) * np.linalg.norm(E_sum)))
+                print(f"[Similarity] Attempt {i+1} -> {similarity:.4f}")
                 
                 # 4점 이상 목표 (5점 만점)
                 score, feedback = await self._evaluate_quality(final_input_text, current_summary_text)
                 
-                print(f"🔍 [Self-Correction] Attempt {i+1} -> Score: {score}/5")
-                meta_info["history"].append({"score": score, "feedback": feedback})
+                print(f"[Self-Correction] Attempt {i+1} -> Score: {score}/5")
+                meta_info["history"].append({"score": score, "feedback": feedback, "similarity": similarity})
 
                 # [CSV Logging] 실시간 평가 이력 기록
-                await self._log_to_csv(resume_id, i+1, score, feedback, current_summary_text)
+                await self._log_to_csv(resume_id, i+1, score, similarity, feedback, current_summary_text)
 
                 if score >= 4:
-                    print("✅ Quality Passed!")
+                    print("Quality Passed!")
                     break
                 
-                print(f"⚠️ Quality Low (Feedback: {feedback}). Regenerating...")
+                print(f"Quality Low (Feedback: {feedback}). Regenerating...")
                 try:
-                    new_result_dict = await self._regenerate_summary(
+                    # _regenerate_summary는 이미 파싱된 객체를 반환함
+                    current_summary_obj = await self._regenerate_summary(
                         final_input_text, current_summary_text, feedback, format_instructions
                     )
-                    # 재생성된 Dict를 다시 객체로 변환 (Schema에 따라 분기)
-                    if summary_type == SummaryType.STRUCTURED:
-                        current_summary_obj = ResumeSummary(**new_result_dict)
-                    elif summary_type == SummaryType.REPORT:
-                        current_summary_obj = ResumeInsightReport(**new_result_dict)
                     
                     if hasattr(current_summary_obj, 'to_formatted_string'):
                         current_summary_text = current_summary_obj.to_formatted_string(include_reasoning=True)
@@ -456,30 +467,40 @@ class SummaryService:
         chain = prompt | llm | parser
         return await chain.ainvoke({"format_instructions": fmt_instr})
 
-    async def _log_to_csv(self, resume_id, attempt, score, feedback, summary_text):
-        """평가 이력을 CSV 파일에 기록"""
+    async def _log_to_csv(self, resume_id, attempt, score, similarity, feedback, summary_text):
+        """평가 이력을 CSV + Plain Text 파일에 기록"""
         try:
-            # logs 폴더는 프로젝트 루트 기준
             log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../logs"))
             os.makedirs(log_dir, exist_ok=True)
-            csv_file = os.path.join(log_dir, "summary_eval_log.csv")
             
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            status = "PASS" if score >= 4 else "RETRY"
+            
+            # 1. CSV 로그 (분석용)
+            csv_file = os.path.join(log_dir, "summary_eval_log.csv")
             file_exists = os.path.isfile(csv_file)
             
             with open(csv_file, mode='a', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 if not file_exists:
-                    writer.writerow(["Timestamp", "ResumeID", "Attempt", "Score", "Feedback", "Summary_Snippet"])
+                    writer.writerow(["Timestamp", "ResumeID", "Attempt", "Score", "Similarity", "Feedback", "Summary_Snippet"])
                 
                 writer.writerow([
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    timestamp,
                     resume_id,
                     attempt,
                     score,
+                    f"{similarity:.4f}",
                     feedback,
-                    summary_text[:100].replace("\n", " ") + "..." # 간략히 저장
+                    summary_text[:100].replace("\n", " ") + "..."
                 ])
+            
+            # 2. Plain Text 로그 (터미널 확인용)
+            txt_file = os.path.join(log_dir, "summary_eval.log")
+            with open(txt_file, mode='a', encoding='utf-8') as f:
+                f.write(f"[{timestamp}] ID:{resume_id} | Attempt:{attempt} | Score:{score}/5 | Sim:{similarity:.4f} | {status}\n")
+                
         except Exception as e:
-            print(f"⚠️ CSV Logging Failed: {e}")
+            print(f"Logging Failed: {e}")
 
 summary_service = SummaryService()
