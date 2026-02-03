@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 import { createPayment, confirmPayment } from "@/api/payment";
 import {
@@ -56,9 +56,18 @@ export function CreditChargeModal({
     const [simplePayType, setSimplePayType] = useState<string | null>(null);
     const [agreed, setAgreed] = useState(false);
 
+    const confirmRef = useRef(false);
+
     // 결제 승인 처리 (Confirmation)
     useEffect(() => {
-        if (!isConfirming || isInternalConfirming) return;
+        if (!isConfirming) {
+            confirmRef.current = false;
+            return;
+        }
+
+        if (confirmRef.current || isInternalConfirming) return;
+
+        confirmRef.current = true;
 
         const confirm = async () => {
             const paymentKey = searchParams.get("paymentKey");
@@ -104,6 +113,16 @@ export function CreditChargeModal({
 
     const selectedOption = CREDIT_OPTIONS.find(opt => opt.id === selectedId) || CREDIT_OPTIONS[2];
     const totalCredits = selectedOption.credits + (selectedOption.bonus || 0);
+
+    // 성공 시 표시할 크레딧 계산 (금액 기반 역추적)
+    const getCreditsFromAmount = (amount: number) => {
+        const option = CREDIT_OPTIONS.find(opt => opt.price === amount);
+        if (option) {
+            const total = option.credits + (option.bonus || 0);
+            return total.toLocaleString();
+        }
+        return "0";
+    };
 
     const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
     const customerKey = user?.id || user?.email?.replace(/[^a-zA-Z0-9]/g, "") || "ANONYMOUS";
@@ -247,7 +266,7 @@ export function CreditChargeModal({
                                 <>
                                     <h2 className="text-2xl font-bold text-slate-900">충전이 완료되었습니다!</h2>
                                     <p className="text-slate-500">
-                                        주문번호: {successOrderId}<br />
+                                        충전된 크레딧: <span className="font-bold text-slate-900">{getCreditsFromAmount(Number(successAmount || 0))} 크레딧</span><br />
                                         결제금액: {Number(successAmount || 0).toLocaleString()}원
                                     </p>
                                     <p className="text-sm font-bold text-blue-600 mt-2">
