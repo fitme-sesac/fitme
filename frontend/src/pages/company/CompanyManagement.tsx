@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { getEmployerProfile, saveEmployerProfile } from "@/api/employers";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -51,19 +54,101 @@ export default function CompanyManagement() {
         });
     };
 
-    // 기업 프로필 상태
+    const [profileLoading, setProfileLoading] = useState(true);
+    const [profileSaving, setProfileSaving] = useState(false);
+    const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
     const [companyProfile, setCompanyProfile] = useState({
-        name: "테크스타트업 주식회사",
-        industry: "IT/소프트웨어",
-        size: "50-100명",
-        founded: "2020",
-        website: "https://techstartup.co.kr",
-        email: "contact@techstartup.co.kr",
-        phone: "02-1234-5678",
-        address: "서울특별시 강남구 테헤란로 123",
-        description: "혁신적인 기술로 더 나은 세상을 만들어가는 스타트업입니다. AI와 클라우드 기술을 기반으로 다양한 B2B 솔루션을 제공합니다.",
+        name: "",
+        industry: "",
+        size: "",
+        founded: "",
+        website: "",
+        email: "",
+        phone: "",
+        address: "",
+        description: "",
         logo: null as string | null,
     });
+
+    useEffect(() => {
+        let cancelled = false;
+        setProfileLoading(true);
+        setProfileLoadError(null);
+        getEmployerProfile()
+            .then((res: any) => {
+                if (cancelled || !res) return;
+                setCompanyProfile({
+                    name: res.name ?? "",
+                    industry: res.industry ?? "",
+                    size: res.employeeCount != null ? String(res.employeeCount) : "",
+                    founded: res.foundedYear != null ? String(res.foundedYear) : "",
+                    website: res.websiteUrl ?? "",
+                    email: res.contactEmail ?? "",
+                    phone: res.contactPhone ?? "",
+                    address: res.location ?? "",
+                    description: res.description ?? "",
+                    logo: res.logoUrl ?? null,
+                });
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setProfileLoadError("기업 정보를 불러오지 못했습니다. 네트워크와 서버를 확인해 주세요.");
+                    toast.error("기업 정보를 불러오는데 실패했습니다.");
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setProfileLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleRetryProfile = () => {
+        setProfileLoadError(null);
+        setProfileLoading(true);
+        getEmployerProfile()
+            .then((res: any) => {
+                if (res) setCompanyProfile({
+                    name: res.name ?? "",
+                    industry: res.industry ?? "",
+                    size: res.employeeCount != null ? String(res.employeeCount) : "",
+                    founded: res.foundedYear != null ? String(res.foundedYear) : "",
+                    website: res.websiteUrl ?? "",
+                    email: res.contactEmail ?? "",
+                    phone: res.contactPhone ?? "",
+                    address: res.location ?? "",
+                    description: res.description ?? "",
+                    logo: res.logoUrl ?? null,
+                });
+                setProfileLoadError(null);
+            })
+            .catch(() => setProfileLoadError("기업 정보를 불러오지 못했습니다."))
+            .finally(() => setProfileLoading(false));
+    };
+
+    const handleSaveProfile = async () => {
+        setProfileSaving(true);
+        try {
+            const sizeNum = companyProfile.size ? parseInt(companyProfile.size, 10) : undefined;
+            const foundedNum = companyProfile.founded ? parseInt(companyProfile.founded, 10) : undefined;
+            await saveEmployerProfile({
+                name: companyProfile.name || undefined,
+                industry: companyProfile.industry || undefined,
+                employeeCount: Number.isNaN(sizeNum) ? undefined : sizeNum,
+                foundedYear: Number.isNaN(foundedNum) ? undefined : foundedNum,
+                websiteUrl: companyProfile.website || undefined,
+                contactEmail: companyProfile.email || undefined,
+                contactPhone: companyProfile.phone || undefined,
+                location: companyProfile.address || undefined,
+                description: companyProfile.description || undefined,
+                logoUrl: companyProfile.logo || undefined,
+            });
+            toast.success("기업 정보가 저장되었습니다.");
+        } catch (e: any) {
+            toast.error(e?.response?.data?.error ?? "저장에 실패했습니다.");
+        } finally {
+            setProfileSaving(false);
+        }
+    };
 
     // 알림 설정 상태
     const [notifications, setNotifications] = useState({
@@ -109,6 +194,19 @@ export default function CompanyManagement() {
 
                         {/* 기업 정보 탭 */}
                         <TabsContent value="profile" className="space-y-6">
+                            {profileLoading ? (
+                                <div className="flex items-center justify-center py-16">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                </div>
+                            ) : profileLoadError ? (
+                                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+                                    <p className="text-destructive font-medium mb-2">{profileLoadError}</p>
+                                    <p className="text-sm text-muted-foreground mb-4">백엔드 서버가 실행 중인지, 기업 회원으로 로그인했는지 확인해 주세요.</p>
+                                    <Button variant="outline" onClick={handleRetryProfile}>
+                                        다시 시도
+                                    </Button>
+                                </div>
+                            ) : (
                             <div className="grid gap-6 lg:grid-cols-3">
                                 {/* 로고 및 기본 정보 */}
                                 <Card className="lg:col-span-1">
@@ -231,11 +329,21 @@ export default function CompanyManagement() {
                                         </div>
 
                                         <div className="flex justify-end pt-4">
-                                            <Button className="btn-gradient-primary">저장하기</Button>
+                                            <Button
+                                                className="btn-gradient-primary"
+                                                onClick={handleSaveProfile}
+                                                disabled={profileLoading || profileSaving}
+                                            >
+                                                {profileSaving ? (
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                ) : null}
+                                                저장하기
+                                            </Button>
                                         </div>
                                     </CardContent>
                                 </Card>
                             </div>
+                            )}
                         </TabsContent>
 
                         {/* 팀 관리 탭 */}

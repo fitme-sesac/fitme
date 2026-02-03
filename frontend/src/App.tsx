@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ProfileSetupModal } from "@/components/auth/ProfileSetupModal";
 
@@ -103,6 +104,7 @@ export default function App() {
             <Sonner />
             <ProfileSetupModal />
             <BrowserRouter>
+                <NotificationProvider>
                 <Routes>
                     {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
                     <Route path="/Login" element={<RedirectToAuthTab tab="login" />} />
@@ -325,6 +327,7 @@ export default function App() {
 
                     <Route path="*" element={<NotFound />} />
                 </Routes>
+                </NotificationProvider>
             </BrowserRouter>
         </AuthProvider>
     );

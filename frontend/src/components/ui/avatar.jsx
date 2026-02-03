@@ -3,6 +3,13 @@ import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
 import { cn } from "@/lib/utils"
 
+const INVALID_IMAGE_HOSTS = ["cdn.example.com", "example.com/photo"]
+
+function isInvalidImageSrc(src) {
+  if (!src || typeof src !== "string") return true
+  return INVALID_IMAGE_HOSTS.some((host) => src.includes(host))
+}
+
 const Avatar = React.forwardRef(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
@@ -15,10 +22,11 @@ const Avatar = React.forwardRef(({ className, ...props }, ref) => (
 ))
 Avatar.displayName = AvatarPrimitive.Root.displayName
 
-const AvatarImage = React.forwardRef(({ className, ...props }, ref) => (
+const AvatarImage = React.forwardRef(({ className, src, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
     className={cn("aspect-square h-full w-full", className)}
+    src={isInvalidImageSrc(src) ? undefined : src}
     {...props}
   />
 ))

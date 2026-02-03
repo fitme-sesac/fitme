@@ -126,6 +126,10 @@ public class NotificationDTO {
             case "APPLICATION_STATUS_CHANGED" -> "지원 상태 변경";
             case "INTERVIEW_SCHEDULED" -> "면접 일정 안내";
             case "INTERVIEW_REMINDER" -> "면접 일정 리마인더";
+            case "INTERVIEW_ACCEPTED" -> "면접 일정 확정";
+            case "INTERVIEW_DECLINED" -> "면접 일정 거절";
+            case "INTERVIEW_RESCHEDULE_REQUEST" -> "면접 일정 변경 요청";
+            case "INTERVIEW_CANCELLED" -> "면접 취소";
             case "INTERVIEW_CANCELED" -> "면접 취소";
             case "HIRED" -> "합격 안내";
             case "REJECTED" -> "불합격 안내";
@@ -214,11 +218,17 @@ public class NotificationDTO {
                 String.format("'%s'에서 이력서를 열람했습니다.", companyName);
             case "APPLICATION_STATUS_CHANGED" -> 
                 String.format("'%s' 지원 상태가 '%s'(으)로 변경되었습니다.", jobTitle, translateStatus(status));
-            case "INTERVIEW_SCHEDULED" -> 
+            case "INTERVIEW_SCHEDULED" ->
                 String.format("'%s'에서 '%s' 면접을 요청했습니다. 일시: %s", companyName, jobTitle, formatDate(interviewDate));
-            case "INTERVIEW_REMINDER" -> 
+            case "INTERVIEW_REMINDER" ->
                 String.format("'%s' 면접이 곧 예정되어 있습니다. 일시: %s", jobTitle, formatDate(interviewDate));
-            case "INTERVIEW_CANCELED" -> 
+            case "INTERVIEW_ACCEPTED" ->
+                String.format("'%s'님이 '%s' 면접 일정을 수락했습니다.", candidateName, jobTitle);
+            case "INTERVIEW_DECLINED" ->
+                String.format("'%s'님이 '%s' 면접 일정을 거절했습니다.", candidateName, jobTitle);
+            case "INTERVIEW_RESCHEDULE_REQUEST" ->
+                String.format("'%s'님이 '%s' 면접 일정 변경을 요청했습니다.", candidateName, jobTitle);
+            case "INTERVIEW_CANCELLED", "INTERVIEW_CANCELED" ->
                 String.format("'%s' 면접이 취소되었습니다.", jobTitle);
             case "HIRED" -> 
                 String.format("축하합니다! '%s'에 합격하셨습니다.", jobTitle);

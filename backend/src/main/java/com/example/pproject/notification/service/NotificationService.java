@@ -194,6 +194,19 @@ public class NotificationService {
         return switch (eventType) {
             case "PROPOSAL_RECEIVED" -> "/proposals";
             case "PROPOSAL_ACCEPTED", "PROPOSAL_REJECTED" -> "/company/dashboard";
+            // 면접 관련 이벤트
+            case "INTERVIEW_SCHEDULED" -> "/jobseeker/interview";
+            case "INTERVIEW_ACCEPTED", "INTERVIEW_DECLINED", "INTERVIEW_RESCHEDULE_REQUEST" -> "/company/applications";
+            case "INTERVIEW_CANCELLED" -> {
+                // 지원자가 받는 알림인지 기업이 받는 알림인지에 따라 다른 URL
+                Object applicantName = data.get("applicantName");
+                if (applicantName != null) {
+                    yield "/company/applications"; // 기업이 받는 알림
+                } else {
+                    yield "/jobseeker/interview"; // 지원자가 받는 알림
+                }
+            }
+            case "APPLICATION_STATUS_CHANGED" -> "/jobseeker/mypage";
             default -> "/";
         };
     }

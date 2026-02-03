@@ -107,42 +107,38 @@ export function useNotifications() {
     }, [loading, hasNext, page, fetchNotifications]);
 
     /**
-     * 특정 알림 읽음 처리
+     * 특정 알림 읽음 처리 (403/500 시에도 UI만 낙관적 업데이트)
      */
     const markAsRead = useCallback(async (notificationId) => {
+        const status = err => err?.response?.status;
+        setNotifications(prev =>
+            prev.map(n =>
+                n.id === notificationId ? { ...n, isRead: true, status: "READ" } : n
+            )
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
         try {
             await notificationApi.markAsRead(notificationId);
-            
-            // 로컬 상태 업데이트
-            setNotifications(prev => 
-                prev.map(n => 
-                    n.id === notificationId 
-                        ? { ...n, isRead: true, status: "READ" } 
-                        : n
-                )
-            );
-            
-            // 읽지 않은 수 감소
-            setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (err) {
-            console.error("알림 읽음 처리 실패:", err);
+            if (status(err) !== 403 && status(err) !== 404 && status(err) !== 500) {
+                console.error("알림 읽음 처리 실패:", err);
+            }
         }
     }, []);
 
     /**
-     * 모든 알림 읽음 처리
+     * 모든 알림 읽음 처리 (403/500 시에도 UI만 낙관적 업데이트)
      */
     const markAllAsRead = useCallback(async () => {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true, status: "READ" })));
+        setUnreadCount(0);
         try {
             await notificationApi.markAllAsRead();
-            
-            // 로컬 상태 업데이트
-            setNotifications(prev => 
-                prev.map(n => ({ ...n, isRead: true, status: "READ" }))
-            );
-            setUnreadCount(0);
         } catch (err) {
-            console.error("전체 읽음 처리 실패:", err);
+            const code = err?.response?.status;
+            if (code !== 403 && code !== 404 && code !== 500) {
+                console.error("전체 읽음 처리 실패:", err);
+            }
         }
     }, []);
 
@@ -169,15 +165,11 @@ export function useNotifications() {
     }, [fetchUnreadCount, fetchRecentNotifications]);
 
     /**
-     * 폴링 시작 (30초마다 읽지 않은 알림 수 확인)
+     * 폴링 시작 (30초마다 읽지 않은 알림 수만 확인, 한 번만 설정)
      */
     const startPolling = useCallback((interval = 30000) => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-        }
-        
-        fetchUnreadCount(); // 즉시 실행
-        
+        if (pollingRef.current) return;
+        fetchUnreadCount();
         pollingRef.current = setInterval(() => {
             fetchUnreadCount();
         }, interval);
