@@ -277,8 +277,11 @@ public class ResumeSummaryService {
         Resume resume = resumeRepository.findById(resumeId)
                 .orElseThrow(() -> new IllegalArgumentException("이력서를 찾을 수 없습니다."));
 
-        // 요약 및 임베딩 저장
-        resume.updateAiAnalysisWithEmbedding(response.getSummary(), response.getEmbedding());
+        // 요약 및 임베딩 저장 (임베딩 텍스트 포함)
+        resume.updateAiAnalysisWithEmbedding(
+                response.getSummary(),
+                response.getEmbedding(),
+                response.getEmbeddingText());
 
         // 상태: COMPLETED
         resume.updateSummaryStatus(SummaryStatus.COMPLETED);

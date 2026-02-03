@@ -98,6 +98,10 @@ public class Resume extends BaseSoftDeleteEntity {
     @JdbcTypeCode(SqlTypes.VECTOR)
     private List<Double> embedding;
 
+    // 임베딩 생성에 사용된 텍스트 (검색/매칭용)
+    @Column(name = "embedding_text", columnDefinition = "TEXT")
+    private String embeddingText;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "summary_status", nullable = false, length = 20)
     @ColumnDefault("'NONE'")
@@ -132,9 +136,9 @@ public class Resume extends BaseSoftDeleteEntity {
 
     @Builder
     public Resume(UserEntity user, String title, ResumeField field, boolean primary, boolean publicOption,
-                  String tagline, String content, List<String> reStack, Integer careerYears, Long targetJobId,
-                  String preferenceLocation, String preferenceSalary, String employmentType,
-                  String school, String schoolState, String schoolClass) {
+            String tagline, String content, List<String> reStack, Integer careerYears, Long targetJobId,
+            String preferenceLocation, String preferenceSalary, String employmentType,
+            String school, String schoolState, String schoolClass) {
         this.user = user;
         this.title = title;
         this.field = field;
@@ -158,7 +162,8 @@ public class Resume extends BaseSoftDeleteEntity {
 
     public void updateProfile(ResumeProfile profile) {
         this.profile = profile;
-        if (profile != null) profile.setResume(this);
+        if (profile != null)
+            profile.setResume(this);
     }
 
     public void setPrimary(boolean primary) {
@@ -167,24 +172,37 @@ public class Resume extends BaseSoftDeleteEntity {
     }
 
     public void updateInfo(String title, String tagline, String content, Boolean publicOption, ResumeField field,
-                           String preferenceLocation, String preferenceSalary, String employmentType,
-                           List<String> reStack, Integer careerYears,
-                           String school, String schoolState, String schoolClass) {
-        if (title != null) this.title = title;
-        if (tagline != null) this.tagline = tagline;
-        if (content != null) this.content = content;
-        if (publicOption != null) this.publicOption = publicOption;
-        if (field != null) this.field = field;
-        if (preferenceLocation != null) this.preferenceLocation = preferenceLocation;
-        if (preferenceSalary != null) this.preferenceSalary = preferenceSalary;
-        if (employmentType != null) this.employmentType = employmentType;
+            String preferenceLocation, String preferenceSalary, String employmentType,
+            List<String> reStack, Integer careerYears,
+            String school, String schoolState, String schoolClass) {
+        if (title != null)
+            this.title = title;
+        if (tagline != null)
+            this.tagline = tagline;
+        if (content != null)
+            this.content = content;
+        if (publicOption != null)
+            this.publicOption = publicOption;
+        if (field != null)
+            this.field = field;
+        if (preferenceLocation != null)
+            this.preferenceLocation = preferenceLocation;
+        if (preferenceSalary != null)
+            this.preferenceSalary = preferenceSalary;
+        if (employmentType != null)
+            this.employmentType = employmentType;
 
-        if (reStack != null) this.reStack = reStack; // 리스트 자체를 업데이트
-        if (careerYears != null) this.careerYears = careerYears;
+        if (reStack != null)
+            this.reStack = reStack; // 리스트 자체를 업데이트
+        if (careerYears != null)
+            this.careerYears = careerYears;
 
-        if (school != null) this.school = school;
-        if (schoolState != null) this.schoolState = schoolState;
-        if (schoolClass != null) this.schoolClass = schoolClass;
+        if (school != null)
+            this.school = school;
+        if (schoolState != null)
+            this.schoolState = schoolState;
+        if (schoolClass != null)
+            this.schoolClass = schoolClass;
         this.lastModifiedAt = LocalDateTime.now();
     }
 
@@ -198,12 +216,14 @@ public class Resume extends BaseSoftDeleteEntity {
         this.lastModifiedAt = LocalDateTime.now();
     }
 
-    // AI 분석 결과 업데이트 (New: 임베딩 포함)
-    public void updateAiAnalysisWithEmbedding(String summary, List<Double> embedding) {
+    // AI 분석 결과 업데이트 (New: 임베딩 + 임베딩 텍스트 포함)
+    public void updateAiAnalysisWithEmbedding(String summary, List<Double> embedding, String embeddingText) {
         if (summary != null)
             this.summary = summary;
         if (embedding != null)
             this.embedding = embedding;
+        if (embeddingText != null)
+            this.embeddingText = embeddingText;
         this.summaryStatus = SummaryStatus.COMPLETED;
         this.lastModifiedAt = LocalDateTime.now();
     }
