@@ -15,17 +15,49 @@ export function CompanyPaymentHistory() {
     const [isLoading, setIsLoading] = useState(false);
     const [isCancelling, setIsCancelling] = useState<string | null>(null);
 
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [debugInfo, setDebugInfo] = useState<string>("");
+
     const fetchHistory = async () => {
         setIsLoading(true);
+        setErrorMsg(null);
         try {
-            const [paymentsData, ledgersData] = await Promise.all([
-                getMyPayments(userRole),
-                getMyLedgers(userRole)
+            console.log("Fetching history...");
+            // Role Normalization for Frontend consistency
+            const effectiveRole = (userRole === "ROLE_COMPANY" || userRole === "COMPANY") ? "EMPLOYER" : userRole;
+
+            const results = await Promise.allSettled([
+                getMyPayments(effectiveRole),
+                getMyLedgers(effectiveRole)
             ]);
-            setPayments(paymentsData.content || []);
-            setLedgers(ledgersData.content || []);
-        } catch (error) {
-            console.error("Failed to fetch history:", error);
+
+            const paymentsResult = results[0];
+            const ledgersResult = results[1];
+
+            if (paymentsResult.status === 'fulfilled') {
+                console.log("Payments loaded:", paymentsResult.value);
+                setPayments(paymentsResult.value.content || []);
+            } else {
+                console.error("Payments failed:", paymentsResult.reason);
+                setDebugInfo(prev => prev + "Payments API Failed: " + (paymentsResult.reason?.message || "Unknown error") + "\n");
+            }
+
+            if (ledgersResult.status === 'fulfilled') {
+                console.log("Ledgers loaded:", ledgersResult.value);
+                setLedgers(ledgersResult.value.content || []);
+            } else {
+                console.error("Ledgers failed:", ledgersResult.reason);
+                setDebugInfo(prev => prev + "Ledgers API Failed: " + (ledgersResult.reason?.message || "Unknown error") + "\n");
+            }
+
+            if (paymentsResult.status === 'rejected' || ledgersResult.status === 'rejected') {
+                setErrorMsg("일부 내역을 불러오지 못했습니다.");
+            }
+
+        } catch (error: any) {
+            console.error("Failed to fetch history (Fatal):", error);
+            setErrorMsg("내역 조회 중 오류가 발생했습니다.");
+            setDebugInfo(error?.message || "Critical Error");
         } finally {
             setIsLoading(false);
         }
@@ -66,19 +98,21 @@ export function CompanyPaymentHistory() {
             paymentKey: p.orderId,
             canRefund: p.status === '승인 완료'
         })),
-        ...ledgers.map(l => ({
-            id: `ledger-${l.ledgerId}`,
-            type: l.type === 'CREDIT' ? 'charge' : 'use',
-            amount: l.amount,
-            paidAmount: null,
-            title: l.memo,
-            date: new Date(l.occurredAt).toLocaleString(),
-            isPlus: l.type === 'CREDIT',
-            payMethod: '크레딧',
-            status: l.type === 'CREDIT' ? '충전 완료' : '사용 완료',
-            canRefund: false,
-            paymentKey: undefined
-        }))
+        ...ledgers
+            .filter((l: any) => l.sourceType !== 'PAYMENT') // 결제(PAYMENT)로 인한 충전 중복 제거
+            .map(l => ({
+                id: `ledger-${l.ledgerId}`,
+                type: l.type === 'CREDIT' ? 'charge' : 'use',
+                amount: l.amount,
+                paidAmount: null,
+                title: l.memo,
+                date: new Date(l.occurredAt).toLocaleString(),
+                isPlus: l.type === 'CREDIT',
+                payMethod: '크레딧',
+                status: l.type === 'CREDIT' ? '충전 완료' : '사용 완료',
+                canRefund: false,
+                paymentKey: undefined
+            }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return (
@@ -95,9 +129,15 @@ export function CompanyPaymentHistory() {
             </CardHeader>
             <CardContent>
                 <div className="space-y-2">
+                    {errorMsg && (
+                        <div className="p-4 rounded-lg bg-red-50 text-red-600 text-sm mb-4">
+                            <p className="font-bold mb-1">{errorMsg}</p>
+                            <pre className="text-xs opacity-75">{debugInfo}</pre>
+                        </div>
+                    )}
                     {payments.length === 0 && ledgers.length === 0 && !isLoading ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            내역이 없습니다.
+                            내역이 없습니다. (No Data)
                         </div>
                     ) : (
                         unifiedHistory.map((item) => {

@@ -17,11 +17,13 @@ export interface SubscriptionResponse {
         name: string;
         priceAmount: number;
         planTier?: string;
+        creditAmount: number;
     };
     nextProduct?: {
         productId: number;
         productCode: string;
         name: string;
+        creditAmount: number;
     };
     status: string;
     nextBillingAt: string;

@@ -99,19 +99,21 @@ const PaymentHistoryTab = () => {
       paymentKey: p.orderId,
       canRefund: p.status === '승인 완료'
     })),
-    ...ledgers.map(l => ({
-      id: `ledger-${l.ledgerId}`,
-      type: l.type === 'CREDIT' ? 'charge' : 'use',
-      amount: l.amount,
-      paidAmount: null,              // Ledger는 결제금액 없음
-      title: l.memo,
-      date: new Date(l.occurredAt).toLocaleString(),
-      isPlus: l.type === 'CREDIT',
-      payMethod: '크레딧',
-      status: l.type === 'CREDIT' ? '충전 완료' : '사용 완료',
-      canRefund: false,
-      paymentKey: undefined
-    }))
+    ...ledgers
+      .filter((l: any) => l.sourceType !== 'PAYMENT') // 결제(PAYMENT)로 인한 크레딧 충전은 이미 payments 목록에 있으므로 중복 제거
+      .map((l: any) => ({
+        id: `ledger-${l.ledgerId}`,
+        type: l.type === 'CREDIT' ? 'charge' : 'use',
+        amount: l.amount,
+        paidAmount: null,              // Ledger는 결제금액 없음
+        title: l.memo,
+        date: new Date(l.occurredAt).toLocaleString(),
+        isPlus: l.type === 'CREDIT',
+        payMethod: '크레딧',
+        status: l.type === 'CREDIT' ? '충전 완료' : '사용 완료',
+        canRefund: false,
+        paymentKey: undefined
+      }))
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (

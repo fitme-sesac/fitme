@@ -50,6 +50,7 @@ import { cancelSubscription, resumeSubscription, cancelScheduledProductChange, u
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { getPlanDetails } from "@/utils/subscriptionUtils";
 
 import { useSearchParams, useNavigate } from "react-router-dom"; // Add useNavigate if needed, but looks like it's not used yet
 import { CompanyPaymentHistory } from "@/components/company/CompanyPaymentHistory";
@@ -380,7 +381,8 @@ export default function CompanyManagement() {
         ? format(new Date(currentSubscription.nextBillingAt), "yyyy년 M월 d일", { locale: ko })
         : "-";
 
-    const planName = currentSubscription?.product?.name || "무료 플랜"; // Default to Free if no active
+    const planDetails = currentSubscription?.product ? getPlanDetails(currentSubscription.product.productCode, currentSubscription.product.creditAmount) : null;
+    const planName = planDetails?.name || currentSubscription?.product?.name || "무료 플랜"; // Use mapped name
     const planPrice = currentSubscription?.product?.priceAmount || 0;
     const isFree = !currentSubscription;
 
@@ -953,19 +955,21 @@ export default function CompanyManagement() {
                                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                         </div>
                                     ) : (
-                                        <div className="flex items-center justify-between p-6 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border">
-                                            <div>
-                                                <Badge className="mb-2">{isFree ? "Free" : "PRO"}</Badge>
-                                                <h3 className="text-2xl font-bold">{planName}</h3>
-                                                <p className="text-muted-foreground">
-                                                    {isFree ? "무료" : `월 ${Number(planPrice).toLocaleString()}원`}
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
+                                        <div className={`flex items-center ${isFree ? "justify-center" : "justify-between"} p-6 rounded-lg ${isFree ? "bg-background border-dashed" : "bg-gradient-to-r from-primary/10 to-accent/10"} border`}>
+                                            {!isFree && (
+                                                <div>
+                                                    <Badge className="mb-2">PRO</Badge>
+                                                    <h3 className="text-2xl font-bold">{planName}</h3>
+                                                    <p className="text-muted-foreground">
+                                                        {`월 ${Number(planPrice).toLocaleString()}원`}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div className={isFree ? "text-center" : "text-right"}>
                                                 {isFree ? (
-                                                    <div className="text-right">
-                                                        <p className="text-sm text-muted-foreground">구독 중인 플랜이 없습니다.</p>
-                                                        <Button variant="default" className="mt-2" onClick={() => navigate('/subscription')}>
+                                                    <div>
+                                                        <p className="text-muted-foreground mb-4">현재 구독 중인 플랜이 없습니다.</p>
+                                                        <Button variant="default" onClick={() => navigate('/subscription')}>
                                                             구독하러 가기
                                                         </Button>
                                                     </div>

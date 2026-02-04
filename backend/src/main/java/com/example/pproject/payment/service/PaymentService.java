@@ -210,7 +210,10 @@ public class PaymentService {
             return paymentRepository.findByOrder_BuyerMember_Id(userId, pageable)
                     .map(PaymentResponse::from);
         } else if (roleType == RoleType.EMPLOYER) {
-            return paymentRepository.findByOrder_BuyerEmployer_Id(userId, pageable)
+            // userId(MemberId) -> employerId 변환
+            EmployerMemberEntity em = employerMemberRepository.findFirstByMemberIdAndActiveTrue(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+            return paymentRepository.findByOrder_BuyerEmployer_Id(em.getEmployerId(), pageable)
                     .map(PaymentResponse::from);
         } else {
             throw new IllegalArgumentException("지원하지 않는 사용자 타입입니다.");

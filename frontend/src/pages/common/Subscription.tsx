@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { CreditCard, Building2, Shield, ArrowRight, Loader2 } from "lucide-react";
+import { getPlanDetails } from "@/utils/subscriptionUtils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -45,56 +46,31 @@ export default function Subscription() {
     });
 
     // DB 상품 데이터를 UI 포맷으로 변환
-    const subscriptionPlans: SubscriptionPlan[] = (productPage?.content || []).map((product) => {
-        // 상품 코드나 이름에 따라 UI 속성 매핑 (이 부분은 하드코딩 필요할 수 있음)
-        let benefits: string[] = [];
-        let highlighted: string[] = [];
-        let description = "";
-        let isPopular = false;
+    const subscriptionPlans: SubscriptionPlan[] = (productPage?.content || [])
+        .filter((product) => {
+            const code = product.productCode;
+            return (
+                product.productType === 'SUBSCRIPTION' &&
+                (code.includes('BASIC') || code.includes('STANDARD') || code.includes('PRO'))
+            );
+        })
+        .map((product) => {
+            // 상품 코드나 이름에 따라 UI 속성 매핑 (이 부분은 하드코딩 필요할 수 있음)
+            const { name, description, benefits, highlighted, isPopular } = getPlanDetails(product.productCode, product.creditAmount);
 
-        // 예: 코드명 또는 이름으로 구분
-        if (product.productCode.includes("BASIC")) {
-            description = "소규모 팀을 위한 기본 플랜";
-            benefits = [
-                `월 ${product.creditAmount.toLocaleString()} 크레딧 제공`,
-                "기본 검색 필터",
-                "이메일 지원"
-            ];
-        } else if (product.productCode.includes("STANDARD")) {
-            description = "성장하는 기업을 위한 표준 플랜";
-            isPopular = true;
-            benefits = [
-                `월 ${product.creditAmount.toLocaleString()} 크레딧 제공`,
-                "고급 검색 필터",
-                "인재 연락처 열람",
-                "우선 이메일 지원"
-            ];
-            highlighted = ["인재 연락처 열람"];
-        } else if (product.productCode.includes("PRO")) {
-            description = "대규모 채용을 위한 프로 플랜";
-            benefits = [
-                `월 ${product.creditAmount.toLocaleString()} 크레딧 제공`,
-                "모든 검색 필터 사용",
-                "인재 연락처 무제한 열람",
-                "전담 매니저 배정",
-                "24시간 전화 지원"
-            ];
-            highlighted = ["전담 매니저 배정", "24시간 전화 지원"];
-        }
-
-        return {
-            id: product.productCode,
-            productId: product.productId,
-            name: product.name, // DB에 "구독 BASIC (월 10,000 크레딧)" 형태로 저장됨
-            description: description,
-            price: product.priceAmount,
-            billingCycle: "monthly" as const,
-            features: benefits,
-            highlightedFeatures: highlighted,
-            isPopular: isPopular,
-            ctaText: "시작하기",
-        };
-    }).sort((a, b) => a.price - b.price); // 가격 오름차순 정렬
+            return {
+                id: product.productCode,
+                productId: product.productId,
+                name: name,
+                description: description,
+                price: product.priceAmount,
+                billingCycle: "monthly" as const,
+                features: benefits,
+                highlightedFeatures: highlighted,
+                isPopular: isPopular,
+                ctaText: "시작하기",
+            };
+        }).sort((a, b) => a.price - b.price); // 가격 오름차순 정렬
 
 
     const handleSelectPlan = async (plan: SubscriptionPlan) => {

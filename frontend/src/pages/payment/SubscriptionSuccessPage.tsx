@@ -41,27 +41,32 @@ export default function SubscriptionSuccessPage() {
                 }
 
                 // 2. Create Subscription
+                const payload = {
+                    employerId,
+                    productId,
+                    authKey,
+                    customerKey
+                };
+                console.log("Creating subscription with payload:", payload);
+
                 createSubscription(
-                    {
-                        employerId,
-                        productId,
-                        authKey,
-                        customerKey
-                    },
+                    payload,
                     {
                         onSuccess: () => {
                             setStatus("SUCCESS");
                         },
                         onError: (err: any) => {
-                            console.error(err);
+                            console.error("Subscription creation failed:", err);
+                            console.error("Error response data:", err.response?.data);
                             setStatus("ERROR");
-                            setErrorMessage(err.response?.data?.message || "구독 생성 중 오류가 발생했습니다.");
+                            const detail = err.response?.data?.message || err.message;
+                            setErrorMessage(`구독 생성 실패: ${detail} (PID: ${productId})`);
                         }
                     }
                 );
 
             } catch (err: any) {
-                console.error(err);
+                console.error("Process error:", err);
                 setStatus("ERROR");
                 setErrorMessage(err.message || "처리 중 오류가 발생했습니다.");
             }
