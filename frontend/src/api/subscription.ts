@@ -53,3 +53,15 @@ export async function cancelSubscription(subscriptionId: number): Promise<void> 
 export async function resumeSubscription(subscriptionId: number): Promise<void> {
     await http.post(`/api/subscriptions/${subscriptionId}/resume`);
 }
+
+export async function scheduleProductChange(subscriptionId: number, newProductId: number): Promise<void> {
+    await http.post(`/api/subscriptions/${subscriptionId}/change-product`, { newProductId });
+}
+
+export async function cancelScheduledProductChange(subscriptionId: number): Promise<void> {
+    await http.post(`/api/subscriptions/${subscriptionId}/cancel-scheduled-product-change`);
+}
+
+export async function updateBillingInfo(subscriptionId: number, data: { authKey: string; customerKey: string }): Promise<void> {
+    await http.put(`/api/subscriptions/${subscriptionId}/billing-info`, data);
+}

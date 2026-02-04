@@ -15,6 +15,7 @@ import { Footer } from "@/components/layout/Footer";
 import { SubscriptionCheckoutModal } from "@/components/subscription/SubscriptionCheckoutModal";
 import { useEmployerProfile } from "@/hooks/useEmployers";
 import { useEmployerSubscriptions } from "@/features/payment/hooks/useSubscription";
+import { scheduleProductChange } from "@/api/subscription";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Subscription() {
@@ -35,14 +36,46 @@ export default function Subscription() {
     // Check if the current page is a simple product introduction page
     const isProductIntro = location.pathname === "/products";
 
-    const handleSelectPlan = (planId: string) => {
+    const handleSelectPlan = async (planId: string) => {
         const plan = subscriptionPlans.find(p => p.id === planId);
         if (!plan) return;
 
         if (plan.id === "enterprise") {
             toast.info("Enterprise 플랜 문의가 접수되었습니다. 영업팀에서 곧 연락드리겠습니다.");
-        } else if (plan.id === "free") {
+            return;
+        }
+
+        // 이미 구독 중인 경우 플랜 변경 로직 수행 (Free 포함 모든 플랜)
+        if (isCompany && activeSubscription) {
+            // Free(1), Pro(2), Business(3) 매핑
+            const targetProductId = plan.id === "free" ? 1 : (plan.id === "pro" ? 2 : 3);
+
+            if (activeSubscription.product?.productId === targetProductId) {
+                return; // 이미 해당 플랜 사용 중
+            }
+
+            // 변경 확인 메시지
+            const confirmMsg = plan.id === "free"
+                ? "무료 플랜으로 변경하시겠습니까?\n변경 사항은 다음 결제일부터 적용됩니다."
+                : `${plan.name}로 플랜을 변경하시겠습니까?\n변경 사항은 다음 결제일부터 적용됩니다.`;
+
+            if (confirm(confirmMsg)) {
+                const toastId = toast.loading("플랜 변경 예약 중...");
+                try {
+                    await scheduleProductChange(activeSubscription.subscriptionId, targetProductId);
+                    toast.success("플랜 변경이 예약되었습니다. 다음 결제일에 반영됩니다.", { id: toastId });
+                } catch (error) {
+                    console.error(error);
+                    toast.error("플랜 변경 예약에 실패했습니다.", { id: toastId });
+                }
+            }
+            return;
+        }
+
+        // 신규 구독 (또는 비로그인)
+        if (plan.id === "free") {
             toast.success("Free 플랜이 활성화되었습니다!");
+            // TODO: 신규 가입 시 Free 플랜 자동 활성화 로직이 필요하다면 여기에 추가
         } else {
             // Pro plan -> Open modal
             setSelectedPlan(plan);

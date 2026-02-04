@@ -45,7 +45,8 @@ import Cropper from "react-easy-crop";
 import type { Area, Point } from "react-easy-crop";
 import { useEmployerProfile } from "@/hooks/useEmployers";
 import { useEmployerSubscriptions } from "@/features/payment/hooks/useSubscription";
-import { cancelSubscription, resumeSubscription } from "@/api/subscription";
+import { cancelSubscription, resumeSubscription, cancelScheduledProductChange, updateBillingInfo } from "@/api/subscription";
+import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -260,6 +261,7 @@ export default function CompanyManagement() {
         }
     };
 
+
     // 로고 업로드 및 크롭 상태
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [logoUploading, setLogoUploading] = useState(false);
@@ -372,17 +374,78 @@ export default function CompanyManagement() {
     const employerId = employerData?.employerId;
     const { data: subscriptions, isLoading: isLoadingSubs } = useEmployerSubscriptions(employerId);
 
-    const activeSubscription = subscriptions?.find(s => s.status === "ACTIVE");
-    const nextBillingDate = activeSubscription?.nextBillingAt
-        ? format(new Date(activeSubscription.nextBillingAt), "yyyy년 M월 d일", { locale: ko })
+    const currentSubscription = subscriptions?.find(s => s.status === "ACTIVE");
+    const nextBillingDate = currentSubscription?.nextBillingAt
+        ? format(new Date(currentSubscription.nextBillingAt), "yyyy년 M월 d일", { locale: ko })
         : "-";
 
-    const planName = activeSubscription?.product?.name || "무료 플랜"; // Default to Free if no active
-    const planPrice = activeSubscription?.product?.priceAmount || 0;
-    const isFree = !activeSubscription;
+    const planName = currentSubscription?.product?.name || "무료 플랜"; // Default to Free if no active
+    const planPrice = currentSubscription?.product?.priceAmount || 0;
+    const isFree = !currentSubscription;
 
-    const cardCompany = activeSubscription?.cardCompany;
-    const cardNumber = activeSubscription?.cardNumber; // Expected to be masked or partial
+    const cardCompany = currentSubscription?.cardCompany;
+    const cardNumber = currentSubscription?.cardNumber; // Expected to be masked or partial
+
+    // 결제 수단 변경 핸들러
+    const handleChangePaymentMethod = async () => {
+        try {
+            const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
+            if (!clientKey) {
+                alert("토스 클라이언트 키가 설정되지 않았습니다.");
+                return;
+            }
+
+            // @ts-ignore
+            const tossPayments = await loadTossPayments(clientKey);
+            // @ts-ignore
+            const payment = tossPayments.payment({
+                customerKey: profile?.id ? `USER-${profile.id}` : `ANONYMOUS-${Date.now()}`
+            });
+
+            // 현재 URL에 action 파라미터를 추가하여 리다이렉트
+            const currentOrigin = window.location.origin;
+            const successUrl = new URL(`${currentOrigin}/companies`);
+            successUrl.searchParams.set("tab", "billing");
+            successUrl.searchParams.set("action", "update_billing");
+
+            await payment.requestBillingAuth({
+                method: "CARD",
+                successUrl: successUrl.toString(),
+                failUrl: window.location.href, // 실패 시 현재 페이지 유지
+                customerEmail: profile?.email,
+                customerName: profile?.username || "사용자",
+            });
+        } catch (error) {
+            console.error("Billing Auth Request Failed:", error);
+            toast.error("결제 수단 변경 요청 중 오류가 발생했습니다.");
+        }
+    };
+
+    // 결제 수단 변경 콜백 처리 (URL 파라미터 확인)
+    useEffect(() => {
+        const action = searchParams.get("action");
+        const authKey = searchParams.get("authKey");
+        const customerKey = searchParams.get("customerKey");
+
+        if (action === "update_billing" && authKey && customerKey && currentSubscription) {
+            const updateBilling = async () => {
+                const toastId = toast.loading("결제 수단을 변경하고 있습니다...");
+                try {
+                    await updateBillingInfo(currentSubscription.subscriptionId, { authKey, customerKey });
+                    toast.success("결제 수단이 성공적으로 변경되었습니다.", { id: toastId });
+
+                    // 파라미터 제거 및 리로드
+                    navigate("/companies?tab=billing", { replace: true });
+                    window.location.reload();
+                } catch (error) {
+                    console.error(error);
+                    toast.error("결제 수단 변경에 실패했습니다.", { id: toastId });
+                    navigate("/companies?tab=billing", { replace: true });
+                }
+            };
+            updateBilling();
+        }
+    }, [searchParams, currentSubscription, navigate]);
 
     return (
         <div className="min-h-screen bg-background">
@@ -904,12 +967,12 @@ export default function CompanyManagement() {
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        {activeSubscription?.endedAt ? (
+                                                        {currentSubscription?.endedAt ? (
                                                             <>
                                                                 <div className="mb-2">
                                                                     <Badge variant="destructive" className="mb-1">해지 예약됨</Badge>
                                                                     <p className="text-sm text-destructive font-medium">
-                                                                        {format(new Date(activeSubscription.endedAt), "yyyy년 MM월 dd일")} 종료 예정
+                                                                        {format(new Date(currentSubscription.endedAt), "yyyy년 MM월 dd일")} 종료 예정
                                                                     </p>
                                                                 </div>
                                                                 <Button
@@ -918,11 +981,11 @@ export default function CompanyManagement() {
                                                                     disabled={isProcessingSubscription}
                                                                     onClick={async () => {
                                                                         if (!confirm("해지 예약을 취소하고 구독을 유지하시겠습니까?")) return;
-                                                                        if (!activeSubscription?.subscriptionId) return;
+                                                                        if (!currentSubscription?.subscriptionId) return;
 
                                                                         setIsProcessingSubscription(true);
                                                                         try {
-                                                                            await resumeSubscription(activeSubscription.subscriptionId);
+                                                                            await resumeSubscription(currentSubscription.subscriptionId);
                                                                             alert("구독이 정상적으로 재개되었습니다.");
                                                                             window.location.reload();
                                                                         } catch (e) {
@@ -935,6 +998,72 @@ export default function CompanyManagement() {
                                                                 >
                                                                     {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "해지 취소 (구독 유지)"}
                                                                 </Button>
+                                                            </>
+                                                        ) : currentSubscription?.nextProduct ? (
+                                                            <>
+                                                                <div className="mb-2">
+                                                                    <Badge className="mb-1 bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200">
+                                                                        변경 예약됨
+                                                                    </Badge>
+                                                                    <p className="text-sm font-medium text-blue-700">
+                                                                        {format(new Date(currentSubscription.nextBillingAt), "yyyy년 MM월 dd일")}부터<br />
+                                                                        {currentSubscription.nextProduct.name} 플랜 적용
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex justify-end gap-2 mt-2">
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        onClick={() => navigate('/subscription')}
+                                                                    >
+                                                                        플랜 변경
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        className="text-muted-foreground hover:text-foreground"
+                                                                        disabled={isProcessingSubscription}
+                                                                        onClick={async () => {
+                                                                            if (!confirm("플랜 변경 예약을 취소하시겠습니까?")) return;
+                                                                            if (!currentSubscription?.subscriptionId) return;
+
+                                                                            setIsProcessingSubscription(true);
+                                                                            try {
+                                                                                await cancelScheduledProductChange(currentSubscription.subscriptionId);
+                                                                                alert("플랜 변경 예약이 취소되었습니다.");
+                                                                                window.location.reload();
+                                                                            } catch (e) {
+                                                                                console.error(e);
+                                                                                alert("처리 중 오류가 발생했습니다.");
+                                                                            } finally {
+                                                                                setIsProcessingSubscription(false);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "변경 예약 취소"}
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        className="text-muted-foreground hover:text-destructive"
+                                                                        disabled={isProcessingSubscription}
+                                                                        onClick={async () => {
+                                                                            if (!confirm("정말로 구독 취소를 진행하시겠습니까?")) return;
+                                                                            if (!currentSubscription?.subscriptionId) return;
+
+                                                                            setIsProcessingSubscription(true);
+                                                                            try {
+                                                                                await cancelSubscription(currentSubscription.subscriptionId);
+                                                                                alert("해지 예약이 완료되었습니다.\n다음 결제일에 구독이 종료됩니다.");
+                                                                                window.location.reload();
+                                                                            } catch (e) {
+                                                                                console.error(e);
+                                                                                alert("처리 중 오류가 발생했습니다.");
+                                                                            } finally {
+                                                                                setIsProcessingSubscription(false);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "구독 취소"}
+                                                                    </Button>
+                                                                </div>
                                                             </>
                                                         ) : (
                                                             <>
@@ -953,11 +1082,11 @@ export default function CompanyManagement() {
                                                                         disabled={isProcessingSubscription}
                                                                         onClick={async () => {
                                                                             if (!confirm("정말로 구독을 취소하시겠습니까?\n취소하더라도 다음 결제일까지는 혜택이 유지되며, 이후 자동 결제가 중단됩니다.")) return;
-                                                                            if (!activeSubscription?.subscriptionId) return;
+                                                                            if (!currentSubscription?.subscriptionId) return;
 
                                                                             setIsProcessingSubscription(true);
                                                                             try {
-                                                                                await cancelSubscription(activeSubscription.subscriptionId);
+                                                                                await cancelSubscription(currentSubscription.subscriptionId);
                                                                                 alert("해지 예약이 완료되었습니다.\n다음 결제일에 구독이 종료됩니다.");
                                                                                 window.location.reload();
                                                                             } catch (e) {
@@ -1035,7 +1164,7 @@ export default function CompanyManagement() {
                                                     <p className="text-sm text-muted-foreground">구독 결제 카드</p>
                                                 </div>
                                             </div>
-                                            <Button variant="outline" size="sm">변경</Button>
+                                            <Button variant="outline" size="sm" onClick={handleChangePaymentMethod}>변경</Button>
                                         </div>
                                     ) : (
                                         <div className="text-center py-6 text-muted-foreground">
