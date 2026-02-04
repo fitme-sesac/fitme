@@ -38,17 +38,17 @@ const MOCK_JOBS: JobItem[] = [
     },
     {
         id: "4",
-        company: "비바퍼블리카",
-        title: "Frontend Developer (Toss)",
+        company: "테크스타트",
+        title: "Frontend Developer",
         tags: ["핀테크", "경력 3년+"],
         logo: "",
         dDay: "채용시",
     },
     {
         id: "5",
-        company: "당근마켓",
+        company: "로컬히어로",
         title: "Software Engineer (Platform)",
-        tags: ["하이퍼로컬", "전직군"],
+        tags: ["커뮤니티 플랫폼", "전직군"],
         logo: "",
         dDay: "상시",
     }

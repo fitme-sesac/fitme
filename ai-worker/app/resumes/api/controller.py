@@ -29,19 +29,19 @@ class SummaryResponse(BaseModel):
 async def generate_summary(request: ResumeRequest):
     """
     [Stateless Worker Endpoint]
-    
+
     Java 백엔드에서 호출하여 AI 요약 + 임베딩을 생성합니다.
     DB 저장은 Java가 담당하므로, 여기서는 계산 결과만 반환합니다.
-    
+
     흐름:
     1. 이력서 데이터 수신 (JSON)
     2. AI 요약 생성 (Self-Correction 포함)
     3. 임베딩 벡터 생성 (1536차원)
     4. JSON 반환 (DB 저장 없음!)
-    
+
     Args:
         request: 이력서 데이터 (resume_id, basic_info, content, projects, careers 등)
-    
+
     Returns:
         SummaryResponse: {
             "summary": "화면 표시용 요약문",
@@ -53,8 +53,8 @@ async def generate_summary(request: ResumeRequest):
     try:
         # 1. AI 요약 생성 (Self-Correction 포함)
         summary_result, eval_info = await summary_service.generate_summary(
-            request.model_dump(), 
-            request.basic_info.field, 
+            request.model_dump(),
+            request.basic_info.field,
             request.summary_type,
             resume_id=request.resume_id  # 로깅용
         )
@@ -67,7 +67,7 @@ async def generate_summary(request: ResumeRequest):
             # 구조화된 객체인 경우
             meta_title = request.basic_info.title or ""
             meta_stack = ", ".join(request.basic_info.re_stack) if request.basic_info.re_stack else ""
-            
+
             display_summary = summary_result.to_formatted_string(include_reasoning=request.include_reasoning)
             embedding_text = summary_result.to_embedding_string(title=meta_title, tech_stack=meta_stack)
 
@@ -119,7 +119,7 @@ async def process_resume_by_id(resume_id: int):
     [신규 로직] 이력서 ID 기반 처리 파이프라인 엔드포인트
 
     DB에 저장된 이력서 데이터를 조회하여 AI 요약 및 임베딩을 수행합니다.
-    
+
     흐름:
     1. DB에서 이력서 데이터 조회
     2. ResumeRequest 객체로 변환
@@ -148,7 +148,7 @@ async def process_resume_by_id(resume_id: int):
 async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
     """
     내부 처리 파이프라인 (공통 로직)
-    
+
     이 함수는 실제 AI 처리 로직을 수행합니다:
     1. AI 요약 생성 (LLM 호출)
     2. 임베딩 생성 (Embedding API 호출)
@@ -161,8 +161,8 @@ async def _process_resume_pipeline(request: ResumeRequest) -> AIProcessResult:
         # request 전체를 dict로 변환하여 전달 (새로운 스키마 대응)
         # [Refactor] 이제 (result, meta_info) 튜플을 반환합니다.
         summary_result, eval_info = await summary_service.generate_summary(
-            request.model_dump(), 
-            request.basic_info.field, 
+            request.model_dump(),
+            request.basic_info.field,
             request.summary_type,
             resume_id=request.resume_id
         )

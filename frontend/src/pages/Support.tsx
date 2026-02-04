@@ -368,9 +368,9 @@ export default function Support() {
                                                         onClick={() => setActiveTab(item.id)}
                                                         className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200
                                                             ${isActive
-                                                                ? "bg-[#5A639C] text-white shadow-md shadow-[#5A639C]/20"
-                                                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                                            }`}
+                                                            ? "bg-[#5A639C] text-white shadow-md shadow-[#5A639C]/20"
+                                                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                        }`}
                                                     >
                                                         <span>{item.label}</span>
                                                         {isActive && <ChevronRight className="h-4 w-4 text-white/80" />}

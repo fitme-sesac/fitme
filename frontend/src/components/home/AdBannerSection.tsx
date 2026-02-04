@@ -5,19 +5,19 @@ import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 const BANNERS = [
     {
         id: 1,
-        company: "Toss",
-        title: "금융의 모든 것, 토스에서 시작하세요",
+        company: "FitMe",
+        title: "AI 기반 맞춤형 채용 플랫폼",
         desc: "Frontend Developer (3년 이상)",
         color: "from-blue-600 to-blue-400",
-        image: "https://static.toss.im/assets/toss-tech/slash_junhyuk.png"
+        image: ""
     },
     {
         id: 2,
-        company: "Danggeun",
-        title: "당신 근처의 당근마켓",
+        company: "TechHub",
+        title: "기술의 중심에서 성장하세요",
         desc: "Backend Developer (Server)",
         color: "from-teal-500 to-teal-400",
-        image: "https://about.daangn.com/img/og_image.png"
+        image: ""
     },
     {
         id: 3,
@@ -26,7 +26,7 @@ const BANNERS = [
         desc: "AI Research Engineer",
         color: "from-yellow-400 to-yellow-300",
         textColor: "text-black",
-        image: "https://t1.kakaocdn.net/kakaocorp/kakaocorp/admin/main-banner/1587"
+        image: ""
     }
 ];
 

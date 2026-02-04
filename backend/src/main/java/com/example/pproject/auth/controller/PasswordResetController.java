@@ -266,4 +266,170 @@ public class PasswordResetController {
         message.setText("아래 링크를 클릭하여 비밀번호를 변경하세요.\n\n" + link + "\n\n(유효시간: 15분)");
         mailSender.send(message);
     }
+
+    // ============================================
+    // REST API 엔드포인트 (프론트엔드용)
+    // ============================================
+
+    /**
+     * [REST API] 비밀번호 재설정 요청 - 인증코드 발송
+     * POST /api/auth/password/reset/request
+     */
+    @PostMapping("/api/auth/password/reset/request")
+    public ResponseEntity<?> apiRequestPasswordReset(
+            @RequestParam String userid,
+            @RequestParam String username,
+            @RequestParam String birthday,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        try {
+            String email = userService.findEmailByUseridAndUsernameAndBirthday(userid, username, birthday);
+            
+            if (email == null) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "일치하는 사용자 정보를 찾을 수 없습니다."
+                ));
+            }
+
+            String code = generateRandomCode();
+
+            // 플로우 토큰 생성
+            java.util.Map<String, Object> claims = new java.util.HashMap<>();
+            claims.put("email", email);
+            claims.put("code", code);
+            claims.put("userid", userid);
+            String tmp = jwtTokenProvider.createFlowToken("PW_RESET", claims, 600);
+            CookieUtils.addHttpOnlyCookie(request, response, "PW_RESET_TMP", tmp, 600, "Lax");
+
+            sendVerificationEmail(email, code);
+
+            return ResponseEntity.ok(java.util.Map.of(
+                    "ok", true,
+                    "message", "인증코드가 이메일로 발송되었습니다."
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "ok", false,
+                    "message", e.getMessage() == null ? "요청 처리에 실패했습니다." : e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * [REST API] 인증코드 확인
+     * POST /api/auth/password/reset/verify
+     */
+    @PostMapping("/api/auth/password/reset/verify")
+    public ResponseEntity<?> apiVerifyCode(
+            @RequestParam String userid,
+            @RequestParam String inputCode,
+            @CookieValue(value = "PW_RESET_TMP", required = false) String tmpToken) {
+        try {
+            if (tmpToken == null || tmpToken.isBlank() || !jwtTokenProvider.validateToken(tmpToken)) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증 절차가 만료되었습니다. 다시 시도해주세요."
+                ));
+            }
+
+            Claims c = jwtTokenProvider.getClaims(tmpToken);
+            if (!"PW_RESET".equals(c.get("flowType", String.class))) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증 절차가 만료되었습니다. 다시 시도해주세요."
+                ));
+            }
+
+            java.util.Map<String, Object> flowClaims = flowClaimsOf(c);
+            String savedCode = flowClaims.get("code") == null ? null : flowClaims.get("code").toString();
+            String savedUserid = flowClaims.get("userid") == null ? null : flowClaims.get("userid").toString();
+
+            if (savedCode == null || savedUserid == null || !savedUserid.equals(userid)) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증 절차가 만료되었습니다. 다시 시도해주세요."
+                ));
+            }
+
+            if (!inputCode.equals(savedCode)) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증번호가 일치하지 않습니다."
+                ));
+            }
+
+            return ResponseEntity.ok(java.util.Map.of(
+                    "ok", true,
+                    "message", "인증이 완료되었습니다."
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "ok", false,
+                    "message", e.getMessage() == null ? "요청 처리에 실패했습니다." : e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * [REST API] 비밀번호 변경
+     * POST /api/auth/password/reset/confirm
+     */
+    @PostMapping("/api/auth/password/reset/confirm")
+    public ResponseEntity<?> apiConfirmPasswordReset(
+            @RequestParam String userid,
+            @RequestParam String newPassword,
+            @RequestParam String confirmPassword,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @CookieValue(value = "PW_RESET_TMP", required = false) String tmpToken) {
+        try {
+            if (tmpToken == null || tmpToken.isBlank() || !jwtTokenProvider.validateToken(tmpToken)) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증 절차가 만료되었습니다. 다시 시도해주세요."
+                ));
+            }
+
+            Claims c = jwtTokenProvider.getClaims(tmpToken);
+            if (!"PW_RESET".equals(c.get("flowType", String.class))) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증 절차가 만료되었습니다. 다시 시도해주세요."
+                ));
+            }
+
+            java.util.Map<String, Object> flow = flowClaimsOf(c);
+            String cookieUserid = flow.get("userid") == null ? null : flow.get("userid").toString();
+            if (cookieUserid == null || cookieUserid.isBlank() || !cookieUserid.equals(userid)) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "인증 절차가 만료되었습니다. 다시 시도해주세요."
+                ));
+            }
+
+            if (!newPassword.equals(confirmPassword)) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                        "ok", false,
+                        "message", "비밀번호가 서로 일치하지 않습니다."
+                ));
+            }
+
+            userService.updatePassword(userid, newPassword);
+            CookieUtils.deleteCookie(request, response, "PW_RESET_TMP");
+
+            return ResponseEntity.ok(java.util.Map.of(
+                    "ok", true,
+                    "message", "비밀번호가 성공적으로 변경되었습니다."
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "ok", false,
+                    "message", e.getMessage() == null ? "요청 처리에 실패했습니다." : e.getMessage()
+            ));
+        }
+    }
 }

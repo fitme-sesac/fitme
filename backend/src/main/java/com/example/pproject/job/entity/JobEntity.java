@@ -112,7 +112,7 @@ public class JobEntity {
     @PrePersist
     void prePersist() {
         if (status == null || status.isBlank()) {
-            status = "DRAFT";
+            status = JobStatus.DRAFT.name();
         }
         if (viewCount == null) viewCount = 0;
         if (applicationCount == null) applicationCount = 0;

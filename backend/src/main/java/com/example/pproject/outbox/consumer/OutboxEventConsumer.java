@@ -328,7 +328,7 @@ public class OutboxEventConsumer {
             createNotification(candidateMemberId, "INTERVIEW_SCHEDULED",
                     String.format("{\"interviewId\":%d,\"jobTitle\":\"%s\",\"companyName\":\"%s\",\"startAt\":\"%s\",\"location\":\"%s\"}", 
                             interviewId, jobTitle, companyName, startAt, location != null ? location : ""),
-                    "/interviews/" + interviewId);
+                    "/interview");  // 구직자 면접 페이지
         }
     }
 
@@ -343,7 +343,7 @@ public class OutboxEventConsumer {
             createNotification(candidateMemberId, "INTERVIEW_SCHEDULED",
                     String.format("{\"interviewId\":%d,\"jobTitle\":\"%s\",\"startAt\":\"%s\",\"updated\":true}", 
                             interviewId, jobTitle, startAt),
-                    "/interviews/" + interviewId);
+                    "/interview");  // 구직자 면접 페이지
         }
     }
 

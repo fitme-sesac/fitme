@@ -26,6 +26,7 @@ export default function PaymentFailPage() {
             existingParams.forEach((value, key) => newSearchParams.set(key, value));
         }
 
+
         navigate(`${path}?${newSearchParams.toString()}`, { replace: true });
     }, [navigate, searchParams, code, message]);
 

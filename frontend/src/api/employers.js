@@ -78,6 +78,18 @@ export async function getApplicants(status = "") {
 }
 
 /**
+ * 특정 채용공고의 지원자 목록 조회 (로그인 필요)
+ * @param {number} jobId - 채용공고 ID
+ * @param {string} status - 상태 필터
+ * @returns {Promise<ApplicantListDTO>}
+ */
+export async function getApplicantsByJob(jobId, status = "") {
+  const params = status ? `?status=${status}` : "";
+  const response = await http.get(`/api/employer/jobs/${jobId}/applicants${params}`);
+  return response.data;
+}
+
+/**
  * 지원자 상태 변경 (로그인 필요)
  * @param {number} applicationId - 지원 ID
  * @param {string} status - 새 상태
@@ -146,5 +158,44 @@ export async function deleteInterview(interviewId) {
  */
 export async function getAdStats() {
   const response = await http.get("/api/employer/ad-stats");
+  return response.data;
+}
+
+/**
+ * 광고 캠페인 생성 (로그인 필요)
+ * @param {Object} campaign - 캠페인 정보
+ * @param {number} campaign.employerId - 기업 ID
+ * @param {number} campaign.jobId - 채용공고 ID
+ * @param {number} campaign.cpcBid - CPC 입찰가 (원)
+ * @param {number} campaign.dailyBudget - 일일 예산 (원)
+ * @param {string} campaign.startDate - 시작일 (YYYY-MM-DD)
+ * @param {string} campaign.endDate - 종료일 (YYYY-MM-DD)
+ * @returns {Promise<AdCampaignResponseDTO>}
+ */
+export async function createAdCampaign(campaign) {
+  const response = await http.post("/api/v1/ad/campaigns", campaign);
+  return response.data;
+}
+
+/**
+ * 광고 캠페인 상태 변경 (로그인 필요)
+ * @param {number} campaignId - 캠페인 ID
+ * @param {string} status - 새 상태 (ACTIVE, PAUSED, ENDED)
+ * @returns {Promise<AdCampaignResponseDTO>}
+ */
+export async function updateAdCampaignStatus(campaignId, status) {
+  const response = await http.patch(`/api/v1/ad/campaigns/${campaignId}/status?status=${status}`);
+  return response.data;
+}
+
+/**
+ * 기업 채용공고 목록 조회 (로그인 필요)
+ * @param {Object} params - 페이징 파라미터
+ * @param {number} params.page - 페이지 번호 (0부터 시작)
+ * @param {number} params.size - 페이지 크기
+ * @returns {Promise<JobListResponseDTO>}
+ */
+export async function getMyJobPostings({ page = 0, size = 50 } = {}) {
+  const response = await http.get(`/api/jobs?page=${page}&size=${size}`);
   return response.data;
 }

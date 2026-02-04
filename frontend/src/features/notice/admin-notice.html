@@ -1,285 +1,219 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
     <title>관리자 공지사항 관리</title>
     <style>
         /* 깔끔한 스타일 적용 */
-        body {
-            font-family: 'Suit', sans-serif;
-            background-color: #f5f5f5;
-            padding: 30px;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        h1,
-        h2 {
-            color: #333;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-        }
+        body { font-family: 'Suit', sans-serif; background-color: #f5f5f5; padding: 30px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
 
         /* 입력 폼 디자인 */
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        input[type="text"],
-        textarea,
-        select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-sizing: border-box;
-        }
-
-        textarea {
-            height: 100px;
-            resize: vertical;
-        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        textarea { height: 100px; resize: vertical; }
 
         /* 버튼 디자인 */
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
 
         /* 테이블 디자인 */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th,
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-        }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background-color: #f8f9fa; font-weight: bold; }
 
         /* 배지 스타일 */
-        .badge {
-            padding: 5px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: white;
-            font-weight: bold;
-        }
-
-        .badge-ops {
-            background-color: #28a745;
-        }
-
-        /* 운영: 초록 */
-        .badge-policy {
-            background-color: #dc3545;
-        }
-
-        /* 정책: 빨강 */
+        .badge { padding: 5px 8px; border-radius: 4px; font-size: 12px; color: white; font-weight: bold; }
+        .badge-ops { background-color: #28a745; } /* 운영: 초록 */
+        .badge-policy { background-color: #dc3545; } /* 정책: 빨강 */
     </style>
 </head>
-
 <body>
 
-    <div class="container">
-        <h1>📢 공지사항 관리 (Admin)</h1>
+<div class="container">
+    <h1>📢 공지사항 관리 (Admin)</h1>
 
-        <div style="background: #eef2f5; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-            <h2>✏️ 새 공지 등록</h2>
+    <div style="background: #eef2f5; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+        <h2>✏️ 새 공지 등록</h2>
 
-            <div class="form-group">
-                <label>제목</label>
-                <input type="text" id="inputTitle" placeholder="제목을 입력하세요">
-            </div>
-
-            <div class="form-group">
-                <label>공지 유형 (Notice Type)</label>
-                <select id="inputType">
-                    <option value="OPS">운영 공지 (OPS)</option>
-                    <option value="POLICY">정책 변경 (POLICY)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>옵션</label>
-                <input type="checkbox" id="inputImportant"> 중요 공지 (상단 고정)
-                <input type="checkbox" id="inputPublic" checked> 공개 여부
-            </div>
-
-            <div class="form-group">
-                <label>본문 내용</label>
-                <textarea id="inputBody" placeholder="내용을 입력하세요"></textarea>
-            </div>
-
-            <button onclick="createNotice()">등록하기</button>
+        <div class="form-group">
+            <label>제목</label>
+            <input type="text" id="inputTitle" placeholder="제목을 입력하세요">
         </div>
 
-        <h2>📋 등록된 공지 목록</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 50px;">ID</th>
-                    <th style="width: 100px;">유형</th>
-                    <th>제목</th>
-                    <th style="width: 100px;">상태</th>
-                    <th style="width: 150px;">등록일</th>
-                </tr>
-            </thead>
-            <tbody id="noticeListBody">
-            </tbody>
-        </table>
+        <div class="form-group">
+            <label>공지 유형 (Notice Type)</label>
+            <select id="inputType">
+                <option value="OPS">운영 공지 (OPS)</option>
+                <option value="POLICY">정책 변경 (POLICY)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>옵션</label>
+            <input type="checkbox" id="inputImportant"> 중요 공지 (상단 고정)
+            <input type="checkbox" id="inputPublic" checked> 공개 여부
+        </div>
+
+        <div class="form-group">
+            <label>본문 내용</label>
+            <textarea id="inputBody" placeholder="내용을 입력하세요"></textarea>
+        </div>
+
+        <button onclick="createNotice()">등록하기</button>
     </div>
 
-    <script>
-        /**
-         * [설정] 백엔드 API 주소
-         * NoticeController의 @RequestMapping("/api/admin/notices") 참고
-         */
-        const API_URL = "http://localhost:8080/api/admin/notices";
-        /**
-         * 1. 공지사항 목록 조회 함수 (GET)
-         * Backend: NoticeController.getNoticeList
-         */
-        async function loadNoticeList() {
-            try {
-                // page=0, size=10으로 요청
-                const response = await fetch(`${API_URL}?page=0&size=20`);
-                const json = await response.json();
+    <h2>📋 등록된 공지 목록</h2>
+    <table>
+        <thead>
+        <tr>
+            <th style="width: 50px;">ID</th>
+            <th style="width: 100px;">유형</th>
+            <th>제목</th>
+            <th style="width: 100px;">상태</th>
+            <th style="width: 150px;">등록일</th>
+        </tr>
+        </thead>
+        <tbody id="noticeListBody">
+        </tbody>
+    </table>
+</div>
 
-                // 백엔드 응답 구조: ApiResponse(result, message, data(Page))
-                if (json.result === "SUCCESS") {
-                    const notices = json.data.content; // Page 객체 안에 content 리스트가 있음
-                    renderTable(notices);
-                } else {
-                    alert("목록 불러오기 실패: " + json.message);
-                }
-            } catch (error) {
-                console.error("에러:", error);
-                alert("서버와 연결할 수 없습니다. 백엔드가 켜져 있나요?");
+<script>
+    /**
+     * [설정] 백엔드 API 주소
+     * NoticeController의 @RequestMapping("/api/admin/notices") 참고
+     */
+    const API_URL = "http://localhost:8080/api/admin/notices";
+    /**
+     * 1. 공지사항 목록 조회 함수 (GET)
+     * Backend: NoticeController.getNoticeList
+     */
+    async function loadNoticeList() {
+        try {
+            // page=0, size=10으로 요청
+            const response = await fetch(`${API_URL}?page=0&size=20`);
+            const json = await response.json();
+
+            // 백엔드 응답 구조: ApiResponse(result, message, data(Page))
+            if (json.result === "SUCCESS") {
+                const notices = json.data.content; // Page 객체 안에 content 리스트가 있음
+                renderTable(notices);
+            } else {
+                alert("목록 불러오기 실패: " + json.message);
             }
+        } catch (error) {
+            console.error("에러:", error);
+            alert("서버와 연결할 수 없습니다. 백엔드가 켜져 있나요?");
+
+
+
+
+
+
+
+
+
+
+
+
+
         }
 
-        /**
-         * 2. 화면에 목록 그리기 함수
-         */
-        function renderTable(notices) {
-            const tbody = document.getElementById("noticeListBody");
-            tbody.innerHTML = ""; // 기존 목록 비우기
 
-            notices.forEach(notice => {
-                // 날짜 포맷팅 (2025-01-16T10:00:00 -> 2025-01-16 10:00)
-                const date = notice.createdAt ? notice.createdAt.replace("T", " ").substring(0, 16) : "-";
 
-                // 배지 색상 결정
-                const badgeClass = notice.noticeType === "POLICY" ? "badge-policy" : "badge-ops";
-                const importantMark = notice.isImportant ? "⭐" : "";
+    }
 
-                const row = `
+
+    /**
+     * 2. 화면에 목록 그리기 함수
+     */
+    function renderTable(notices) {
+        const tbody = document.getElementById("noticeListBody");
+        tbody.innerHTML = ""; // 기존 목록 비우기
+
+        notices.forEach(notice => {
+            // 날짜 포맷팅 (2025-01-16T10:00:00 -> 2025-01-16 10:00)
+            const date = notice.createdAt ? notice.createdAt.replace("T", " ").substring(0, 16) : "-";
+
+            // 배지 색상 결정
+            const badgeClass = notice.noticeType === "POLICY" ? "badge-policy" : "badge-ops";
+            const importantMark = notice.isImportant ? "⭐" : "";
+
+            const row = `
                 <tr>
                     <td>${notice.id}</td>
                     <td><span class="badge ${badgeClass}">${notice.noticeType}</span></td>
-                    <td style="font-weight: bold;">
-                        ${importantMark} ${notice.title}
-                    </td>
-                    <td>${notice.status}</td>
+@@ -137,68 +217,69 @@ <h2>📋 등록된 공지 목록</h2>
                     <td style="color: #666; font-size: 14px;">${date}</td>
                 </tr>
             `;
-                tbody.innerHTML += row;
+            tbody.innerHTML += row;
+
+        });
+    }
+
+    /**
+     * 3. 공지사항 등록 함수 (POST)
+     * Backend: NoticeController.createNotice -> NoticeCreateRequest DTO
+     */
+    async function createNotice() {
+        // 입력값 가져오기
+        const title = document.getElementById("inputTitle").value;
+        const body = document.getElementById("inputBody").value;
+        const noticeType = document.getElementById("inputType").value;
+        const isImportant = document.getElementById("inputImportant").checked;
+        const isPublic = document.getElementById("inputPublic").checked;
+
+        // 유효성 검사 (간단하게)
+        if (!title || !body) {
+            alert("제목과 내용은 필수입니다!");
+            return;
+        }
+
+        // DTO 구조에 맞춰 데이터 준비
+        const requestData = {
+            title: title,
+            body: body,
+            noticeType: noticeType,
+            isImportant: isImportant,
+            isPublic: isPublic
+        };
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json" // JSON 보낸다고 명시
+                },
+                body: JSON.stringify(requestData) // 자바스크립트 객체를 JSON 문자열로 변환
             });
-        }
 
-        /**
-         * 3. 공지사항 등록 함수 (POST)
-         * Backend: NoticeController.createNotice -> NoticeCreateRequest DTO
-         */
-        async function createNotice() {
-            // 입력값 가져오기
-            const title = document.getElementById("inputTitle").value;
-            const body = document.getElementById("inputBody").value;
-            const noticeType = document.getElementById("inputType").value;
-            const isImportant = document.getElementById("inputImportant").checked;
-            const isPublic = document.getElementById("inputPublic").checked;
+            const json = await response.json();
 
-            // 유효성 검사 (간단하게)
-            if (!title || !body) {
-                alert("제목과 내용은 필수입니다!");
-                return;
+            if (response.ok && json.result === "SUCCESS") {
+                alert("공지사항이 등록되었습니다!");
+                // 입력창 초기화
+                document.getElementById("inputTitle").value = "";
+                document.getElementById("inputBody").value = "";
+                // 목록 새로고침
+                loadNoticeList();
+            } else {
+                alert("등록 실패: " + json.message);
             }
-
-            // DTO 구조에 맞춰 데이터 준비
-            const requestData = {
-                title: title,
-                body: body,
-                noticeType: noticeType,
-                isImportant: isImportant,
-                isPublic: isPublic
-            };
-
-            try {
-                const response = await fetch(API_URL, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json" // JSON 보낸다고 명시
-                    },
-                    body: JSON.stringify(requestData) // 자바스크립트 객체를 JSON 문자열로 변환
-                });
-
-                const json = await response.json();
-
-                if (response.ok && json.result === "SUCCESS") {
-                    alert("공지사항이 등록되었습니다!");
-                    // 입력창 초기화
-                    document.getElementById("inputTitle").value = "";
-                    document.getElementById("inputBody").value = "";
-                    // 목록 새로고침
-                    loadNoticeList();
-                } else {
-                    alert("등록 실패: " + json.message);
-                }
-            } catch (error) {
-                console.error("에러:", error);
-                alert("서버 오류 발생!");
-            }
+        } catch (error) {
+            console.error("에러:", error);
+            alert("서버 오류 발생!");
         }
+    }
 
-        // 페이지가 열리면 자동으로 목록을 가져옴
-        loadNoticeList();
 
-    </script>
+    // 페이지가 열리면 자동으로 목록을 가져옴
+    loadNoticeList();
+
+</script>
 
 </body>
-
 </html>
