@@ -108,6 +108,13 @@ def infer_intent_by_rule(msg: str) -> Optional[ChatbotIntent]:
     if "경쟁률" in msg and any(k in msg for k in ("높", "최고", "상위")):
         return ChatbotIntent.HIGH_COMPETITION_POSTINGS
 
+    # 1.5) 연봉 극값 공고
+    if any(k in msg for k in ("연봉", "급여", "월급")) and any(k in msg for k in ("공고", "채용")):
+        if any(k in msg for k in ("낮", "최저", "하위")):
+            return ChatbotIntent.BOTTOM_SALARY_POSTINGS
+        if any(k in msg for k in ("제일", "가장", "최고", "상위", "최다")):
+            return ChatbotIntent.TOP_SALARY_POSTINGS
+
     # 2) 스택 지원률 극값
     if ("지원률" in msg) and ("스택" in msg) and any(k in msg for k in ("낮", "최저", "하위")):
         return ChatbotIntent.LOW_STACK_APPLY_RATE

@@ -33,10 +33,9 @@ async def execute_state(state: ChatbotState, *, repo) -> Dict[str, Any]:
     scope_ids = state.get("scope_job_ids") or None
 
     if parsed.intent == ChatbotIntent.DETAIL_URLS:
-        # B안: 백엔드는 도메인을 붙이지 않고 상대경로만 반환한다.
         ids = state.get("last_item_ids") or []
-        paths = [f"/jobs/{int(i)}" for i in ids]
-        base.update({"paths": paths, "count": len(paths)})
+        items = repo.posting_briefs_by_ids(ids)
+        base.update({"items": items, "count": len(items)})
         return {"result": base}
 
 
@@ -55,6 +54,28 @@ async def execute_state(state: ChatbotState, *, repo) -> Dict[str, Any]:
         base.update(r)
         return {"result": base}
 
+
+    if parsed.intent == ChatbotIntent.TOP_SALARY_POSTINGS:
+        r = repo.salary_extreme_postings(
+            parsed.start_date,
+            parsed.end_date,
+            order="DESC",
+            limit=int(parsed.limit or 5),
+            **_common_repo_kwargs(parsed, scope_ids),
+        )
+        base.update(r)
+        return {"result": base}
+
+    if parsed.intent == ChatbotIntent.BOTTOM_SALARY_POSTINGS:
+        r = repo.salary_extreme_postings(
+            parsed.start_date,
+            parsed.end_date,
+            order="ASC",
+            limit=int(parsed.limit or 5),
+            **_common_repo_kwargs(parsed, scope_ids),
+        )
+        base.update(r)
+        return {"result": base}
     if parsed.intent == ChatbotIntent.LIST_POSTINGS:
         kwargs = _common_repo_kwargs(parsed, scope_ids)
         r = repo.list_postings(

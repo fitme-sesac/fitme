@@ -101,6 +101,19 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
                 parsed.intent = ChatbotIntent.HIGH_COMPETITION_POSTINGS
                 parsed.confidence = max(parsed.confidence, 0.85)
 
+
+    # ✅ 연봉 극값 공고 질의는 규칙 기반으로 intent 보정 (LLM 오류 방어)
+    # - "연봉이 제일 높은/낮은 공고" 같은 문장이 LIST_POSTINGS(최신)로 오분류되는 경우를 방지
+    # - '연봉 4천 이상 공고 5개'처럼 단순 조건 리스트는 그대로 LIST_POSTINGS로 남겨둔다.
+    if any(k in msg for k in ("연봉", "급여", "월급")) and any(k in msg for k in ("공고", "채용")):
+        is_count_query = any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수"))
+        if not is_count_query:
+            if any(k in msg for k in ("낮", "최저", "하위")):
+                parsed.intent = ChatbotIntent.BOTTOM_SALARY_POSTINGS
+                parsed.confidence = max(parsed.confidence, 0.85)
+            elif any(k in msg for k in ("제일", "가장", "최다", "상위", "최고")) and ("연봉" in msg or "급여" in msg or "월급" in msg):
+                parsed.intent = ChatbotIntent.TOP_SALARY_POSTINGS
+                parsed.confidence = max(parsed.confidence, 0.85)
     # ✅ "지원자 수 최다 공고" 질의는 '경쟁률/지원률' 단어가 포함돼도 RATE_STATS로 강제하지 않음
     # 예: "ai 직업군 중 경쟁률 200% 이상에서 지원자 수 제일 많은 공고는?"
     ml2 = msg.lower()
@@ -277,6 +290,15 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
         if (not has_explicit_limit) and (parsed.limit == 1):
             parsed.limit = default_limit
 
+
+    # ✅ 연봉 상위/하위 공고도 기본은 5개를 보여주도록 보정
+    # - '제일/가장' 같은 표현이 있어도 사용자가 '1개/하나만'을 명시하지 않으면 default_limit 사용
+    if parsed.intent in (ChatbotIntent.TOP_SALARY_POSTINGS, ChatbotIntent.BOTTOM_SALARY_POSTINGS):
+        has_explicit_limit = bool(re.search(r"\d+\s*(개|회|건|명)", msg)) or any(
+            k in msg for k in ("한 개", "한개", "하나", "하나만", "1개", "1 개")
+        )
+        if (not has_explicit_limit) and (parsed.limit == 1):
+            parsed.limit = default_limit
     # 13) LIST_POSTINGS random default
     if parsed.intent != ChatbotIntent.LIST_POSTINGS:
         parsed.random = None

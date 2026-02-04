@@ -61,20 +61,22 @@ _SYSTEM_PROMPT = """[Role]
 1) COUNT_POSTINGS
 2) COMPETITION
 3) LIST_POSTINGS (최신/랜덤)
-4) TOP_STACKS (많이 등장한 스택)
-5) BOTTOM_STACKS (적게 등장한 스택)
-6) RATE_STATS (지원률/경쟁률 % 통계)
-7) BUSIEST_WEEK
-8) BUSIEST_DAY
-9) LOW_COMPETITION_POSTINGS
-10) HIGH_COMPETITION_POSTINGS
-11) LOW_STACK_APPLY_RATE
-12) HIGH_STACK_APPLY_RATE
-13) TOP_INDUSTRIES
-14) BOTTOM_INDUSTRIES
-15) MOST_APPLICANTS_POSTINGS
-16) DETAIL_URLS (직전 결과 상세 페이지 URL)
-17) HELP
+4) TOP_SALARY_POSTINGS (연봉 상위 공고)
+5) BOTTOM_SALARY_POSTINGS (연봉 하위 공고)
+6) TOP_STACKS (많이 등장한 스택)
+7) BOTTOM_STACKS (적게 등장한 스택)
+8) RATE_STATS (지원률/경쟁률 % 통계)
+9) BUSIEST_WEEK
+10) BUSIEST_DAY
+11) LOW_COMPETITION_POSTINGS
+12) HIGH_COMPETITION_POSTINGS
+13) LOW_STACK_APPLY_RATE
+14) HIGH_STACK_APPLY_RATE
+15) TOP_INDUSTRIES
+16) BOTTOM_INDUSTRIES
+17) MOST_APPLICANTS_POSTINGS
+18) DETAIL_URLS (직전 결과 상세 페이지 URL)
+19) HELP
 """
 
 
@@ -87,6 +89,8 @@ def _examples(today_iso: str, year: int) -> str:
 - '올해 8월 공고 몇개' => COUNT_POSTINGS, start_date={year}-08-01, end_date={year}-09-01
 - '백엔드 자바/스프링부트 공고 5개 최신' => LIST_POSTINGS, job_role='Backend', keywords_all=['Java','Spring Boot'], limit=5, random=false
 - '서울 강남구 연봉 4천 이상 공고 5개 랜덤' => LIST_POSTINGS, regions_any=['SEOUL'], admin_areas_any=['강남구'], min_salary_m만원=4000, limit=5, random=true
+- '연봉이 제일 높은 공고 5개' => TOP_SALARY_POSTINGS, limit=5
+- '그중에서 연봉이 제일 낮은 공고 5개' => BOTTOM_SALARY_POSTINGS, limit=5
 - '1월 9일 뒤로 연봉 8천~9천 공고 몇개' => COUNT_POSTINGS, start_date={year}-01-09, end_date=today+1, min=8000, max=9000
 - '경기도 요즘 평균 지원률/경쟁률' => RATE_STATS, regions_any=['GYEONGGI']
 - '요즘 올라오는 공고에서 제일 많이 요구하는 스택 5개' => TOP_STACKS, limit=5

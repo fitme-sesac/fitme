@@ -14,6 +14,7 @@ from .filters import (
     _apply_required_experience_filters,
     _competition_pct_expr,
     _salary_between_predicate,
+    _salary_bounds_m_expr,
     _salary_min_predicate,
 )
 from .keywords import _build_keywords_where_and_params_v2
@@ -21,6 +22,38 @@ from .normalize import _SEP_RE, _canon_members_for_query, _normalize_kw_list, _n
 from .schema import _column_exists
 
 class JobStatsRepository:
+    def posting_briefs_by_ids(self, job_ids: List[int]) -> List[Dict[str, Any]]:
+        if not job_ids:
+            return []
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                sql = """
+                    WITH ids AS (
+                        SELECT *
+                        FROM unnest(%(ids)s::bigint[]) WITH ORDINALITY AS t(job_id, ord)
+                    )
+                    SELECT
+                        jp.job_id,
+                        e.name AS employer_name,
+                        jp.title
+                    FROM ids i
+                    JOIN job_posting jp ON jp.job_id = i.job_id
+                    JOIN employer e ON e.employer_id = jp.employer_id
+                    WHERE jp.deleted_at IS NULL
+                    ORDER BY i.ord \
+                """
+                cur.execute(sql, {"ids": [int(x) for x in job_ids]})
+                rows = cur.fetchall() or []
+                return [
+                    {"job_id": int(r[0]), "employer_name": r[1], "title": r[2]}
+                    for r in rows
+                ]
+        finally:
+            conn.close()
+
+
     def _resolve_and_expand_keywords(
             self,
             cur,
@@ -641,6 +674,186 @@ class JobStatsRepository:
                     "scope_size": len(job_ids_scope or []),
                     "stack_corrections": stack_corr,
                     "term_corrections": corr_all,
+                }
+        finally:
+            conn.close()
+
+    def salary_extreme_postings(
+            self,
+            start_date: date,
+            end_date: date,
+            *,
+            order: str = "DESC",
+            regions_any: Optional[List[str]] = None,
+            admin_areas_any: Optional[List[str]] = None,
+            keywords_all: Optional[List[str]] = None,
+            keywords_any: Optional[List[str]] = None,
+            industries_any: Optional[List[str]] = None,
+            job_role: Optional[str] = None,
+            min_salary_m만원: Optional[int] = None,
+            max_salary_m만원: Optional[int] = None,
+            min_competition_pct: Optional[float] = None,
+            max_competition_pct: Optional[float] = None,
+            min_required_experience_years: Optional[int] = None,
+            max_required_experience_years: Optional[int] = None,
+            limit: int = 5,
+            job_ids_scope: Optional[List[int]] = None,
+    ) -> Dict[str, Any]:
+        """연봉(만원) 기준 극값 공고 TOP N.
+
+        - salary_text를 파싱해 상한값(hi)을 정렬 기준으로 사용한다.
+        - salary_text가 '면접 후 결정' 등 파싱 불가면 제외한다.
+        """
+        od = "ASC" if str(order).upper() == "ASC" else "DESC"
+
+        kw_all = keywords_all or []
+        kw_any = list(keywords_any or [])
+        if job_role and job_role not in kw_any:
+            kw_any.append(job_role)
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                all_groups, any_groups, stack_corr = self._resolve_and_expand_keywords(cur, kw_all, kw_any)
+                ind_groups, ind_used, ind_corr = self._resolve_and_expand_industries(cur, industries_any or [])
+                any_groups2 = any_groups + ind_groups
+
+                where = [
+                    "jp.deleted_at IS NULL",
+                    "jp.status = 'OPEN'",
+                    "jp.created_at >= %(start_ts)s",
+                    "jp.created_at < %(end_ts)s",
+                ]
+                params: Dict[str, Any] = {
+                    "start_ts": f"{start_date} 00:00:00",
+                    "end_ts": f"{end_date} 00:00:00",
+                }
+
+                if job_ids_scope:
+                    where.append("jp.job_id = ANY(%(scope_ids)s::bigint[])")
+                    params["scope_ids"] = [int(x) for x in job_ids_scope]
+
+                apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
+                where.extend(kw_where)
+                params.update(kw_params)
+
+                if min_salary_m만원 is not None and max_salary_m만원 is not None:
+                    where.append(_salary_between_predicate(int(min_salary_m만원), int(max_salary_m만원), salary_col="jp.salary_text"))
+                    params["min_salary_m"] = int(min_salary_m만원)
+                    params["max_salary_m"] = int(max_salary_m만원)
+                elif min_salary_m만원 is not None:
+                    where.append(_salary_min_predicate(int(min_salary_m만원), salary_col="jp.salary_text"))
+                    params["min_salary_m"] = int(min_salary_m만원)
+
+                _apply_competition_pct_filters(
+                    where, params, alias="jp",
+                    min_competition_pct=min_competition_pct,
+                    max_competition_pct=max_competition_pct,
+                    require_capacity=False,
+                )
+
+                _apply_required_experience_filters(
+                    where, params, alias="jp",
+                    min_required_experience_years=min_required_experience_years,
+                    max_required_experience_years=max_required_experience_years,
+                )
+
+                # 연봉 파싱 가능한 것만 대상
+                _lo_m, _hi_m = _salary_bounds_m_expr("jp.salary_text")
+                where.append(f"({_hi_m}) IS NOT NULL")
+
+                lim = max(1, min(20, int(limit or 5)))
+                params["lim"] = lim
+
+                has_exp_col = _column_exists("job_posting", "required_experience")
+                exp_select = ", jp.required_experience" if has_exp_col else ""
+
+                sql = f"""
+                    SELECT
+                      jp.job_id,
+                      e.name AS employer_name,
+                      jp.title,
+                      jp.location,
+                      jp.salary_text,
+                      jp.stack,
+                      jp.apply_count,
+                      jp.recruitment_capacity
+                      {exp_select},
+                      ({_hi_m}) AS salary_hi_m,
+                      jp.created_at
+                    FROM job_posting jp
+                    JOIN employer e ON e.employer_id = jp.employer_id
+                    WHERE {" AND ".join(where)}
+                    ORDER BY salary_hi_m {od} NULLS LAST, jp.created_at DESC, jp.job_id DESC
+                    LIMIT %(lim)s
+                """
+                cur.execute(sql, params)
+                rows = cur.fetchall() or []
+
+                items = []
+                for r in rows:
+                    # base indexes: 0..7 always, optional exp at 8, salary_hi, created_at last
+                    if has_exp_col:
+                        req_exp = r[8]
+                        salary_hi_idx = 9
+                        created_idx = 10
+                    else:
+                        req_exp = None
+                        salary_hi_idx = 8
+                        created_idx = 9
+
+                    st = r[5]
+                    if isinstance(st, list):
+                        flat: List[str] = []
+                        for item in st:
+                            s = (item or "").strip()
+                            if not s:
+                                continue
+                            flat.extend([p for p in _SEP_RE.split(s) if p])
+                        stack_str = ", ".join(dict.fromkeys([x.strip() for x in flat if x.strip()]))
+                    else:
+                        stack_str = st
+
+                    apply_count = int(r[6] or 0)
+                    cap = int(r[7] or 0)
+                    comp_pct = (apply_count / cap * 100.0) if cap > 0 else None
+
+                    created_at = r[created_idx]
+
+                    items.append(
+                        {
+                            "job_id": int(r[0]),
+                            "employer_name": r[1],
+                            "title": r[2],
+                            "location": r[3],
+                            "salary_text": r[4],
+                            "stack": stack_str,
+                            "apply_count": apply_count,
+                            "recruitment_capacity": (cap if r[7] is not None else None),
+                            "competition_pct": comp_pct,
+                            "required_experience": (int(req_exp) if req_exp is not None else None),
+                            "salary_hi_m만원": (int(r[salary_hi_idx]) if r[salary_hi_idx] is not None else None),
+                            "created_at": (created_at.isoformat() if created_at else None),
+                        }
+                    )
+
+                return {
+                    "items": items,
+                    "count": len(items),
+                    "start_date": str(start_date),
+                    "end_date": str(end_date),
+                    "industries_any": ind_used,
+                    "regions_any": regions_any or [],
+                    "admin_areas_any": admin_areas_any or [],
+                    "job_role": job_role,
+                    "limit": lim,
+                    "order": od,
+                    "scoped": bool(job_ids_scope),
+                    "scope_size": len(job_ids_scope or []),
+                    "stack_corrections": stack_corr,
+                    "term_corrections": (ind_corr[:50]),
                 }
         finally:
             conn.close()

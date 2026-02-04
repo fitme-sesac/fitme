@@ -1,12 +1,48 @@
 from __future__ import annotations
 
+import os
 import uuid
+from urllib.parse import urljoin
 from typing import Any, Dict
 
 from app.chatbot.schemas import ChatbotIntent, ChatbotParsedSpec
 from app.chatbot.services.agent_core.stack_note import pick_stack_typo_note
 from app.chatbot.services.agent_core.types import ChatbotState
 
+def _frontend_base_url() -> str:
+    """
+    프론트 베이스 URL이 있으면 절대경로 링크를 만들고,
+    없으면 상대경로(/jobs/{id})로만 반환.
+    우선순위:
+      1) CHATBOT_FRONTEND_BASE_URL
+      2) FRONTEND_BASE_URL
+    """
+    return (os.getenv("CHATBOT_FRONTEND_BASE_URL") or os.getenv("FRONTEND_BASE_URL") or "").strip()
+
+
+def _job_detail_path(job_id: int) -> str:
+    return f"/jobs/{int(job_id)}"
+
+
+def _job_detail_url(job_id: int) -> str:
+    base = _frontend_base_url()
+    path = _job_detail_path(job_id)
+    if not base:
+        return path
+    base = base.rstrip("/") + "/"
+    return urljoin(base, path.lstrip("/"))
+
+
+def _md_escape_link_text(s: str) -> str:
+    # 마크다운 링크 텍스트 최소 이스케이프
+    return (s or "-").replace("[", "\\[").replace("]", "\\]")
+
+
+def _employer_link(employer_name: str | None, job_id: int | None) -> str:
+    name = _md_escape_link_text(str(employer_name or "-"))
+    if job_id is None:
+        return name
+    return f"[{name}]({_job_detail_url(int(job_id))})"
 
 async def render_state(state: ChatbotState) -> Dict[str, Any]:
     rid = state.get("request_id") or str(uuid.uuid4())
@@ -73,6 +109,27 @@ async def render_state(state: ChatbotState) -> Dict[str, Any]:
         )
         answer = _maybe_prefix(body)
 
+
+    elif parsed.intent in (ChatbotIntent.TOP_SALARY_POSTINGS, ChatbotIntent.BOTTOM_SALARY_POSTINGS):
+        items = result.get("items") or []
+        tag = "상위" if parsed.intent == ChatbotIntent.TOP_SALARY_POSTINGS else "하위"
+
+        lines = [f"{start} ~ {end} 연봉 {tag} {len(items)}개:"]
+        for i, it in enumerate(items, 1):
+            link = _employer_link(it.get("employer_name"), it.get("job_id"))
+            lines.append(
+                f"{i}. {link} {it.get('title')}"
+                f" / {it.get('location') or '-'}"
+                f" / {it.get('salary_text') or '-'}"
+                f" / {it.get('stack') or '-'}"
+            )
+            lines.append("")  # ✅ 항목 사이 빈 줄
+
+        if lines and lines[-1] == "":
+            lines.pop()
+
+        answer = _maybe_prefix("\n".join(lines))
+
     elif parsed.intent == ChatbotIntent.LIST_POSTINGS:
         items = result.get("items") or []
         lim = int(result.get("limit", 5))
@@ -81,27 +138,38 @@ async def render_state(state: ChatbotState) -> Dict[str, Any]:
         lines = []
         # ✅ limit=1 & 결과 1개면 헤더를 생략하고 1줄 요약만 출력
         if not (lim == 1 and len(items) == 1):
-            lines.append(f"{start} ~ {end} 공고 {len(items)}개 (limit={lim}, {'랜덤' if rnd else '최신'}):")
+            lines.append(f"{start} ~ {end} 공고 {len(items)}개:")
 
         for i, it in enumerate(items, 1):
+            link = _employer_link(it.get("employer_name"), it.get("job_id"))
             lines.append(
-                f"{i}. [{it.get('employer_name')}] {it.get('title')}"
+                f"{i}. {link} {it.get('title')}"
                 f" / {it.get('location') or '-'}"
                 f" / {it.get('salary_text') or '-'}"
                 f" / {it.get('stack') or '-'}"
             )
+            lines.append("")
+
+        if lines and lines[-1] == "":
+            lines.pop()
 
         answer = _maybe_prefix("\n".join(lines))
 
     elif parsed.intent == ChatbotIntent.DETAIL_URLS:
-        # B안: 백엔드는 상대경로(/jobs/{id})만 반환. 프론트가 현재 도메인(origin)로 링크 처리.
-        paths = result.get("paths") or []
-        if not paths:
+        items = result.get("items") or []
+        if not items:
             answer = "직전에 조회한 공고 목록이 없습니다. 먼저 공고 리스트를 조회한 뒤 다시 요청해주세요."
         else:
-            lines = ["상세 페이지 URL:"]
-            for i, p in enumerate(paths, 1):
-                lines.append(f"{i}. {p}")
+            lines = ["상세 페이지:"]
+            for i, it in enumerate(items, 1):
+                link = _employer_link(it.get("employer_name"), it.get("job_id"))
+                title = it.get("title") or ""
+                lines.append(f"{i}. {link} {title}".rstrip())
+                lines.append("")  # ✅ 빈 줄
+
+            if lines and lines[-1] == "":
+                lines.pop()
+
             answer = _maybe_prefix("\n".join(lines))
 
     elif parsed.intent == ChatbotIntent.TOP_STACKS:
@@ -145,11 +213,19 @@ async def render_state(state: ChatbotState) -> Dict[str, Any]:
         for i, it in enumerate(items, 1):
             pct = it.get("competition_pct")
             pct_txt = f"{float(pct):.2f}%" if pct is not None else "-"
+            link = _employer_link(it.get("employer_name"), it.get("job_id"))
             lines.append(
-                f"{i}. [{it.get('employer_name')}] {it.get('title')} / {it.get('location') or '-'} "
-                f"/ {it.get('salary_text') or '-'} / 경쟁률 {pct_txt}"
+                f"{i}. {link} {it.get('title')}"
+                f" / {it.get('location') or '-'}"
+                f" / {it.get('salary_text') or '-'}"
+                f" / 경쟁률 {pct_txt}"
             )
-        answer = "\n".join(lines)
+            lines.append("")  # ✅ 빈 줄
+
+            if lines and lines[-1] == "":
+                lines.pop()
+
+            answer = "\n".join(lines)
 
     elif parsed.intent in (ChatbotIntent.LOW_STACK_APPLY_RATE, ChatbotIntent.HIGH_STACK_APPLY_RATE):
         items = result.get("items") or []
