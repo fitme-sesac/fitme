@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
+import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -13,7 +13,7 @@ import { SideJobList } from "@/components/home/SideJobList";
 import { CompanySidebar } from "@/components/home/CompanySidebar";
 import { CompanyMarketingBanner } from "@/components/home/CompanyMarketingBanner";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePublicJobs, useFilterOptions } from "@/hooks/useJobs";
+import { usePublicJobs, useFilterOptions, usePositionCounts } from "@/hooks/useJobs";
 import {
     Dialog,
     DialogContent,
@@ -61,6 +61,7 @@ interface JobsResponse {
 // 기본 필터 옵션 (DB에서 로드 전 표시용)
 const DEFAULT_SKILL_OPTIONS = ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"];
 const DEFAULT_INDUSTRY_OPTIONS = ["전체", "커머스", "금융/핀테크", "O2O", "소셜/커뮤니티", "게임", "SaaS", "인공지능", "블록체인", "모빌리티", "여행", "헬스케어", "에듀테크", "HR테크", "부동산", "푸드테크", "보안", "IoT", "IT서비스"];
+const DEFAULT_POSITION_OPTIONS = ["전체", "서버/백엔드", "프론트엔드", "웹 풀스택", "안드로이드", "iOS", "크로스플랫폼", "머신러닝/AI", "데이터 엔지니어", "DevOps", "게임 클라이언트", "임베디드", "QA 엔지니어"];
 
 const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
 const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] ?? "신입";
@@ -123,6 +124,7 @@ export default function Jobs() {
         연봉: [],
         근무지: [],
         "서비스 분야": [],
+        "포지션": [],
     });
 
     const getSelectedArray = (key: string): string[] => {
@@ -139,9 +141,43 @@ export default function Jobs() {
 
     // DB에서 필터 옵션 조회
     const { data: filterOptionsData } = useFilterOptions();
+
+    // 서버 사이드 필터링을 위한 파라미터 구성
+    const selectedSkills = getSelectedArray("스킬");
+    const selectedLocations = getSelectedArray("근무지");
+    const selectedIndustries = getSelectedArray("서비스 분야");
+    const selectedPositions = getSelectedArray("포지션");
+
+    // 현재 필터 조건에 따른 포지션별 카운트 조회 (포지션 필터 제외한 다른 필터 조건 적용)
+    const { data: positionCountsData } = usePositionCounts({
+        keyword: searchParams.get("keyword") || "",
+        stack: selectedSkills.length > 0 ? selectedSkills.join(",") : "",
+        location: selectedLocations.length > 0 ? selectedLocations[0] : "",
+        minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
+        maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
+        industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
+    });
+
+    // 포지션 카운트 기반으로 0개인 포지션 필터링 (전체는 항상 표시)
+    const filteredPositionOptions = useMemo(() => {
+        const baseOptions = filterOptionsData?.positionCategories?.length > 0
+            ? filterOptionsData.positionCategories
+            : DEFAULT_POSITION_OPTIONS;
+        
+        if (!positionCountsData) return baseOptions;
+        
+        return baseOptions.filter((option: string) => {
+            if (option === "전체") return true;
+            const count = positionCountsData[option] || 0;
+            return count > 0;
+        });
+    }, [filterOptionsData, positionCountsData]);
     
     // 필터 옵션 (DB 데이터 우선, 없으면 기본값 사용)
+    // 포지션을 가장 왼쪽에 배치
     const FILTER_OPTIONS: Record<string, string[]> = useMemo(() => ({
+        // 포지션: DB 기반 동적 옵션 + 카운트 기반 필터링 - 가장 왼쪽 배치
+        "포지션": filteredPositionOptions,
         "경력": [], // 슬라이더로 관리
         "스킬": filterOptionsData?.stacks?.length > 0
             ? ["전체", ...filterOptionsData.stacks]
@@ -152,13 +188,9 @@ export default function Jobs() {
         "서비스 분야": filterOptionsData?.industries?.length > 0
             ? filterOptionsData.industries
             : DEFAULT_INDUSTRY_OPTIONS
-    }), [filterOptionsData]);
-
-    // 서버 사이드 필터링을 위한 파라미터 구성
-    const selectedSkills = getSelectedArray("스킬");
-    const selectedLocations = getSelectedArray("근무지");
+    }), [filterOptionsData, filteredPositionOptions]);
     
-    // 서버 API 호출 - 필터 파라미터 전달
+    // 서버 API 호출 - 필터 파라미터 전달 (포지션 + 서비스 분야 서버사이드 필터링 적용)
     const { data: rawData, isLoading, error } = usePublicJobs({
         page,
         size: 12,
@@ -167,6 +199,8 @@ export default function Jobs() {
         location: selectedLocations.length > 0 ? selectedLocations[0] : "", // 첫 번째 지역만 서버로 전달
         minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
+        position: selectedPositions.length > 0 ? selectedPositions.join(",") : "",
+        industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
     });
 
     const data = rawData as JobsResponse | undefined;
@@ -176,11 +210,10 @@ export default function Jobs() {
     const totalElements = data?.totalElements || 0;
 
     // 클라이언트 사이드 추가 필터링 (서버에서 지원하지 않는 필터만)
-    // 서버 필터: keyword, stack, location, experience
-    // 클라이언트 필터: salary, industry
+    // 서버 필터: keyword, stack, location, experience, position, industry
+    // 클라이언트 필터: salary, 다중 지역
     const getFilteredJobs = () => {
         let filteredJobs = [...jobs];
-        const industrySelected = getSelectedArray("서비스 분야");
         const locationSelected = getSelectedArray("근무지");
 
         // 근무지 추가 필터링: 서버는 첫 번째 지역만 처리하므로, 다중 지역은 클라이언트에서 추가 필터링
@@ -202,43 +235,7 @@ export default function Jobs() {
             });
         }
 
-        // 서비스 분야 필터: 다중 선택 - 클라이언트 사이드 (employer.industry 또는 description 기반)
-        if (industrySelected.length > 0 && !industrySelected.includes("전체")) {
-            const industryKeywords: Record<string, string[]> = {
-                "커머스": ["커머스", "이커머스", "E-commerce", "ecommerce", "commerce", "retail", "shopping"],
-                "금융/핀테크": ["금융", "핀테크", "Fintech", "fintech", "finance", "banking", "insurance", "payment"],
-                "O2O": ["O2O", "o2o", "delivery", "logistics"],
-                "소셜/커뮤니티": ["소셜", "커뮤니티", "Social", "Community", "SNS", "Media", "Contents"],
-                "게임": ["게임", "Game", "gaming", "entertainment"],
-                "SaaS": ["SaaS", "saas", "B2B", "enterprise", "cloud"],
-                "인공지능": ["AI", "인공지능", "artificial intelligence", "machine learning", "ml", "data"],
-                "블록체인": ["블록체인", "Blockchain", "blockchain", "crypto", "web3", "nft"],
-                "모빌리티": ["모빌리티", "Mobility", "transportation", "automotive", "ev"],
-                "여행": ["여행", "Travel", "tourism", "hospitality"],
-                "헬스케어": ["헬스케어", "Healthcare", "health", "medical", "biotech", "pharma"],
-                "에듀테크": ["에듀테크", "Education", "EdTech", "learning"],
-                "HR테크": ["HR테크", "HR", "HRTech", "recruitment"],
-                "부동산": ["부동산", "Real Estate", "PropTech", "property"],
-                "푸드테크": ["푸드테크", "Food", "FoodTech", "F&B", "restaurant"],
-                "보안": ["보안", "Security", "cybersecurity"],
-                "IoT": ["IoT", "Hardware", "embedded"],
-                "IT서비스": ["IT서비스", "IT", "Software", "Tech", "technology"],
-            };
-            filteredJobs = filteredJobs.filter(job => {
-                // employer.industry 필드 체크 (있으면 우선)
-                const employerIndustry = (job as any).employer?.industry?.toLowerCase() || "";
-                const employerDesc = job.employer?.description?.toLowerCase() || "";
-                const employerSummary = job.employer?.summary?.toLowerCase() || "";
-                const searchText = `${employerIndustry} ${employerDesc} ${employerSummary}`;
-                
-                return industrySelected.some(industry => {
-                    const keywords = industryKeywords[industry] || [industry];
-                    return keywords.some(kw => searchText.includes(kw.toLowerCase()));
-                });
-            });
-        }
-
-        // 정렬: (1) 매칭율 우선 (2) 포지션 카테고리순(프론트엔드→백엔드→풀스택) (3) 최신순
+        // 정렬: (1) 매칭율 우선 (2) 최신순
         filteredJobs.sort((a, b) => {
             const aRate = a.matchInfo?.overallMatchRate ?? a.matchInfo?.matchRate;
             const bRate = b.matchInfo?.overallMatchRate ?? b.matchInfo?.matchRate;
@@ -256,15 +253,15 @@ export default function Jobs() {
 
     const filteredJobs = getFilteredJobs();
 
-    const MULTI_SELECT_KEYS = ["스킬", "근무지", "서비스 분야"];
+    const MULTI_SELECT_KEYS = ["스킬", "근무지", "서비스 분야", "포지션"];
 
     // 필터 적용 함수: 다중 선택 시 토글 (추가/제거), "전체" 시 비우기
+    // 필터 선택 후에도 팝업은 열린 상태 유지 (닫기 버튼으로만 닫힘)
     const applyFilter = (filterKey: string, value: string) => {
         const newFilters = { ...selectedFilters };
         if (value === "전체" || value === "") {
             newFilters[filterKey] = MULTI_SELECT_KEYS.includes(filterKey) ? [] : "";
             setSelectedFilters(newFilters);
-            setActivePopup(null);
             setPage(0);
             return;
         }
@@ -276,7 +273,6 @@ export default function Jobs() {
             newFilters[filterKey] = value;
         }
         setSelectedFilters(newFilters);
-        setActivePopup(null);
         setPage(0);
     };
 
@@ -337,6 +333,7 @@ export default function Jobs() {
                                                     연봉: [],
                                                     근무지: [],
                                                     "서비스 분야": [],
+                                                    "포지션": [],
                                                 });
                                             }}
                                         >
@@ -353,13 +350,10 @@ export default function Jobs() {
                                                         : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
                                                     }`}
                                                 onClick={() => {
-                                                    if (activePopup === key) {
-                                                        setActivePopup(null);
-                                                        if (key === "근무지") setLocationDrillRegion(null);
-                                                    } else {
-                                                        setActivePopup(key);
-                                                        if (key !== "근무지") setLocationDrillRegion(null);
-                                                    }
+                                                    // 같은 필터를 다시 클릭해도 닫히지 않음 (열린 상태 유지)
+                                                    // 다른 필터를 선택하면 해당 필터로 전환
+                                                    setActivePopup(key);
+                                                    if (key !== "근무지") setLocationDrillRegion(null);
                                                 }}
                                             >
                                                 {key} {(() => {
@@ -383,6 +377,20 @@ export default function Jobs() {
                                 {/* Expanded Filter Detail Area */}
                                 {activePopup && (
                                     <div className="pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
+                                        {/* 닫기 버튼 */}
+                                        <div className="flex justify-end mb-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 w-7 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                                                onClick={() => {
+                                                    setActivePopup(null);
+                                                    setLocationDrillRegion(null);
+                                                }}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                         {(activePopup === "경력" || activePopup === "연봉") ? (
                                             <div className="p-4 bg-muted/30 rounded-xl border border-border">
                                                 {activePopup === "경력" && (
@@ -617,6 +625,7 @@ export default function Jobs() {
                                             연봉: [],
                                             근무지: [],
                                             "서비스 분야": [],
+                                            "포지션": [],
                                         });
                                         setLocationDrillRegion(null);
                                     }} className="mt-2 text-primary">

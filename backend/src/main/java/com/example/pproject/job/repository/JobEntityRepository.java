@@ -83,9 +83,10 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
   @Query("SELECT j FROM JobEntity j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL AND LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))")
   Page<JobEntity> findPublicJobsByLocation(@Param("location") String location, Pageable pageable);
 
-  // 다중 필터 지원 공개 채용공고 검색 - 네이티브 쿼리 사용 (포지션 키워드 필터 포함)
+  // 다중 필터 지원 공개 채용공고 검색 - 네이티브 쿼리 사용 (포지션 키워드 + industry 필터 포함)
   @Query(value = """
-      SELECT * FROM job_posting j
+      SELECT j.* FROM job_posting j
+      LEFT JOIN employer e ON e.employer_id = j.employer_id
       WHERE j.status = 'OPEN'
         AND j.deleted_at IS NULL
         AND (:keyword IS NULL OR :keyword = '' OR
@@ -100,9 +101,12 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
         AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
              EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
+        AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+             LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(:industryKeywords, ',')))
       ORDER BY j.created_at DESC
       """, countQuery = """
       SELECT COUNT(*) FROM job_posting j
+      LEFT JOIN employer e ON e.employer_id = j.employer_id
       WHERE j.status = 'OPEN'
         AND j.deleted_at IS NULL
         AND (:keyword IS NULL OR :keyword = '' OR
@@ -117,6 +121,8 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
         AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
              EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
+        AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+             LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(:industryKeywords, ',')))
       """, nativeQuery = true)
   Page<JobEntity> findPublicJobsWithFilters(
       @Param("keyword") String keyword,
@@ -125,7 +131,38 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       @Param("minExperience") Integer minExperience,
       @Param("maxExperience") Integer maxExperience,
       @Param("positionKeywords") String positionKeywords,
+      @Param("industryKeywords") String industryKeywords,
       Pageable pageable);
+
+  // 다중 필터 지원 공개 채용공고 카운트 - 포지션별 카운트용
+  @Query(value = """
+      SELECT COUNT(*) FROM job_posting j
+      LEFT JOIN employer e ON e.employer_id = j.employer_id
+      WHERE j.status = 'OPEN'
+        AND j.deleted_at IS NULL
+        AND (:keyword IS NULL OR :keyword = '' OR
+             LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
+             OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%')
+             OR LOWER(j.location) LIKE LOWER('%' || :keyword || '%'))
+        AND (:stack IS NULL OR :stack = '' OR
+             EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
+        AND (:location IS NULL OR :location = '' OR
+             LOWER(j.location) LIKE LOWER('%' || :location || '%'))
+        AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+        AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+        AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+             EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
+        AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+             LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(:industryKeywords, ',')))
+      """, nativeQuery = true)
+  long countPublicJobsWithFilters(
+      @Param("keyword") String keyword,
+      @Param("stack") String stack,
+      @Param("location") String location,
+      @Param("minExperience") Integer minExperience,
+      @Param("maxExperience") Integer maxExperience,
+      @Param("positionKeywords") String positionKeywords,
+      @Param("industryKeywords") String industryKeywords);
 
   // ===== 필터 옵션 조회 =====
 

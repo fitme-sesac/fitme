@@ -17,6 +17,7 @@ import { http } from "./http";
  * @param {number} params.minExperience - 최소 경력 (년)
  * @param {number} params.maxExperience - 최대 경력 (년)
  * @param {string} params.position - 포지션 필터 (쉼표 구분: "프론트엔드,백엔드")
+ * @param {string} params.industry - 업종/서비스 분야 필터 (쉼표 구분: "커머스,금융/핀테크")
  * @returns {Promise<JobListResponse>}
  */
 export async function getPublicJobs({
@@ -28,6 +29,7 @@ export async function getPublicJobs({
   minExperience = null,
   maxExperience = null,
   position = "",
+  industry = "",
 } = {}) {
   const params = new URLSearchParams();
   params.append("page", page);
@@ -38,6 +40,7 @@ export async function getPublicJobs({
   if (minExperience !== null && minExperience > 0) params.append("minExperience", minExperience);
   if (maxExperience !== null && maxExperience < 10) params.append("maxExperience", maxExperience);
   if (position) params.append("position", position);
+  if (industry) params.append("industry", industry);
 
   const response = await http.get(`/api/public/jobs?${params.toString()}`);
   return response.data;
@@ -59,6 +62,37 @@ export async function getPublicJob(jobId) {
  */
 export async function getFilterOptions() {
   const response = await http.get("/api/public/jobs/filter-options");
+  return response.data;
+}
+
+/**
+ * 포지션별 채용공고 카운트 조회
+ * @param {Object} params - 필터 파라미터
+ * @param {string} params.keyword - 검색 키워드
+ * @param {string} params.stack - 기술 스택 필터
+ * @param {string} params.location - 지역 필터
+ * @param {number} params.minExperience - 최소 경력
+ * @param {number} params.maxExperience - 최대 경력
+ * @param {string} params.industry - 업종 필터
+ * @returns {Promise<Record<string, number>>}
+ */
+export async function getPositionCounts({
+  keyword = "",
+  stack = "",
+  location = "",
+  minExperience = null,
+  maxExperience = null,
+  industry = "",
+} = {}) {
+  const params = new URLSearchParams();
+  if (keyword) params.append("keyword", keyword);
+  if (stack) params.append("stack", stack);
+  if (location) params.append("location", location);
+  if (minExperience !== null && minExperience > 0) params.append("minExperience", minExperience);
+  if (maxExperience !== null && maxExperience < 10) params.append("maxExperience", maxExperience);
+  if (industry) params.append("industry", industry);
+
+  const response = await http.get(`/api/public/jobs/position-counts?${params.toString()}`);
   return response.data;
 }
 
