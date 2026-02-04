@@ -16,6 +16,7 @@ public class AdStatsDTO {
     private long totalClicks;
     private long totalImpressions;
     private long totalSpent;
+    private long totalApplicants;
     private double ctr;
     private List<CampaignDTO> campaigns;
 
@@ -31,8 +32,11 @@ public class AdStatsDTO {
         private String status;
         private int clicks;
         private int impressions;
+        private int applicants;
         private double ctr;
         private int dailyBudget;
         private int cpcBid;
+        private String startDate;
+        private String endDate;
     }
 }
