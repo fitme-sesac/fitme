@@ -12,6 +12,7 @@ class ChatbotIntent(str, Enum):
     COUNT_POSTINGS = "COUNT_POSTINGS"
     COMPETITION = "COMPETITION"
     LIST_POSTINGS = "LIST_POSTINGS"
+    NAVIGATE_FILTERED_PAGE = "NAVIGATE_FILTERED_PAGE"
     TOP_SALARY_POSTINGS = "TOP_SALARY_POSTINGS"  # ✅ 연봉 상위 공고
     BOTTOM_SALARY_POSTINGS = "BOTTOM_SALARY_POSTINGS"  # ✅ 연봉 하위 공고
     TOP_STACKS = "TOP_STACKS"
@@ -53,6 +54,10 @@ class ChatbotParsedSpec(BaseModel):
 
     job_role: Optional[str] = Field(default=None, max_length=40)
 
+    # ✅ 포지션 필터(OR): backend JobPositionUtil 기준 UI 라벨
+    # 예: ['서버/백엔드','프론트엔드']
+    positions_any: List[str] = Field(default_factory=list, max_length=15)
+
     # salary (만원 단위)
     min_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
     max_salary_m만원: Optional[int] = Field(default=None, ge=0, le=20000)
@@ -69,7 +74,7 @@ class ChatbotParsedSpec(BaseModel):
     random: Optional[bool] = None
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
 
-    @field_validator("keywords_all", "keywords_any", "industries_any", "regions_any", "admin_areas_any", mode="before")
+    @field_validator("keywords_all", "keywords_any", "industries_any", "regions_any", "admin_areas_any", "positions_any", mode="before")
     @classmethod
     def none_to_empty_list(cls, v):
         if v is None:

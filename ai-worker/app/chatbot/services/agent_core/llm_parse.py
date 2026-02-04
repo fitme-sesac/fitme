@@ -38,7 +38,13 @@ _SYSTEM_PROMPT = """[Role]
 - min_required_experience_years / max_required_experience_years:
   정수(년). 둘 다 있으면 between(inclusive), min만 있으면 >=, max만 있으면 <=
   '신입'=0, '주니어'=1~3, '시니어'=3~5, '미들'=6~
-- job_role: 자유 문자열(예: Backend, Frontend, Data Engineer 등). 확장 가능.
+- positions_any: 포지션 필터(OR). 반드시 아래 UI 라벨 중에서만 선택:
+  전체, 서버/백엔드, 프론트엔드, 웹 풀스택, 안드로이드, iOS, 크로스플랫폼, 머신러닝/AI,
+  데이터 엔지니어, 데이터 분석가, 데이터 사이언티스트, DevOps, 시스템 엔지니어,
+  클라우드 엔지니어, DBA, SRE, 보안 엔지니어, 게임 클라이언트, 게임 서버, 임베디드,
+  시스템 프로그래머, QA 엔지니어, 기술 PM, 프로덕트 매니저, UX/UI 디자이너, 블록체인
+  (포지션 필터는 공고 title이 아니라 stack 키워드 매핑으로 처리됨)
+- job_role: 자유 문자열(예: Backend, Frontend, Data Engineer 등). 포지션 UI 라벨로 확정 가능한 경우엔 positions_any를 우선 사용.
 - limit: 1..20
 - TOP_STACKS/BOTTOM_STACKS 질문에서 사용자가 개수를 명시하지 않으면 limit은 비워둔다(validate에서 기본값=5 적용).
 - random: LIST_POSTINGS에서 랜덤 여부
@@ -87,7 +93,7 @@ def _examples(today_iso: str, year: int) -> str:
 [Examples]
 - '오늘 공고 몇개 올라왔어?' => COUNT_POSTINGS, start_date=today, end_date=today+1
 - '올해 8월 공고 몇개' => COUNT_POSTINGS, start_date={year}-08-01, end_date={year}-09-01
-- '백엔드 자바/스프링부트 공고 5개 최신' => LIST_POSTINGS, job_role='Backend', keywords_all=['Java','Spring Boot'], limit=5, random=false
+- '백엔드 자바/스프링부트 공고 5개 최신' => LIST_POSTINGS, positions_any=['서버/백엔드'], keywords_all=['Java','Spring Boot'], limit=5, random=false
 - '서울 강남구 연봉 4천 이상 공고 5개 랜덤' => LIST_POSTINGS, regions_any=['SEOUL'], admin_areas_any=['강남구'], min_salary_m만원=4000, limit=5, random=true
 - '연봉이 제일 높은 공고 5개' => TOP_SALARY_POSTINGS, limit=5
 - '그중에서 연봉이 제일 낮은 공고 5개' => BOTTOM_SALARY_POSTINGS, limit=5

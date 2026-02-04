@@ -4,6 +4,7 @@ import re
 from typing import Optional
 
 from app.chatbot.schemas import ChatbotIntent
+from app.chatbot.services.agent_core.url_intent import is_filtered_jobs_page_request, is_count_request
 
 """Follow-up detection.
 
@@ -90,6 +91,16 @@ def infer_intent_by_rule(msg: str) -> Optional[ChatbotIntent]:
     if not msg:
         return None
 
+    # ✅ 최우선: "필터 적용된 채용공고 페이지로 이동" 요청
+    # - 문장에 '경쟁률/지원률'이 포함돼도, 사용 의도가 "공고를 보여줘/알려줘"라면
+    #   통계(RATE_STATS)가 아니라 이동(NAVIGATE_FILTERED_PAGE)로 처리한다.
+    if is_filtered_jobs_page_request(msg):
+        return ChatbotIntent.NAVIGATE_FILTERED_PAGE
+
+    # ✅ 최우선: 개수 질문
+    if is_count_request(msg):
+        return ChatbotIntent.COUNT_POSTINGS
+
     ml = msg.lower()
 
     # 0) BUSIEST_WEEK / BUSIEST_DAY (week-first; day is handled in validate for follow-up)
@@ -143,7 +154,7 @@ def infer_intent_by_rule(msg: str) -> Optional[ChatbotIntent]:
             return ChatbotIntent.COUNT_POSTINGS
         return ChatbotIntent.RATE_STATS
 
-    if any(k in msg for k in ("보여줘", "목록", "리스트", "최신", "랜덤")):
+    if any(k in msg for k in ("보여줘", "알려줘", "목록", "리스트", "최신", "랜덤")):
         return ChatbotIntent.LIST_POSTINGS
 
     if any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수")):

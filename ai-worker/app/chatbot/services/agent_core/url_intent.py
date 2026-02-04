@@ -71,3 +71,66 @@ def is_detail_url_request(msg: str) -> bool:
         return True
 
     return False
+
+
+def is_count_request(msg: str) -> bool:
+    """Detects whether the user is asking for a COUNT (number of postings), not a list/navigation.
+
+    Examples:
+    - "몇개야?"
+    - "얼마나 있어?"
+    - "많아?"
+    - "어느정도 있어?"
+    """
+    if not msg:
+        return False
+
+    m = msg.replace(" ", "")
+    # 핵심 카운트 패턴
+    if any(k in m for k in ("몇개", "몇건", "건수", "개수")):
+        return True
+    if "얼마나" in msg:
+        return True
+    if ("어느정도" in m) or ("어느만큼" in m):
+        return True
+    # "많아?" 류
+    if any(k in msg for k in ("많아", "많냐", "많은지", "많을까", "많음")):
+        return True
+    return False
+
+
+def is_filtered_jobs_page_request(msg: str) -> bool:
+    """Detects whether the user wants to open the Jobs page with filters applied.
+
+    Heuristic:
+    - Has an 'open/list/show' verb (알려줘/보여줘/목록/리스트/이동/페이지)
+    - Mentions jobs/postings (공고/채용)
+    - Not a count request
+    """
+    if not msg:
+        return False
+    if is_count_request(msg):
+        return False
+
+    ml = msg.lower()
+
+    # navigation verbs
+    has_nav = any(k in msg for k in ("알려줘", "보여줘", "목록", "리스트", "이동", "페이지", "열어", "바로가기", "띄워"))
+    if not has_nav:
+        return False
+
+    # should be about job postings
+    if not any(k in msg for k in ("공고", "채용", "채용공고")):
+        return False
+
+    # filter hints (at least one)
+    has_filter_hint = any(
+        k in msg
+        for k in (
+            "연봉", "급여", "경력", "지역", "근무지", "스택", "요구", "기술", "포지션", "직군", "직업군",
+            "산업", "업종", "분야", "서비스분야", "서비스 분야",
+        )
+    ) or any(k in ml for k in ("stack", "backend", "front", "fullstack", "python", "java", "react", "spring", "ai"))
+
+    return has_filter_hint
+

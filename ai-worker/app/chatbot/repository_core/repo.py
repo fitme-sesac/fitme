@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.chatbot.utils.location import apply_location_filters
+from app.chatbot.utils.position import build_position_patterns
 from app.core.database import get_db_connection
 
 from .aliases import _expand_aliases_for_canon, _resolve_alias_token, _resolve_stack_token
@@ -20,6 +21,29 @@ from .filters import (
 from .keywords import _build_keywords_where_and_params_v2
 from .normalize import _SEP_RE, _canon_members_for_query, _normalize_kw_list, _normalize_token
 from .schema import _column_exists
+
+
+
+def _apply_position_filters(where: List[str], params: Dict[str, Any], *, alias: str, positions_any: Optional[List[str]]) -> None:
+    """Apply position filter based on backend JobPositionUtil mapping.
+
+    Implementation matches backend behavior:
+    - positions -> keywords union(OR)
+    - filter is applied against job_posting.stack elements (LOWER(...) LIKE ANY(patterns))
+    """
+    patterns = build_position_patterns(positions_any)
+    if not patterns:
+        return
+
+    where.append(
+        f"""EXISTS (
+            SELECT 1
+            FROM unnest(coalesce({alias}.stack, ARRAY[]::text[])) AS st(item)
+            WHERE lower(coalesce(st.item, '')) LIKE ANY (%(position_patterns)s)
+        )"""
+    )
+    params["position_patterns"] = patterns
+
 
 class JobStatsRepository:
     def posting_briefs_by_ids(self, job_ids: List[int]) -> List[Dict[str, Any]]:
@@ -179,6 +203,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -216,6 +241,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -285,6 +312,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_competition_pct: Optional[float] = None,
             max_competition_pct: Optional[float] = None,
             min_required_experience_years: Optional[int] = None,
@@ -320,6 +348,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -385,6 +415,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -422,6 +453,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -511,6 +544,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -550,6 +584,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -690,6 +726,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -734,6 +771,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -866,6 +905,7 @@ class JobStatsRepository:
             admin_areas_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             limit: int = 10,
     ) -> Dict[str, Any]:
         if not _column_exists("job_posting", "stack"):
@@ -889,6 +929,8 @@ class JobStatsRepository:
         }
 
         apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+        _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
         kw_all: List[str] = []
         kw_any: List[str] = [job_role] if job_role else []
@@ -952,6 +994,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -990,6 +1033,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -1063,6 +1108,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -1101,6 +1147,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -1203,6 +1251,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -1240,6 +1289,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -1321,6 +1372,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -1361,6 +1413,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -1474,6 +1528,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_required_experience_years: Optional[int] = None,
@@ -1512,6 +1567,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)
@@ -1594,6 +1651,7 @@ class JobStatsRepository:
             order: str = "DESC",
             regions_any: Optional[List[str]] = None,
             admin_areas_any: Optional[List[str]] = None,
+            positions_any: Optional[List[str]] = None,
             limit: int = 5,
     ) -> Dict[str, Any]:
         """산업 컬럼 기준 공고수 극값(상위/하위) TOP N.
@@ -1624,6 +1682,8 @@ class JobStatsRepository:
                     }
 
                     apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                    _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                     sql = f"""
                         SELECT
@@ -1689,6 +1749,8 @@ class JobStatsRepository:
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
 
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
+
                 sql = f"""
                     SELECT
                         jp.{col} AS industry,
@@ -1730,6 +1792,7 @@ class JobStatsRepository:
             keywords_any: Optional[List[str]] = None,
             industries_any: Optional[List[str]] = None,
             job_role: Optional[str] = None,
+            positions_any: Optional[List[str]] = None,
             min_salary_m만원: Optional[int] = None,
             max_salary_m만원: Optional[int] = None,
             min_competition_pct: Optional[float] = None,
@@ -1767,6 +1830,8 @@ class JobStatsRepository:
                     params["scope_ids"] = [int(x) for x in job_ids_scope]
 
                 apply_location_filters(where, params, regions_any, admin_areas_any, location_col="jp.location")
+
+                _apply_position_filters(where, params, alias="jp", positions_any=positions_any)
 
                 kw_where, kw_params = _build_keywords_where_and_params_v2(all_groups, any_groups2, alias="jp", param_offset=0)
                 where.extend(kw_where)

@@ -25,7 +25,7 @@ interface AIChatWidgetProps {
 }
 
 
-const _LINK_RE = /(https?:\/\/[^\s<]+)|(\/jobs\/\d+)/g;
+const _LINK_RE = /(https?:\/\/[^\s<]+)|(\/jobs(?:\/\d+)?(?:\?[^\s<]+)?)/g;
 
 function linkifyLine(line: string, navigate?: (to: string) => void): ReactNode[] {
     const nodes: ReactNode[] = [];
@@ -160,6 +160,16 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
 
             if (data?.conversation_id) {
                 setConversationId(data.conversation_id);
+            }
+
+            // ✅ 서버가 'NAVIGATE' 액션을 내려주면 즉시 라우팅
+            const redirectUrl = data?.data?.redirect_url;
+            if (data?.data?.action === "NAVIGATE" && typeof redirectUrl === "string" && redirectUrl) {
+                if (redirectUrl.startsWith("http")) {
+                    window.open(redirectUrl, "_blank");
+                } else {
+                    navigate(redirectUrl);
+                }
             }
 
             setMessages((prev) =>

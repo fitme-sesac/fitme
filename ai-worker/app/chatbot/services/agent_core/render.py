@@ -130,6 +130,14 @@ async def render_state(state: ChatbotState) -> Dict[str, Any]:
 
         answer = _maybe_prefix("\n".join(lines))
 
+    elif parsed.intent == ChatbotIntent.NAVIGATE_FILTERED_PAGE:
+        url = result.get('redirect_url') or '/jobs'
+        excluded = result.get('excluded_filters') or []
+        lines = [f"필터가 적용된 채용공고 페이지로 이동합니다: {url}"]
+        if excluded:
+            lines.append(f"(페이지에 없는 조건은 제외: {', '.join(excluded)})")
+        answer = _maybe_prefix("\n".join(lines))
+
     elif parsed.intent == ChatbotIntent.LIST_POSTINGS:
         items = result.get("items") or []
         lim = int(result.get("limit", 5))

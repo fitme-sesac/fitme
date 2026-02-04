@@ -14,17 +14,75 @@ from app.chatbot.services.agent_core.filters import (
 )
 from app.chatbot.services.agent_core.intent import infer_intent_by_rule, is_followup
 from app.chatbot.services.agent_core.types import ChatbotState, coerce_last
-from app.chatbot.services.agent_core.url_intent import is_detail_url_request
+from app.chatbot.services.agent_core.url_intent import is_detail_url_request, is_filtered_jobs_page_request, is_count_request
 from app.chatbot.utils.industry import infer_industries_from_text, is_industry_query
 from app.chatbot.utils.keywords import normalize_keyword_list
 from app.chatbot.utils.location import infer_admin_areas_from_text, infer_regions_from_text
 from app.chatbot.utils.stack_detect import extract_stack_candidates
+from app.chatbot.utils.position import infer_positions_from_text, normalize_position_label, sanitize_positions
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 _RATE_TARGET_RE = re.compile(r"(지원률|경쟁률)")
 
+
+def _infer_industry_tokens_for_jobs_filter(msg: str) -> List[str]:
+    """Infer industries in a filtering query even if the message also mentions stacks.
+    This bypasses the stricter disambiguation used for analytics questions.
+    """
+    if not msg:
+        return []
+
+    # Only when the user is clearly filtering postings
+    if not any(k in msg for k in ("산업", "업종", "산업분야", "서비스분야", "서비스 분야", "분야")):
+        return []
+
+    tl = msg.lower()
+
+    # Common AI synonyms -> "인공지능"
+    if ("인공지능" in msg) or any(k in tl for k in ("ai", "machine learning", "ml", "머신러닝")):
+        return ["인공지능"]
+
+    # Fallback: try existing extractor but remove stack-disambiguation terms
+    try:
+        cleaned = re.sub(r"(스택|기술스택|기술\s*스택|프레임워크|언어|툴|라이브러리|DB|데이터베이스)", "", msg)
+        if is_industry_query(cleaned):
+            raw = infer_industries_from_text(cleaned)
+
+            out: List[str] = []
+            for x in raw:
+                xl = (x or "").lower()
+                if xl in ("ai", "ml", "machine learning"):
+                    if "인공지능" not in out:
+                        out.append("인공지능")
+                else:
+                    if x and x not in out:
+                        out.append(x)
+            return out
+    except Exception:
+        return []
+
+    return []
+
+
+def bucket_salary_to_thousand(min_m: int | None, max_m: int | None) -> tuple[int | None, int | None]:
+    """Bucket salary bounds to 1000만원 steps (e.g., 6300~7200 -> 6000~8000)."""
+    if min_m is None and max_m is None:
+        return None, None
+
+    lo = min_m
+    hi = max_m
+
+    if lo is not None:
+        lo = (int(lo) // 1000) * 1000
+    if hi is not None:
+        hi = ((int(hi) + 999) // 1000) * 1000
+
+    if lo is not None and hi is not None and lo > hi:
+        lo, hi = hi, lo
+
+    return lo, hi
 
 async def validate_state(state: ChatbotState) -> Dict[str, Any]:
     parsed = state.get("parsed") or ChatbotParsedSpec(intent=ChatbotIntent.HELP, confidence=0.0)
@@ -40,6 +98,17 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
             "result": {"keyword_corrections": [], "stack_candidates": []},
         }
 
+
+
+    # ✅ "몇개/얼마나/많아/어느정도" 류는 COUNT (개수 질문)
+    # ✅ "알려줘/보여줘/목록/리스트" 류는 Jobs 페이지로 이동 (필터 적용)
+    if is_count_request(msg):
+        parsed.intent = ChatbotIntent.COUNT_POSTINGS
+        parsed.confidence = max(parsed.confidence, 0.85)
+    elif is_filtered_jobs_page_request(msg):
+        # NOTE: 경쟁률/지원률/날짜는 Jobs 페이지에서 필터가 없으므로 URL 구성에서 제외한다.
+        parsed.intent = ChatbotIntent.NAVIGATE_FILTERED_PAGE
+        parsed.confidence = max(parsed.confidence, 0.85)
 
     last = coerce_last(state.get("last_parsed_dict") or {})
     is_follow = is_followup(msg) and (last is not None)
@@ -130,6 +199,9 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
 
     # 2) 지원률/경쟁률 문장이면 RATE_STATS로 정규화
     # - 단, "지원률/경쟁률 극값" intent는 여기서 덮어쓰지 않는다.
+    # NOTE: '경쟁률/지원률' 단어가 있어도 사용자가 "공고 알려줘/보여줘"처럼
+    #       필터링된 채용공고 페이지 이동을 요청한 경우(NAVIGATE_FILTERED_PAGE)는
+    #       RATE_STATS로 덮어쓰면 안 된다.
     if _RATE_TARGET_RE.search(msg) and parsed.intent not in (
         ChatbotIntent.LOW_COMPETITION_POSTINGS,
         ChatbotIntent.HIGH_COMPETITION_POSTINGS,
@@ -137,6 +209,7 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
         ChatbotIntent.HIGH_STACK_APPLY_RATE,
         ChatbotIntent.MOST_APPLICANTS_POSTINGS,
         ChatbotIntent.LIST_POSTINGS,
+        ChatbotIntent.NAVIGATE_FILTERED_PAGE,
     ):
         if any(k in msg for k in ("몇개", "몇 개", "몇건", "몇 건", "건수", "공고 수", "공고수")):
             parsed.intent = ChatbotIntent.COUNT_POSTINGS
@@ -164,12 +237,23 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
 
         if not parsed.regions_any:
             parsed.regions_any = list(last.regions_any)
-        if not parsed.admin_areas_any:
-            if re.search(r"([가-힣]{2,10})(구|시|군)\b", msg):
-                parsed.admin_areas_any = infer_admin_areas_from_text(msg, parsed.regions_any)
 
-        if parsed.job_role is None:
+        if not parsed.admin_areas_any:
+            if re.search(r"([가-힣]{2,10})(구|시|군)\b", msg) and parsed.regions_any:
+                parsed.admin_areas_any = infer_admin_areas_from_text(msg, parsed.regions_any)
+            else:
+                parsed.admin_areas_any = list(last.admin_areas_any)
+
+        if not parsed.keywords_all:
+            parsed.keywords_all = list(last.keywords_all)
+        if not parsed.keywords_any:
+            parsed.keywords_any = list(last.keywords_any)
+        if not parsed.job_role:
             parsed.job_role = last.job_role
+
+        # ✅ 포지션 필터 상속
+        if not parsed.positions_any:
+            parsed.positions_any = list(getattr(last, "positions_any", []) or [])
 
         # ✅ 산업 필터 상속
         if not parsed.industries_any:
@@ -191,10 +275,29 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
         if parsed.max_required_experience_years is None:
             parsed.max_required_experience_years = getattr(last, "max_required_experience_years", None)
 
-        if not parsed.keywords_all:
-            parsed.keywords_all = list(last.keywords_all)
-        if not parsed.keywords_any:
-            parsed.keywords_any = list(last.keywords_any)
+    # 4.5) ✅ 포지션(직군) 추론/정규화
+    # - backend JobPositionUtil UI 라벨 기준(positions_any)
+    # - 포지션 필터는 title이 아니라 stack 키워드 매핑으로 조회됨
+    parsed.positions_any = sanitize_positions(parsed.positions_any)
+
+    if not parsed.positions_any:
+        inferred_pos = infer_positions_from_text(msg)
+        if inferred_pos:
+            parsed.positions_any = sanitize_positions(inferred_pos)
+
+    # LLM이 job_role로만 뱉는 경우(예: Backend) 포지션으로 승격
+    if parsed.job_role:
+        lab = normalize_position_label(parsed.job_role)
+        if lab and lab != "전체":
+            if lab not in parsed.positions_any:
+                parsed.positions_any.append(lab)
+            # job_role을 같이 걸면 title/description 키워드까지 걸려 결과가 흔들릴 수 있어 제거
+            parsed.job_role = None
+
+    # ✅ 포지션으로 해석된 토큰이 keywords_*에 들어가 있으면 제거 (title/desc 키워드로 다시 걸리지 않게)
+    if parsed.positions_any:
+        parsed.keywords_all = [k for k in parsed.keywords_all if not normalize_position_label(k)]
+        parsed.keywords_any = [k for k in parsed.keywords_any if not normalize_position_label(k)]
 
     # 5) 날짜: 메시지에 월/일이 있으면 follow-up에서도 override
     s2, e2 = infer_range_from_text(msg)
@@ -229,8 +332,13 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
                         parsed.keywords_all.append(s)
 
     # 8) ✅ 산업/업종 힌트가 있으면 industries_any 자동 추론(LLM보다 우선)
-    if not parsed.industries_any and is_industry_query(msg):
-        parsed.industries_any = infer_industries_from_text(msg)
+    # - 필터링 질의에서는 '스택' 단어가 함께 나와도 산업을 추론해야 함
+    if not parsed.industries_any:
+        jobs_filter_ind = _infer_industry_tokens_for_jobs_filter(msg)
+        if jobs_filter_ind:
+            parsed.industries_any = jobs_filter_ind
+        elif is_industry_query(msg):
+            parsed.industries_any = infer_industries_from_text(msg)
 
     # ✅ AI 직업군 질문은 industries_any 힌트가 없어도 "ai"를 산업 후보로 보정
     if parsed.intent == ChatbotIntent.MOST_APPLICANTS_POSTINGS and not parsed.industries_any:
@@ -250,6 +358,12 @@ async def validate_state(state: ChatbotState) -> Dict[str, Any]:
     if parsed.min_salary_m만원 is not None and parsed.max_salary_m만원 is not None:
         if parsed.min_salary_m만원 > parsed.max_salary_m만원:
             parsed.min_salary_m만원, parsed.max_salary_m만원 = parsed.max_salary_m만원, parsed.min_salary_m만원
+
+    # ✅ 연봉 슬라이더(1000만원 단위) 버킷 보정
+    # - Jobs 페이지 이동/필터링 동작을 UI 단위에 맞춘다.
+    if parsed.min_salary_m만원 is not None or parsed.max_salary_m만원 is not None:
+        b_lo, b_hi = bucket_salary_to_thousand(parsed.min_salary_m만원, parsed.max_salary_m만원)
+        parsed.min_salary_m만원, parsed.max_salary_m만원 = b_lo, b_hi
 
     # 10) 지역/행정구역 룰 추론
     if not parsed.regions_any:
