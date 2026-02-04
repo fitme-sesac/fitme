@@ -190,7 +190,7 @@ const ResumePage = () => {
                     toast({ title: "대표 이력서가 설정되었습니다." });
                     setPrimaryConfirmId(null);
                     // invalidate queries to refresh list
-                    queryClient.invalidateQueries({ queryKey: ["my-resumes"] });
+                    queryClient.invalidateQueries({ queryKey: ["myResumes"] });
                 },
                 onError: () => {
                     toast({ variant: "destructive", title: "설정에 실패했습니다." });
@@ -206,7 +206,7 @@ const ResumePage = () => {
             await updateResumeSummary(aiSummaryResumeId, aiSummaryText);
             toast({ title: "AI 요약이 저장되었습니다." });
             setAiSummaryModalOpen(false);
-            queryClient.invalidateQueries({ queryKey: ["my-resumes"] });
+            queryClient.invalidateQueries({ queryKey: ["myResumes"] });
         } catch (error) {
             console.error(error);
             toast({ variant: "destructive", title: "저장에 실패했습니다." });
@@ -473,7 +473,11 @@ const ResumePage = () => {
                                                 <Loader2 className="h-10 w-10 animate-spin text-sky-500" />
                                             </div>
                                         ) : (
-                                            list.map((resume: { id: number; title?: string; lastModifiedAt?: string; primary?: boolean }) => (
+                                            [...(list || [])].sort((a, b) => {
+                                                if (a.primary && !b.primary) return -1;
+                                                if (!a.primary && b.primary) return 1;
+                                                return new Date(b.lastModifiedAt || 0).getTime() - new Date(a.lastModifiedAt || 0).getTime();
+                                            }).map((resume: { id: number; title?: string; lastModifiedAt?: string; primary?: boolean }) => (
                                                 <Card key={resume.id} className={`border-none shadow-sm hover:shadow-md transition-all bg-white overflow-hidden group ${resume.primary ? 'ring-2 ring-sky-500/50' : ''}`}>
                                                     <CardContent className="flex items-center justify-between p-6">
                                                         <div
