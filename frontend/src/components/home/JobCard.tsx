@@ -1,11 +1,13 @@
-import { Bookmark, MapPin, Briefcase, Clock, Coins, Building2, Heart } from "lucide-react";
+import { Bookmark, MapPin, Briefcase, Clock, Coins, Building2, Heart, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
+import { useQueryClient } from "@tanstack/react-query";
+import { scrapJob, checkScrapStatus } from "@/api/jobs";
 
 interface JobCardProps {
   id: number;
@@ -61,7 +63,8 @@ export function JobCard({
   applyCount = 0,
   recruitmentCapacity = 0,
 }: JobCardProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const queryClient = useQueryClient();
   const skills = Array.isArray(skillsProp)
     ? skillsProp
     : typeof skillsProp === "string"
@@ -69,6 +72,49 @@ export function JobCard({
       : [];
 
   const [interested, setInterested] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // 스크랩 상태 조회
+  useEffect(() => {
+    const fetchScrapStatus = async () => {
+      if (!user || !id) return;
+      try {
+        const response = await checkScrapStatus(id);
+        setInterested(response?.scraped ?? false);
+      } catch (error) {
+        console.error("스크랩 상태 조회 실패:", error);
+      }
+    };
+    fetchScrapStatus();
+  }, [id, user]);
+
+  // 스크랩 토글
+  const handleScrapToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+
+    if (loading) return;
+
+    setLoading(true);
+    try {
+      const response = await scrapJob(id);
+      setInterested(response?.scraped ?? !interested);
+      // 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ["myScrapedJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["scrapedJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["profileSummary"] });
+    } catch (error) {
+      console.error("스크랩 토글 실패:", error);
+      alert("스크랩 처리에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
   const displayLocation = location.split(" ").slice(0, 2).join(" ");
 
   // Create a label for experience if available (mocking from createdAt for consistency if needed, 
@@ -206,12 +252,14 @@ export function JobCard({
                 "h-12 w-12 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors bg-white",
                 interested && "text-red-500 border-red-200 bg-red-50"
               )}
-              onClick={(e) => {
-                e.preventDefault();
-                setInterested(prev => !prev);
-              }}
+              onClick={handleScrapToggle}
+              disabled={loading}
             >
-              <Bookmark className={cn("w-6 h-6", interested && "fill-current")} />
+              {loading ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <Heart className={cn("w-6 h-6", interested && "fill-current")} />
+              )}
             </button>
           </div>
 

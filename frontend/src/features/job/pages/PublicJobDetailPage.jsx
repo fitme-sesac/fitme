@@ -242,6 +242,44 @@ export default function PublicJobDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* 채용공고 이미지 갤러리 */}
+            {job.images && job.images.length > 0 && (
+              <div className="card shadow-sm mb-4">
+                <div className="card-header bg-white">
+                  <h5 className="mb-0">
+                    <i className="bi bi-images me-2"></i>채용 공고 이미지
+                  </h5>
+                </div>
+                <div className="card-body p-4">
+                  <div className="row g-3">
+                    {job.images.map((imageUrl, idx) => (
+                      <div key={idx} className="col-12 col-md-6">
+                        <div 
+                          className="rounded overflow-hidden border"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => window.open(imageUrl, '_blank')}
+                        >
+                          <img 
+                            src={imageUrl} 
+                            alt={`채용공고 이미지 ${idx + 1}`}
+                            className="img-fluid w-100"
+                            style={{ 
+                              objectFit: 'cover',
+                              maxHeight: '300px'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-muted small mt-2 mb-0">
+                    <i className="bi bi-info-circle me-1"></i>
+                    이미지를 클릭하면 원본 크기로 볼 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 사이드바 */}

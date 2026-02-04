@@ -145,6 +145,10 @@ const ResumePage = () => {
     const [viewingResumeId, setViewingResumeId] = useState<number | null>(null);
     const [viewingResumeData, setViewingResumeData] = useState<ResumeData | null>(null);
     const [loadingViewing, setLoadingViewing] = useState(false);
+    
+    // AI 첨삭용 이력서 선택 모달
+    const [resumeSelectModalOpen, setResumeSelectModalOpen] = useState(false);
+    const [selectedResumeForAI, setSelectedResumeForAI] = useState<number | null>(null);
 
     const { data: resumesList = [], isLoading: listLoading } = useMyResumes({ enabled: !!user });
     const createMutation = useCreateResume();
@@ -235,6 +239,21 @@ const ResumePage = () => {
     const closeViewModal = () => {
         setViewingResumeId(null);
         setViewingResumeData(null);
+    };
+
+    // AI 첨삭용 이력서 선택
+    const handleSelectResumeForAI = (resumeId: number) => {
+        setSelectedResumeForAI(resumeId);
+        getResume(resumeId)
+            .then((res) => {
+                setResumeData(mapApiResumeToResumeData(res));
+                setEditingResumeId(resumeId);
+                setResumeSelectModalOpen(false);
+                toast({ title: "이력서가 선택되었습니다.", description: "AI 첨삭을 시작할 수 있습니다." });
+            })
+            .catch(() => {
+                toast({ variant: "destructive", title: "이력서를 불러올 수 없습니다." });
+            });
     };
 
     const handleSetPrimary = (resumeId: number) => {
@@ -555,13 +574,25 @@ const ResumePage = () => {
                                                         <p className="text-gray-500 mb-8">
                                                             이력서를 먼저 작성하시면 AI가 전문적인 피드백을 제공해 드립니다.
                                                         </p>
-                                                        <Button
-                                                            variant="outline"
-                                                            className="border-gray-200 text-gray-600"
-                                                            onClick={() => setActiveTab("edit")}
-                                                        >
-                                                            이력서 작성하러 가기
-                                                        </Button>
+                                                        <div className="flex flex-col sm:flex-row gap-3">
+                                                            {list.length > 0 && (
+                                                                <Button
+                                                                    className="text-white shadow-md border-0 gap-2 transition-all hover:scale-[1.02]"
+                                                                    style={{ background: "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)" }}
+                                                                    onClick={() => setResumeSelectModalOpen(true)}
+                                                                >
+                                                                    <FileText className="h-4 w-4" />
+                                                                    분석할 이력서 선택하기
+                                                                </Button>
+                                                            )}
+                                                            <Button
+                                                                variant="outline"
+                                                                className="border-gray-200 text-gray-600"
+                                                                onClick={() => setActiveTab("edit")}
+                                                            >
+                                                                이력서 작성하러 가기
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </CardContent>
@@ -575,6 +606,7 @@ const ResumePage = () => {
                                             <AIProofreadingPanel
                                                 content={resumeData.summary}
                                                 onApplySuggestion={handleApplySuggestion}
+                                                resumeId={editingResumeId}
                                             />
                                         </div>
                                     </div>
@@ -665,6 +697,88 @@ const ResumePage = () => {
                             수정하기
                         </Button>
                     )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* AI 첨삭용 이력서 선택 모달 */}
+        <Dialog open={resumeSelectModalOpen} onOpenChange={setResumeSelectModalOpen}>
+            <DialogContent className="sm:max-w-[480px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Bot className="h-5 w-5 text-sky-500" />
+                        분석할 이력서 선택
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <p className="text-sm text-gray-500 mb-4">
+                        AI 첨삭을 받을 이력서를 선택해주세요.
+                    </p>
+                    <div className="space-y-3">
+                        {listLoading ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+                            </div>
+                        ) : list.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                <FileText className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                                <p>작성된 이력서가 없습니다.</p>
+                                <Button
+                                    variant="outline"
+                                    className="mt-4"
+                                    onClick={() => {
+                                        setResumeSelectModalOpen(false);
+                                        setActiveTab("edit");
+                                    }}
+                                >
+                                    새 이력서 작성하기
+                                </Button>
+                            </div>
+                        ) : (
+                            list.map((resume: { id: number; title?: string; lastModifiedAt?: string; primary?: boolean }) => (
+                                <div
+                                    key={resume.id}
+                                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:border-sky-300 hover:bg-sky-50/50 ${
+                                        selectedResumeForAI === resume.id 
+                                            ? 'border-sky-500 bg-sky-50' 
+                                            : 'border-gray-100 bg-white'
+                                    }`}
+                                    onClick={() => handleSelectResumeForAI(resume.id)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => e.key === "Enter" && handleSelectResumeForAI(resume.id)}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                                            resume.primary ? 'bg-sky-100' : 'bg-gray-50'
+                                        }`}>
+                                            <FileText className="h-5 w-5 text-sky-500" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-semibold text-gray-900 truncate">
+                                                    {resume.title ?? "제목 없음"}
+                                                </h4>
+                                                {resume.primary && (
+                                                    <Badge className="bg-sky-500 text-white border-none text-[10px] px-2 py-0 shrink-0">
+                                                        대표
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-0.5">
+                                                마지막 수정: {formatResumeDate(resume.lastModifiedAt)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setResumeSelectModalOpen(false)}>
+                        취소
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

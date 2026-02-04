@@ -91,6 +91,13 @@ public class JobEntity {
     @JdbcTypeCode(SqlTypes.VECTOR)
     private java.util.List<Double> embedding;
 
+    /**
+     * 채용공고 이미지 URL 목록 (TEXT[] 배열)
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "images", columnDefinition = "TEXT[]")
+    private List<String> images;
+
     // 광고 입찰가
     @Column(name = "ad_bid_credit", nullable = false)
     private Integer adBidCredit;
