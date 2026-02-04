@@ -16,14 +16,18 @@ import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
+import com.example.pproject.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +41,7 @@ public class InterviewService {
     private final JobApplicationRepository jobApplicationRepository;
     private final EmployerMemberRepository employerMemberRepository;
     private final EmployerRepository employerRepository;
+    private final NotificationService notificationService;
 
     /**
      * 면접 일정 생성 (기업용)
@@ -76,6 +81,9 @@ public class InterviewService {
         log.info("면접 일정 생성: interviewId={}, applicationId={}, stage={}",
                 interview.getId(), application.getId(), request.getStage());
 
+        // 지원자에게 면접 일정 알림 발송
+        sendInterviewScheduledNotification(interview, application);
+
         return interview.getId();
     }
 
@@ -111,14 +119,20 @@ public class InterviewService {
             case ACCEPT:
                 interview.confirm();
                 log.info("면접 수락: interviewId={}", interviewId);
+                // 기업에게 면접 수락 알림 발송
+                sendInterviewResponseNotification(interview, "INTERVIEW_ACCEPTED");
                 break;
             case DECLINE:
                 interview.cancel();
                 log.info("면접 거절: interviewId={}", interviewId);
+                // 기업에게 면접 거절 알림 발송
+                sendInterviewResponseNotification(interview, "INTERVIEW_DECLINED");
                 break;
             case REQUEST_CHANGE:
                 // 일정 변경 요청은 상태 유지, 기업에서 재제안 필요
                 log.info("면접 일정 변경 요청: interviewId={}, message={}", interviewId, request.getMessage());
+                // 기업에게 일정 변경 요청 알림 발송
+                sendInterviewResponseNotification(interview, "INTERVIEW_RESCHEDULE_REQUEST");
                 break;
         }
     }
@@ -149,6 +163,15 @@ public class InterviewService {
 
         interview.cancel();
         log.info("면접 취소: interviewId={}, canceledBy={}", interviewId, userId);
+
+        // 상대방에게 면접 취소 알림 발송
+        if (isApplicant) {
+            // 지원자가 취소한 경우 -> 기업에게 알림
+            sendInterviewCancelledNotificationToEmployer(interview, userId);
+        } else {
+            // 기업이 취소한 경우 -> 지원자에게 알림
+            sendInterviewCancelledNotificationToApplicant(interview);
+        }
     }
 
     /**
@@ -291,6 +314,161 @@ public class InterviewService {
             // JobApplication에 상태 변경 메서드가 필요하면 추가
             // 현재는 직접 변경 불가하므로 로그만 남김
             log.info("지원 상태 INTERVIEW 변경 필요: applicationId={}", application.getId());
+        }
+    }
+
+    // ===== Notification Helper Methods =====
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    /**
+     * 면접 일정 생성 시 지원자에게 알림 발송
+     */
+    private void sendInterviewScheduledNotification(InterviewSchedule interview, JobApplication application) {
+        try {
+            Long applicantId = application.getMember().getId().longValue();
+            Long employerId = application.getJob().getEmployerId();
+            String companyName = employerRepository.findById(employerId)
+                    .map(EmployerEntity::getName)
+                    .orElse("기업");
+            String jobTitle = application.getJob().getTitle();
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("interviewId", interview.getId());
+            data.put("applicationId", application.getId());
+            data.put("companyName", companyName);
+            data.put("jobTitle", jobTitle);
+            data.put("stage", interview.getStage().name());
+            data.put("method", interview.getMethod().name());
+            data.put("startAt", interview.getStartAt().format(DATE_FORMATTER));
+            data.put("endAt", interview.getEndAt().format(DATE_FORMATTER));
+            data.put("location", interview.getLocation());
+            data.put("meetingUrl", interview.getMeetingUrl());
+            data.put("title", companyName + "에서 면접 일정을 제안했습니다");
+            data.put("message", jobTitle + " 포지션의 " + interview.getStage().name() + " 면접이 " + interview.getStartAt().format(DATE_FORMATTER) + "에 예정되어 있습니다.");
+
+            notificationService.sendNotification(applicantId, "INTERVIEW_SCHEDULED", data);
+            log.info("면접 일정 알림 발송: applicantId={}, interviewId={}", applicantId, interview.getId());
+        } catch (Exception e) {
+            log.error("면접 일정 알림 발송 실패: interviewId={}, error={}", interview.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 면접 응답 시 기업에게 알림 발송
+     */
+    private void sendInterviewResponseNotification(InterviewSchedule interview, String eventType) {
+        try {
+            Long employerId = interview.getApplication().getJob().getEmployerId();
+            // 기업 담당자(면접 생성자)에게 알림
+            Long creatorId = interview.getCreatedByMemberId();
+            if (creatorId == null) {
+                log.warn("면접 생성자 정보가 없어 알림 발송 생략: interviewId={}", interview.getId());
+                return;
+            }
+
+            JobApplication application = interview.getApplication();
+            String applicantName = application.getMember().getUsername();
+            String jobTitle = application.getJob().getTitle();
+            String companyName = employerRepository.findById(employerId)
+                    .map(EmployerEntity::getName)
+                    .orElse("기업");
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("interviewId", interview.getId());
+            data.put("applicationId", application.getId());
+            data.put("applicantName", applicantName);
+            data.put("jobTitle", jobTitle);
+            data.put("stage", interview.getStage().name());
+            data.put("startAt", interview.getStartAt().format(DATE_FORMATTER));
+
+            String title;
+            String message;
+            switch (eventType) {
+                case "INTERVIEW_ACCEPTED":
+                    title = applicantName + "님이 면접 일정을 수락했습니다";
+                    message = jobTitle + " 포지션의 면접 일정(" + interview.getStartAt().format(DATE_FORMATTER) + ")이 확정되었습니다.";
+                    break;
+                case "INTERVIEW_DECLINED":
+                    title = applicantName + "님이 면접 일정을 거절했습니다";
+                    message = jobTitle + " 포지션의 면접 일정이 거절되었습니다. 새로운 일정을 제안해 주세요.";
+                    break;
+                case "INTERVIEW_RESCHEDULE_REQUEST":
+                    title = applicantName + "님이 면접 일정 변경을 요청했습니다";
+                    message = jobTitle + " 포지션의 면접 일정 변경 요청이 있습니다. 새로운 일정을 제안해 주세요.";
+                    break;
+                default:
+                    title = "면접 관련 알림";
+                    message = "면접 관련 업데이트가 있습니다.";
+            }
+
+            data.put("title", title);
+            data.put("message", message);
+
+            notificationService.sendNotification(creatorId, eventType, data);
+            log.info("면접 응답 알림 발송: creatorId={}, eventType={}, interviewId={}", creatorId, eventType, interview.getId());
+        } catch (Exception e) {
+            log.error("면접 응답 알림 발송 실패: interviewId={}, eventType={}, error={}", interview.getId(), eventType, e.getMessage());
+        }
+    }
+
+    /**
+     * 면접 취소 시 기업에게 알림 발송 (지원자가 취소한 경우)
+     */
+    private void sendInterviewCancelledNotificationToEmployer(InterviewSchedule interview, Long applicantId) {
+        try {
+            Long creatorId = interview.getCreatedByMemberId();
+            if (creatorId == null) {
+                log.warn("면접 생성자 정보가 없어 알림 발송 생략: interviewId={}", interview.getId());
+                return;
+            }
+
+            JobApplication application = interview.getApplication();
+            String applicantName = application.getMember().getUsername();
+            String jobTitle = application.getJob().getTitle();
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("interviewId", interview.getId());
+            data.put("applicationId", application.getId());
+            data.put("applicantName", applicantName);
+            data.put("jobTitle", jobTitle);
+            data.put("startAt", interview.getStartAt().format(DATE_FORMATTER));
+            data.put("title", applicantName + "님이 면접을 취소했습니다");
+            data.put("message", jobTitle + " 포지션의 면접(" + interview.getStartAt().format(DATE_FORMATTER) + ")이 지원자에 의해 취소되었습니다.");
+
+            notificationService.sendNotification(creatorId, "INTERVIEW_CANCELLED", data);
+            log.info("면접 취소 알림 발송 (기업): creatorId={}, interviewId={}", creatorId, interview.getId());
+        } catch (Exception e) {
+            log.error("면접 취소 알림 발송 실패: interviewId={}, error={}", interview.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 면접 취소 시 지원자에게 알림 발송 (기업이 취소한 경우)
+     */
+    private void sendInterviewCancelledNotificationToApplicant(InterviewSchedule interview) {
+        try {
+            JobApplication application = interview.getApplication();
+            Long applicantId = application.getMember().getId().longValue();
+            Long employerId = application.getJob().getEmployerId();
+            String companyName = employerRepository.findById(employerId)
+                    .map(EmployerEntity::getName)
+                    .orElse("기업");
+            String jobTitle = application.getJob().getTitle();
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("interviewId", interview.getId());
+            data.put("applicationId", application.getId());
+            data.put("companyName", companyName);
+            data.put("jobTitle", jobTitle);
+            data.put("startAt", interview.getStartAt().format(DATE_FORMATTER));
+            data.put("title", companyName + "에서 면접 일정을 취소했습니다");
+            data.put("message", jobTitle + " 포지션의 면접(" + interview.getStartAt().format(DATE_FORMATTER) + ")이 기업에 의해 취소되었습니다.");
+
+            notificationService.sendNotification(applicantId, "INTERVIEW_CANCELLED", data);
+            log.info("면접 취소 알림 발송 (지원자): applicantId={}, interviewId={}", applicantId, interview.getId());
+        } catch (Exception e) {
+            log.error("면접 취소 알림 발송 실패: interviewId={}, error={}", interview.getId(), e.getMessage());
         }
     }
 }

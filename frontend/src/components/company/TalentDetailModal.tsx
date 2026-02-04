@@ -38,6 +38,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { createProposal, ProposalCreateRequest } from "@/api/proposal";
 import { getTalentDetail } from "@/api/talents";
+import { http } from "@/api/http";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -53,6 +54,7 @@ export function TalentDetailModal({ talentId, open, onOpenChange }: TalentDetail
 
     const [talent, setTalent] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [hasSubscription, setHasSubscription] = useState<boolean | null>(null);
 
     // Proposal Dialog State (Nested)
     const [showProposalDialog, setShowProposalDialog] = useState(false);
@@ -67,6 +69,7 @@ export function TalentDetailModal({ talentId, open, onOpenChange }: TalentDetail
         expirationDays: 14,
     });
 
+    // 인재 상세 조회
     useEffect(() => {
         if (open && talentId) {
             setLoading(true);
@@ -78,6 +81,19 @@ export function TalentDetailModal({ talentId, open, onOpenChange }: TalentDetail
             setTalent(null);
         }
     }, [open, talentId]);
+
+    // 구독 상태 확인 (기업 회원인 경우에만)
+    useEffect(() => {
+        if (open && isCompany) {
+            http.get("/api/subscriptions/my/status")
+                .then((res) => {
+                    setHasSubscription(res.data?.hasActiveSubscription ?? false);
+                })
+                .catch(() => {
+                    setHasSubscription(false);
+                });
+        }
+    }, [open, isCompany]);
 
     const handleProposalSubmit = async () => {
         if (!talent || !proposalForm.title.trim()) {
@@ -196,11 +212,10 @@ export function TalentDetailModal({ talentId, open, onOpenChange }: TalentDetail
                                             <Button
                                                 className="w-full mt-6 font-bold"
                                                 style={{ background: 'linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)' }}
+                                                disabled={hasSubscription === null}
                                                 onClick={() => {
-                                                    // TODO: 실제 열람권/구독 상태 확인 로직 연동 필요
-                                                    // 예: const hasPass = user?.subscriptionStatus === 'ACTIVE';
-                                                    const hasPass = true;
-                                                    if (!hasPass) {
+                                                    // 구독 상태 확인
+                                                    if (hasSubscription === false) {
                                                         if (window.confirm("포지션 제안은 열람권이 필요합니다.\n구독 페이지로 이동하시겠습니까?")) {
                                                             navigate("/subscription");
                                                         }

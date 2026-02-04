@@ -41,10 +41,9 @@ dependencies {
     //레이아웃
     implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
 
-    //AWS S3(서버구동시 적용)
-//	compileOnly 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
-    // https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-s3
-//	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.773'
+    // AWS S3 (v2 SDK)
+    implementation platform('software.amazon.awssdk:bom:2.25.11')
+    implementation 'software.amazon.awssdk:s3'
 
 
     providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'

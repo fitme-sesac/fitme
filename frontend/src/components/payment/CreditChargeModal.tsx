@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
-import { createPayment } from "@/api/payment";
+import { createPayment, confirmPayment } from "@/api/payment";
 import {
     Dialog,
     DialogContent,
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Coins, CheckCircle2, ShieldCheck, X } from "lucide-react";
+import { Coins, CheckCircle2, ShieldCheck, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -39,17 +39,68 @@ export function CreditChargeModal({
     open: boolean;
     onOpenChange: (open: boolean) => void
 }) {
-    const { user, isCompany } = useAuth() as any;
+    const { user, isCompany, refreshCredits } = useAuth() as any;
     const [selectedId, setSelectedId] = useState<string>("3");
     const [searchParams, setSearchParams] = useSearchParams();
     const isSuccess = searchParams.get("payment_success") === "true";
+    const isFail = searchParams.get("payment_fail") === "true";
+    const isConfirming = searchParams.get("payment_confirm") === "true";
+
     const successOrderId = searchParams.get("orderId");
     const successAmount = searchParams.get("amount");
+    const failMessage = searchParams.get("message");
 
+    const [isInternalConfirming, setIsInternalConfirming] = useState(false);
     const [isCharging, setIsCharging] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState("SIMPLE"); // SIMPLE, CARD, PHONE, TRANSFER, GIFT
     const [simplePayType, setSimplePayType] = useState<string | null>(null);
     const [agreed, setAgreed] = useState(false);
+
+    // 결제 승인 처리 (Confirmation)
+    useEffect(() => {
+        if (!isConfirming || isInternalConfirming) return;
+
+        const confirm = async () => {
+            const paymentKey = searchParams.get("paymentKey");
+            const orderId = searchParams.get("orderId");
+            const amount = Number(searchParams.get("amount"));
+
+            if (!paymentKey || !orderId || !amount) return;
+
+            setIsInternalConfirming(true);
+            try {
+                await confirmPayment({
+                    paymentKey,
+                    orderId,
+                    amount
+                });
+
+                await refreshCredits?.();
+
+                // 성공 파라미터로 전환
+                // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
+                const newParams = new URLSearchParams();
+                newParams.set("payment_success", "true");
+                newParams.set("orderId", orderId);
+                newParams.set("amount", String(amount));
+                setSearchParams(newParams, { replace: true });
+            } catch (err: any) {
+                console.error("Payment confirmation failed:", err);
+                const errorMsg = err.response?.data?.message || "결제 승인 중 오류가 발생했습니다.";
+
+                // 실패 파라미터로 전환
+                // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
+                const newParams = new URLSearchParams();
+                newParams.set("payment_fail", "true");
+                newParams.set("message", errorMsg);
+                setSearchParams(newParams, { replace: true });
+            } finally {
+                setIsInternalConfirming(false);
+            }
+        };
+
+        confirm();
+    }, [isConfirming, searchParams, setSearchParams, refreshCredits]);
 
     const selectedOption = CREDIT_OPTIONS.find(opt => opt.id === selectedId) || CREDIT_OPTIONS[2];
     const totalCredits = selectedOption.credits + (selectedOption.bonus || 0);
@@ -97,7 +148,8 @@ export function CreditChargeModal({
 
             // Dummy Simulation
             if (!clientKey || clientKey === "test") {
-                window.location.href = `${window.location.origin}/payment/success?paymentKey=mock_${Date.now()}&orderId=${orderId}&amount=${selectedOption.price}`;
+                const currentPath = encodeURIComponent(window.location.pathname + window.location.search);
+                window.location.href = `${window.location.origin}/payment/success?paymentKey=mock_${Date.now()}&orderId=${orderId}&amount=${selectedOption.price}&next=${currentPath}`;
                 return;
             }
 
@@ -130,8 +182,8 @@ export function CreditChargeModal({
                 orderName: `${selectedOption.credits.toLocaleString()} 크레딧 충전`,
                 customerEmail: user?.email,
                 customerName: user?.user_metadata?.display_name || "사용자",
-                successUrl: `${window.location.origin}/payment/success`,
-                failUrl: `${window.location.origin}/payment/fail`,
+                successUrl: `${window.location.origin}/payment/success?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+                failUrl: `${window.location.origin}/payment/fail?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
                 card: {
                     useEscrow: false,
                     flowMode: "DEFAULT",
@@ -148,35 +200,90 @@ export function CreditChargeModal({
     };
 
     const handleClose = () => {
-        if (isSuccess) {
-            const newParams = new URLSearchParams(searchParams);
-            newParams.delete("payment_success");
-            newParams.delete("orderId");
-            newParams.delete("amount");
+        if (isResultView) {
+            // URL 파라미터 정리
+            const newParams = new URLSearchParams();
             setSearchParams(newParams, { replace: true });
         }
         onOpenChange(false);
     };
 
+    const isResultView = isSuccess || isFail || isConfirming;
+
     return (
         <Dialog open={open} onOpenChange={handleClose}>
             <DialogContent className={cn(
                 "max-w-5xl p-0 overflow-hidden border-none bg-white rounded-2xl shadow-2xl transition-all [&>button]:hidden",
-                isSuccess ? "max-w-md" : "w-[95vw] max-h-[90vh] h-[750px] flex flex-col"
+                isResultView ? "max-w-md" : "w-[95vw] max-h-[90vh] h-[750px] flex flex-col"
             )}>
-                {isSuccess ? (
+                {isResultView ? (
                     <div className="p-10 text-center space-y-8 bg-white">
                         <div className="flex justify-center">
-                            <div className="h-24 w-24 bg-emerald-50 rounded-full flex items-center justify-center animate-in zoom-in duration-500">
-                                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-                            </div>
+                            {isConfirming || isInternalConfirming ? (
+                                <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center">
+                                    <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
+                                </div>
+                            ) : isSuccess ? (
+                                <div className="h-24 w-24 bg-emerald-50 rounded-full flex items-center justify-center animate-in zoom-in duration-500">
+                                    <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                                </div>
+                            ) : isFail ? (
+                                <div className="h-24 w-24 bg-red-50 rounded-full flex items-center justify-center animate-in zoom-in duration-500">
+                                    <X className="h-12 w-12 text-red-500" />
+                                </div>
+                            ) : (
+                                <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center">
+                                    <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-2">
-                            <h2 className="text-2xl font-bold text-slate-900">충전이 완료되었습니다!</h2>
-                            <p className="text-slate-500">지금 바로 서비스를 이용해 보세요.</p>
+                            {isConfirming || isInternalConfirming ? (
+                                <>
+                                    <h2 className="text-2xl font-bold text-slate-900">결제 정보 확인 중</h2>
+                                    <p className="text-slate-500 font-medium">결제 정보를 안전하게 확인하고 있습니다.<br />잠시만 기다려 주세요.</p>
+                                </>
+                            ) : isSuccess ? (
+                                <>
+                                    <h2 className="text-2xl font-bold text-slate-900">충전이 완료되었습니다!</h2>
+                                    <p className="text-slate-500">
+                                        주문번호: {successOrderId}<br />
+                                        결제금액: {Number(successAmount || 0).toLocaleString()}원
+                                    </p>
+                                    <p className="text-sm font-bold text-blue-600 mt-2">
+                                        크레딧이 성공적으로 충전되었습니다.
+                                    </p>
+                                </>
+                            ) : isFail ? (
+                                <>
+                                    <h2 className="text-2xl font-bold text-slate-900">충전에 실패했습니다</h2>
+                                    <p className="text-slate-500 break-keep">{failMessage || "잠시 후 다시 시도해주세요."}</p>
+                                </>
+                            ) : (
+                                <>
+                                    <h2 className="text-2xl font-bold text-slate-900">결제 정보 확인 중</h2>
+                                    <p className="text-slate-500 font-medium">잠시만 기다려 주세요...</p>
+                                </>
+                            )}
                         </div>
-                        <div className="pt-4">
-                            <Button onClick={handleClose} className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6 rounded-xl">확인</Button>
+                        <div className="pt-4 flex gap-2">
+                            {!isConfirming && !isInternalConfirming && isFail && (
+                                <Button variant="outline" onClick={() => {
+                                    const newParams = new URLSearchParams(searchParams);
+                                    newParams.delete("payment_fail");
+                                    newParams.delete("message");
+                                    newParams.delete("code");
+                                    setSearchParams(newParams, { replace: true });
+                                    // Stay in modal, reset to charge state
+                                }} className="flex-1 text-lg py-6 rounded-xl">
+                                    다시 시도
+                                </Button>
+                            )}
+                            {!isInternalConfirming && !isConfirming && (
+                                <Button onClick={handleClose} className={cn("flex-1 text-lg py-6 rounded-xl text-white", isSuccess ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800")}>
+                                    확인
+                                </Button>
+                            )}
                         </div>
                     </div>
                 ) : (

@@ -98,6 +98,11 @@ coverage/
 **/.env
 **/.env.*
 !.env*.example
+secret.json
+*.pem
+*.key
+*.p12
+docker-compose.override.yml
 
 ########################################
 # Docker local data (bind-mount 쓰는 경우만)
@@ -111,3 +116,21 @@ docker-data/
 !gradlew.bat
 !**/gradle/wrapper/gradle-wrapper.jar
 !**/gradle/wrapper/gradle-wrapper.properties
+
+########################################
+# Deployment Temporary Files
+########################################
+*-task-def*.json
+*-policy.json
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!jsconfig.json
+auto-fix-deployment.sh
+.alb_dns
+.ecs_sg_id
+.private_subnet_ids
+.rds_endpoint
+.target_group_arns
+.vpc_id

@@ -71,9 +71,8 @@ class ResumeSummary(BaseModel):
     universal_competencies: List[str] = Field(default=[], description="[Embed Only] 매칭을 위해 이력서 내용을 채용 공고(JD) 표준 용어로 변환한 보편적 역량 키워드 리스트 (예: '대규모 트래픽 분산 처리', 'MSA 아키텍처 설계')")
     job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리 (예: 'Backend Developer', 'Data Scientist', 'Frontend Developer'). 후보자의 경력과 기술을 바탕으로 가장 적합한 표준 직무명 하나만 추출")
 
-    # [NEW] Semantic Search Narrative (검색 최적화 서술문)
-    searchable_narrative: str = Field(default="", description="[Embed Only] 채용 공고(JD)와의 매칭 정확도를 높이기 위해, 지원자의 직무 정체성, 핵심 기술, 주요 성과, 학력 정보를 통합하여 '주어+기술+행동+성과' 구조의 완결된 서술형 문장(Narrative)으로 요약한 텍스트.")
-    # [End] Embed-Only Field
+    # [NEW] Vector Optimized Summary (Numeric-Free)
+    embedding_summary: str = Field(default="", description="[Embed Only] 벡터 검색 최적화를 위한 의미(Semantic) 중심 요약. 구체적인 수치(%, ms, 건 등)를 제거하고 '대폭 개선', '고성능 아키텍처 구축' 등 일반화된 표현 사용. 기술적 문맥과 문제 해결 키워드 위주로 작성.")
 
     # [System] 분석 근거
     ai_reasoning: List[str] = Field(description="분석 근거: 각 항목을 작성하기 위해 참고한 문서의 페이지 번호나 섹션 출처 (리스트 형태)")
@@ -94,20 +93,18 @@ class ResumeSummary(BaseModel):
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
         """
-        [임베딩 전용 포맷 - Symmetric Structure (Revert to Tag/List)]
-        매칭 정확도를 위해 서술형(Narrative)보다 구조화된 리스트(Bullet Points)를 우선시합니다.
-
-        Priority:
-        1. Universal Competencies (JD 표준 용어 리스트)
-        2. Structured Fields (Professional Identity, Key Achievement, etc.)
+        [임베딩 전용 포맷 - Symmetric Structure]
+        1순위: embedding_summary (Semantic & Numeric-Free)
+        2순위: universal_competencies (Keyword List)
         """
-
+        
         # 1. Competency Block Construction
-        if self.universal_competencies:
-            # JD 표준 용어 리스트가 있으면 최우선 사용
+        if self.embedding_summary:
+            # [NEW] 의미 기반 요약이 있으면 그것을 통째로 Competency 블록으로 사용
+            competency_block = self.embedding_summary
+        elif self.universal_competencies:
             competency_block = "\n".join([f"- {c}" for c in self.universal_competencies])
         else:
-            # Fallback: 기존 구조화 필드 사용
             competency_block = (
                 f"- Professional Identity: {self.professional_identity}\n"
                 f"- Key Achievements: {self.key_achievement}\n"
@@ -126,16 +123,20 @@ class ResumeSummary(BaseModel):
 
 # 2. (신규) 인사이트 보고서형 요약
 class ResumeInsightReport(BaseModel):
-    headline: str = Field(description="후보자를 정의하는 한 줄의 기술적 정체성 (예: 0.1초의 승부, RTB 최적화 전문가)")
+    headline: str = Field(description="후보자를 정의하는 한 줄의 기술적 정체성")
     professional_profile: str = Field(description="전체 경력 요약 및 주요 기술 스택의 결합된 강점")
-    technical_achievements: List[str] = Field(description="구체적인 기술적 성과 리스트 (반드시 리스트 형태)")
+    technical_achievements: List[str] = Field(description="구체적인 기술적 성과 리스트")
     deep_dive: str = Field(description="특정 기술에 대한 깊이 있는 이해도 및 트러블슈팅 역량")
     recruiter_insight: str = Field(description="리쿠르터 입장에서 본 이 후보자의 가장 매력적인 기술적 차별점")
     soft_skills: str = Field(description="협업 태도 및 가치관")
     matching_info: str = Field(description="희망 조건 및 매칭 정보")
 
-    job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리 (예: 'Backend Developer', 'Data Scientist').")
-    ai_reasoning: List[str] = Field(description="분석 근거: 항목별 페이지 출처 (리스트 형태)")
+    job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리")
+    
+    # [NEW] Vector Optimized Summary
+    embedding_summary: str = Field(default="", description="[Embed Only] 벡터 검색 최적화를 위한 의미(Semantic) 중심 요약. 수치 제거, 문제해결 문맥 위주.")
+    
+    ai_reasoning: List[str] = Field(description="분석 근거")
 
     def to_formatted_string(self, include_reasoning: bool = False) -> str:
         achievements_str = "\n".join([f"  • {item}" for item in self.technical_achievements])
@@ -158,18 +159,24 @@ class ResumeInsightReport(BaseModel):
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
         """
-        [임베딩 전용 포맷 - Symmetric Tag Structure]
+        [임베딩 전용 포맷]
         """
-        achievements_str = ", ".join(self.technical_achievements)
-
         role_text = self.job_category if self.job_category else title
 
+        # [NEW] embedding_summary 우선 사용
+        if self.embedding_summary:
+            competency_body = self.embedding_summary
+        else:
+            achievements_str = ", ".join(self.technical_achievements)
+            competency_body = (
+                f"{self.headline}\n"
+                f"{self.professional_profile}\n"
+                f"{achievements_str}\n"
+                f"{self.deep_dive}"
+            )
+
         return (
-            f"[Role: {role_text}]\n"
-            f"[Tech: {tech_stack}]\n"
-            f"[Competency]\n"
-            f"{self.headline}\n"
-            f"{self.professional_profile}\n"
-            f"{achievements_str}\n"
-            f"{self.deep_dive}"
+            f"[Role] {role_text}\n"
+            f"[Tech Stack] {tech_stack}\n"
+            f"[Competencies]\n{competency_body}"
         )

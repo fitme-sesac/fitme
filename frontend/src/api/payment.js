@@ -26,8 +26,14 @@ export async function getPaymentDetail(orderId) {
     return response.data;
 }
 
-export async function cancelPayment(paymentKey, cancelReason) {
-    const response = await http.post(`/api/v1/payments/${paymentKey}/cancel`, {
+/**
+ * 결제 취소
+ * @param {string} orderId - 주문 ID
+ * @param {string} cancelReason - 취소 사유
+ * @returns {Promise<void>}
+ */
+export async function cancelPayment(orderId, cancelReason) {
+    const response = await http.post(`/api/v1/payments/${orderId}/cancel`, {
         cancelReason
     });
     return response.data;

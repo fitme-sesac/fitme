@@ -36,8 +36,8 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
-        show_sql: ${HIBERNATE_SHOW_SQL:true}
-        format_sql: ${HIBERNATE_FORMAT_SQL:true}
+        show_sql: ${HIBERNATE_SHOW_SQL:false}
+        format_sql: ${HIBERNATE_FORMAT_SQL:false}
 
   thymeleaf:
     cache: ${THYMELEAF_CACHE:false}

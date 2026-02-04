@@ -1,15 +1,18 @@
 package com.example.pproject.employer.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.employer.service.EmployerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -84,20 +87,78 @@ public class EmployerController {
         }
     }
 
+    /**
+     * 기업 로고 파일 업로드
+     */
+    @PostMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadLogo(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam("file") MultipartFile file) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+        try {
+            String logoUrl = employerService.uploadLogo(principal.getUserid(), file);
+            return ResponseEntity.ok(Map.of("logoUrl", logoUrl, "message", "로고가 업로드되었습니다."));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("로고 업로드 실패", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "파일 업로드 중 오류가 발생했습니다."));
+        }
+    }
+
+    /**
+     * 기업 로고 삭제
+     */
+    @DeleteMapping("/logo")
+    public ResponseEntity<?> deleteLogo(@AuthenticationPrincipal JwtUserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+        try {
+            employerService.deleteLogo(principal.getUserid());
+            return ResponseEntity.ok(Map.of("message", "로고가 삭제되었습니다."));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // ===== 광고 통계 API =====
 
     /**
      * 광고 통계 조회
      */
     @GetMapping("/ad-stats")
-    public ResponseEntity<?> getAdStats(@AuthenticationPrincipal JwtUserPrincipal principal) {
+    public ResponseEntity<?> getAdStats(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam(name = "demo", defaultValue = "false") boolean demo) {
         if (principal == null) {
             return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
         }
         try {
-            AdStatsDTO stats = employerService.getAdStats(principal.getUserid());
+            AdStatsDTO stats = employerService.getAdStats(principal.getUserid(), demo);
             return ResponseEntity.ok(stats);
         } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 광고 캠페인 수정 (기업 소유권 검증)
+     */
+    @PatchMapping("/ad-campaigns/{campaignId}")
+    public ResponseEntity<?> updateAdCampaign(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long campaignId,
+            @RequestBody AdCampaignUpdateDTO dto) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+        try {
+            employerService.updateAdCampaign(principal.getUserid(), campaignId, dto);
+            return ResponseEntity.ok(Map.of("message", "광고 캠페인이 수정되었습니다."));
+        } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -120,6 +181,29 @@ public class EmployerController {
         }
         try {
             ApplicantListDTO applicants = employerService.getApplicants(memberId, status);
+            return ResponseEntity.ok(applicants);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 특정 채용공고의 지원자 목록 조회
+     */
+    @GetMapping("/jobs/{jobId}/applicants")
+    public ResponseEntity<?> getApplicantsByJob(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long jobId,
+            @RequestParam(required = false) String status) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+        Long memberId = resolveMemberId(principal);
+        if (memberId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "회원 정보를 찾을 수 없습니다."));
+        }
+        try {
+            ApplicantListDTO applicants = employerService.getApplicantsByJob(memberId, jobId, status);
             return ResponseEntity.ok(applicants);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
