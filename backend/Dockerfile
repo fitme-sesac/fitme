@@ -13,10 +13,11 @@ RUN sed -i 's/\r$//' /app/gradlew && chmod +x /app/gradlew
 
 # Gradle cache (BuildKit 사용 시 캐시 효율↑)
 RUN --mount=type=cache,target=/home/gradle/.gradle \
-    ./gradlew --no-daemon dependencies -x test || true
+    ./gradlew --no-daemon -q dependencies --configuration productionRuntimeClasspath -x test || true
 
 # 소스 전체 복사
 COPY . /app
+RUN chmod +x ./gradlew
 
 # 빌드
 RUN --mount=type=cache,target=/home/gradle/.gradle \
