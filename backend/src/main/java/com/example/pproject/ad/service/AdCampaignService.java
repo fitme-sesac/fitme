@@ -141,6 +141,25 @@ public class AdCampaignService {
         return AdCampaignResponseDTO.fromEntity(entity);
     }
 
+    /**
+     * 채용공고 삭제 시 연관된 광고 캠페인도 함께 삭제 (Cascade Delete)
+     * 
+     * @param jobId 삭제할 채용공고 ID
+     */
+    @Transactional
+    public void deleteCampaignsByJobId(Long jobId) {
+        List<AdCampaignEntity> campaigns = adCampaignRepository.findByJobIdAndStatusNot(jobId, "DELETED");
+        if (!campaigns.isEmpty()) {
+            for (AdCampaignEntity campaign : campaigns) {
+                campaign.setStatus("DELETED");
+                // Redis 캐시에서도 제거 (updateStatus는 DELETED 상태를 처리하여 Active Set에서 제거함)
+                adGuardService.updateStatus(campaign.getId(), "DELETED");
+            }
+            adCampaignRepository.saveAll(campaigns);
+            log.info("채용공고 삭제로 인한 캠페인 삭제 완료. JobId: {}, 삭제된 캠페인 수: {}", jobId, campaigns.size());
+        }
+    }
+
     // =================================================================================
     // [SECTION 2: V3 Optimized - Hybrid Architecture]
     // 현재 사용 중인 가장 발전된 방식. DB의 Vector Index와 Redis의 고속 검증을 결합함.
