@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { getEmployerProfile, saveEmployerProfile } from "@/api/employers";
+import { getEmployerProfile, saveEmployerProfile, uploadEmployerLogo, deleteEmployerLogo } from "@/api/employers";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import {
     Building2,
     Upload,
@@ -25,12 +34,79 @@ import {
     Crown,
     Shield,
     Bell,
-    Eye
+    Eye,
+    X,
+    ZoomIn,
+    ZoomOut,
+    RotateCw
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import Cropper from "react-easy-crop";
+import type { Area, Point } from "react-easy-crop";
 
 import { useSearchParams } from "react-router-dom";
 import { CompanyPaymentHistory } from "@/components/company/CompanyPaymentHistory";
+
+// 크롭된 이미지를 Blob으로 변환하는 유틸리티 함수
+const createImage = (url: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+        const image = new Image();
+        image.addEventListener("load", () => resolve(image));
+        image.addEventListener("error", (error) => reject(error));
+        image.setAttribute("crossOrigin", "anonymous");
+        image.src = url;
+    });
+
+const getCroppedImg = async (
+    imageSrc: string,
+    pixelCrop: Area,
+    rotation = 0
+): Promise<Blob> => {
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+        throw new Error("No 2d context");
+    }
+
+    const rotRad = (rotation * Math.PI) / 180;
+
+    // 회전된 이미지의 바운딩 박스 계산
+    const { width: bBoxWidth, height: bBoxHeight } = {
+        width: Math.abs(Math.cos(rotRad) * image.width) + Math.abs(Math.sin(rotRad) * image.height),
+        height: Math.abs(Math.sin(rotRad) * image.width) + Math.abs(Math.cos(rotRad) * image.height),
+    };
+
+    canvas.width = bBoxWidth;
+    canvas.height = bBoxHeight;
+
+    ctx.translate(bBoxWidth / 2, bBoxHeight / 2);
+    ctx.rotate(rotRad);
+    ctx.translate(-image.width / 2, -image.height / 2);
+    ctx.drawImage(image, 0, 0);
+
+    // 크롭 영역 추출
+    const data = ctx.getImageData(pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height);
+
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+    ctx.putImageData(data, 0, 0);
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) => {
+                if (blob) {
+                    resolve(blob);
+                } else {
+                    reject(new Error("Canvas is empty"));
+                }
+            },
+            "image/png",
+            1
+        );
+    });
+};
 
 // 임시 팀원 데이터
 const mockTeamMembers = [
@@ -150,6 +226,104 @@ export default function CompanyManagement() {
         }
     };
 
+    // 로고 업로드 및 크롭 상태
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [logoUploading, setLogoUploading] = useState(false);
+    const [cropDialogOpen, setCropDialogOpen] = useState(false);
+    const [imageSrc, setImageSrc] = useState<string | null>(null);
+    const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [rotation, setRotation] = useState(0);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
+    const handleFileSelect = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // 파일 크기 검증 (5MB 제한)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("파일 크기는 5MB 이하여야 합니다.");
+            return;
+        }
+
+        // 파일 형식 검증
+        const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error("png, jpg, gif, webp 형식만 업로드 가능합니다.");
+            return;
+        }
+
+        // 이미지 읽어서 크롭 다이얼로그 열기
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImageSrc(reader.result as string);
+            setCrop({ x: 0, y: 0 });
+            setZoom(1);
+            setRotation(0);
+            setCropDialogOpen(true);
+        };
+        reader.readAsDataURL(file);
+
+        // 파일 입력 초기화
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+
+    const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    }, []);
+
+    const handleCropCancel = () => {
+        setCropDialogOpen(false);
+        setImageSrc(null);
+        setCroppedAreaPixels(null);
+    };
+
+    const handleCropConfirm = async () => {
+        if (!imageSrc || !croppedAreaPixels) return;
+
+        setLogoUploading(true);
+        try {
+            // 크롭된 이미지를 Blob으로 변환
+            const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels, rotation);
+            
+            // File 객체로 변환
+            const croppedFile = new File([croppedBlob], "logo.png", { type: "image/png" });
+
+            // 서버에 업로드
+            const result = await uploadEmployerLogo(croppedFile);
+            setCompanyProfile(prev => ({ ...prev, logo: result.logoUrl }));
+            toast.success("로고가 업로드되었습니다.");
+            
+            // 다이얼로그 닫기
+            setCropDialogOpen(false);
+            setImageSrc(null);
+            setCroppedAreaPixels(null);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error || "로고 업로드에 실패했습니다.");
+        } finally {
+            setLogoUploading(false);
+        }
+    };
+
+    const handleRemoveLogo = async () => {
+        setLogoUploading(true);
+        try {
+            await deleteEmployerLogo();
+            setCompanyProfile(prev => ({ ...prev, logo: null }));
+            toast.success("로고가 삭제되었습니다.");
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error || "로고 삭제에 실패했습니다.");
+        } finally {
+            setLogoUploading(false);
+        }
+    };
+
     // 알림 설정 상태
     const [notifications, setNotifications] = useState({
         newApplicant: true,
@@ -215,22 +389,156 @@ export default function CompanyManagement() {
                                         <CardDescription>구직자에게 표시되는 로고입니다</CardDescription>
                                     </CardHeader>
                                     <CardContent className="flex flex-col items-center gap-4">
-                                        <Avatar className="h-32 w-32">
-                                            <AvatarImage src={companyProfile.logo || undefined} />
-                                            <AvatarFallback className="bg-primary/10 text-primary text-3xl">
-                                                <Building2 className="h-12 w-12" />
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <Button variant="outline" className="gap-2">
-                                            <Upload className="h-4 w-4" />
-                                            로고 업로드
-                                        </Button>
+                                        <div className="relative">
+                                            <Avatar className="h-32 w-32">
+                                                <AvatarImage src={companyProfile.logo || undefined} />
+                                                <AvatarFallback className="bg-primary/10 text-primary text-3xl">
+                                                    <Building2 className="h-12 w-12" />
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            {logoUploading && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-full">
+                                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        {/* 숨겨진 파일 입력 */}
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleFileChange}
+                                            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                                            className="hidden"
+                                        />
+                                        
+                                        <div className="flex gap-2 justify-center">
+                                            <Button 
+                                                variant="outline" 
+                                                className="gap-2" 
+                                                onClick={handleFileSelect}
+                                                disabled={logoUploading}
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                로고 업로드
+                                            </Button>
+                                            {companyProfile.logo && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={handleRemoveLogo} 
+                                                    className="text-destructive hover:text-destructive"
+                                                    disabled={logoUploading}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-muted-foreground text-center">
                                             권장 크기: 400x400px<br />
-                                            지원 형식: PNG, JPG
+                                            지원 형식: PNG, JPG, GIF, WEBP<br />
+                                            최대 크기: 5MB
                                         </p>
                                     </CardContent>
                                 </Card>
+
+                                {/* 로고 크롭 다이얼로그 */}
+                                <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
+                                    <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden">
+                                        <DialogHeader>
+                                            <DialogTitle>로고 이미지 편집</DialogTitle>
+                                            <DialogDescription>
+                                                이미지를 드래그하여 위치를 조정하고, 슬라이더로 크기와 회전을 조절하세요
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        
+                                        <div className="space-y-4">
+                                            {/* 크롭 영역 */}
+                                            <div className="relative h-[300px] bg-muted rounded-lg overflow-hidden">
+                                                {imageSrc && (
+                                                    <Cropper
+                                                        image={imageSrc}
+                                                        crop={crop}
+                                                        zoom={zoom}
+                                                        rotation={rotation}
+                                                        aspect={1}
+                                                        cropShape="round"
+                                                        showGrid={false}
+                                                        onCropChange={setCrop}
+                                                        onCropComplete={onCropComplete}
+                                                        onZoomChange={setZoom}
+                                                    />
+                                                )}
+                                            </div>
+
+                                            {/* 컨트롤 패널 */}
+                                            <div className="space-y-4 px-2">
+                                                {/* 줌 컨트롤 */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="flex items-center gap-2">
+                                                            <ZoomIn className="h-4 w-4" />
+                                                            크기 조절
+                                                        </Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {Math.round(zoom * 100)}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <ZoomOut className="h-4 w-4 text-muted-foreground" />
+                                                        <Slider
+                                                            value={[zoom]}
+                                                            min={1}
+                                                            max={3}
+                                                            step={0.1}
+                                                            onValueChange={(value) => setZoom(value[0])}
+                                                            className="flex-1"
+                                                        />
+                                                        <ZoomIn className="h-4 w-4 text-muted-foreground" />
+                                                    </div>
+                                                </div>
+
+                                                {/* 회전 컨트롤 */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="flex items-center gap-2">
+                                                            <RotateCw className="h-4 w-4" />
+                                                            회전
+                                                        </Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {rotation}°
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[rotation]}
+                                                        min={0}
+                                                        max={360}
+                                                        step={1}
+                                                        onValueChange={(value) => setRotation(value[0])}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <DialogFooter className="gap-2 sm:gap-0">
+                                            <Button 
+                                                variant="outline" 
+                                                onClick={handleCropCancel}
+                                                disabled={logoUploading}
+                                            >
+                                                취소
+                                            </Button>
+                                            <Button 
+                                                onClick={handleCropConfirm}
+                                                disabled={logoUploading}
+                                                className="gap-2"
+                                            >
+                                                {logoUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                                                적용하기
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
 
                                 {/* 상세 정보 */}
                                 <Card className="lg:col-span-2">

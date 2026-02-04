@@ -121,6 +121,20 @@ server:
 tempFolder: ${TEMP_FOLDER:C:/PProject/uploads/}
 uploadPath: ${UPLOAD_PATH:file:///C:/PProject/uploads/}
 
+# AWS S3 설정
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY:}
+      secret-key: ${AWS_SECRET_KEY:}
+    region:
+      static: ${AWS_REGION:ap-northeast-2}
+    s3:
+      bucket: ${AWS_S3_BUCKET:}
+      enabled: ${AWS_S3_ENABLED:false}
+    cloudfront:
+      domain: ${AWS_CLOUDFRONT_DOMAIN:}
+
 jwt:
   secret: ${JWT_SECRET}
   access-token-validity-seconds: ${JWT_ACCESS_TOKEN_VALIDITY_SECONDS:7200}

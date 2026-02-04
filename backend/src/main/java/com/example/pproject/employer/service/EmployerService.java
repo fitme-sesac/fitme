@@ -2,6 +2,7 @@ package com.example.pproject.employer.service;
 
 import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.repository.AdCampaignRepository;
+import com.example.pproject.common.service.FileUploadService;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.employer.entity.EmployerEntity;
@@ -21,6 +22,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -45,6 +49,7 @@ public class EmployerService {
     private final JobService jobService;
     private final ResumeSkillService resumeSkillService;
     private final AdCampaignRepository adCampaignRepository;
+    private final FileUploadService fileUploadService;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -272,6 +277,83 @@ public class EmployerService {
             // 수정
             return updateProfile(userid, dto);
         }
+    }
+
+    /**
+     * 기업 로고 파일 업로드
+     */
+    @Transactional
+    public String uploadLogo(String userid, MultipartFile file) throws IOException {
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
+
+        Long memberId = user.getId().longValue();
+
+        // 소속 기업 확인
+        EmployerMemberEntity membership = employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(memberId)
+                .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다."));
+
+        // OWNER 또는 HR만 수정 가능
+        if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
+            throw new IllegalStateException("로고 수정 권한이 없습니다.");
+        }
+
+        EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
+                .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
+
+        // 기존 로고가 있으면 삭제 (내부 업로드 파일인 경우만)
+        String oldLogoUrl = employer.getLogoUrl();
+        if (oldLogoUrl != null && oldLogoUrl.startsWith("/images/")) {
+            fileUploadService.deleteFile(oldLogoUrl);
+        }
+
+        // 새 로고 업로드
+        String newLogoUrl = fileUploadService.uploadFile(file, "logos");
+
+        // DB 업데이트
+        employer.setLogoUrl(newLogoUrl);
+        employerRepository.save(employer);
+
+        log.info("기업 {} 로고 업로드 완료: {}", employer.getName(), newLogoUrl);
+
+        return newLogoUrl;
+    }
+
+    /**
+     * 기업 로고 삭제
+     */
+    @Transactional
+    public void deleteLogo(String userid) {
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
+
+        Long memberId = user.getId().longValue();
+
+        // 소속 기업 확인
+        EmployerMemberEntity membership = employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(memberId)
+                .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다."));
+
+        // OWNER 또는 HR만 수정 가능
+        if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
+            throw new IllegalStateException("로고 수정 권한이 없습니다.");
+        }
+
+        EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
+                .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
+
+        // 기존 로고 삭제 (내부 업로드 파일인 경우만)
+        String oldLogoUrl = employer.getLogoUrl();
+        if (oldLogoUrl != null && oldLogoUrl.startsWith("/images/")) {
+            fileUploadService.deleteFile(oldLogoUrl);
+        }
+
+        // DB 업데이트
+        employer.setLogoUrl(null);
+        employerRepository.save(employer);
+
+        log.info("기업 {} 로고 삭제 완료", employer.getName());
     }
 
     /**

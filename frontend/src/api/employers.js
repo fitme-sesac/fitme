@@ -67,6 +67,31 @@ export async function saveEmployerProfile(profile) {
 }
 
 /**
+ * 기업 로고 파일 업로드 (로그인 필요)
+ * @param {File} file - 업로드할 이미지 파일
+ * @returns {Promise<{logoUrl: string, message: string}>}
+ */
+export async function uploadEmployerLogo(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await http.post("/api/employer/logo", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+}
+
+/**
+ * 기업 로고 삭제 (로그인 필요)
+ * @returns {Promise<{message: string}>}
+ */
+export async function deleteEmployerLogo() {
+  const response = await http.delete("/api/employer/logo");
+  return response.data;
+}
+
+/**
  * 지원자 목록 조회 (로그인 필요)
  * @param {string} status - 상태 필터 (SUBMITTED, VIEWED, INTERVIEW, HIRED, REJECTED, CANCELED)
  * @returns {Promise<ApplicantListDTO>}
