@@ -81,6 +81,9 @@ export default defineConfig(({ mode }) => {
                 // API 프록시 (백엔드)
                 "/api": { target: backendTarget, changeOrigin: true },
 
+                // Static uploads (backend)
+                "/uploads": { target: backendTarget, changeOrigin: true },
+
                 // ===== AI worker proxies =====
                 "/chatbot": { target: aiTarget, changeOrigin: true },
                 "/employer-chatbot": { target: aiTarget, changeOrigin: true },

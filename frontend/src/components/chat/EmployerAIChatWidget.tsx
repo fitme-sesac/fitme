@@ -1,5 +1,6 @@
 // frontend/src/components/chat/EmployerAIChatWidget.tsx
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { X, Send, Bot, Sparkles, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,70 @@ interface EmployerAIChatWidgetProps {
     employerId?: number;
 }
 
+
+const _LINK_RE = /(https?:\/\/[^\s<]+)|(\/jobs\/\d+)/g;
+
+function linkifyLine(line: string, navigate?: (to: string) => void): ReactNode[] {
+    const nodes: ReactNode[] = [];
+    let last = 0;
+
+    line.replace(_LINK_RE, (match, absUrl, relPath, offset) => {
+        const idx = offset as number;
+        if (idx > last) nodes.push(line.slice(last, idx));
+
+        if (absUrl) {
+            nodes.push(
+                <a
+                    key={`u-${idx}`}
+                    href={absUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline break-all text-sky-600 hover:text-sky-700"
+                >
+                    {absUrl}
+                </a>
+            );
+        } else if (relPath) {
+            nodes.push(
+                <a
+                    key={`p-${idx}`}
+                    href={relPath}
+                    onClick={(e) => {
+                        if (!navigate) return;
+                        e.preventDefault();
+                        navigate(relPath);
+                    }}
+                    className="underline break-all text-sky-600 hover:text-sky-700"
+                >
+                    {relPath}
+                </a>
+            );
+        } else {
+            nodes.push(match);
+        }
+
+        last = idx + match.length;
+        return match;
+    });
+
+    if (last < line.length) nodes.push(line.slice(last));
+    return nodes;
+}
+
+function renderMessageContent(content: string, navigate?: (to: string) => void): ReactNode {
+    const lines = (content ?? "").split("\n");
+    return (
+        <>
+            {lines.map((line, i) => (
+                <span key={i}>
+                    {linkifyLine(line, navigate)}
+                    {i < lines.length - 1 ? <br /> : null}
+                </span>
+            ))}
+        </>
+    );
+}
+
 const WELCOME_MESSAGE: Message = {
     id: "welcome",
     role: "assistant",
@@ -39,6 +104,7 @@ export function EmployerAIChatWidget({
     resetSeq,
     employerId,
 }: EmployerAIChatWidgetProps) {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
     const [input, setInput] = useState("");
 
@@ -209,7 +275,7 @@ export function EmployerAIChatWidget({
                                             : "bg-background border rounded-tl-none"
                                     )}
                                 >
-                                    {msg.content}
+                                    {renderMessageContent(msg.content, navigate)}
                                 </div>
 
                                 <span className="text-[10px] text-muted-foreground self-end mb-1 px-1">

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +30,11 @@ class ChatbotConversationState(BaseModel):
     last_parsed: Optional[Dict[str, Any]] = None
     last_intent: Optional[str] = None
     last_item_ids: List[int] = Field(default_factory=list)
+
+    # ✅ BUSIEST_WEEK 결과 스코프(후속 BUSIEST_DAY에서 사용)
+    busiest_week_start_date: Optional[date] = None
+    busiest_week_end_date: Optional[date] = None
+    busiest_week_label: Optional[str] = None
 
     transcript: List[TranscriptItem] = Field(default_factory=list)
     updated_at: str = Field(default_factory=lambda: datetime.now(tz=KST).isoformat())
