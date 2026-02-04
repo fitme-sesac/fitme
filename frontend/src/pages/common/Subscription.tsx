@@ -56,8 +56,8 @@ export default function Subscription() {
 
         // Mapping: Pro is usually ID 4 (or similar) in this project. 
         // We'll need to be careful with mapping between plan.id (string) and productId (number).
-        if (plan.id === "pro" && activeProductId === 4) return true;
-        if (plan.id === "free" && activeProductId === 1) return true;
+        if (plan.id === "pro" && (activeProductId === 2 || activeProductId === 3)) return true; // Adjusted: Pro/Business are likely 2 or 3.
+        if (plan.id === "free" && (!activeProductId || activeProductId === 1)) return true; // Free is 1 or no subscription
         return false;
     };
 

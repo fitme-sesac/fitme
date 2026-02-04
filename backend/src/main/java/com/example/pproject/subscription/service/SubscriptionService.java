@@ -56,14 +56,21 @@ public class SubscriptionService {
                                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
 
                 String finalBillingKey = request.billingKey();
+                String cardCompany = null;
+                String cardNumber = null;
 
                 log.info("Creating subscription: employerId={}, productId={}, authKey={}, customerKey={}",
                                 request.employerId(), request.productId(), request.authKey(), request.customerKey());
 
                 if (finalBillingKey == null || finalBillingKey.isBlank()) {
                         if (request.authKey() != null && !request.authKey().isBlank()) {
-                                finalBillingKey = paymentService
-                                                .issueBillingKey(request.authKey(), request.customerKey()).billingKey();
+                                var billingResponse = paymentService
+                                                .issueBillingKey(request.authKey(), request.customerKey());
+                                finalBillingKey = billingResponse.billingKey();
+                                if (billingResponse.card() != null) {
+                                        cardCompany = billingResponse.card().issuerCode();
+                                        cardNumber = billingResponse.card().number();
+                                }
                         } else {
                                 throw new IllegalArgumentException("결제 수단 등록 정보(billingKey or authKey)가 필요합니다.");
                         }
@@ -74,6 +81,11 @@ public class SubscriptionService {
                                 product,
                                 request.customerKey(),
                                 finalBillingKey);
+
+                // 카드 정보가 있으면 업데이트
+                if (cardCompany != null && cardNumber != null) {
+                        subscription.updateBillingInfo(finalBillingKey, request.customerKey(), cardCompany, cardNumber);
+                }
 
                 subscription.validateBillingInfo();
                 subscription.validateDateConsistency();
@@ -120,7 +132,14 @@ public class SubscriptionService {
                                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독상품입니다."));
 
                 validateSubscriptionOwnership(userId, subscription);
-                subscription.cancel();
+
+                // 해지 예약 (다음 결제일에 종료)
+                if (subscription.getNextBillingAt() != null) {
+                        subscription.scheduleCancellation(subscription.getNextBillingAt());
+                } else {
+                        // 다음 결제일이 없으면 즉시 종료 (예외적 상황)
+                        subscription.cancel();
+                }
         }
 
         /**
@@ -133,7 +152,14 @@ public class SubscriptionService {
                                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독상품입니다."));
 
                 validateSubscriptionOwnership(userId, subscription);
-                subscription.resume();
+
+                // 해지 예약 취소 (구독 유지)
+                if (subscription.getStatus() == SubscriptionStatus.ACTIVE && subscription.getEndedAt() != null) {
+                        subscription.revokeCancellation();
+                } else {
+                        // 결제 실패 상태에서 복구
+                        subscription.resume();
+                }
         }
 
         /**

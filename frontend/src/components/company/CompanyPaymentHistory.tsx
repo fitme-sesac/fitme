@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMyPayments, cancelPayment } from "@/api/payment";
 import { getMyLedgers } from "@/api/wallet";
-import { Loader2, RefreshCw, Coins, Receipt } from "lucide-react";
+import { Loader2, RefreshCw, Coins, Receipt, Crown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function CompanyPaymentHistory() {
@@ -97,52 +98,62 @@ export function CompanyPaymentHistory() {
                             내역이 없습니다.
                         </div>
                     ) : (
-                        unifiedHistory.map((item) => (
-                            <div key={item.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-start gap-4">
-                                        <div className={cn(
-                                            "mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                                            item.isPlus ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-600"
-                                        )}>
-                                            {item.isPlus ? <Coins className="h-5 w-5" /> : <Receipt className="h-5 w-5" />}
+                        unifiedHistory.map((item) => {
+                            // 구독 관련 내역 여부 확인 (제목에 '구독' 포함)
+                            const isSubscription = item.title.includes("구독");
+
+                            return (
+                                <div key={item.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-start gap-4">
+                                            <div className={cn(
+                                                "mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                                                isSubscription
+                                                    ? "bg-purple-100 text-purple-600"
+                                                    : item.isPlus ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-600"
+                                            )}>
+                                                {isSubscription ? <Crown className="h-5 w-5" /> : (item.isPlus ? <Coins className="h-5 w-5" /> : <Receipt className="h-5 w-5" />)}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <p className="font-bold text-base">{item.title}</p>
+                                                    {isSubscription && <Badge variant="secondary" className="text-[10px] px-1.5 h-5 bg-purple-100 text-purple-700 hover:bg-purple-100">구독혜택</Badge>}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <span>{item.date}</span>
+                                                    <span className="w-0.5 h-3 bg-slate-200"></span>
+                                                    <span>{item.payMethod}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-base mb-1">{item.title}</p>
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                <span>{item.date}</span>
-                                                <span className="w-0.5 h-3 bg-slate-200"></span>
-                                                <span>{item.payMethod}</span>
+                                        <div className="text-right">
+                                            <p className={cn(
+                                                "text-lg font-bold",
+                                                isSubscription ? "text-purple-600" : (item.isPlus ? "text-emerald-600" : "text-slate-900")
+                                            )}>
+                                                {item.isPlus ? '+' : '-'}{Number(item.amount).toLocaleString()}
+                                            </p>
+                                            <div className="flex items-center justify-end gap-2 mt-1">
+                                                <p className="text-xs text-muted-foreground font-medium">
+                                                    {item.status}
+                                                </p>
+                                                {item.canRefund && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-6 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200"
+                                                        onClick={() => handleRefund(item.paymentKey)}
+                                                        disabled={isCancelling === item.paymentKey}
+                                                    >
+                                                        {isCancelling === item.paymentKey ? "처리 중..." : "환불"}
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className={cn(
-                                            "text-lg font-bold",
-                                            item.isPlus ? "text-emerald-600" : "text-slate-900"
-                                        )}>
-                                            {item.isPlus ? '+' : '-'}{Number(item.amount).toLocaleString()}
-                                        </p>
-                                        <div className="flex items-center justify-end gap-2 mt-1">
-                                            <p className="text-xs text-muted-foreground font-medium">
-                                                {item.status}
-                                            </p>
-                                            {item.canRefund && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-6 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200"
-                                                    onClick={() => handleRefund(item.paymentKey)}
-                                                    disabled={isCancelling === item.paymentKey}
-                                                >
-                                                    {isCancelling === item.paymentKey ? "처리 중..." : "환불"}
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </CardContent>

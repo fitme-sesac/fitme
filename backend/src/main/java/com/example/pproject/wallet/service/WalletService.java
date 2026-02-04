@@ -154,11 +154,11 @@ public class WalletService {
      * 해당 paymentId가 유효하고, 현재 요청한 userId의 결제인지 반드시 검증해야 합니다.
      * </p>
      *
-     * @param userId   사용자 ID
+     * @param userId    사용자 ID
      * @param buyerType 사용자 역할 (BuyerType)
-     * @param amount   충전할 크레딧 양
-     * @param price    결제 금액 정보
-     * @param payment  결제 엔티티 (멱등성 키로 사용)
+     * @param amount    충전할 크레딧 양
+     * @param price     결제 금액 정보
+     * @param payment   결제 엔티티 (멱등성 키로 사용)
      */
     @Transactional
     public void chargeCredit(Long userId, BuyerType buyerType, long amount, Money price, Payment payment) {
@@ -175,8 +175,14 @@ public class WalletService {
         // - 소유권 검증: prepareConfirm()에서 validateOwner() 호출
         // - 금액 검증: payment.approve()에서 토스 응답과 비교
 
-        executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(),
-                "크레딧 충전 (결제)");
+        String memo = "크레딧 충전 (결제)";
+        if (payment.getOrder().getProduct().isSubscription()) {
+            memo = "구독 크레딧 지급";
+        } else if (payment.getOrder().getProduct().isOneTime()) {
+            memo = "일반 크레딧 충전";
+        }
+
+        executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(), memo);
     }
 
     /**

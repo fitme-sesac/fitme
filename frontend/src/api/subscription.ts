@@ -45,3 +45,11 @@ export async function getSubscriptionsByEmployer(employerId: number): Promise<Su
     const res = await http.get(`/api/subscriptions/employer/${employerId}`);
     return res.data;
 }
+
+export async function cancelSubscription(subscriptionId: number): Promise<void> {
+    await http.post(`/api/subscriptions/${subscriptionId}/cancel`);
+}
+
+export async function resumeSubscription(subscriptionId: number): Promise<void> {
+    await http.post(`/api/subscriptions/${subscriptionId}/resume`);
+}
