@@ -51,6 +51,9 @@ class AdCampaignServiceTest {
         @Mock
         private AdGuardService adGuardService;
 
+        @Mock
+        private AdImpressionService adImpressionService;
+
         @InjectMocks
         private AdCampaignService adCampaignService;
 

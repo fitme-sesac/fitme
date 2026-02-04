@@ -412,7 +412,7 @@ public class EmployerService {
      */
     public ApplicantListDTO getApplicants(String userid, String status) {
         Long employerId = getEmployerIdByUserid(userid);
-        return getApplicantsByEmployerId(employerId, status);
+        return getApplicantsByEmployerId(employerId, status,null);
     }
 
     /**
@@ -420,7 +420,7 @@ public class EmployerService {
      */
     public ApplicantListDTO getApplicants(Long memberId, String status) {
         Long employerId = getEmployerIdByMemberId(memberId);
-        return getApplicantsByEmployerId(employerId, status);
+        return getApplicantsByEmployerId(employerId, status,null);
     }
 
     /**
