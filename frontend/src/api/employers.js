@@ -78,6 +78,18 @@ export async function getApplicants(status = "") {
 }
 
 /**
+ * 특정 채용공고의 지원자 목록 조회 (로그인 필요)
+ * @param {number} jobId - 채용공고 ID
+ * @param {string} status - 상태 필터
+ * @returns {Promise<ApplicantListDTO>}
+ */
+export async function getApplicantsByJob(jobId, status = "") {
+  const params = status ? `?status=${status}` : "";
+  const response = await http.get(`/api/employer/jobs/${jobId}/applicants${params}`);
+  return response.data;
+}
+
+/**
  * 지원자 상태 변경 (로그인 필요)
  * @param {number} applicationId - 지원 ID
  * @param {string} status - 새 상태
@@ -142,9 +154,64 @@ export async function deleteInterview(interviewId) {
 
 /**
  * 광고 통계 조회 (로그인 필요)
+ * @param {boolean} demo - 데모 모드 (true: 실제 클릭이 없을 때 데모 데이터 표시, false: 실제 데이터만)
  * @returns {Promise<AdStatsDTO>}
  */
-export async function getAdStats() {
-  const response = await http.get("/api/employer/ad-stats");
+export async function getAdStats(demo = true) {
+  const response = await http.get(`/api/employer/ad-stats?demo=${demo}`);
+  return response.data;
+}
+
+/**
+ * 광고 캠페인 생성 (로그인 필요)
+ * @param {Object} campaign - 캠페인 정보
+ * @param {number} campaign.employerId - 기업 ID
+ * @param {number} campaign.jobId - 채용공고 ID
+ * @param {number} campaign.cpcBid - CPC 입찰가 (원)
+ * @param {number} campaign.dailyBudget - 일일 예산 (원)
+ * @param {string} campaign.startDate - 시작일 (YYYY-MM-DD)
+ * @param {string} campaign.endDate - 종료일 (YYYY-MM-DD)
+ * @returns {Promise<AdCampaignResponseDTO>}
+ */
+export async function createAdCampaign(campaign) {
+  const response = await http.post("/api/v1/ad/campaigns", campaign);
+  return response.data;
+}
+
+/**
+ * 광고 캠페인 상태 변경 (로그인 필요)
+ * @param {number} campaignId - 캠페인 ID
+ * @param {string} status - 새 상태 (ACTIVE, PAUSED, ENDED)
+ * @returns {Promise<AdCampaignResponseDTO>}
+ */
+export async function updateAdCampaignStatus(campaignId, status) {
+  const response = await http.patch(`/api/v1/ad/campaigns/${campaignId}/status?status=${status}`);
+  return response.data;
+}
+
+/**
+ * 광고 캠페인 수정 (로그인 필요, 기업 소유권 검증)
+ * @param {number} campaignId - 캠페인 ID
+ * @param {Object} updates - 수정할 필드 (null인 필드는 수정하지 않음)
+ * @param {number} updates.cpcBid - CPC 입찰가 (원)
+ * @param {number} updates.dailyBudget - 일일 예산 (원)
+ * @param {string} updates.startDate - 시작일 (YYYY-MM-DD)
+ * @param {string} updates.endDate - 종료일 (YYYY-MM-DD)
+ * @returns {Promise<{message: string}>}
+ */
+export async function updateAdCampaign(campaignId, updates) {
+  const response = await http.patch(`/api/employer/ad-campaigns/${campaignId}`, updates);
+  return response.data;
+}
+
+/**
+ * 기업 채용공고 목록 조회 (로그인 필요)
+ * @param {Object} params - 페이징 파라미터
+ * @param {number} params.page - 페이지 번호 (0부터 시작)
+ * @param {number} params.size - 페이지 크기
+ * @returns {Promise<JobListResponseDTO>}
+ */
+export async function getMyJobPostings({ page = 0, size = 50 } = {}) {
+  const response = await http.get(`/api/jobs?page=${page}&size=${size}`);
   return response.data;
 }

@@ -6,10 +6,11 @@ import { JobPostingsTab } from "@/components/company/JobPostingsTab";
 import { ApplicantsTab } from "@/components/company/ApplicantsTab";
 import { AIMatchingTab } from "@/components/company/AIMatchingTab";
 import { AdAnalyticsTab } from "@/components/company/AdAnalyticsTab";
+import { SentProposalsTab } from "@/components/company/SentProposalsTab";
 import { DashboardHeader } from "@/components/company/DashboardHeader";
 import { AdBanner } from "@/components/company/AdBanner";
 import { CompanyCommunityManagement } from "@/components/company/CompanyCommunityManagement";
-import { getEmployerDashboard } from "@/api/employers";
+import { getEmployerDashboard, getEmployerProfile } from "@/api/employers";
 import { useAuth } from "@/contexts/AuthContext";
 
 import { useSearchParams } from "react-router-dom";
@@ -35,10 +36,26 @@ export default function CompanyDashboard() {
     getEmployerDashboard()
       .then((res: { profile?: { name?: string }; recentJobs?: unknown[] }) => {
         if (cancelled) return;
-        setDashboardInfo((prev) => ({ ...prev, companyName: res.profile?.name ?? undefined }));
+        const name = res.profile?.name ?? undefined;
+        if (name) {
+          setDashboardInfo((prev) => ({ ...prev, companyName: name }));
+          return;
+        }
+        return getEmployerProfile().then((profile: { name?: string }) => {
+          if (cancelled) return;
+          setDashboardInfo((prev) => ({ ...prev, companyName: profile?.name ?? undefined }));
+        });
       })
       .catch(() => {
-        if (!cancelled) setDashboardInfo((prev) => ({ ...prev, companyName: undefined }));
+        if (!cancelled) {
+          getEmployerProfile()
+            .then((profile: { name?: string }) => {
+              if (!cancelled) setDashboardInfo((prev) => ({ ...prev, companyName: profile?.name ?? undefined }));
+            })
+            .catch(() => {
+              if (!cancelled) setDashboardInfo((prev) => ({ ...prev, companyName: undefined }));
+            });
+        }
       });
     return () => { cancelled = true; };
   }, [user]);
@@ -76,10 +93,11 @@ export default function CompanyDashboard() {
           />
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 lg:inline-flex flex-wrap justify-start">
               <TabsTrigger value="jobs">채용공고 관리</TabsTrigger>
               <TabsTrigger value="applicants">지원자 현황</TabsTrigger>
               <TabsTrigger value="ai-matching">AI 인재 추천</TabsTrigger>
+              <TabsTrigger value="sent-proposals">제안한 인재</TabsTrigger>
               <TabsTrigger value="community">커뮤니티 관리</TabsTrigger>
               <TabsTrigger value="ads">광고 성과</TabsTrigger>
             </TabsList>
@@ -99,6 +117,10 @@ export default function CompanyDashboard() {
 
                 <TabsContent value="ai-matching" className="mt-0">
                   <AIMatchingTab />
+                </TabsContent>
+
+                <TabsContent value="sent-proposals" className="mt-0">
+                  <SentProposalsTab />
                 </TabsContent>
 
                 <TabsContent value="ads" className="mt-0">

@@ -32,8 +32,11 @@ export interface TalentPageResponse {
   last: boolean;
 }
 
-/** 인재풀 목록 조회 */
-export async function getTalents(page = 0, size = 12): Promise<TalentPageResponse> {
+/** 인재풀 목록 조회 (매칭율 지원) */
+export async function getTalents(
+  page = 0, 
+  size = 12
+): Promise<TalentPageResponse> {
   const res = await http.get<TalentPageResponse>("/api/talents", {
     params: { page, size },
   });

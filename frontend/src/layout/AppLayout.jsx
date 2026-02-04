@@ -113,7 +113,7 @@ export default function AppLayout() {
 
     return (
         <>
-            <Header 
+            <Header
                 isAuthenticated={isAuthenticated}
                 displayName={displayName}
                 apiBase={apiBase}

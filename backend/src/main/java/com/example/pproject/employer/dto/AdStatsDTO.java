@@ -34,5 +34,6 @@ public class AdStatsDTO {
         private double ctr;
         private int dailyBudget;
         private int cpcBid;
+        private int applicants; // 해당 채용공고의 지원자 수
     }
 }

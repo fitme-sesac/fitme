@@ -25,6 +25,9 @@ public class JobFilterOptionsDTO {
     /** 포지션 카테고리 (전체, 서버/백엔드, 프론트엔드, 웹 풀스택, 안드로이드, iOS 등) - LLM/필터 공통 */
     private List<String> positionCategories;
     
+    /** 서비스 분야 (업종) 목록 - DB 기반 한글 변환 */
+    private List<String> industries;
+    
     // 경력 필터 옵션
     private List<ExperienceOption> experienceOptions;
     

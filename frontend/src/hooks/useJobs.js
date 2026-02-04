@@ -3,6 +3,7 @@ import {
   getPublicJobs,
   getPublicJob,
   getFilterOptions,
+  getPositionCounts,
   scrapJob,
   unscrapJob,
   applyToJob,
@@ -40,6 +41,18 @@ export function useFilterOptions() {
     queryKey: ["filterOptions"],
     queryFn: getFilterOptions,
     staleTime: 1000 * 60 * 30, // 30분
+  });
+}
+
+/**
+ * 포지션별 카운트 조회 hook
+ * @param {Object} params - 필터 파라미터 (현재 적용된 필터 조건)
+ */
+export function usePositionCounts(params = {}) {
+  return useQuery({
+    queryKey: ["positionCounts", params],
+    queryFn: () => getPositionCounts(params),
+    staleTime: 1000 * 60 * 2, // 2분
   });
 }
 

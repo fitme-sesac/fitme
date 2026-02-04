@@ -58,14 +58,28 @@ public class JobApplication extends BaseTimeEntity {
     @Column(name = "contact_disclosed_at")
     private LocalDateTime contactDisclosedAt;
 
+    /**
+     * 제안을 통해 생성된 지원인 경우 제안 ID (nullable)
+     */
+    @Column(name = "proposal_id")
+    private Long proposalId;
+
     @Builder
-    public JobApplication(JobEntity job, UserEntity member, Resume resume, String answers) {
+    public JobApplication(JobEntity job, UserEntity member, Resume resume, String answers, Long proposalId) {
         this.job = job;
         this.member = member;
         this.resume = resume;
         this.answers = answers;
+        this.proposalId = proposalId;
         this.status = ApplicationStatus.SUBMITTED;
         this.appliedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 상태 변경 메서드 (제안 수락 시 INTERVIEW 상태로 변경 등에 사용)
+     */
+    public void updateStatus(ApplicationStatus newStatus) {
+        this.status = newStatus;
     }
 
     public void cancel() {

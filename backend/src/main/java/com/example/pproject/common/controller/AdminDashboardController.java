@@ -1,8 +1,9 @@
 package com.example.pproject.common.controller;
 
+import com.example.pproject.application.repository.JobApplicationRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.job.repository.JobEntityRepository;
-// import com.example.pproject.report.repository.ReportRepository;
+import com.example.pproject.report.repository.ReportRepository;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +35,8 @@ public class AdminDashboardController {
     private final JobEntityRepository jobEntityRepository;
     private final EmployerRepository employerRepository;
     private final com.example.pproject.payment.repository.PaymentRepository paymentRepository;
+    private final ReportRepository reportRepository;
+    private final JobApplicationRepository jobApplicationRepository;
 
     /**
      * GET /api/v1/admin/dashboard/stats
@@ -43,14 +51,30 @@ public class AdminDashboardController {
         long totalCompanies = employerRepository.count();
         long totalRevenue = paymentRepository.sumTotalRevenue();
 
-        // 신고 Repository가 countByStatus 같은 메소드를 가지고 있다고 가정
-        // 없으면 findAll().stream().filter...로 할 수도 있으나 성능상 count 쿼리 권장
-        // 일단 기본 count만 반환하거나 0으로 mock 처리
+        // 대기중인 신고 건수 조회
         long pendingReports = 0;
         try {
-            // pendingReports = reportRepository.countByStatus("PENDING");
+            pendingReports = reportRepository.countByStatus("PENDING");
         } catch (Exception e) {
-            // ignore
+            log.warn("대기중 신고 건수 조회 실패: {}", e.getMessage());
+        }
+
+        // 오늘 지원 건수 조회
+        long todayApplications = 0;
+        try {
+            LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+            todayApplications = jobApplicationRepository.countTodayApplications(startOfDay);
+        } catch (Exception e) {
+            log.warn("오늘 지원 건수 조회 실패: {}", e.getMessage());
+        }
+
+        // 주간 신규 회원 수 조회 (최근 7일)
+        long weeklyNewMembers = 0;
+        try {
+            Instant weekAgo = Instant.now().minus(7, ChronoUnit.DAYS);
+            weeklyNewMembers = userRepository.countWeeklyNewMembers(weekAgo);
+        } catch (Exception e) {
+            log.warn("주간 신규 회원 수 조회 실패: {}", e.getMessage());
         }
 
         Map<String, Object> stats = new HashMap<>();
@@ -59,10 +83,8 @@ public class AdminDashboardController {
         stats.put("totalCompanies", totalCompanies);
         stats.put("totalRevenue", totalRevenue);
         stats.put("pendingReports", pendingReports);
-
-        // Mock data for trends
-        stats.put("todayApplications", 15);
-        stats.put("weeklyNewMembers", 42);
+        stats.put("todayApplications", todayApplications);
+        stats.put("weeklyNewMembers", weeklyNewMembers);
 
         return ResponseEntity.ok(stats);
     }

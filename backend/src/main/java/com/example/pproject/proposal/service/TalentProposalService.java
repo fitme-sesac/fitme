@@ -1,6 +1,9 @@
 package com.example.pproject.proposal.service;
 
+import com.example.pproject.Constant.ApplicationStatus;
 import com.example.pproject.Constant.ProposalStatus;
+import com.example.pproject.application.entity.JobApplication;
+import com.example.pproject.application.repository.JobApplicationRepository;
 import com.example.pproject.employer.entity.EmployerEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
@@ -12,6 +15,8 @@ import com.example.pproject.proposal.dto.ProposalRespondRequest;
 import com.example.pproject.proposal.dto.ProposalResponse;
 import com.example.pproject.proposal.entity.TalentProposal;
 import com.example.pproject.proposal.repository.TalentProposalRepository;
+import com.example.pproject.resume.entity.Resume;
+import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +40,8 @@ public class TalentProposalService {
     private final UserRepository userRepository;
     private final JobEntityRepository jobEntityRepository;
     private final NotificationService notificationService;
+    private final JobApplicationRepository jobApplicationRepository;
+    private final ResumeRepository resumeRepository;
 
     /**
      * 기업이 인재에게 제안 보내기
@@ -169,6 +176,11 @@ public class TalentProposalService {
         if (Boolean.TRUE.equals(request.getAccept())) {
             proposal.accept(request.getMessage());
 
+            // 제안에 공고가 연결되어 있으면 지원서(JobApplication) 자동 생성 -> 면접 대기자로 추가
+            if (proposal.getJob() != null) {
+                createJobApplicationFromProposal(proposal);
+            }
+
             // 기업에게 알림
             try {
                 // employer의 member를 찾아서 알림 전송
@@ -180,7 +192,8 @@ public class TalentProposalService {
                             Map.of(
                                     "candidateName", proposal.getCandidate().getUsername(),
                                     "proposalTitle", proposal.getTitle(),
-                                    "proposalId", proposal.getId().toString()
+                                    "proposalId", proposal.getId().toString(),
+                                    "jobTitle", proposal.getJob() != null ? proposal.getJob().getTitle() : ""
                             )
                     );
                 }
@@ -222,5 +235,53 @@ public class TalentProposalService {
         }
 
         proposal.cancel();
+    }
+
+    /**
+     * 제안 수락 시 지원서(JobApplication) 자동 생성
+     * - 인재가 제안을 수락하면 면접 대기자로 자동 등록됨
+     * - 기업에서 바로 면접 일정을 잡을 수 있음
+     */
+    private void createJobApplicationFromProposal(TalentProposal proposal) {
+        try {
+            JobEntity job = proposal.getJob();
+            UserEntity candidate = proposal.getCandidate();
+
+            // 이미 해당 공고에 지원한 이력이 있는지 확인
+            if (jobApplicationRepository.existsByJobIdAndMemberId(job.getId(), candidate.getId())) {
+                log.info("이미 지원한 공고입니다. 중복 지원서 생성 생략: jobId={}, candidateId={}",
+                        job.getId(), candidate.getId());
+                return;
+            }
+
+            // 구직자의 대표 이력서 또는 최근 이력서 조회
+            Resume resume = resumeRepository.findPrimaryOrLatest(candidate.getId())
+                    .orElse(null);
+
+            if (resume == null) {
+                log.warn("구직자의 이력서가 없어 지원서 생성 생략: candidateId={}", candidate.getId());
+                return;
+            }
+
+            // 지원서 생성 (제안을 통한 지원이므로 INTERVIEW 상태로 바로 설정)
+            JobApplication application = JobApplication.builder()
+                    .job(job)
+                    .member(candidate)
+                    .resume(resume)
+                    .proposalId(proposal.getId())
+                    .build();
+
+            // 제안 수락을 통한 지원은 바로 면접 대기 상태로 설정
+            application.updateStatus(ApplicationStatus.INTERVIEW);
+
+            JobApplication saved = jobApplicationRepository.save(application);
+
+            log.info("제안 수락으로 지원서 자동 생성: applicationId={}, proposalId={}, jobId={}, candidateId={}",
+                    saved.getId(), proposal.getId(), job.getId(), candidate.getId());
+
+        } catch (Exception e) {
+            log.error("제안 수락 시 지원서 생성 실패: proposalId={}, error={}", proposal.getId(), e.getMessage());
+            // 지원서 생성 실패해도 제안 수락은 유지 (트랜잭션 롤백하지 않음)
+        }
     }
 }

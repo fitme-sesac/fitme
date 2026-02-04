@@ -2,7 +2,7 @@ import { Megaphone, X, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-// Mock data for Premium Recruitment Ads (Ads subscribed by companies)
+// Premium Recruitment Ads (Ads subscribed by companies)
 const PREMIUM_ADS = [
     {
         id: 1,
@@ -16,9 +16,9 @@ const PREMIUM_ADS = [
     },
     {
         id: 2,
-        company: "토스",
+        company: "테크이노베이트",
         title: "NEXT 개발자를 찾습니다",
-        description: "금융의 미래를 바꿀 당신을 기다립니다. 사이닝 보너스 1억 지급!",
+        description: "기술의 미래를 바꿀 당신을 기다립니다. 최고 대우 보장!",
         link: "/jobs/2",
         bgColor: "from-blue-500/10 via-indigo-500/10 to-violet-500/10",
         borderColor: "border-blue-500/20",

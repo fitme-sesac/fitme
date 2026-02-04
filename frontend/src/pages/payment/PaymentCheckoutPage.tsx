@@ -21,6 +21,8 @@ interface CreditOption {
     bonus?: number;
 }
 
+// TODO: 상품 정보는 백엔드 API(/api/v1/products)에서 조회하도록 개선 필요
+// 현재는 백엔드의 Product 테이블과 동기화되어야 함
 const CREDIT_OPTIONS: CreditOption[] = [
     { id: "1", credits: 1000, price: 11000 },
     { id: "2", credits: 5000, price: 55000, bonus: 250 },
@@ -30,7 +32,8 @@ const CREDIT_OPTIONS: CreditOption[] = [
     { id: "6", credits: 100000, price: 990000, bonus: 25000 },
 ];
 
-const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
+// 프로덕션에서는 반드시 VITE_TOSS_CLIENT_KEY 환경변수가 설정되어야 함
+const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
 
 // 결제위젯 SDK 스크립트 로드
 const loadPaymentWidgetScript = (): Promise<void> => {
@@ -75,11 +78,18 @@ export default function PaymentCheckoutPage() {
                 setIsLoading(true);
                 setError(null);
 
+                // 결제 설정 확인
+                if (!clientKey) {
+                    throw new Error("결제 설정이 올바르지 않습니다. 관리자에게 문의하세요.");
+                }
+
                 // 1. 백엔드에 주문 생성
                 const backendOrder = await createPayment({
-                    productId: 1,
                     amount: selectedOption.price,
-                    buyerType: "MEMBER"
+                    orderName: `${selectedOption.credits.toLocaleString()} 크레딧 충전`,
+                    buyerType: "MEMBER",
+                    productCode: `CREDIT_${selectedOption.credits}`,
+                    idempotencyKey: `ORDER-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
                 });
 
                 if (!backendOrder?.orderId) {

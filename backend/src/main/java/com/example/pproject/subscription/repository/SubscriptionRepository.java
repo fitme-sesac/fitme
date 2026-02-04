@@ -5,6 +5,8 @@ import com.example.pproject.subscription.entity.Subscription;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -22,4 +24,12 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             Instant nextBillingAt,
             Pageable pageable
     );
+
+    // 활성 구독 확인 (status가 ACTIVE이고, endedAt이 없거나 아직 종료되지 않은 구독)
+    @Query("SELECT s FROM Subscription s WHERE s.employer.id = :employerId AND s.status = :status AND (s.endedAt IS NULL OR s.endedAt > :now)")
+    Optional<Subscription> findActiveByEmployerId(@Param("employerId") Long employerId, @Param("status") SubscriptionStatus status, @Param("now") Instant now);
+
+    // 활성 구독 존재 여부
+    @Query("SELECT COUNT(s) > 0 FROM Subscription s WHERE s.employer.id = :employerId AND s.status = :status AND (s.endedAt IS NULL OR s.endedAt > :now)")
+    boolean hasActiveSubscription(@Param("employerId") Long employerId, @Param("status") SubscriptionStatus status, @Param("now") Instant now);
 }

@@ -131,6 +131,9 @@ services:
 
       # 토스페이먼츠 클라이언트 키 (.env.docker의 TOSS_CLIENT_KEY 사용)
       VITE_TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY}
+      
+      # 카카오맵 API 키 (.env.docker의 KAKAO_MAP_API_KEY 사용)
+      VITE_KAKAO_MAP_API_KEY: ${KAKAO_MAP_API_KEY}
     ports:
       - "5173:5173"
     depends_on:

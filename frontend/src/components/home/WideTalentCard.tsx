@@ -111,11 +111,16 @@ export function WideTalentCard({
 
                     <div className="space-y-2">
                         <div className="flex flex-wrap gap-1.5 justify-center sm:justify-start">
-                            {skills.slice(0, 8).map((skill, i) => (
-                                <Badge key={i} variant="secondary" className="px-2 py-0.5 text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50">
-                                    {skill}
-                                </Badge>
-                            ))}
+                            {skills.slice(0, 8).map((skill, i) => {
+                                // JSON/PostgreSQL 배열 문자 제거 ({, }, ")
+                                const cleanedSkill = skill.replace(/[{}"']/g, "").trim();
+                                if (!cleanedSkill) return null;
+                                return (
+                                    <Badge key={i} variant="secondary" className="px-2 py-0.5 text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50">
+                                        {cleanedSkill}
+                                    </Badge>
+                                );
+                            })}
                             {skills.length > 8 && (
                                 <Badge variant="secondary" className="px-2 py-0.5 text-xs text-gray-500 bg-gray-50">+{skills.length - 8}</Badge>
                             )}

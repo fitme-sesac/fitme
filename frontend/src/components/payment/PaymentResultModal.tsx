@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 export function PaymentResultModal() {
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
     const [result, setResult] = useState<"success" | "fail" | null>(null);
@@ -27,7 +27,6 @@ export function PaymentResultModal() {
 
     const handleClose = () => {
         setOpen(false);
-        // URL 파라미터 제거
         const newParams = new URLSearchParams(searchParams);
         newParams.delete("payment_success");
         newParams.delete("payment_fail");
@@ -41,7 +40,7 @@ export function PaymentResultModal() {
     if (!result) return null;
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
+        <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="text-center">
@@ -58,7 +57,8 @@ export function PaymentResultModal() {
                             <div className="text-center space-y-1">
                                 <p className="text-lg font-medium">크레딧 충전이 완료되었습니다!</p>
                                 <p className="text-sm text-slate-500">
-                                    주문번호: {searchParams.get("orderId")}<br />
+                                    주문번호: {searchParams.get("orderId") ?? "-"}
+                                    <br />
                                     결제금액: {Number(searchParams.get("amount") || 0).toLocaleString()}원
                                 </p>
                             </div>

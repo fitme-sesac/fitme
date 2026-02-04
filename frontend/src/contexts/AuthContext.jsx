@@ -44,10 +44,19 @@ export function AuthProvider({ children }) {
         return fallback;
     };
 
-    const refreshCredits = useCallback(async () => {
+    const refreshCredits = useCallback(async (role) => {
         try {
-            const res = await getMyWallet();
-            const c = Number(res?.credits ?? 0);
+            // Role Normalization (Backend RoleType)
+            // If the user has "EMPLOYER" role, explicitly ask for EMPLOYER wallet.
+            // Otherwise default to CANDIDATE.
+            let roleType = "CANDIDATE";
+            if (role && (role.includes("EMPLOYER") || role.includes("COMPANY"))) {
+                roleType = "EMPLOYER";
+            }
+
+            const res = await getMyWallet(roleType);
+            // Backend returns 'balance' field.
+            const c = Number(res?.balance ?? 0);
             setCredits(Number.isFinite(c) ? c : 0);
         } catch {
             // 지갑 API 실패(401/400 등) 시 크레딧만 0으로 표시, 로그인 상태는 유지
@@ -60,7 +69,8 @@ export function AuthProvider({ children }) {
         try {
             const status = await authApi.checkAuthStatus();
             setUser(status?.authenticated ? status : null);
-            await refreshCredits();
+            // Pass the user role to ensure we fetch the correct wallet
+            await refreshCredits(status?.role);
             return status;
         } catch {
             setUser(null);
@@ -81,7 +91,8 @@ export function AuthProvider({ children }) {
                 return { data: null, error: "로그인 상태 확인에 실패했습니다." };
             }
             setUser(status);
-            await refreshCredits();
+            // Pass the user role to ensure we fetch the correct wallet
+            await refreshCredits(status?.role);
             return { data: response, error: null };
         } catch (error) {
             return { data: null, error: extractErrorMessage(error, "로그인에 실패했습니다.") };
@@ -316,7 +327,8 @@ export function AuthProvider({ children }) {
                 // authenticated=false인 경우에는 user를 null로 유지해서
                 // 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
                 setUser(status?.authenticated ? status : null);
-                await refreshCredits();
+                // Pass the user role to ensure we fetch the correct wallet
+                await refreshCredits(status?.role);
             } catch {
                 setUser(null);
                 setCredits(0);
