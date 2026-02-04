@@ -468,11 +468,12 @@ const JobSeekerMyPage = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {savedJobs.length > 0 ? (
-                        savedJobs.map((item) => {
+                        savedJobs.map((item, index) => {
                           const job = item.job || item; // 구조에 따라 다를 수 있음
+                          const keyId = job.id || job.jobId || item.scrapId || item.id || `saved-${index}`;
                           return (
                             <div
-                              key={job.id}
+                              key={keyId}
                               className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
                             >
                               <div>

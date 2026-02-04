@@ -1,5 +1,7 @@
 package com.example.pproject.employer.service;
 
+import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
+import com.example.pproject.ad.repository.AdCampaignRepository;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.employer.entity.EmployerEntity;
@@ -42,6 +44,7 @@ public class EmployerService {
     private final OutboxEventProducer outboxEventProducer;
     private final JobService jobService;
     private final ResumeSkillService resumeSkillService;
+    private final AdCampaignRepository adCampaignRepository;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -333,6 +336,7 @@ public class EmployerService {
             // 광고 캠페인 통계 조회
             // impressions는 클릭 수에 기반해 계산 (CPC 입찰가가 높을수록 노출 대비 클릭률이 높다고 가정)
             // NOTE: clicks는 LEFT JOIN + GROUP BY로 집계 (샘플 데이터 대량 삽입 시에도 안정적으로 반영)
+            // NOTE: applicants는 해당 job_id에 대한 지원자 수 (CANCELED 제외)
             String sql = """
                 SELECT 
                     ac.campaign_id,
@@ -341,8 +345,10 @@ public class EmployerService {
                     ac.status,
                     ac.cpc_bid,
                     ac.daily_budget,
-                    COUNT(ace.click_id) as clicks,
-                    EXTRACT(EPOCH FROM (NOW() - ac.created_at)) / 86400 as days_running
+                    COUNT(DISTINCT ace.click_id) as clicks,
+                    EXTRACT(EPOCH FROM (NOW() - ac.created_at)) / 86400 as days_running,
+                    (SELECT COUNT(*) FROM job_application ja 
+                     WHERE ja.job_id = ac.job_id AND ja.status != 'CANCELED') as applicants
                 FROM ad_campaign ac
                 JOIN job_posting jp ON jp.job_id = ac.job_id
                 LEFT JOIN ad_click_event ace ON ace.campaign_id = ac.campaign_id
@@ -363,6 +369,7 @@ public class EmployerService {
                         int cpcBid = rs.getInt("cpc_bid");
                         int dailyBudget = rs.getInt("daily_budget");
                         double daysRunning = Math.max(1, rs.getDouble("days_running"));
+                        int applicants = rs.getInt("applicants");
                         
                         int idx = rowNum % ctrRates.length;
                         double baseCtr = ctrRates[idx];
@@ -389,6 +396,7 @@ public class EmployerService {
                                 .clicks(clicks)
                                 .impressions(impressions)
                                 .ctr(Math.round(ctr * 10) / 10.0)
+                                .applicants(applicants)
                                 .build();
                     },
                     employerId);
@@ -418,6 +426,38 @@ public class EmployerService {
                     .campaigns(List.of())
                     .build();
         }
+    }
+
+    /**
+     * 광고 캠페인 수정 (기업 소유권 검증 후 DB 직접 업데이트)
+     * Redis 의존성을 제거하여 Redis 미실행 환경에서도 동작하도록 함
+     */
+    @Transactional
+    public void updateAdCampaign(String userid, Long campaignId, AdCampaignUpdateDTO dto) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+        var campaignOpt = adCampaignRepository.findByIdAndNotDeleted(campaignId);
+        if (campaignOpt.isEmpty()) {
+            throw new IllegalArgumentException("광고 캠페인을 찾을 수 없습니다. ID: " + campaignId);
+        }
+        var campaign = campaignOpt.get();
+        if (!employerId.equals(campaign.getEmployerId())) {
+            throw new IllegalStateException("해당 광고 캠페인에 대한 권한이 없습니다.");
+        }
+        
+        // Redis 없이 DB만 직접 업데이트
+        if (dto.getCpcBid() != null) {
+            campaign.setCpcBid(dto.getCpcBid());
+        }
+        if (dto.getDailyBudget() != null) {
+            campaign.setDailyBudget(dto.getDailyBudget());
+        }
+        // startDate, endDate도 필요 시 추가 가능
+        
+        adCampaignRepository.save(campaign);
+        log.info("광고 캠페인 수정 완료 (DB only). CampaignId: {}, EmployerId: {}", campaignId, employerId);
     }
 
     // ===== 지원자 관리 =====

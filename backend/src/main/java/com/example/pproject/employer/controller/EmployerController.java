@@ -1,6 +1,7 @@
 package com.example.pproject.employer.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.employer.dto.*;
@@ -100,6 +101,25 @@ public class EmployerController {
             AdStatsDTO stats = employerService.getAdStats(principal.getUserid(), demo);
             return ResponseEntity.ok(stats);
         } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * 광고 캠페인 수정 (기업 소유권 검증)
+     */
+    @PatchMapping("/ad-campaigns/{campaignId}")
+    public ResponseEntity<?> updateAdCampaign(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long campaignId,
+            @RequestBody AdCampaignUpdateDTO dto) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+        try {
+            employerService.updateAdCampaign(principal.getUserid(), campaignId, dto);
+            return ResponseEntity.ok(Map.of("message", "광고 캠페인이 수정되었습니다."));
+        } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
