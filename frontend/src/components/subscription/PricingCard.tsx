@@ -2,7 +2,7 @@ import { Check, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { SubscriptionPlan } from "@/data/subscriptionPlans";
+import { SubscriptionPlan } from "@/types/subscription";
 
 interface PricingCardProps {
     plan: SubscriptionPlan;

@@ -21,7 +21,7 @@ interface ProductPageResponse {
 }
 
 export const fetchProducts = async (type?: string): Promise<ProductPageResponse> => {
-    const params = type ? { type } : {};
+    const params = type ? { type, size: 100 } : { size: 100 }; // Ensure we get all plans
     const response = await http.get<ProductPageResponse>("/api/v1/products", { params });
     return response.data;
 };

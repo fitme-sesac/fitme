@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { CreditCard, Building2, Shield, ArrowRight } from "lucide-react";
+import { CreditCard, Building2, Shield, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { subscriptionPlans, SubscriptionPlan } from "@/data/subscriptionPlans";
 import { PricingCard } from "@/components/subscription/PricingCard";
 import { PlanComparison } from "@/components/subscription/PlanComparison";
 import { FAQ } from "@/components/subscription/FAQ";
@@ -15,6 +14,9 @@ import { Footer } from "@/components/layout/Footer";
 import { SubscriptionCheckoutModal } from "@/components/subscription/SubscriptionCheckoutModal";
 import { useEmployerProfile } from "@/hooks/useEmployers";
 import { useEmployerSubscriptions } from "@/features/payment/hooks/useSubscription";
+import { fetchProducts, Product } from "@/api/product";
+import { useQuery } from "@tanstack/react-query";
+import { SubscriptionPlan } from "@/types/subscription";
 import { scheduleProductChange } from "@/api/subscription";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -36,33 +38,80 @@ export default function Subscription() {
     // Check if the current page is a simple product introduction page
     const isProductIntro = location.pathname === "/products";
 
-    const handleSelectPlan = async (planId: string) => {
-        const plan = subscriptionPlans.find(p => p.id === planId);
-        if (!plan) return;
+    // --- Real Product Data Fetching ---
+    const { data: productPage, isLoading: validProductsLoading } = useQuery({
+        queryKey: ["products", "SUBSCRIPTION"],
+        queryFn: () => fetchProducts("SUBSCRIPTION"),
+    });
 
-        if (plan.id === "enterprise") {
-            toast.info("Enterprise 플랜 문의가 접수되었습니다. 영업팀에서 곧 연락드리겠습니다.");
-            return;
+    // DB 상품 데이터를 UI 포맷으로 변환
+    const subscriptionPlans: SubscriptionPlan[] = (productPage?.content || []).map((product) => {
+        // 상품 코드나 이름에 따라 UI 속성 매핑 (이 부분은 하드코딩 필요할 수 있음)
+        let benefits: string[] = [];
+        let highlighted: string[] = [];
+        let description = "";
+        let isPopular = false;
+
+        // 예: 코드명 또는 이름으로 구분
+        if (product.productCode.includes("BASIC")) {
+            description = "소규모 팀을 위한 기본 플랜";
+            benefits = [
+                `월 ${product.creditAmount.toLocaleString()} 크레딧 제공`,
+                "기본 검색 필터",
+                "이메일 지원"
+            ];
+        } else if (product.productCode.includes("STANDARD")) {
+            description = "성장하는 기업을 위한 표준 플랜";
+            isPopular = true;
+            benefits = [
+                `월 ${product.creditAmount.toLocaleString()} 크레딧 제공`,
+                "고급 검색 필터",
+                "인재 연락처 열람",
+                "우선 이메일 지원"
+            ];
+            highlighted = ["인재 연락처 열람"];
+        } else if (product.productCode.includes("PRO")) {
+            description = "대규모 채용을 위한 프로 플랜";
+            benefits = [
+                `월 ${product.creditAmount.toLocaleString()} 크레딧 제공`,
+                "모든 검색 필터 사용",
+                "인재 연락처 무제한 열람",
+                "전담 매니저 배정",
+                "24시간 전화 지원"
+            ];
+            highlighted = ["전담 매니저 배정", "24시간 전화 지원"];
         }
 
+        return {
+            id: product.productCode,
+            productId: product.productId,
+            name: product.name, // DB에 "구독 BASIC (월 10,000 크레딧)" 형태로 저장됨
+            description: description,
+            price: product.priceAmount,
+            billingCycle: "monthly" as const,
+            features: benefits,
+            highlightedFeatures: highlighted,
+            isPopular: isPopular,
+            ctaText: "시작하기",
+        };
+    }).sort((a, b) => a.price - b.price); // 가격 오름차순 정렬
+
+
+    const handleSelectPlan = async (plan: SubscriptionPlan) => {
         // 이미 구독 중인 경우 플랜 변경 로직 수행 (Free 포함 모든 플랜)
         if (isCompany && activeSubscription) {
-            // Free(1), Pro(2), Business(3) 매핑
-            const targetProductId = plan.id === "free" ? 1 : (plan.id === "pro" ? 2 : 3);
 
-            if (activeSubscription.product?.productId === targetProductId) {
+            if (activeSubscription.product?.productId === plan.productId) {
                 return; // 이미 해당 플랜 사용 중
             }
 
             // 변경 확인 메시지
-            const confirmMsg = plan.id === "free"
-                ? "무료 플랜으로 변경하시겠습니까?\n변경 사항은 다음 결제일부터 적용됩니다."
-                : `${plan.name}로 플랜을 변경하시겠습니까?\n변경 사항은 다음 결제일부터 적용됩니다.`;
+            const confirmMsg = `${plan.name}로 플랜을 변경하시겠습니까?\n변경 사항은 다음 결제일부터 적용됩니다.`;
 
             if (confirm(confirmMsg)) {
                 const toastId = toast.loading("플랜 변경 예약 중...");
                 try {
-                    await scheduleProductChange(activeSubscription.subscriptionId, targetProductId);
+                    await scheduleProductChange(activeSubscription.subscriptionId, plan.productId);
                     toast.success("플랜 변경이 예약되었습니다. 다음 결제일에 반영됩니다.", { id: toastId });
                 } catch (error) {
                     console.error(error);
@@ -73,26 +122,30 @@ export default function Subscription() {
         }
 
         // 신규 구독 (또는 비로그인)
-        if (plan.id === "free") {
-            toast.success("Free 플랜이 활성화되었습니다!");
-            // TODO: 신규 가입 시 Free 플랜 자동 활성화 로직이 필요하다면 여기에 추가
-        } else {
-            // Pro plan -> Open modal
-            setSelectedPlan(plan);
-            setShowCheckoutModal(true);
-        }
+        // Pro plan -> Open modal
+        setSelectedPlan(plan);
+        setShowCheckoutModal(true);
     };
 
     // Helper to check if a plan is the current one
     const checkIsCurrentPlan = (plan: SubscriptionPlan) => {
-        if (!activeProductId) return plan.id === "free" && !isCompany; // Default assumption? Or just false.
-
-        // Mapping: Pro is usually ID 4 (or similar) in this project. 
-        // We'll need to be careful with mapping between plan.id (string) and productId (number).
-        if (plan.id === "pro" && (activeProductId === 2 || activeProductId === 3)) return true; // Adjusted: Pro/Business are likely 2 or 3.
-        if (plan.id === "free" && (!activeProductId || activeProductId === 1)) return true; // Free is 1 or no subscription
-        return false;
+        if (!activeProductId) return false;
+        return activeProductId === plan.productId;
     };
+
+    if (validProductsLoading) {
+        return (
+            <div className="min-h-screen bg-background flex flex-col">
+                <Sidebar />
+                <div className="lg:pl-64 flex-1 flex flex-col">
+                    <Header />
+                    <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="min-h-screen bg-background">
@@ -114,29 +167,32 @@ export default function Subscription() {
                         </p>
                     </section>
 
-                    {/* Billing Toggle */}
-                    <div className="flex items-center justify-center gap-4">
-                        <Label
-                            htmlFor="billing-toggle"
-                            className={!isYearly ? "text-foreground font-medium" : "text-muted-foreground"}
-                        >
-                            월간 결제
-                        </Label>
-                        <Switch
-                            id="billing-toggle"
-                            checked={isYearly}
-                            onCheckedChange={setIsYearly}
-                        />
-                        <Label
-                            htmlFor="billing-toggle"
-                            className={isYearly ? "text-foreground font-medium" : "text-muted-foreground"}
-                        >
-                            연간 결제
-                            <span className="ml-2 text-xs text-accent font-semibold bg-accent/10 px-2 py-1 rounded-full">
-                                20% 할인
-                            </span>
-                        </Label>
-                    </div>
+                    {/* Billing Toggle (Real data is monthly only for now, but keeping UI) */}
+                    {!isProductIntro && (
+                        <div className="flex items-center justify-center gap-4">
+                            <Label
+                                htmlFor="billing-toggle"
+                                className={!isYearly ? "text-foreground font-medium" : "text-muted-foreground"}
+                            >
+                                월간 결제
+                            </Label>
+                            <Switch
+                                id="billing-toggle"
+                                checked={isYearly}
+                                onCheckedChange={setIsYearly}
+                                disabled={true} // DB data is monthly based for now
+                            />
+                            <Label
+                                htmlFor="billing-toggle"
+                                className={isYearly ? "text-foreground font-medium" : "text-muted-foreground"}
+                            >
+                                연간 결제
+                                <span className="ml-2 text-xs text-accent font-semibold bg-accent/10 px-2 py-1 rounded-full">
+                                    준비중
+                                </span>
+                            </Label>
+                        </div>
+                    )}
 
                     {/* Pricing Cards */}
                     <section className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-4 items-start">
@@ -145,7 +201,7 @@ export default function Subscription() {
                                 key={plan.id}
                                 plan={plan}
                                 isYearly={isYearly}
-                                onSelect={isProductIntro ? undefined : handleSelectPlan}
+                                onSelect={isProductIntro ? undefined : () => handleSelectPlan(plan)}
                                 isCurrentPlan={isCompany && checkIsCurrentPlan(plan)}
                             />
                         ))}
@@ -188,35 +244,6 @@ export default function Subscription() {
                         </div>
                         <FAQ />
                     </section>
-
-                    {/* CTA - Only show if not on product intro page */}
-                    {!isProductIntro && (
-                        <section className="text-center bg-gradient-to-r from-accent/10 via-accent/5 to-accent/10 rounded-2xl p-12">
-                            <h3 className="text-2xl font-bold text-foreground mb-4">
-                                아직 결정이 어려우신가요?
-                            </h3>
-                            <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-                                무료 플랜으로 먼저 시작해보세요. 언제든지 업그레이드할 수 있습니다.
-                            </p>
-                            <div className="flex flex-wrap justify-center gap-4">
-                                <Button
-                                    size="lg"
-                                    className="bg-accent hover:bg-accent-hover text-accent-foreground"
-                                    onClick={() => handleSelectPlan("free")}
-                                    disabled={isCompany && checkIsCurrentPlan(subscriptionPlans[0])}
-                                >
-                                    {isCompany && checkIsCurrentPlan(subscriptionPlans[0]) ? "구독중" : "무료로 시작하기"}
-                                </Button>
-                                <Button
-                                    size="lg"
-                                    variant="outline"
-                                    onClick={() => toast.info("상담 예약이 접수되었습니다.")}
-                                >
-                                    상담 예약하기
-                                </Button>
-                            </div>
-                        </section>
-                    )}
                 </main>
 
                 <Footer />

@@ -10,7 +10,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { CheckCircle2, ShieldCheck, Loader2, ArrowRight } from "lucide-react";
-import { SubscriptionPlan } from "@/data/subscriptionPlans";
+import { SubscriptionPlan } from "@/types/subscription";
 
 interface SubscriptionCheckoutModalProps {
     open: boolean;
