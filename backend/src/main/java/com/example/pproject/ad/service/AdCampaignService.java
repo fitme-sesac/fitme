@@ -7,7 +7,6 @@ import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.dto.AdServeResponseDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
 import com.example.pproject.ad.repository.AdCampaignRepository;
-import com.example.pproject.ad.repository.AdClickEventRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.wallet.entity.Wallet;
@@ -35,7 +34,7 @@ public class AdCampaignService {
 
     private final AdCampaignRepository adCampaignRepository;
     private final EmployerRepository employerRepository;
-    private final AdClickEventRepository adClickEventRepository; // [Restored]
+    private final AdImpressionService adImpressionService;
     private final ResumeRepository resumeRepository; // [Restored]
     private final WalletService walletService; // [Restored]
     private final AdGuardService adGuardService;
@@ -157,6 +156,7 @@ public class AdCampaignService {
      * <li><b>Filter:</b> 돈 있는 광고만 최종 반환.</li>
      * </ol>
      */
+    @Transactional
     public List<AdServeResponseDTO> getAdsForMember(Long memberId, int limit) {
         // 0. 사용자 이력서 조회 (임베딩만 조회하여 최적화)
         Optional<String> embeddingOpt = resumeRepository.findEmbeddingByUserId(memberId);
@@ -195,10 +195,12 @@ public class AdCampaignService {
         result.sort((a, b) -> Double.compare(b.getHybridScore(), a.getHybridScore()));
 
         // 요청된 개수만큼 자르기 (Pagination)
-        if (result.size() > limit) {
-            return result.subList(0, limit);
-        }
-        return result;
+        List<AdServeResponseDTO> finalResult = result.size() > limit ? result.subList(0, limit) : result;
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressions(finalResult, memberId);
+
+        return finalResult;
     }
 
     // =================================================================================
@@ -210,13 +212,19 @@ public class AdCampaignService {
      * [V2 Serving] 입찰가 순 광고 노출 (비로그인용 등)
      * Redis에서 현재 활성 상태인 ID 목록(상위 5,000개)을 먼저 가져와서 DB에 던짐.
      */
+    @Transactional
     public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable) {
         java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
         if (activeIdsStr == null || activeIdsStr.isEmpty())
             return Page.empty(pageable);
 
         Long[] activeIds = activeIdsStr.stream().map(Long::valueOf).toArray(Long[]::new);
-        return adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
+        Page<AdCampaignEntity> page = adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
+
+        // [New] 노출 기록 (비로그인이므로 memberId = null)
+        adImpressionService.trackImpressionsFromEntities(page.getContent(), null);
+
+        return page;
     }
 
     /**
@@ -256,7 +264,12 @@ public class AdCampaignService {
      * [V1 Legacy] 순수 DB 기반 조회
      */
     public Page<AdCampaignEntity> getActiveAdsForServingLegacy(Pageable pageable) {
-        return adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+        Page<AdCampaignEntity> page = adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressionsFromEntities(page.getContent(), null);
+
+        return page;
     }
 
     /**
@@ -277,7 +290,12 @@ public class AdCampaignService {
         List<Object[]> matchResults = adCampaignRepository.findActiveAdsWithSimilarity(
                 embeddingOpt.get(), maxDistance, limit, 5000.0);
 
-        return matchResults.stream().map(AdServeResponseDTO::fromQueryResult).toList();
+        List<AdServeResponseDTO> result = matchResults.stream().map(AdServeResponseDTO::fromQueryResult).toList();
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressions(result, memberId);
+
+        return result;
     }
 
     // =================================================================================
