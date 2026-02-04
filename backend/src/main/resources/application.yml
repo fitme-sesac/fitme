@@ -25,9 +25,9 @@ spring:
     name: ${APP_NAME:PProject}
 
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:fitme_project}}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -61,8 +61,8 @@ spring:
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -75,15 +75,15 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope: [email, profile]
             redirect-uri: ${APP_BASE_URL:http://localhost:8080}/login/oauth2/code/google
             client-name: Google
 
           kakao:
-            client-id: ${KAKAO_CLIENT_ID}
-            client-secret: ${KAKAO_CLIENT_SECRET}
+            client-id: ${KAKAO_CLIENT_ID:}
+            client-secret: ${KAKAO_CLIENT_SECRET:}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
             redirect-uri: ${APP_BASE_URL:http://localhost:8080}/login/oauth2/code/kakao
@@ -91,8 +91,8 @@ spring:
             client-name: Kakao
 
           naver:
-            client-id: ${NAVER_CLIENT_ID}
-            client-secret: ${NAVER_CLIENT_SECRET}
+            client-id: ${NAVER_CLIENT_ID:}
+            client-secret: ${NAVER_CLIENT_SECRET:}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
             redirect-uri: ${APP_BASE_URL:http://localhost:8080}/login/oauth2/code/naver
@@ -136,7 +136,7 @@ cloud:
       domain: ${AWS_CLOUDFRONT_DOMAIN:}
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:defaultSecretKeyForDevelopmentOnlyDoNotUseInProduction}
   access-token-validity-seconds: ${JWT_ACCESS_TOKEN_VALIDITY_SECONDS:7200}
 
 imgUploadLocation: ${IMG_UPLOAD_LOCATION:item}
@@ -145,7 +145,7 @@ oauth2:
   auth-request-cookie:
     name: ${OAUTH2_AUTH_REQUEST_COOKIE_NAME:OAUTH2_AUTH_REQUEST}
     ttl-seconds: ${OAUTH2_AUTH_REQUEST_COOKIE_TTL_SECONDS:300}
-    secret: ${OAUTH2_AUTH_REQUEST_COOKIE_SECRET}
+    secret: ${OAUTH2_AUTH_REQUEST_COOKIE_SECRET:defaultCookieSecret}
 
 logging:
   level:
@@ -159,14 +159,14 @@ app:
     policy-id: ${NOTICE_POLICY_ID:3}
 
 solapi:
-  api-key: ${SOLAPI_API_KEY}
-  api-secret: ${SOLAPI_API_SECRET}
-  sender: ${SOLAPI_SENDER}
+  api-key: ${SOLAPI_API_KEY:}
+  api-secret: ${SOLAPI_API_SECRET:}
+  sender: ${SOLAPI_SENDER:}
 
 otp:
-  pepper: ${OTP_PEPPER}
+  pepper: ${OTP_PEPPER:defaultPepper}
 verify:
-  pepper: ${VERIFY_PEPPER}
+  pepper: ${VERIFY_PEPPER:defaultPepper}
 
 resilience4j:
   circuitbreaker:
@@ -189,4 +189,4 @@ resilience4j:
         exponentialBackoffMultiplier: 2
 
 toss:
-  secret-key: ${TOSS_SECRET_KEY}
+  secret-key: ${TOSS_SECRET_KEY:}
