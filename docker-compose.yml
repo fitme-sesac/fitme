@@ -14,7 +14,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -23,7 +23,7 @@ services:
     image: redis:7.2-alpine
     container_name: fitme-redis
     restart: unless-stopped
-    command: ["sh", "-lc", "redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    command: [ "sh", "-lc", "redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\"" ]
     env_file:
       - ./.env.docker
     ports:
@@ -31,7 +31,7 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" PING"]
+      test: [ "CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" PING" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -39,7 +39,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: fitme-pgadmin
-    profiles: ["tools"]
+    profiles: [ "tools" ]
     restart: unless-stopped
     env_file:
       - ./.env.docker
@@ -76,14 +76,8 @@ services:
       # - Remote: set APP_BASE_URL / FRONT_BASE_URL to your public domain
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       FRONT_BASE_URL: ${FRONT_BASE_URL:-http://localhost:5173}
-
-      # AWS S3 (이미지 업로드)
-      AWS_S3_ENABLED: ${AWS_S3_ENABLED:-false}
-      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-}
-      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-}
-      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
-      AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN:-}
+      # AWS S3 (Removed)
+      # AWS_S3_ENABLED: false
 
     ports:
       - "8080:8080"
@@ -115,7 +109,7 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy  
+        condition: service_healthy
 
   frontend:
     build:
@@ -139,7 +133,7 @@ services:
 
       # 토스페이먼츠 클라이언트 키 (.env.docker의 TOSS_CLIENT_KEY 사용)
       VITE_TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY}
-      
+
       # 카카오맵 API 키 (.env.docker의 KAKAO_MAP_API_KEY 사용)
       VITE_KAKAO_MAP_API_KEY: ${KAKAO_MAP_API_KEY}
     ports:
@@ -156,7 +150,7 @@ services:
     container_name: fitme-ngrinder-controller
     restart: unless-stopped
     ports:
-      - "80:80"             # nGrinder 웹 (http://localhost)
+      - "80:80" # nGrinder 웹 (http://localhost)
       - "16001:16001"
       - "12000-12009:12000-12009"
     volumes:
@@ -176,6 +170,6 @@ services:
 volumes:
   pgdata:
   redisdata:
-  uploads:
-  # [추가됨] nGrinder 데이터 저장소
+  uploads: # [추가됨] nGrinder 데이터 저장소
+
   ngrinder-data:
