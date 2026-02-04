@@ -367,7 +367,7 @@ const JobSeekerMyPage = () => {
                       커뮤니티 관리
                     </Button>
                     <Button size="sm" asChild>
-                      <Link to="/resumes">
+                      <Link to="/resume">
                         <FileText className="h-4 w-4 mr-2" />
                         이력서 관리
                       </Link>
@@ -468,11 +468,12 @@ const JobSeekerMyPage = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {savedJobs.length > 0 ? (
-                        savedJobs.map((item) => {
+                        savedJobs.map((item, index) => {
                           const job = item.job || item; // 구조에 따라 다를 수 있음
+                          const keyId = job.id || job.jobId || item.scrapId || item.id || `saved-${index}`;
                           return (
                             <div
-                              key={job.id}
+                              key={keyId}
                               className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
                             >
                               <div>
@@ -546,7 +547,7 @@ const JobSeekerMyPage = () => {
                           이력서 정보를 바탕으로 AI가 맞춤 공고를 추천해드립니다.
                         </p>
                         <Button asChild className="btn-gradient-primary border-0">
-                          <Link to="/resumes/new">
+                          <Link to="/resume">
                             <FileText className="h-4 w-4 mr-2" />
                             이력서 작성하기
                           </Link>

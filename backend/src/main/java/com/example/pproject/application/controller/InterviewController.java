@@ -5,6 +5,8 @@ import com.example.pproject.application.dto.InterviewDTO;
 import com.example.pproject.application.dto.InterviewRespondRequest;
 import com.example.pproject.application.service.InterviewService;
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,20 @@ import java.util.List;
 public class InterviewController {
 
     private final InterviewService interviewService;
+    private final UserRepository userRepository;
+
+    /** JWT principal에서 회원 PK(member_id) 조회. id 클레임이 있으면 사용, 없으면 userid로 DB 조회 (구직자 캘린더 등 500 방지) */
+    private Long resolveMemberId(JwtUserPrincipal principal) {
+        if (principal == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
+        }
+        if (principal.getId() != null) {
+            return principal.getId();
+        }
+        return userRepository.findByUserid(principal.getUserid())
+                .map(UserEntity::getId)
+                .orElseThrow(() -> new IllegalArgumentException("회원 정보를 찾을 수 없습니다."));
+    }
 
     /**
      * 면접 일정 생성 (기업용)
@@ -30,7 +46,7 @@ public class InterviewController {
     public ResponseEntity<Long> createInterview(
             @Valid @RequestBody InterviewCreateRequest request,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        Long interviewId = interviewService.createInterview(request, principal.getId());
+        Long interviewId = interviewService.createInterview(request, resolveMemberId(principal));
         return ResponseEntity.ok(interviewId);
     }
 
@@ -42,7 +58,7 @@ public class InterviewController {
             @PathVariable Long interviewId,
             @Valid @RequestBody InterviewRespondRequest request,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        interviewService.respondToInterview(interviewId, request, principal.getId());
+        interviewService.respondToInterview(interviewId, request, resolveMemberId(principal));
         return ResponseEntity.ok().build();
     }
 
@@ -53,7 +69,7 @@ public class InterviewController {
     public ResponseEntity<Void> cancelInterview(
             @PathVariable Long interviewId,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        interviewService.cancelInterview(interviewId, principal.getId());
+        interviewService.cancelInterview(interviewId, resolveMemberId(principal));
         return ResponseEntity.ok().build();
     }
 
@@ -64,7 +80,7 @@ public class InterviewController {
     public ResponseEntity<Void> completeInterview(
             @PathVariable Long interviewId,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        interviewService.completeInterview(interviewId, principal.getId());
+        interviewService.completeInterview(interviewId, resolveMemberId(principal));
         return ResponseEntity.ok().build();
     }
 
@@ -74,7 +90,8 @@ public class InterviewController {
     @GetMapping("/me")
     public ResponseEntity<List<InterviewDTO>> getMyInterviews(
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        List<InterviewDTO> interviews = interviewService.getMyInterviews(principal.getId());
+        Long memberId = resolveMemberId(principal);
+        List<InterviewDTO> interviews = interviewService.getMyInterviews(memberId);
         return ResponseEntity.ok(interviews);
     }
 
@@ -84,7 +101,8 @@ public class InterviewController {
     @GetMapping("/me/upcoming")
     public ResponseEntity<List<InterviewDTO>> getUpcomingInterviews(
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        List<InterviewDTO> interviews = interviewService.getUpcomingInterviews(principal.getId());
+        Long memberId = resolveMemberId(principal);
+        List<InterviewDTO> interviews = interviewService.getUpcomingInterviews(memberId);
         return ResponseEntity.ok(interviews);
     }
 
@@ -94,7 +112,7 @@ public class InterviewController {
     @GetMapping("/employer")
     public ResponseEntity<List<InterviewDTO>> getEmployerInterviews(
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        List<InterviewDTO> interviews = interviewService.getEmployerInterviews(principal.getId());
+        List<InterviewDTO> interviews = interviewService.getEmployerInterviews(resolveMemberId(principal));
         return ResponseEntity.ok(interviews);
     }
 
@@ -104,7 +122,7 @@ public class InterviewController {
     @GetMapping("/employer/upcoming")
     public ResponseEntity<List<InterviewDTO>> getEmployerUpcomingInterviews(
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        List<InterviewDTO> interviews = interviewService.getEmployerUpcomingInterviews(principal.getId());
+        List<InterviewDTO> interviews = interviewService.getEmployerUpcomingInterviews(resolveMemberId(principal));
         return ResponseEntity.ok(interviews);
     }
 
@@ -115,7 +133,7 @@ public class InterviewController {
     public ResponseEntity<List<InterviewDTO>> getInterviewsByApplication(
             @PathVariable Long applicationId,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        List<InterviewDTO> interviews = interviewService.getInterviewsByApplication(applicationId, principal.getId());
+        List<InterviewDTO> interviews = interviewService.getInterviewsByApplication(applicationId, resolveMemberId(principal));
         return ResponseEntity.ok(interviews);
     }
 
@@ -126,7 +144,7 @@ public class InterviewController {
     public ResponseEntity<InterviewDTO> getInterview(
             @PathVariable Long interviewId,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
-        InterviewDTO interview = interviewService.getInterview(interviewId, principal.getId());
+        InterviewDTO interview = interviewService.getInterview(interviewId, resolveMemberId(principal));
         return ResponseEntity.ok(interview);
     }
 }

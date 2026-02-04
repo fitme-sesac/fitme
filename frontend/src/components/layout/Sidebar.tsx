@@ -21,6 +21,7 @@ const jobSeekerNavItems = [
 const companyNavItems = [
   { icon: Home, label: "홈", href: "/" },
   { icon: Briefcase, label: "채용공고", href: "/jobs" },
+  { icon: Calendar, label: "면접", href: "/company/interviews" },
   { icon: Users, label: "인재풀", href: "/talents" },
   { icon: Building2, label: "기업", href: "/companies" },
   { icon: CreditCard, label: "구독", href: "/payment/products" },

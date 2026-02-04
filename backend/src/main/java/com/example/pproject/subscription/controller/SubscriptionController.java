@@ -1,22 +1,110 @@
 package com.example.pproject.subscription.controller;
 
+import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.Constant.SubscriptionStatus;
+import com.example.pproject.employer.entity.EmployerMemberEntity;
+import com.example.pproject.employer.repository.EmployerMemberRepository;
 import com.example.pproject.subscription.dto.SubscriptionBillingInfoUpdateRequest;
 import com.example.pproject.subscription.dto.SubscriptionCreateRequest;
 import com.example.pproject.subscription.dto.SubscriptionProductUpdateRequest;
 import com.example.pproject.subscription.dto.SubscriptionResponse;
+import com.example.pproject.subscription.repository.SubscriptionRepository;
 import com.example.pproject.subscription.service.SubscriptionService;
+import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/subscriptions")
 @RequiredArgsConstructor
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final SubscriptionRepository subscriptionRepository;
+    private final UserRepository userRepository;
+    private final EmployerMemberRepository employerMemberRepository;
+
+    // =============================================================================================
+    // [구독 상태 확인]
+    // =============================================================================================
+
+    /**
+     * 내 구독 상태 확인 (현재 로그인한 기업의 활성 구독 여부)
+     */
+    @GetMapping("/my/status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> checkMySubscriptionStatus(@AuthenticationPrincipal JwtUserPrincipal principal) {
+        try {
+            Long employerId = getEmployerIdFromPrincipal(principal);
+            
+            if (employerId == null) {
+                return ResponseEntity.ok(Map.of(
+                        "hasActiveSubscription", false,
+                        "message", "기업 정보를 찾을 수 없습니다."
+                ));
+            }
+
+            Instant now = Instant.now();
+            boolean hasActive = subscriptionRepository.hasActiveSubscription(employerId, SubscriptionStatus.ACTIVE, now);
+            
+            if (hasActive) {
+                var subscription = subscriptionRepository.findActiveByEmployerId(employerId, SubscriptionStatus.ACTIVE, now);
+                return ResponseEntity.ok(Map.of(
+                        "hasActiveSubscription", true,
+                        "subscription", subscription.map(s -> Map.of(
+                                "id", s.getSubscriptionId(),
+                                "status", s.getStatus().name(),
+                                "nextBillingAt", s.getNextBillingAt() != null ? s.getNextBillingAt().toString() : null
+                        )).orElse(null)
+                ));
+            } else {
+                return ResponseEntity.ok(Map.of(
+                        "hasActiveSubscription", false,
+                        "message", "활성 구독이 없습니다."
+                ));
+            }
+        } catch (Exception e) {
+            log.error("구독 상태 확인 중 오류", e);
+            return ResponseEntity.ok(Map.of(
+                    "hasActiveSubscription", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Principal에서 기업 ID 추출
+     */
+    private Long getEmployerIdFromPrincipal(JwtUserPrincipal principal) {
+        if (principal == null) return null;
+        
+        try {
+            String userid = principal.getUserid();
+            String email = principal.getEmail();
+            
+            var userOpt = userid != null ? userRepository.findByUserid(userid) : 
+                         email != null ? userRepository.findByEmail(email) : null;
+            
+            if (userOpt == null || userOpt.isEmpty()) return null;
+            
+            Long memberId = userOpt.get().getId();
+            var membership = employerMemberRepository.findFirstByMemberIdAndActiveTrue(memberId);
+            
+            return membership.map(EmployerMemberEntity::getEmployerId).orElse(null);
+        } catch (Exception e) {
+            log.warn("기업 ID 조회 실패: {}", e.getMessage());
+            return null;
+        }
+    }
 
     // =============================================================================================
     // [일반 유저 기능]

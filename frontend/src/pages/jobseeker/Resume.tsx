@@ -19,6 +19,7 @@ import {
     MoreVertical,
     LogIn,
     Loader2,
+    Star,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ResumeTemplateSelector } from "@/components/resume/ResumeTemplateSelector";
@@ -381,6 +382,15 @@ const ResumePage = () => {
 
                             {/* 이력서 목록 (DB 연동) */}
                             <TabsContent value="list" className="mt-6">
+                                {/* 대표 이력서 안내 */}
+                                {!listLoading && list.length > 1 && (
+                                    <div className="mb-4 p-4 bg-sky-50/50 border border-sky-100 rounded-xl">
+                                        <p className="text-sm text-sky-700">
+                                            <Star className="h-4 w-4 inline-block mr-1.5 text-yellow-500 fill-yellow-500" />
+                                            <strong>대표 이력서</strong>를 설정하면 지원 시 기본으로 선택됩니다. 별표 버튼을 클릭하여 대표 이력서를 지정하세요.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="grid gap-4">
                                     {listLoading ? (
                                         <div className="flex justify-center py-12">
@@ -388,7 +398,7 @@ const ResumePage = () => {
                                         </div>
                                     ) : (
                                         list.map((resume: { id: number; title?: string; lastModifiedAt?: string; primary?: boolean }) => (
-                                            <Card key={resume.id} className="border-none shadow-sm hover:shadow-md transition-all bg-white overflow-hidden group">
+                                            <Card key={resume.id} className={`border-none shadow-sm hover:shadow-md transition-all bg-white overflow-hidden group ${resume.primary ? 'ring-2 ring-sky-500/50' : ''}`}>
                                                 <CardContent className="flex items-center justify-between p-6">
                                                     <div
                                                         className="flex items-center gap-5 flex-1 min-w-0 cursor-pointer"
@@ -398,7 +408,7 @@ const ResumePage = () => {
                                                         onKeyDown={(e) => e.key === "Enter" && handleViewResume(resume.id)}
                                                         aria-label={`이력서 ${resume.title ?? "제목 없음"} 보기`}
                                                     >
-                                                        <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors shrink-0">
+                                                        <div className={`h-14 w-14 rounded-xl flex items-center justify-center transition-colors shrink-0 ${resume.primary ? 'bg-sky-100' : 'bg-sky-50 group-hover:bg-sky-100'}`}>
                                                             <FileText className="h-7 w-7 text-sky-500" />
                                                         </div>
                                                         <div className="min-w-0">
@@ -406,7 +416,7 @@ const ResumePage = () => {
                                                                 <h3 className="font-bold text-lg text-gray-900 truncate">{resume.title ?? "제목 없음"}</h3>
                                                                 {resume.primary && (
                                                                     <Badge className="bg-sky-500 text-white border-none text-[10px] px-2 py-0 shrink-0">
-                                                                        기본
+                                                                        대표
                                                                     </Badge>
                                                                 )}
                                                             </div>
@@ -415,7 +425,18 @@ const ResumePage = () => {
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                        {/* 대표 이력서 설정 버튼 */}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className={`transition-colors ${resume.primary ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-300 hover:text-yellow-500'}`}
+                                                            onClick={() => !resume.primary && handleSetPrimary(resume.id)}
+                                                            disabled={!!resume.primary || setPrimaryMutation.isPending}
+                                                            title={resume.primary ? "현재 대표 이력서" : "대표 이력서로 설정"}
+                                                        >
+                                                            <Star className={`h-5 w-5 ${resume.primary ? 'fill-yellow-500' : ''}`} />
+                                                        </Button>
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <Button variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
@@ -427,7 +448,8 @@ const ResumePage = () => {
                                                                     수정하기
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => handleSetPrimary(resume.id)} className="rounded-md" disabled={!!resume.primary}>
-                                                                    기본 이력서로 설정
+                                                                    <Star className="h-4 w-4 mr-2" />
+                                                                    대표 이력서로 설정
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => handleCopyResume(resume.id)} className="rounded-md" disabled={copyMutation.isPending}>
                                                                     복사하기

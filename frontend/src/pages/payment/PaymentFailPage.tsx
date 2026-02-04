@@ -26,6 +26,7 @@ export default function PaymentFailPage() {
             existingParams.forEach((value, key) => newSearchParams.set(key, value));
         }
 
+
         navigate(`${path}?${newSearchParams.toString()}`, { replace: true });
     }, [navigate, searchParams, code, message]);
 
@@ -33,6 +34,15 @@ export default function PaymentFailPage() {
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
             <Card className="p-8 text-center">
                 <p className="text-slate-500">결제 실패 확인 중...</p>
+
+
+
+
+
+
+
+
+
             </Card>
         </div>
     );

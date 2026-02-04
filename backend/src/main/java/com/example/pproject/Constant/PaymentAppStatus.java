@@ -19,21 +19,22 @@ public enum PaymentAppStatus {
         return description;
     }
 
+    private static final Set<PaymentAppStatus> REQUESTED_ALLOWED =
+            Set.of(APPROVED, FAILED, CANCELED);
+    private static final Set<PaymentAppStatus> APPROVED_ALLOWED =
+            Set.of(CANCELED, PARTIAL_CANCELED);
+
     /**
      * 상태 전이 가능 여부를 확인합니다.
-     * @param nextStatus 변경하려는 다음 상태
+     *
+     * @param target 목표 상태
      * @return 전이 가능하면 true
      */
-    public boolean canTransitionTo(PaymentAppStatus nextStatus) {
-        // 자기 자신으로의 전이는 허용하지 않음 (상태 변경이 아니므로)
-        if (this == nextStatus) return false;
-
+    public boolean canTransitionTo(PaymentAppStatus target) {
         return switch (this) {
-            case REQUESTED -> Set.of(APPROVED, FAILED).contains(nextStatus);
-            case APPROVED -> Set.of(CANCELED, PARTIAL_CANCELED).contains(nextStatus);
-            case PARTIAL_CANCELED -> Set.of(CANCELED, PARTIAL_CANCELED).contains(nextStatus);
-            // FAILED, CANCELED는 최종 상태이므로 전이 불가
-            case FAILED, CANCELED -> false;
+            case REQUESTED -> REQUESTED_ALLOWED.contains(target);
+            case APPROVED -> APPROVED_ALLOWED.contains(target);
+            case FAILED, CANCELED, PARTIAL_CANCELED -> false;
         };
     }
 }

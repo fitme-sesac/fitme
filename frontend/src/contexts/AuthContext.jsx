@@ -69,10 +69,8 @@ export function AuthProvider({ children }) {
         try {
             const status = await authApi.checkAuthStatus();
             setUser(status?.authenticated ? status : null);
-
             // Pass the user role to ensure we fetch the correct wallet
             await refreshCredits(status?.role);
-
             return status;
         } catch {
             setUser(null);
@@ -93,10 +91,8 @@ export function AuthProvider({ children }) {
                 return { data: null, error: "로그인 상태 확인에 실패했습니다." };
             }
             setUser(status);
-
             // Pass the user role to ensure we fetch the correct wallet
             await refreshCredits(status?.role);
-
             return { data: response, error: null };
         } catch (error) {
             return { data: null, error: extractErrorMessage(error, "로그인에 실패했습니다.") };
@@ -331,7 +327,6 @@ export function AuthProvider({ children }) {
                 // authenticated=false인 경우에는 user를 null로 유지해서
                 // 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
                 setUser(status?.authenticated ? status : null);
-
                 // Pass the user role to ensure we fetch the correct wallet
                 await refreshCredits(status?.role);
             } catch {

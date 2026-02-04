@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react";
 export default function PaymentSuccessPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-
     useEffect(() => {
         const paymentKey = searchParams.get("paymentKey");
         const orderId = searchParams.get("orderId");

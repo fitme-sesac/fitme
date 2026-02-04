@@ -148,7 +148,6 @@ public class OrderService {
 
         order.fail();
     }
-
     private void validateOrderOwner(Orders order, Long userId) {
         if (order.getBuyerType() == BuyerType.EMPLOYER) {
             boolean isMember = employerMemberRepository.existsByEmployerIdAndMemberIdAndActiveTrue(

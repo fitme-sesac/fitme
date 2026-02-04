@@ -2,7 +2,10 @@ package com.example.pproject.application.repository;
 
 import com.example.pproject.application.entity.JobApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface JobApplicationRepository extends JpaRepository<JobApplication, Long> {
@@ -18,4 +21,11 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
 
     // 특정 유저의 지원 내역 개수 조회
     long countByMemberId(Long memberId);
+
+    // 특정 기간 내 지원 건수 조회
+    long countByAppliedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    // 오늘 지원 건수 조회
+    @Query("SELECT COUNT(a) FROM JobApplication a WHERE a.appliedAt >= :startOfDay")
+    long countTodayApplications(@Param("startOfDay") LocalDateTime startOfDay);
 }
