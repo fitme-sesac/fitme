@@ -56,6 +56,12 @@ export async function deleteResume(resumeId) {
   return response.data;
 }
 
+// AI 요약 수정
+export async function updateResumeSummary(resumeId, summary) {
+  const response = await http.put(`/api/v1/ai/resumes/${resumeId}/summary`, { summary });
+  return response.data;
+}
+
 /**
  * 이력서 복제 (로그인 필요)
  * @param {number} resumeId - 이력서 ID

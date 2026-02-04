@@ -13,7 +13,8 @@ import {
     Plus,
     X,
     Save,
-    Loader2
+    Loader2,
+    Sparkles
 } from "lucide-react";
 
 export interface ResumeData {
@@ -42,6 +43,7 @@ export interface ResumeData {
         endDate: string;
     }[];
     skills: string[];
+    aiSummary?: string;
 }
 
 interface ResumeEditorProps {
@@ -207,7 +209,28 @@ export function ResumeEditor({ resumeData, onUpdateResume, onSave, saving }: Res
                         자기소개
                     </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    {resumeData.aiSummary && resumeData.aiSummary !== resumeData.summary && (
+                        <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 mb-4">
+                            <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-semibold text-sky-800 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4" />
+                                    AI 요약 제안
+                                </h4>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-white hover:bg-sky-100 text-sky-600 border-sky-200"
+                                    onClick={() => onUpdateResume({ ...resumeData, summary: resumeData.aiSummary! })}
+                                >
+                                    적용하기
+                                </Button>
+                            </div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                {resumeData.aiSummary}
+                            </p>
+                        </div>
+                    )}
                     <Textarea
                         value={resumeData.summary}
                         onChange={(e) =>

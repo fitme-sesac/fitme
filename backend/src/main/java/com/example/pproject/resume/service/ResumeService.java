@@ -22,6 +22,7 @@ public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
     private final JobApplicationRepository jobApplicationRepository;
+    private final ResumeSummaryService resumeSummaryService; // AI 요약 서비스 추가
 
     // 1. 내 이력서 목록 조회 (Long userId)
     public List<ResumeResponse> getResumes(Long userId) {
@@ -46,6 +47,8 @@ public class ResumeService {
         // 첫 이력서라면 대표 이력서로 설정 (findAllByUser_Id 사용)
         if (resumeRepository.findAllByUser_Id(userId).isEmpty()) {
             resume.setPrimary(true);
+            // AI 요약/임베딩 요청 (비동기)
+            resumeSummaryService.requestSummary(resume.getId(), userId);
         }
 
         // 프로필(사진, 주소) 저장
@@ -70,16 +73,20 @@ public class ResumeService {
                 request.getPublicOption(), request.getField(),
                 request.getPreferenceLocation(), request.getPreferenceSalary(),
                 request.getEmploymentType(),
-                request.getReStack(),     // List<String>
+                request.getReStack(), // List<String>
                 request.getCareerYears(), // Integer
-                request.getSchool(), request.getSchoolState(), request.getSchoolClass()
-        );
+                request.getSchool(), request.getSchoolState(), request.getSchoolClass());
 
+        // 대표 이력서 변경 로직 (findByUser_IdAndPrimaryTrue 사용)
         // 대표 이력서 변경 로직 (findByUser_IdAndPrimaryTrue 사용)
         if (Boolean.TRUE.equals(request.getPrimary())) {
             resumeRepository.findByUser_IdAndPrimaryTrue(userId)
                     .ifPresent(old -> old.setPrimary(false));
             resume.setPrimary(true);
+
+            // AI 요약/임베딩 요청 (비동기)
+            // 기존 이력서가 변경되었으므로 내용을 다시 분석해야 함
+            resumeSummaryService.requestSummary(resume.getId(), userId);
         }
 
         return resume.getId();
@@ -217,8 +224,32 @@ public class ResumeService {
         resume.getAttachments().removeIf(attachment -> attachment.getId().equals(attachmentId));
     }
 
-
     // --- Helper Methods ---
+
+    /**
+     * [NEW] 특정 이력서를 대표 이력서로 설정 + AI 요약 요청
+     */
+    @Transactional
+    public void setPrimaryResume(Long resumeId, Long userId) {
+        Resume resume = getResumeEntity(resumeId);
+        validateOwner(resume, userId);
+
+        if (resume.isPrimary()) {
+            return; // 이미 대표 이력서임
+        }
+
+        // 1. 기존 대표 해제
+        resumeRepository.findByUser_IdAndPrimaryTrue(userId)
+                .ifPresent(old -> old.setPrimary(false));
+
+        // 2. 새 대표 설정
+        resume.setPrimary(true);
+        // 저장은 Transaction Commit 시 dirty checking으로 발생하지만, 명시적 save도 무방
+        resumeRepository.save(resume);
+
+        // 3. AI 요약/임베딩 요청 (비동기)
+        resumeSummaryService.requestSummary(resume.getId(), userId);
+    }
 
     private UserEntity getUser(Long userId) {
         return userRepository.findById(userId)
@@ -238,11 +269,16 @@ public class ResumeService {
     }
 
     private void addChildrenToResume(Resume resume, ResumeRequest request) {
-        if(request.getCareers() != null) request.getCareers().forEach(d -> resume.getCareers().add(d.toEntity(resume)));
-        if(request.getProjects() != null) request.getProjects().forEach(d -> resume.getProjects().add(d.toEntity(resume)));
-        if(request.getCertificates() != null) request.getCertificates().forEach(d -> resume.getCertificates().add(d.toEntity(resume)));
-        if(request.getLinks() != null) request.getLinks().forEach(d -> resume.getLinks().add(d.toEntity(resume)));
-        if(request.getAttachments() != null) request.getAttachments().forEach(d -> resume.getAttachments().add(d.toEntity(resume)));
+        if (request.getCareers() != null)
+            request.getCareers().forEach(d -> resume.getCareers().add(d.toEntity(resume)));
+        if (request.getProjects() != null)
+            request.getProjects().forEach(d -> resume.getProjects().add(d.toEntity(resume)));
+        if (request.getCertificates() != null)
+            request.getCertificates().forEach(d -> resume.getCertificates().add(d.toEntity(resume)));
+        if (request.getLinks() != null)
+            request.getLinks().forEach(d -> resume.getLinks().add(d.toEntity(resume)));
+        if (request.getAttachments() != null)
+            request.getAttachments().forEach(d -> resume.getAttachments().add(d.toEntity(resume)));
     }
 
     /**
