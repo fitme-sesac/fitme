@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - develop
+      - dev
   workflow_dispatch:
 
 env:
@@ -39,7 +39,10 @@ jobs:
         working-directory: ./frontend
         run: |
           IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG .
+          # Nginx production build (needs VITE_API_BASE_URL arg if built in CI, but here we just build docker)
+          # Note: If environment variables are needed at build time, add --build-arg
+          docker build --build-arg VITE_API_BASE_URL=http://fitme-alb-19198870.ap-northeast-2.elb.amazonaws.com \
+            -t $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG $ECR_REGISTRY/$PROJECT_NAME-frontend:latest
           docker push $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG
           docker push $ECR_REGISTRY/$PROJECT_NAME-frontend:latest
@@ -72,7 +75,7 @@ jobs:
         id: render-frontend
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: .aws/task-definitions/frontend.json
+          task-definition: frontend/frontend-task-def-READY.json
           container-name: frontend
           image: ${{ env.FRONTEND_IMAGE }}
 
@@ -89,7 +92,7 @@ jobs:
         id: render-backend
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: .aws/task-definitions/backend.json
+          task-definition: backend/backend-task-def-READY.json
           container-name: backend
           image: ${{ env.BACKEND_IMAGE }}
 
@@ -106,7 +109,7 @@ jobs:
         id: render-ai
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: .aws/task-definitions/ai-worker.json
+          task-definition: ai-worker/ai-worker-task-def-READY.json
           container-name: ai-worker
           image: ${{ env.AI_IMAGE }}
 
