@@ -64,15 +64,15 @@ public class EmployerService {
         EmployerMemberEntity membership = employerMemberRepository
                 .findFirstByMemberIdAndActiveTrue(memberId)
                 .orElse(null);
-        
+
         if (membership == null) {
             log.info("사용자 {}에게 소속된 기업이 없습니다.", userid);
             return null;
         }
-        
+
         EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
                 .orElse(null);
-        
+
         if (employer == null || employer.getDeletedAt() != null) {
             log.info("기업 ID {}를 찾을 수 없습니다.", membership.getEmployerId());
             return null;
@@ -94,7 +94,7 @@ public class EmployerService {
         EmployerMemberEntity membership = employerMemberRepository
                 .findFirstByMemberIdAndActiveTrue(memberId)
                 .orElse(null);
-        
+
         if (membership == null) {
             // 소속 기업이 없는 경우 빈 대시보드 반환
             log.info("사용자 {}에게 소속된 기업이 없어 빈 대시보드 반환", userid);
@@ -106,7 +106,7 @@ public class EmployerService {
                     .recentJobs(List.of())
                     .build();
         }
-        
+
         EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
                 .orElse(null);
 
@@ -194,7 +194,7 @@ public class EmployerService {
                 .contactPhone(dto.getContactPhone())
                 .websiteUrl(dto.getWebsiteUrl())
                 .build();
-        
+
         // 저장된 엔티티를 반환받아 ID 등이 채워진 상태로 갱신
         employer = employerRepository.save(employer);
         log.info("새 기업 생성: {}", employer.getName());
@@ -206,7 +206,7 @@ public class EmployerService {
                 .roleInCompany("OWNER")
                 .active(true)
                 .build();
-        
+
         employerMemberRepository.save(membership);
         log.info("사용자 {}를 기업 {} OWNER로 등록", userid, employer.getName());
 
@@ -227,12 +227,12 @@ public class EmployerService {
         EmployerMemberEntity membership = employerMemberRepository
                 .findFirstByMemberIdAndActiveTrue(memberId)
                 .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다. 먼저 기업을 등록해주세요."));
-        
+
         // OWNER 또는 HR만 수정 가능
         if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
             throw new IllegalStateException("기업 정보 수정 권한이 없습니다.");
         }
-        
+
         EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
                 .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
 
@@ -269,7 +269,7 @@ public class EmployerService {
 
         // 소속 기업 확인
         boolean hasEmployer = employerMemberRepository.existsByMemberIdAndActiveTrue(memberId);
-        
+
         if (!hasEmployer) {
             // 새로 생성
             return createProfile(userid, dto);
@@ -432,6 +432,7 @@ public class EmployerService {
                     FROM ad_campaign ac
                     JOIN job_posting jp ON jp.job_id = ac.job_id
                     WHERE ac.employer_id = ?
+                      AND ac.status != 'DELETED'
                     ORDER BY ac.created_at DESC
                     LIMIT 20
                     """;
@@ -531,7 +532,7 @@ public class EmployerService {
      */
     public ApplicantListDTO getApplicants(String userid, String status) {
         Long employerId = getEmployerIdByUserid(userid);
-        return getApplicantsByEmployerId(employerId, status,null);
+        return getApplicantsByEmployerId(employerId, status, null);
     }
 
     /**
@@ -539,7 +540,7 @@ public class EmployerService {
      */
     public ApplicantListDTO getApplicants(Long memberId, String status) {
         Long employerId = getEmployerIdByMemberId(memberId);
-        return getApplicantsByEmployerId(employerId, status,null);
+        return getApplicantsByEmployerId(employerId, status, null);
     }
 
     /**
@@ -571,28 +572,28 @@ public class EmployerService {
 
         try {
             StringBuilder sql = new StringBuilder("""
-                SELECT 
-                    ja.application_id,
-                    ja.job_id,
-                    jp.title as job_title,
-                    ja.member_id,
-                    m.name,
-                    m.email,
-                    m.phone,
-                    ja.resume_id,
-                    r.title as resume_title,
-                    ja.status,
-                    ja.applied_at,
-                    ja.viewed_at
-                FROM job_application ja
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                JOIN member m ON m.member_id = ja.member_id
-                LEFT JOIN resume r ON r.resume_id = ja.resume_id
-                WHERE jp.employer_id = ?
-                  AND jp.deleted_at IS NULL
-                  AND m.deleted_at IS NULL
-                  AND ja.status != 'CANCELED'
-                """);
+                    SELECT
+                        ja.application_id,
+                        ja.job_id,
+                        jp.title as job_title,
+                        ja.member_id,
+                        m.name,
+                        m.email,
+                        m.phone,
+                        ja.resume_id,
+                        r.title as resume_title,
+                        ja.status,
+                        ja.applied_at,
+                        ja.viewed_at
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN member m ON m.member_id = ja.member_id
+                    LEFT JOIN resume r ON r.resume_id = ja.resume_id
+                    WHERE jp.employer_id = ?
+                      AND jp.deleted_at IS NULL
+                      AND m.deleted_at IS NULL
+                      AND ja.status != 'CANCELED'
+                    """);
 
             List<Object> params = new ArrayList<>();
             params.add(employerId);
@@ -622,10 +623,12 @@ public class EmployerService {
                             .resumeId(rs.getLong("resume_id"))
                             .resumeTitle(rs.getString("resume_title"))
                             .status(rs.getString("status"))
-                            .appliedAt(rs.getTimestamp("applied_at") != null ? 
-                                    rs.getTimestamp("applied_at").toLocalDateTime().toString() : null)
-                            .viewedAt(rs.getTimestamp("viewed_at") != null ? 
-                                    rs.getTimestamp("viewed_at").toLocalDateTime().toString() : null)
+                            .appliedAt(rs.getTimestamp("applied_at") != null
+                                    ? rs.getTimestamp("applied_at").toLocalDateTime().toString()
+                                    : null)
+                            .viewedAt(rs.getTimestamp("viewed_at") != null
+                                    ? rs.getTimestamp("viewed_at").toLocalDateTime().toString()
+                                    : null)
                             .build(),
                     params.toArray());
 
@@ -641,7 +644,8 @@ public class EmployerService {
                     Set<String> candidateSkills = dto.getMemberId() != null
                             ? resumeSkillService.getSkillsByMemberId(dto.getMemberId())
                             : Collections.emptySet();
-                    if (candidateSkills == null) candidateSkills = Collections.emptySet();
+                    if (candidateSkills == null)
+                        candidateSkills = Collections.emptySet();
                     JobMatchInfoDTO matchInfo = jobService.calculateMatchInfo(
                             jobStack != null ? jobStack : "",
                             candidateSkills,
@@ -680,11 +684,11 @@ public class EmployerService {
 
         // 지원서가 해당 기업의 공고에 대한 것인지 확인
         String checkSql = """
-            SELECT COUNT(*) FROM job_application ja
-            JOIN job_posting jp ON jp.job_id = ja.job_id
-            WHERE ja.application_id = ? AND jp.employer_id = ?
-            """;
-        
+                SELECT COUNT(*) FROM job_application ja
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                WHERE ja.application_id = ? AND jp.employer_id = ?
+                """;
+
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, applicationId, employerId);
         if (count == null || count == 0) {
             throw new IllegalStateException("해당 지원서에 대한 권한이 없습니다.");
@@ -693,32 +697,31 @@ public class EmployerService {
         // 상태 업데이트
         String updateSql = "UPDATE job_application SET status = ?, updated_at = NOW() WHERE application_id = ?";
         jdbcTemplate.update(updateSql, newStatus, applicationId);
-        
+
         log.info("지원서 {} 상태 변경: {}", applicationId, newStatus);
 
         // 지원자에게 알림 발송
         try {
             String infoSql = """
-                SELECT ja.member_id, jp.title as job_title, e.name as company_name
-                FROM job_application ja
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                JOIN employer e ON e.employer_id = jp.employer_id
-                WHERE ja.application_id = ?
-                """;
+                    SELECT ja.member_id, jp.title as job_title, e.name as company_name
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN employer e ON e.employer_id = jp.employer_id
+                    WHERE ja.application_id = ?
+                    """;
             var info = jdbcTemplate.queryForMap(infoSql, applicationId);
-            
+
             Long candidateMemberId = ((Number) info.get("member_id")).longValue();
             String jobTitle = (String) info.get("job_title");
             String companyName = (String) info.get("company_name");
-            
+
             outboxEventProducer.publishApplicationStatusChangedEvent(
                     applicationId,
                     candidateMemberId,
                     jobTitle,
                     companyName,
-                    newStatus
-            );
-            log.info("지원 상태 변경 알림 발행: applicationId={}, candidateMemberId={}, newStatus={}", 
+                    newStatus);
+            log.info("지원 상태 변경 알림 발행: applicationId={}, candidateMemberId={}, newStatus={}",
                     applicationId, candidateMemberId, newStatus);
         } catch (Exception e) {
             log.warn("지원 상태 변경 알림 발행 실패: {}", e.getMessage());
@@ -749,30 +752,30 @@ public class EmployerService {
 
         try {
             String sql = """
-                SELECT 
-                    isc.interview_id,
-                    isc.application_id,
-                    ja.member_id as applicant_member_id,
-                    mb.name as applicant_name,
-                    mb.email as applicant_email,
-                    jp.title as job_title,
-                    isc.stage,
-                    isc.method,
-                    isc.location,
-                    isc.meeting_url,
-                    isc.start_at,
-                    isc.end_at,
-                    isc.status,
-                    isc.created_at,
-                    isc.updated_at
-                FROM interview_schedule isc
-                JOIN job_application ja ON ja.application_id = isc.application_id
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                JOIN member mb ON mb.member_id = ja.member_id
-                WHERE jp.employer_id = ?
-                  AND isc.start_at >= ? AND isc.start_at <= ?
-                ORDER BY isc.start_at ASC
-                """;
+                    SELECT
+                        isc.interview_id,
+                        isc.application_id,
+                        ja.member_id as applicant_member_id,
+                        mb.name as applicant_name,
+                        mb.email as applicant_email,
+                        jp.title as job_title,
+                        isc.stage,
+                        isc.method,
+                        isc.location,
+                        isc.meeting_url,
+                        isc.start_at,
+                        isc.end_at,
+                        isc.status,
+                        isc.created_at,
+                        isc.updated_at
+                    FROM interview_schedule isc
+                    JOIN job_application ja ON ja.application_id = isc.application_id
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN member mb ON mb.member_id = ja.member_id
+                    WHERE jp.employer_id = ?
+                      AND isc.start_at >= ? AND isc.start_at <= ?
+                    ORDER BY isc.start_at ASC
+                    """;
 
             List<InterviewDTO> interviews = jdbcTemplate.query(sql,
                     (rs, rowNum) -> InterviewDTO.builder()
@@ -786,13 +789,16 @@ public class EmployerService {
                             .method(rs.getString("method"))
                             .location(rs.getString("location"))
                             .meetingUrl(rs.getString("meeting_url"))
-                            .startAt(rs.getTimestamp("start_at") != null ? 
-                                    rs.getTimestamp("start_at").toLocalDateTime().toString() : null)
-                            .endAt(rs.getTimestamp("end_at") != null ? 
-                                    rs.getTimestamp("end_at").toLocalDateTime().toString() : null)
+                            .startAt(rs.getTimestamp("start_at") != null
+                                    ? rs.getTimestamp("start_at").toLocalDateTime().toString()
+                                    : null)
+                            .endAt(rs.getTimestamp("end_at") != null
+                                    ? rs.getTimestamp("end_at").toLocalDateTime().toString()
+                                    : null)
                             .status(rs.getString("status"))
-                            .createdAt(rs.getTimestamp("created_at") != null ? 
-                                    rs.getTimestamp("created_at").toLocalDateTime().toString() : null)
+                            .createdAt(rs.getTimestamp("created_at") != null
+                                    ? rs.getTimestamp("created_at").toLocalDateTime().toString()
+                                    : null)
                             .build(),
                     employerId, startDate, endDate);
 
@@ -825,11 +831,11 @@ public class EmployerService {
 
         // 지원서가 해당 기업의 공고에 대한 것인지 확인
         String checkSql = """
-            SELECT COUNT(*) FROM job_application ja
-            JOIN job_posting jp ON jp.job_id = ja.job_id
-            WHERE ja.application_id = ? AND jp.employer_id = ?
-            """;
-        
+                SELECT COUNT(*) FROM job_application ja
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                WHERE ja.application_id = ? AND jp.employer_id = ?
+                """;
+
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, dto.getApplicationId(), employerId);
         if (count == null || count == 0) {
             throw new IllegalStateException("해당 지원서에 대한 권한이 없습니다.");
@@ -837,11 +843,11 @@ public class EmployerService {
 
         // 면접 일정 생성
         String insertSql = """
-            INSERT INTO interview_schedule 
-            (application_id, stage, method, location, meeting_url, start_at, end_at, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?::timestamp, ?::timestamp, 'PROPOSED', NOW(), NOW())
-            RETURNING interview_id
-            """;
+                INSERT INTO interview_schedule
+                (application_id, stage, method, location, meeting_url, start_at, end_at, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?::timestamp, ?::timestamp, 'PROPOSED', NOW(), NOW())
+                RETURNING interview_id
+                """;
 
         Long interviewId = jdbcTemplate.queryForObject(insertSql, Long.class,
                 dto.getApplicationId(),
@@ -853,7 +859,8 @@ public class EmployerService {
                 dto.getEndAt());
 
         // 지원서 상태 업데이트
-        jdbcTemplate.update("UPDATE job_application SET status = 'INTERVIEW', updated_at = NOW() WHERE application_id = ?",
+        jdbcTemplate.update(
+                "UPDATE job_application SET status = 'INTERVIEW', updated_at = NOW() WHERE application_id = ?",
                 dto.getApplicationId());
 
         log.info("면접 일정 생성: {}", interviewId);
@@ -862,18 +869,18 @@ public class EmployerService {
         try {
             // 지원자 정보 조회
             String infoSql = """
-                SELECT ja.member_id, jp.title as job_title, e.name as company_name
-                FROM job_application ja
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                JOIN employer e ON e.employer_id = jp.employer_id
-                WHERE ja.application_id = ?
-                """;
+                    SELECT ja.member_id, jp.title as job_title, e.name as company_name
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN employer e ON e.employer_id = jp.employer_id
+                    WHERE ja.application_id = ?
+                    """;
             var info = jdbcTemplate.queryForMap(infoSql, dto.getApplicationId());
-            
+
             Long candidateMemberId = ((Number) info.get("member_id")).longValue();
             String jobTitle = (String) info.get("job_title");
             String companyName = (String) info.get("company_name");
-            
+
             outboxEventProducer.publishInterviewCreatedEvent(
                     interviewId,
                     dto.getApplicationId(),
@@ -881,8 +888,7 @@ public class EmployerService {
                     jobTitle,
                     companyName,
                     dto.getStartAt(),
-                    dto.getLocation()
-            );
+                    dto.getLocation());
             log.info("면접 일정 등록 알림 발행: interviewId={}, candidateMemberId={}", interviewId, candidateMemberId);
         } catch (Exception e) {
             log.warn("면접 일정 등록 알림 발행 실패: {}", e.getMessage());
@@ -905,12 +911,12 @@ public class EmployerService {
 
         // 권한 확인
         String checkSql = """
-            SELECT COUNT(*) FROM interview_schedule isc
-            JOIN job_application ja ON ja.application_id = isc.application_id
-            JOIN job_posting jp ON jp.job_id = ja.job_id
-            WHERE isc.interview_id = ? AND jp.employer_id = ?
-            """;
-        
+                SELECT COUNT(*) FROM interview_schedule isc
+                JOIN job_application ja ON ja.application_id = isc.application_id
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                WHERE isc.interview_id = ? AND jp.employer_id = ?
+                """;
+
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, interviewId, employerId);
         if (count == null || count == 0) {
             throw new IllegalStateException("해당 면접 일정에 대한 권한이 없습니다.");
@@ -918,16 +924,16 @@ public class EmployerService {
 
         // 업데이트
         String updateSql = """
-            UPDATE interview_schedule SET
-                stage = ?,
-                method = ?,
-                location = ?,
-                meeting_url = ?,
-                start_at = ?::timestamp,
-                end_at = ?::timestamp,
-                updated_at = NOW()
-            WHERE interview_id = ?
-            """;
+                UPDATE interview_schedule SET
+                    stage = ?,
+                    method = ?,
+                    location = ?,
+                    meeting_url = ?,
+                    start_at = ?::timestamp,
+                    end_at = ?::timestamp,
+                    updated_at = NOW()
+                WHERE interview_id = ?
+                """;
 
         jdbcTemplate.update(updateSql,
                 dto.getStage(),
@@ -943,28 +949,27 @@ public class EmployerService {
         // 지원자에게 알림 발송
         try {
             String infoSql = """
-                SELECT ja.application_id, ja.member_id, jp.title as job_title, e.name as company_name
-                FROM interview_schedule isc
-                JOIN job_application ja ON ja.application_id = isc.application_id
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                JOIN employer e ON e.employer_id = jp.employer_id
-                WHERE isc.interview_id = ?
-                """;
+                    SELECT ja.application_id, ja.member_id, jp.title as job_title, e.name as company_name
+                    FROM interview_schedule isc
+                    JOIN job_application ja ON ja.application_id = isc.application_id
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN employer e ON e.employer_id = jp.employer_id
+                    WHERE isc.interview_id = ?
+                    """;
             var info = jdbcTemplate.queryForMap(infoSql, interviewId);
-            
+
             Long applicationId = ((Number) info.get("application_id")).longValue();
             Long candidateMemberId = ((Number) info.get("member_id")).longValue();
             String jobTitle = (String) info.get("job_title");
             String companyName = (String) info.get("company_name");
-            
+
             outboxEventProducer.publishInterviewUpdatedEvent(
                     interviewId,
                     applicationId,
                     candidateMemberId,
                     jobTitle,
                     companyName,
-                    dto.getStartAt()
-            );
+                    dto.getStartAt());
             log.info("면접 일정 수정 알림 발행: interviewId={}, candidateMemberId={}", interviewId, candidateMemberId);
         } catch (Exception e) {
             log.warn("면접 일정 수정 알림 발행 실패: {}", e.getMessage());
@@ -986,12 +991,12 @@ public class EmployerService {
 
         // 권한 확인
         String checkSql = """
-            SELECT COUNT(*) FROM interview_schedule isc
-            JOIN job_application ja ON ja.application_id = isc.application_id
-            JOIN job_posting jp ON jp.job_id = ja.job_id
-            WHERE isc.interview_id = ? AND jp.employer_id = ?
-            """;
-        
+                SELECT COUNT(*) FROM interview_schedule isc
+                JOIN job_application ja ON ja.application_id = isc.application_id
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                WHERE isc.interview_id = ? AND jp.employer_id = ?
+                """;
+
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, interviewId, employerId);
         if (count == null || count == 0) {
             throw new IllegalStateException("해당 면접 일정에 대한 권한이 없습니다.");
@@ -1002,18 +1007,18 @@ public class EmployerService {
         Long candidateMemberId = null;
         String jobTitle = null;
         String companyName = null;
-        
+
         try {
             String infoSql = """
-                SELECT ja.application_id, ja.member_id, jp.title as job_title, e.name as company_name
-                FROM interview_schedule isc
-                JOIN job_application ja ON ja.application_id = isc.application_id
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                JOIN employer e ON e.employer_id = jp.employer_id
-                WHERE isc.interview_id = ?
-                """;
+                    SELECT ja.application_id, ja.member_id, jp.title as job_title, e.name as company_name
+                    FROM interview_schedule isc
+                    JOIN job_application ja ON ja.application_id = isc.application_id
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN employer e ON e.employer_id = jp.employer_id
+                    WHERE isc.interview_id = ?
+                    """;
             var info = jdbcTemplate.queryForMap(infoSql, interviewId);
-            
+
             applicationId = ((Number) info.get("application_id")).longValue();
             candidateMemberId = ((Number) info.get("member_id")).longValue();
             jobTitle = (String) info.get("job_title");
@@ -1034,8 +1039,7 @@ public class EmployerService {
                         applicationId,
                         candidateMemberId,
                         jobTitle,
-                        companyName
-                );
+                        companyName);
                 log.info("면접 일정 취소 알림 발행: interviewId={}, candidateMemberId={}", interviewId, candidateMemberId);
             } catch (Exception e) {
                 log.warn("면접 일정 취소 알림 발행 실패: {}", e.getMessage());
@@ -1066,8 +1070,9 @@ public class EmployerService {
      */
     private Long getEmployerIdByUserid(String userid) {
         UserEntity user = userRepository.findByUserid(userid).orElse(null);
-        if (user == null) return null;
-        
+        if (user == null)
+            return null;
+
         return employerMemberRepository
                 .findFirstByMemberIdAndActiveTrue(user.getId().longValue())
                 .map(EmployerMemberEntity::getEmployerId)
