@@ -11,10 +11,23 @@ export interface SubscriptionCreateRequest {
 export interface SubscriptionResponse {
     subscriptionId: number;
     employerId: number;
-    productId: number;
+    product: {
+        productId: number;
+        productCode: string;
+        name: string;
+        planTier?: string;
+    };
+    nextProduct?: {
+        productId: number;
+        productCode: string;
+        name: string;
+    };
     status: string;
-    nextBillingDate: string;
-    // Add other fields as needed
+    nextBillingAt: string;
+    startedAt: string;
+    endedAt?: string;
+    cardCompany?: string;
+    cardNumber?: string;
 }
 
 export async function createSubscription(data: SubscriptionCreateRequest): Promise<SubscriptionResponse> {

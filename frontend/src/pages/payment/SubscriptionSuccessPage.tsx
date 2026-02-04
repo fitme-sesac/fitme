@@ -1,10 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useCreateSubscription } from "@/features/payment/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
-// We need a way to get employerId. 
-// Assuming `useEmployers` hooks can help, or we fetch user's employer.
-import { http } from "@/api/http"; // Direct call if needed or use existing hook if suitable
+import { http } from "@/api/http";
 
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,24 +22,17 @@ export default function SubscriptionSuccessPage() {
     const productIdParam = searchParams.get("productId");
     const productId = productIdParam ? parseInt(productIdParam) : 1;
 
+    // Use a ref to prevent double execution in StrictMode
+    const processingRef = useRef(false);
+
     useEffect(() => {
-        if (!authKey || !customerKey) {
-            setStatus("ERROR");
-            setErrorMessage("인증 정보가 누락되었습니다.");
+        if (!authKey || !customerKey || processingRef.current) {
             return;
         }
 
         const processSubscription = async () => {
             try {
                 // 1. Fetch Employer ID
-                // Since user is logged in, we need to find which employer they belong to.
-                // We'll assume the logged-in user is a Representative or authorized member.
-                // Let's fetch the user's employer info.
-                // Only works if user IS type EMPLOYER or linked.
-                // We can use a dedicated API or just /api/employers/my (if exists) 
-                // or check the user role and some profile endpoint.
-
-                // For now, let's assume we can get it from `/api/employer/dashboard` (Fixed URL)
                 const dashRes = await http.get("/api/employer/dashboard");
                 const employerId = dashRes.data?.profile?.employerId;
 
@@ -76,6 +67,7 @@ export default function SubscriptionSuccessPage() {
             }
         };
 
+        processingRef.current = true;
         processSubscription();
     }, [authKey, customerKey, productId, createSubscription]);
 
@@ -98,7 +90,7 @@ export default function SubscriptionSuccessPage() {
                     </div>
                     <h2 className="text-2xl font-bold text-slate-900 mb-2">오류가 발생했습니다</h2>
                     <p className="text-slate-500 mb-8 break-keep">{errorMessage}</p>
-                    <Button onClick={() => navigate("/subscription/checkout")} className="w-full h-12 text-lg">
+                    <Button onClick={() => navigate("/subscription")} className="w-full h-12 text-lg">
                         다시 시도하기
                     </Button>
                 </div>

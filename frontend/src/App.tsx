@@ -160,10 +160,10 @@ export default function App() {
                     <Route path="/payment/success" element={<PaymentSuccessPage />} />
                     <Route path="/payment/fail" element={<PaymentFailPage />} />
                     <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
-                    <Route path="/payment/products" element={<Subscription />} />
+                    <Route path="/products" element={<Subscription />} />
 
-                    <Route path="/subscription/checkout" element={<SubscriptionCheckoutPage />} />
                     <Route path="/subscription/success" element={<SubscriptionSuccessPage />} />
+                    <Route path="/subscription/fail" element={<PaymentFailPage />} />
 
                     <Route path="/resume" element={<Resume />} />
                     <Route

@@ -23,7 +23,7 @@ const companyNavItems = [
   { icon: Briefcase, label: "채용공고", href: "/jobs" },
   { icon: Users, label: "인재풀", href: "/talents" },
   { icon: Building2, label: "기업", href: "/companies" },
-  { icon: CreditCard, label: "구독", href: "/payment/products" },
+  { icon: CreditCard, label: "구독", href: "/subscription" },
   { icon: MessageSquare, label: "커뮤니티", href: "/community" },
   { icon: HelpCircle, label: "고객센터", href: "/support" },
   { icon: Bot, label: "AI", href: "#", action: "chat" }, // href changed to # and action added

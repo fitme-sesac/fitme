@@ -7,10 +7,11 @@ import { SubscriptionPlan } from "@/data/subscriptionPlans";
 interface PricingCardProps {
     plan: SubscriptionPlan;
     isYearly?: boolean;
-    onSelect: (planId: string) => void;
+    onSelect?: (planId: string) => void;
+    isCurrentPlan?: boolean;
 }
 
-export function PricingCard({ plan, isYearly, onSelect }: PricingCardProps) {
+export function PricingCard({ plan, isYearly, onSelect, isCurrentPlan }: PricingCardProps) {
     const displayPrice = isYearly ? Math.floor(plan.price * 0.8) : plan.price;
     const yearlyTotal = displayPrice * 12;
 
@@ -20,13 +21,21 @@ export function PricingCard({ plan, isYearly, onSelect }: PricingCardProps) {
                 "relative flex flex-col rounded-2xl border bg-card p-6 transition-all duration-300",
                 plan.isPopular
                     ? "border-accent shadow-lg shadow-accent/10 scale-105 z-10"
-                    : "border-border/50 hover:border-accent/50 hover:shadow-md"
+                    : "border-border/50 hover:border-accent/50 hover:shadow-md",
+                isCurrentPlan && "ring-2 ring-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/10"
             )}
         >
-            {plan.isPopular && (
+            {plan.isPopular && !isCurrentPlan && (
                 <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent text-accent-foreground px-4 py-1">
                     <Sparkles className="w-3 h-3 mr-1" />
                     추천
+                </Badge>
+            )}
+
+            {isCurrentPlan && (
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-1">
+                    <Check className="w-3 h-3 mr-1" />
+                    구독중
                 </Badge>
             )}
 
@@ -55,18 +64,23 @@ export function PricingCard({ plan, isYearly, onSelect }: PricingCardProps) {
                 )}
             </div>
 
-            <Button
-                onClick={() => onSelect(plan.id)}
-                className={cn(
-                    "w-full mb-6",
-                    plan.isPopular
-                        ? "bg-accent hover:bg-accent-hover text-accent-foreground"
-                        : "bg-muted hover:bg-muted/80 text-foreground"
-                )}
-                size="lg"
-            >
-                {plan.ctaText}
-            </Button>
+            {!onSelect ? null : (
+                <Button
+                    onClick={() => !isCurrentPlan && onSelect(plan.id)}
+                    disabled={isCurrentPlan}
+                    className={cn(
+                        "w-full mb-6",
+                        isCurrentPlan
+                            ? "bg-emerald-500 hover:bg-emerald-600 text-white opacity-100"
+                            : plan.isPopular
+                                ? "bg-accent hover:bg-accent-hover text-accent-foreground"
+                                : "bg-muted hover:bg-muted/80 text-foreground"
+                    )}
+                    size="lg"
+                >
+                    {isCurrentPlan ? "구독중" : plan.ctaText}
+                </Button>
+            )}
 
             <div className="space-y-3 flex-1">
                 {plan.features.map((feature) => (

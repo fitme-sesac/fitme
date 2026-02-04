@@ -41,7 +41,7 @@ const bannerSlides = [
     subtitleClass: "text-emerald-600",
     indicatorClass: "bg-emerald-600",
     ctaText: "광고 상품 안내",
-    ctaLink: "/payment/products",
+    ctaLink: "/products",
   },
   {
     id: 3,

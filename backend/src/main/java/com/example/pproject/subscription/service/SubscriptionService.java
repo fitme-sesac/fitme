@@ -16,6 +16,7 @@ import com.example.pproject.payment.service.PaymentService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class SubscriptionService {
 
         private final SubscriptionRepository subscriptionRepository;
@@ -54,6 +56,9 @@ public class SubscriptionService {
                                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
 
                 String finalBillingKey = request.billingKey();
+
+                log.info("Creating subscription: employerId={}, productId={}, authKey={}, customerKey={}",
+                                request.employerId(), request.productId(), request.authKey(), request.customerKey());
 
                 if (finalBillingKey == null || finalBillingKey.isBlank()) {
                         if (request.authKey() != null && !request.authKey().isBlank()) {
