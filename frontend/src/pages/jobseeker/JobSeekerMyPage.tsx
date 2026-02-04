@@ -89,19 +89,21 @@ const PaymentHistoryTab = () => {
     ...payments.map(p => ({
       id: `pay-${p.paymentId}`,
       type: 'charge',
-      amount: p.totalAmount,
-      title: p.orderName,
+      amount: p.creditAmount || 0,  // 크레딧 수량을 메인 금액으로
+      paidAmount: p.totalAmount,     // 결제금액을 보조로
+      title: '크레딧 충전',           // 상품명 대신 '크레딧 충전'
       date: p.approvedAt ? new Date(p.approvedAt).toLocaleString() : '진행 중',
       isPlus: true,
       payMethod: p.method,
-      status: p.status === 'DONE' ? '승인 완료' : p.status === 'CANCELED' ? '환불 완료' : '진행 중',
-      paymentKey: p.paymentKey,
-      canRefund: p.status === 'DONE' // Simple logic, backend should validate 7 days rule etc.
+      status: p.status === '승인 완료' ? '승인 완료' : (p.status === '전체 취소' || p.status === '부분 취소') ? '환불 완료' : '진행 중',
+      paymentKey: p.orderId,
+      canRefund: p.status === '승인 완료'
     })),
     ...ledgers.map(l => ({
       id: `ledger-${l.ledgerId}`,
       type: l.type === 'CREDIT' ? 'charge' : 'use',
       amount: l.amount,
+      paidAmount: null,              // Ledger는 결제금액 없음
       title: l.memo,
       date: new Date(l.occurredAt).toLocaleString(),
       isPlus: l.type === 'CREDIT',
@@ -152,8 +154,13 @@ const PaymentHistoryTab = () => {
                       "text-lg font-bold",
                       item.isPlus ? "text-emerald-600" : "text-slate-900"
                     )}>
-                      {item.isPlus ? '+' : '-'}{Number(item.amount).toLocaleString()}
+                      {item.isPlus ? '+' : '-'}{Number(item.amount).toLocaleString()} 크레딧
                     </p>
+                    {item.paidAmount && (
+                      <p className="text-xs text-muted-foreground">
+                        결제 {Number(item.paidAmount).toLocaleString()}원
+                      </p>
+                    )}
                     <div className="flex items-center justify-end gap-2 mt-1">
                       <p className="text-xs text-muted-foreground font-medium">
                         {item.status}

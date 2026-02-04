@@ -175,11 +175,14 @@ public class WalletService {
         // - 소유권 검증: prepareConfirm()에서 validateOwner() 호출
         // - 금액 검증: payment.approve()에서 토스 응답과 비교
 
-        String memo = "크레딧 충전 (결제)";
+        String productName = payment.getOrder().getProduct().getName();
+        String memo;
         if (payment.getOrder().getProduct().isSubscription()) {
-            memo = "구독 크레딧 지급";
+            memo = "구독 크레딧 지급 (" + productName + ")";
         } else if (payment.getOrder().getProduct().isOneTime()) {
-            memo = "일반 크레딧 충전";
+            memo = "크레딧 충전"; // 단건결제는 간단하게 표시
+        } else {
+            memo = "크레딧 충전 (" + productName + ")";
         }
 
         executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(), memo);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { getEmployerProfile, saveEmployerProfile, uploadEmployerLogo, deleteEmployerLogo } from "@/api/employers";
 import { toast } from "sonner";
@@ -448,10 +449,13 @@ export default function CompanyManagement() {
     }, [searchParams, currentSubscription, navigate]);
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="flex min-h-screen bg-background">
             <Sidebar />
-            <div className="lg:pl-64 transition-all duration-300">
-                <div className="p-6 lg:p-8">
+
+            <div className="flex-1 flex flex-col lg:ml-64">
+                <Header />
+
+                <main className="flex-1 p-6 lg:p-8">
                     {/* 헤더 */}
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-foreground">기업 관리</h1>
@@ -1178,7 +1182,7 @@ export default function CompanyManagement() {
                             <CompanyPaymentHistory />
                         </TabsContent>
                     </Tabs>
-                </div>
+                </main>
             </div>
         </div>
     );
