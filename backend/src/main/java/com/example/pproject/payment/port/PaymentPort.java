@@ -14,16 +14,18 @@ public interface PaymentPort {
 
     /**
      * 결제 승인 요청
+     * 
      * @param paymentKey 토스 결제 키
-     * @param orderId 주문 ID
-     * @param amount 결제 금액
+     * @param orderId    주문 ID
+     * @param amount     결제 금액
      * @return 승인 결과
      */
     TossPaymentResponse confirm(String paymentKey, String orderId, BigDecimal amount);
 
     /**
      * 결제 취소 요청
-     * @param paymentKey 토스 결제 키
+     * 
+     * @param paymentKey   토스 결제 키
      * @param cancelReason 취소 사유
      * @return 취소 결과
      */
@@ -31,7 +33,8 @@ public interface PaymentPort {
 
     /**
      * 빌링키 발급 요청
-     * @param authKey 인증 키 (토스 위젯/창에서 발급)
+     * 
+     * @param authKey     인증 키 (토스 위젯/창에서 발급)
      * @param customerKey 고객 식별 키
      * @return 빌링키 발급 결과
      */
@@ -39,10 +42,12 @@ public interface PaymentPort {
 
     /**
      * 빌링키 결제 승인 요청 (자동 결제)
-     * @param billingKey 발급받은 빌링키
-     * @param orderId 주문 ID
-     * @param amount 결제 금액
+     * 
+     * @param billingKey  발급받은 빌링키
+     * @param customerKey 고객 식별 키 (선택 사항이나 오류 방지를 위해 권장)
+     * @param orderId     주문 ID
+     * @param amount      결제 금액
      * @return 결제 승인 결과
      */
-    TossPaymentResponse confirmBilling(String billingKey, String orderId, BigDecimal amount);
+    TossPaymentResponse confirmBilling(String billingKey, String customerKey, String orderId, BigDecimal amount);
 }

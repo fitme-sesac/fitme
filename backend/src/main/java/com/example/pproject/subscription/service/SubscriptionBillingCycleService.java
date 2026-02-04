@@ -19,6 +19,7 @@ import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.entity.WalletLedger;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class SubscriptionBillingCycleService {
 
         private final SubscriptionBillingCycleRepository billingCycleRepository;
@@ -119,13 +121,34 @@ public class SubscriptionBillingCycleService {
                                 PaymentMethod.CARD, // method
                                 BuyerType.EMPLOYER, // buyerType
                                 subscription.getProduct().getProductCode(), // productCode
-                                UUID.randomUUID().toString() // idempotencyKey
+                                UUID.randomUUID().toString(), // idempotencyKey
+                                subscription.getCustomerKey() // customerKey
                 );
 
                 // 2. 빌링키 결제 시도 (PaymentService)
+                // payWithBillingKey는 userId(MemberId)를 요구하므로, 기업의 대표자(결제 담당자)를 찾아 결제자로 지정합니다.
+                // 1. OWNER 시도 -> 2. HR 시도 -> 3. 아무나(가장 먼저 가입한 사람)
+                Long representativeMemberId = employerMemberRepository
+                                .findFirstByEmployerIdAndRoleInCompanyAndActiveTrue(subscription.getEmployer().getId(),
+                                                "OWNER")
+                                .map(com.example.pproject.employer.entity.EmployerMemberEntity::getMemberId)
+                                .or(() -> employerMemberRepository
+                                                .findFirstByEmployerIdAndRoleInCompanyAndActiveTrue(
+                                                                subscription.getEmployer().getId(), "HR")
+                                                .map(com.example.pproject.employer.entity.EmployerMemberEntity::getMemberId))
+                                .or(() -> employerMemberRepository
+                                                .findByEmployerIdAndActiveTrue(subscription.getEmployer().getId())
+                                                .stream()
+                                                .findFirst()
+                                                .map(com.example.pproject.employer.entity.EmployerMemberEntity::getMemberId))
+                                .orElseThrow(() -> new IllegalStateException("기업에 소속된 회원이 없어 결제를 진행할 수 없습니다."));
+
+                log.info("Subscription Payment: EmployerId={}, RepresentativeMemberId={}",
+                                subscription.getEmployer().getId(), representativeMemberId);
+
                 // payWithBillingKey 내부에서 PG사 결제 및 Wallet 크레딧 지급까지 완료됨
                 PaymentResponse paymentResponse = paymentService.payWithBillingKey(
-                                subscription.getEmployer().getId(),
+                                representativeMemberId,
                                 subscription.getBillingKey(),
                                 request);
 
@@ -139,6 +162,7 @@ public class SubscriptionBillingCycleService {
                 cycle.markPaymentSuccess(payment);
 
                 // 5. 크레딧 상태 업데이트 (이미 지급되었으므로 상태만 변경)
+                cycle.recordGrantedCredit(subscription.getProduct().getCreditAmount().intValue());
                 cycle.updateCreditStatus(CreditStatus.GRANTED);
 
                 billingCycleRepository.save(cycle);

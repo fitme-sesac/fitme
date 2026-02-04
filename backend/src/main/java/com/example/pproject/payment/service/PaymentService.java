@@ -286,6 +286,7 @@ public class PaymentService {
         // 2. 외부 PG사 빌링키 결제 승인 요청
         TossPaymentResponse tossResponse = paymentPort.confirmBilling(
                 billingKey,
+                request.customerKey(),
                 orderUid.toString(),
                 request.amount());
 

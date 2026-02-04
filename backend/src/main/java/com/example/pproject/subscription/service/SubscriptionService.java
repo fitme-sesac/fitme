@@ -12,6 +12,7 @@ import com.example.pproject.subscription.dto.SubscriptionProductUpdateRequest;
 import com.example.pproject.subscription.dto.SubscriptionResponse;
 import com.example.pproject.subscription.entity.Subscription;
 import com.example.pproject.subscription.repository.SubscriptionRepository;
+import com.example.pproject.payment.service.PaymentService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class SubscriptionService {
         private final UserRepository userRepository;
         private final EmployerMemberRepository employerMemberRepository;
         private final SubscriptionBillingCycleService subscriptionBillingCycleService;
+        private final PaymentService paymentService;
 
         // =============================================================================================
         // [일반 유저 기능]
@@ -51,11 +53,22 @@ public class SubscriptionService {
                 Product product = productRepository.findById(request.productId())
                                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다."));
 
+                String finalBillingKey = request.billingKey();
+
+                if (finalBillingKey == null || finalBillingKey.isBlank()) {
+                        if (request.authKey() != null && !request.authKey().isBlank()) {
+                                finalBillingKey = paymentService
+                                                .issueBillingKey(request.authKey(), request.customerKey()).billingKey();
+                        } else {
+                                throw new IllegalArgumentException("결제 수단 등록 정보(billingKey or authKey)가 필요합니다.");
+                        }
+                }
+
                 Subscription subscription = Subscription.create(
                                 employer,
                                 product,
                                 request.customerKey(),
-                                request.billingKey());
+                                finalBillingKey);
 
                 subscription.validateBillingInfo();
                 subscription.validateDateConsistency();
@@ -129,11 +142,30 @@ public class SubscriptionService {
                                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독상품입니다."));
 
                 validateSubscriptionOwnership(userId, subscription);
+
+                String newBillingKey = request.billingKey();
+                String newCardCompany = request.cardCompany();
+                String newCardNumber = request.cardNumber();
+
+                if (newBillingKey == null || newBillingKey.isBlank()) {
+                        if (request.authKey() != null && !request.authKey().isBlank()) {
+                                var billingResponse = paymentService.issueBillingKey(request.authKey(),
+                                                request.customerKey());
+                                newBillingKey = billingResponse.billingKey();
+                                if (billingResponse.card() != null) {
+                                        newCardCompany = billingResponse.card().issuerCode(); // 카드사 코드 (예: 61)
+                                        newCardNumber = billingResponse.card().number();
+                                }
+                        } else {
+                                throw new IllegalArgumentException("결제 수단 변경을 위해 billingKey 또는 authKey가 필요합니다.");
+                        }
+                }
+
                 subscription.updateBillingInfo(
-                                request.billingKey(),
+                                newBillingKey,
                                 request.customerKey(),
-                                request.cardCompany(),
-                                request.cardNumber());
+                                newCardCompany,
+                                newCardNumber);
 
                 subscription.validateBillingInfo();
                 subscription.validateCardInfo();
