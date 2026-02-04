@@ -5,25 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogDescription,
-  DialogFooter 
+  DialogFooter
 } from "@/components/ui/dialog";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  BarChart3, 
-  Eye, 
-  MousePointer, 
+import {
+  BarChart3,
+  Eye,
+  MousePointer,
   DollarSign,
   Target,
   Plus,
@@ -102,7 +102,7 @@ export function AdAnalyticsTab() {
   const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
+
   // 폼 상태
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [cpcBid, setCpcBid] = useState("500");
@@ -142,11 +142,11 @@ export function AdAnalyticsTab() {
           status: job.status,
         }));
       setJobPostings(jobs);
-      
+
       // 이미 광고가 있는 채용공고 제외
       const existingJobIds = adStats?.campaigns.map(c => c.jobId) || [];
       const availableJobs = jobs.filter((j: JobPosting) => !existingJobIds.includes(j.jobId));
-      
+
       if (availableJobs.length > 0) {
         setSelectedJobId(String(availableJobs[0].jobId));
       }
@@ -241,9 +241,9 @@ export function AdAnalyticsTab() {
       await updateAdCampaignStatus(campaignId, newStatus);
       toast({
         title: "상태 변경 완료",
-        description: newStatus === "ACTIVE" ? "광고가 재개되었습니다." 
-                   : newStatus === "PAUSED" ? "광고가 일시정지되었습니다."
-                   : "광고가 종료되었습니다.",
+        description: newStatus === "ACTIVE" ? "광고가 재개되었습니다."
+          : newStatus === "PAUSED" ? "광고가 일시정지되었습니다."
+            : "광고가 종료되었습니다.",
       });
       fetchAdStats(); // 목록 새로고침
     } catch (err: any) {
@@ -290,11 +290,13 @@ export function AdAnalyticsTab() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">총 소진액</span>
+              <span className="text-sm text-muted-foreground">총 소진 크레딧</span>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold text-foreground">
-              {(totalSpent / 10000).toFixed(1)}만원
+              {totalSpent >= 10000
+                ? `${(totalSpent / 10000).toFixed(1)}만 크레딧`
+                : `${totalSpent.toLocaleString()} 크레딧`}
             </p>
             {totalBudget > 0 && (
               <>
@@ -361,11 +363,11 @@ export function AdAnalyticsTab() {
               const statusInfo = statusConfig[campaign.status] || statusConfig.ENDED;
               const spent = campaign.clicks * campaign.cpcBid;
               const monthlyBudget = campaign.dailyBudget * 30;
-              const campaignCtr = campaign.impressions > 0 
-                ? ((campaign.clicks / campaign.impressions) * 100).toFixed(1) 
+              const campaignCtr = campaign.impressions > 0
+                ? ((campaign.clicks / campaign.impressions) * 100).toFixed(1)
                 : "0.0";
               const isUpdating = updatingCampaignId === campaign.campaignId;
-              
+
               return (
                 <div
                   key={campaign.campaignId}
@@ -406,7 +408,7 @@ export function AdAnalyticsTab() {
                                 </DropdownMenuItem>
                               ) : null}
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => handleStatusChange(campaign.campaignId, "ENDED")}
                                 className="text-destructive focus:text-destructive"
                               >
@@ -479,7 +481,7 @@ export function AdAnalyticsTab() {
                 </div>
               ) : availableJobs.length === 0 ? (
                 <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg bg-muted/30">
-                  {jobPostings.length === 0 
+                  {jobPostings.length === 0
                     ? "활성 상태인 채용공고가 없습니다."
                     : "모든 채용공고에 이미 광고가 등록되어 있습니다."}
                 </div>
@@ -517,7 +519,7 @@ export function AdAnalyticsTab() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                입찰가가 높을수록 광고 노출 우선순위가 높아집니다. (최소 100원)
+                입찰가가 높을수록 광고 노출 우선순위가 높아집니다. (최소 100크레딧)
               </p>
             </div>
 
@@ -539,7 +541,7 @@ export function AdAnalyticsTab() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                하루 최대 광고비 한도입니다. (최소 10,000원)
+                하루 최대 광고비 한도입니다. (최소 10,000 크레딧)
               </p>
             </div>
 
@@ -575,13 +577,40 @@ export function AdAnalyticsTab() {
 
             {/* 예상 비용 안내 */}
             <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <p className="text-sm font-medium text-foreground mb-1">예상 월간 최대 비용</p>
+              <p className="text-sm font-medium text-foreground mb-1">예상 비용 (선택 기간)</p>
               <p className="text-xl font-bold text-primary">
-                {((parseInt(dailyBudget) || 0) * 30 / 10000).toFixed(1)}만원
+                {(() => {
+                  const start = new Date(startDate);
+                  const end = new Date(endDate);
+                  const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  const estimatedCost = (parseInt(dailyBudget) || 0) * (days > 0 ? days : 0);
+
+                  return estimatedCost >= 10000
+                    ? `${(estimatedCost / 10000).toFixed(1)}크레딧`
+                    : `${estimatedCost.toLocaleString()}크레딧`;
+                })()}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                실제 비용은 클릭 발생 시에만 차감됩니다.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mt-2 text-xs text-muted-foreground gap-1">
+                <span>
+                  {(() => {
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                    return `기간: ${days > 0 ? days : 0}일`;
+                  })()}
+                </span>
+                <span className="font-medium text-primary/80">
+                  {(() => {
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                    const estimatedCost = (parseInt(dailyBudget) || 0) * (days > 0 ? days : 0);
+                    const cpc = parseInt(cpcBid) || 0;
+                    const maxClicks = cpc > 0 ? Math.floor(estimatedCost / cpc) : 0;
+                    return `최대 약 ${maxClicks.toLocaleString()}회 클릭 예상`;
+                  })()}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -589,8 +618,8 @@ export function AdAnalyticsTab() {
             <Button variant="outline" onClick={handleCloseModal} disabled={submitting}>
               취소
             </Button>
-            <Button 
-              onClick={handleCreateCampaign} 
+            <Button
+              onClick={handleCreateCampaign}
               disabled={submitting || availableJobs.length === 0 || !selectedJobId}
               className="btn-gradient-primary"
             >

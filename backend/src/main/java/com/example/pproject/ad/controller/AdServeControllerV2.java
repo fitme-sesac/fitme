@@ -60,7 +60,7 @@ public class AdServeControllerV2 {
 
                 int safeLimit = Math.min(limit, 10);
                 Page<AdCampaignEntity> activeAds = adCampaignService
-                                .getActiveAdsForServing(PageRequest.of(0, safeLimit));
+                                .getActiveAdsForServing(PageRequest.of(0, safeLimit), null);
 
                 List<AdServeResponseDTO> result = activeAds.getContent().stream()
                                 .map(AdServeResponseDTO::fromEntity)

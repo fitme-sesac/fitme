@@ -163,7 +163,7 @@ public class AdCampaignService {
 
         if (embeddingOpt.isEmpty()) {
             // 이력서가 없는 경우 입찰가 기반(V2 Serving)으로 Fallback
-            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit));
+            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit), memberId);
             return activeAds.getContent().stream().map(AdServeResponseDTO::fromEntity).toList();
         }
 
@@ -213,7 +213,7 @@ public class AdCampaignService {
      * Redis에서 현재 활성 상태인 ID 목록(상위 5,000개)을 먼저 가져와서 DB에 던짐.
      */
     @Transactional
-    public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable) {
+    public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable, Long memberId) {
         java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
         if (activeIdsStr == null || activeIdsStr.isEmpty())
             return Page.empty(pageable);
@@ -221,8 +221,8 @@ public class AdCampaignService {
         Long[] activeIds = activeIdsStr.stream().map(Long::valueOf).toArray(Long[]::new);
         Page<AdCampaignEntity> page = adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
 
-        // [New] 노출 기록 (비로그인이므로 memberId = null)
-        adImpressionService.trackImpressionsFromEntities(page.getContent(), null);
+        // [New] 노출 기록
+        adImpressionService.trackImpressionsFromEntities(page.getContent(), memberId);
 
         return page;
     }

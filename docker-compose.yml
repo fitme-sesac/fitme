@@ -66,6 +66,7 @@ services:
       # Redis (used for OTP/cache etc.)
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
 
       # Optional: keep file uploads inside container volume
       TEMP_FOLDER: /app/uploads/

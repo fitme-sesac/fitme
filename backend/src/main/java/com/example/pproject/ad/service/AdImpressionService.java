@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -30,7 +31,7 @@ public class AdImpressionService {
     /**
      * 광고 노출 기록 (DTO 리스트 기반) - Redis 중복 방지 적용
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void trackImpressions(List<AdServeResponseDTO> ads, Long memberId) {
         if (ads == null || ads.isEmpty())
             return;
@@ -55,7 +56,7 @@ public class AdImpressionService {
     /**
      * 광고 노출 기록 (Entity 리스트 기반) - Redis 중복 방지 적용
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void trackImpressionsFromEntities(List<AdCampaignEntity> ads, Long memberId) {
         if (ads == null || ads.isEmpty())
             return;
