@@ -1,5 +1,8 @@
 package com.example.pproject.employer.service;
 
+import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
+import com.example.pproject.ad.repository.AdCampaignRepository;
+import com.example.pproject.common.service.FileUploadService;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.employer.entity.EmployerEntity;
@@ -19,6 +22,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -42,6 +48,8 @@ public class EmployerService {
     private final OutboxEventProducer outboxEventProducer;
     private final JobService jobService;
     private final ResumeSkillService resumeSkillService;
+    private final AdCampaignRepository adCampaignRepository;
+    private final FileUploadService fileUploadService;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -272,6 +280,83 @@ public class EmployerService {
     }
 
     /**
+     * 기업 로고 파일 업로드
+     */
+    @Transactional
+    public String uploadLogo(String userid, MultipartFile file) throws IOException {
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
+
+        Long memberId = user.getId().longValue();
+
+        // 소속 기업 확인
+        EmployerMemberEntity membership = employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(memberId)
+                .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다."));
+
+        // OWNER 또는 HR만 수정 가능
+        if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
+            throw new IllegalStateException("로고 수정 권한이 없습니다.");
+        }
+
+        EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
+                .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
+
+        // 기존 로고가 있으면 삭제 (내부 업로드 파일인 경우만)
+        String oldLogoUrl = employer.getLogoUrl();
+        if (oldLogoUrl != null && oldLogoUrl.startsWith("/images/")) {
+            fileUploadService.deleteFile(oldLogoUrl);
+        }
+
+        // 새 로고 업로드
+        String newLogoUrl = fileUploadService.uploadFile(file, "logos");
+
+        // DB 업데이트
+        employer.setLogoUrl(newLogoUrl);
+        employerRepository.save(employer);
+
+        log.info("기업 {} 로고 업로드 완료: {}", employer.getName(), newLogoUrl);
+
+        return newLogoUrl;
+    }
+
+    /**
+     * 기업 로고 삭제
+     */
+    @Transactional
+    public void deleteLogo(String userid) {
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
+
+        Long memberId = user.getId().longValue();
+
+        // 소속 기업 확인
+        EmployerMemberEntity membership = employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(memberId)
+                .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다."));
+
+        // OWNER 또는 HR만 수정 가능
+        if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
+            throw new IllegalStateException("로고 수정 권한이 없습니다.");
+        }
+
+        EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
+                .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
+
+        // 기존 로고 삭제 (내부 업로드 파일인 경우만)
+        String oldLogoUrl = employer.getLogoUrl();
+        if (oldLogoUrl != null && oldLogoUrl.startsWith("/images/")) {
+            fileUploadService.deleteFile(oldLogoUrl);
+        }
+
+        // DB 업데이트
+        employer.setLogoUrl(null);
+        employerRepository.save(employer);
+
+        log.info("기업 {} 로고 삭제 완료", employer.getName());
+    }
+
+    /**
      * 회원의 소속 기업 ID 조회 (JobService 등에서 사용)
      */
     public Long getEmployerIdByMemberId(Long memberId) {
@@ -324,6 +409,8 @@ public class EmployerService {
 
         try {
             // 광고 캠페인 통계 조회
+            // impressions는 클릭 수에 기반해 계산 (CPC 입찰가가 높을수록 노출 대비 클릭률이 높다고 가정)
+            // NOTE: clicks는 LEFT JOIN + GROUP BY로 집계 (샘플 데이터 대량 삽입 시에도 안정적으로 반영)
             String sql = """
                     SELECT
                         ac.campaign_id,
@@ -403,6 +490,38 @@ public class EmployerService {
                     .campaigns(List.of())
                     .build();
         }
+    }
+
+    /**
+     * 광고 캠페인 수정 (기업 소유권 검증 후 DB 직접 업데이트)
+     * Redis 의존성을 제거하여 Redis 미실행 환경에서도 동작하도록 함
+     */
+    @Transactional
+    public void updateAdCampaign(String userid, Long campaignId, AdCampaignUpdateDTO dto) {
+        Long employerId = getEmployerIdByUserid(userid);
+        if (employerId == null) {
+            throw new IllegalStateException("소속된 기업이 없습니다.");
+        }
+        var campaignOpt = adCampaignRepository.findByIdAndNotDeleted(campaignId);
+        if (campaignOpt.isEmpty()) {
+            throw new IllegalArgumentException("광고 캠페인을 찾을 수 없습니다. ID: " + campaignId);
+        }
+        var campaign = campaignOpt.get();
+        if (!employerId.equals(campaign.getEmployerId())) {
+            throw new IllegalStateException("해당 광고 캠페인에 대한 권한이 없습니다.");
+        }
+
+        // Redis 없이 DB만 직접 업데이트
+        if (dto.getCpcBid() != null) {
+            campaign.setCpcBid(dto.getCpcBid());
+        }
+        if (dto.getDailyBudget() != null) {
+            campaign.setDailyBudget(dto.getDailyBudget());
+        }
+        // startDate, endDate도 필요 시 추가 가능
+
+        adCampaignRepository.save(campaign);
+        log.info("광고 캠페인 수정 완료 (DB only). CampaignId: {}, EmployerId: {}", campaignId, employerId);
     }
 
     // ===== 지원자 관리 =====
@@ -503,12 +622,10 @@ public class EmployerService {
                             .resumeId(rs.getLong("resume_id"))
                             .resumeTitle(rs.getString("resume_title"))
                             .status(rs.getString("status"))
-                            .appliedAt(rs.getTimestamp("applied_at") != null
-                                    ? rs.getTimestamp("applied_at").toLocalDateTime().toString()
-                                    : null)
-                            .viewedAt(rs.getTimestamp("viewed_at") != null
-                                    ? rs.getTimestamp("viewed_at").toLocalDateTime().toString()
-                                    : null)
+                            .appliedAt(rs.getTimestamp("applied_at") != null ? 
+                                    rs.getTimestamp("applied_at").toLocalDateTime().toString() : null)
+                            .viewedAt(rs.getTimestamp("viewed_at") != null ? 
+                                    rs.getTimestamp("viewed_at").toLocalDateTime().toString() : null)
                             .build(),
                     params.toArray());
 
@@ -563,11 +680,11 @@ public class EmployerService {
 
         // 지원서가 해당 기업의 공고에 대한 것인지 확인
         String checkSql = """
-                SELECT COUNT(*) FROM job_application ja
-                JOIN job_posting jp ON jp.job_id = ja.job_id
-                WHERE ja.application_id = ? AND jp.employer_id = ?
-                """;
-
+            SELECT COUNT(*) FROM job_application ja
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            WHERE ja.application_id = ? AND jp.employer_id = ?
+            """;
+        
         Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, applicationId, employerId);
         if (count == null || count == 0) {
             throw new IllegalStateException("해당 지원서에 대한 권한이 없습니다.");
@@ -576,31 +693,32 @@ public class EmployerService {
         // 상태 업데이트
         String updateSql = "UPDATE job_application SET status = ?, updated_at = NOW() WHERE application_id = ?";
         jdbcTemplate.update(updateSql, newStatus, applicationId);
-
+        
         log.info("지원서 {} 상태 변경: {}", applicationId, newStatus);
 
         // 지원자에게 알림 발송
         try {
             String infoSql = """
-                    SELECT ja.member_id, jp.title as job_title, e.name as company_name
-                    FROM job_application ja
-                    JOIN job_posting jp ON jp.job_id = ja.job_id
-                    JOIN employer e ON e.employer_id = jp.employer_id
-                    WHERE ja.application_id = ?
-                    """;
+                SELECT ja.member_id, jp.title as job_title, e.name as company_name
+                FROM job_application ja
+                JOIN job_posting jp ON jp.job_id = ja.job_id
+                JOIN employer e ON e.employer_id = jp.employer_id
+                WHERE ja.application_id = ?
+                """;
             var info = jdbcTemplate.queryForMap(infoSql, applicationId);
-
+            
             Long candidateMemberId = ((Number) info.get("member_id")).longValue();
             String jobTitle = (String) info.get("job_title");
             String companyName = (String) info.get("company_name");
-
+            
             outboxEventProducer.publishApplicationStatusChangedEvent(
                     applicationId,
                     candidateMemberId,
                     jobTitle,
                     companyName,
-                    newStatus);
-            log.info("지원 상태 변경 알림 발행: applicationId={}, candidateMemberId={}, newStatus={}",
+                    newStatus
+            );
+            log.info("지원 상태 변경 알림 발행: applicationId={}, candidateMemberId={}, newStatus={}", 
                     applicationId, candidateMemberId, newStatus);
         } catch (Exception e) {
             log.warn("지원 상태 변경 알림 발행 실패: {}", e.getMessage());
@@ -668,12 +786,12 @@ public class EmployerService {
                             .method(rs.getString("method"))
                             .location(rs.getString("location"))
                             .meetingUrl(rs.getString("meeting_url"))
-                            .startAt(rs.getTimestamp("start_at") != null ?
+                            .startAt(rs.getTimestamp("start_at") != null ? 
                                     rs.getTimestamp("start_at").toLocalDateTime().toString() : null)
-                            .endAt(rs.getTimestamp("end_at") != null ?
+                            .endAt(rs.getTimestamp("end_at") != null ? 
                                     rs.getTimestamp("end_at").toLocalDateTime().toString() : null)
                             .status(rs.getString("status"))
-                            .createdAt(rs.getTimestamp("created_at") != null ?
+                            .createdAt(rs.getTimestamp("created_at") != null ? 
                                     rs.getTimestamp("created_at").toLocalDateTime().toString() : null)
                             .build(),
                     employerId, startDate, endDate);

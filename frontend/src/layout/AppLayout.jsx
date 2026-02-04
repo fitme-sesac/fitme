@@ -35,13 +35,10 @@ const footerHtml = `
             <!-- 로고(왼쪽) + 텍스트(오른쪽) -->
             <div class="d-flex align-items-center gap-3 flex-wrap w-100">
 
-              <!-- 왼쪽: 로고 -->
-              <a href="/" class="d-flex align-items-center flex-shrink-0">
-                <img
-                  src="/assets/img/main/fit_me_logo.png"
-                  alt="fit_me_logo"
-                  style="width: 150px; height: auto;"
-                >
+              <!-- 왼쪽: 로고 (타겟 아이콘 + FITME) -->
+              <a href="/" class="d-flex align-items-center gap-2 flex-shrink-0" style="text-decoration: none;">
+                <img src="/assets/img/main/fitme_logo_icon.png" alt="" style="height: 42px; width: auto; display: block;">
+                <span class="fw-bold text-dark" style="font-size: 1.4rem; letter-spacing: 0.02em;">FITME</span>
               </a>
 
               <!-- 오른쪽: 텍스트 -->

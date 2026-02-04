@@ -64,6 +64,10 @@ async def validation_exception_handler(request, exc):
 def health_check():
     return {"status": "ok", "service": "ai-worker", "version": settings.APP_VERSION}
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "ai-worker", "version": settings.APP_VERSION}
+
 # Register Routers
 app.include_router(resume_router)
 app.include_router(chatbot_router)

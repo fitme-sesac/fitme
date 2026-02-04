@@ -9,8 +9,8 @@ def get_db_connection():
     return psycopg2.connect(
         host=settings.DB_HOST,
         port=settings.DB_PORT,
-        dbname=settings.DB_NAME,
-        user=settings.DB_USER,
+        dbname=settings.DB_DATABASE,
+        user=settings.DB_USERNAME,
         password=settings.DB_PASSWORD
     )
 

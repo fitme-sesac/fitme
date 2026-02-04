@@ -19,17 +19,17 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost,http://127.0.0.1"
 
-    # Database
+    # Database (변수명은 ECS task definition과 일치)
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
-    DB_NAME: str = "fitme_project"
-    DB_USER: str = "postgres"
+    DB_DATABASE: str = "fitme_project"
+    DB_USERNAME: str = "postgres"
     DB_PASSWORD: str = "change_me"
 
-    # Redis
-    REDIS_HOST: str
-    REDIS_PORT: int
-    REDIS_PASSWORD: str
+    # Redis (기본값 추가하여 부팅 실패 방지)
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

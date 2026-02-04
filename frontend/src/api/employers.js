@@ -67,6 +67,31 @@ export async function saveEmployerProfile(profile) {
 }
 
 /**
+ * 기업 로고 파일 업로드 (로그인 필요)
+ * @param {File} file - 업로드할 이미지 파일
+ * @returns {Promise<{logoUrl: string, message: string}>}
+ */
+export async function uploadEmployerLogo(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await http.post("/api/employer/logo", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+}
+
+/**
+ * 기업 로고 삭제 (로그인 필요)
+ * @returns {Promise<{message: string}>}
+ */
+export async function deleteEmployerLogo() {
+  const response = await http.delete("/api/employer/logo");
+  return response.data;
+}
+
+/**
  * 지원자 목록 조회 (로그인 필요)
  * @param {string} status - 상태 필터 (SUBMITTED, VIEWED, INTERVIEW, HIRED, REJECTED, CANCELED)
  * @returns {Promise<ApplicantListDTO>}
@@ -154,10 +179,11 @@ export async function deleteInterview(interviewId) {
 
 /**
  * 광고 통계 조회 (로그인 필요)
+ * @param {boolean} demo - 데모 모드 (true: 실제 클릭이 없을 때 데모 데이터 표시, false: 실제 데이터만)
  * @returns {Promise<AdStatsDTO>}
  */
-export async function getAdStats() {
-  const response = await http.get("/api/employer/ad-stats");
+export async function getAdStats(demo = true) {
+  const response = await http.get(`/api/employer/ad-stats?demo=${demo}`);
   return response.data;
 }
 
@@ -185,6 +211,21 @@ export async function createAdCampaign(campaign) {
  */
 export async function updateAdCampaignStatus(campaignId, status) {
   const response = await http.patch(`/api/v1/ad/campaigns/${campaignId}/status?status=${status}`);
+  return response.data;
+}
+
+/**
+ * 광고 캠페인 수정 (로그인 필요, 기업 소유권 검증)
+ * @param {number} campaignId - 캠페인 ID
+ * @param {Object} updates - 수정할 필드 (null인 필드는 수정하지 않음)
+ * @param {number} updates.cpcBid - CPC 입찰가 (원)
+ * @param {number} updates.dailyBudget - 일일 예산 (원)
+ * @param {string} updates.startDate - 시작일 (YYYY-MM-DD)
+ * @param {string} updates.endDate - 종료일 (YYYY-MM-DD)
+ * @returns {Promise<{message: string}>}
+ */
+export async function updateAdCampaign(campaignId, updates) {
+  const response = await http.patch(`/api/employer/ad-campaigns/${campaignId}`, updates);
   return response.data;
 }
 

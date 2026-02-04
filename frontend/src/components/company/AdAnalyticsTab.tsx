@@ -33,7 +33,9 @@ import {
   Pause,
   Play,
   Square,
-  MoreHorizontal
+  MoreHorizontal,
+  Edit,
+  Users
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,7 +44,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getAdStats, createAdCampaign, getMyJobPostings, updateAdCampaignStatus, getEmployerProfile } from "@/api/employers";
+import { getAdStats, createAdCampaign, getMyJobPostings, updateAdCampaignStatus, updateAdCampaign, getEmployerProfile } from "@/api/employers";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -56,6 +58,7 @@ interface CampaignDTO {
   ctr: number;
   dailyBudget: number;
   cpcBid: number;
+  applicants: number;
 }
 
 interface AdStats {
@@ -128,6 +131,13 @@ export function AdAnalyticsTab() {
   const [dailyBudget, setDailyBudget] = useState("50000");
   const [startDate, setStartDate] = useState(getTodayString());
   const [endDate, setEndDate] = useState(getDefaultEndDate());
+
+  // 캠페인 수정 모달 상태
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<CampaignDTO | null>(null);
+  const [editCpcBid, setEditCpcBid] = useState("");
+  const [editDailyBudget, setEditDailyBudget] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   async function fetchAdStats() {
     try {
@@ -289,6 +299,72 @@ export function AdAnalyticsTab() {
     }
   }
 
+  // 캠페인 수정 모달 열기
+  function handleOpenEditModal(campaign: CampaignDTO) {
+    setEditingCampaign(campaign);
+    setEditCpcBid(String(campaign.cpcBid));
+    setEditDailyBudget(String(campaign.dailyBudget));
+    setIsEditModalOpen(true);
+  }
+
+  function handleCloseEditModal() {
+    setIsEditModalOpen(false);
+    setEditingCampaign(null);
+    setEditCpcBid("");
+    setEditDailyBudget("");
+  }
+
+  async function handleUpdateCampaign() {
+    if (!editingCampaign) return;
+
+    const cpc = parseInt(editCpcBid) || 0;
+    const budget = parseInt(editDailyBudget) || 0;
+
+    if (cpc < 100) {
+      toast({
+        title: "입찰가 오류",
+        description: "CPC 입찰가는 최소 100원 이상이어야 합니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (budget < 10000) {
+      toast({
+        title: "예산 오류",
+        description: "일일 예산은 최소 10,000원 이상이어야 합니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditSubmitting(true);
+    try {
+      await updateAdCampaign(editingCampaign.campaignId, {
+        cpcBid: cpc,
+        dailyBudget: budget,
+      });
+
+      toast({
+        title: "수정 완료",
+        description: "광고 캠페인이 성공적으로 수정되었습니다.",
+      });
+
+      handleCloseEditModal();
+      fetchAdStats(); // 목록 새로고침
+    } catch (err: any) {
+      console.error("캠페인 수정 실패:", err);
+      const message = err?.response?.data?.message || err?.message || "캠페인 수정에 실패했습니다.";
+      toast({
+        title: "수정 실패",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   // 이미 광고가 있는 채용공고 ID 목록
   const existingJobIds = adStats?.campaigns.map(c => c.jobId) || [];
   const availableJobs = jobPostings.filter(j => !existingJobIds.includes(j.jobId));
@@ -426,6 +502,11 @@ export function AdAnalyticsTab() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenEditModal(campaign)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                광고 수정
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               {campaign.status === "ACTIVE" ? (
                                 <DropdownMenuItem onClick={() => handleStatusChange(campaign.campaignId, "PAUSED")}>
                                   <Pause className="mr-2 h-4 w-4" />
@@ -466,7 +547,7 @@ export function AdAnalyticsTab() {
                     </div>
 
                     {/* 성과 지표 */}
-                    <div className="grid grid-cols-3 gap-4 lg:w-72">
+                    <div className="grid grid-cols-4 gap-3 lg:w-96">
                       <div className="text-center p-2 rounded-lg bg-muted/50">
                         <p className="text-lg font-bold text-foreground">{campaign.impressions.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">노출</p>
@@ -478,6 +559,10 @@ export function AdAnalyticsTab() {
                       <div className="text-center p-2 rounded-lg bg-primary/5 border border-primary/20">
                         <p className="text-lg font-bold text-primary">{campaignCtr}%</p>
                         <p className="text-xs text-muted-foreground">CTR</p>
+                      </div>
+                      <div className="text-center p-2 rounded-lg bg-success/5 border border-success/20">
+                        <p className="text-lg font-bold text-success">{campaign.applicants?.toLocaleString() || 0}</p>
+                        <p className="text-xs text-muted-foreground">지원자</p>
                       </div>
                     </div>
                   </div>
@@ -662,6 +747,101 @@ export function AdAnalyticsTab() {
                 <>
                   <Megaphone className="mr-2 h-4 w-4" />
                   캠페인 시작
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 캠페인 수정 모달 */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-primary" />
+              광고 캠페인 수정
+            </DialogTitle>
+            <DialogDescription>
+              {editingCampaign?.jobTitle}의 광고 설정을 수정합니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-5">
+            {/* CPC 입찰가 */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-cpc-bid">CPC 입찰가 (클릭당 비용)</Label>
+              <div className="relative">
+                <Input
+                  id="edit-cpc-bid"
+                  type="number"
+                  min="100"
+                  step="50"
+                  value={editCpcBid}
+                  onChange={(e) => setEditCpcBid(e.target.value)}
+                  className="pr-8"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  원
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                입찰가가 높을수록 광고 노출 우선순위가 높아집니다. (최소 100원)
+              </p>
+            </div>
+
+            {/* 일일 예산 */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-daily-budget">일일 예산</Label>
+              <div className="relative">
+                <Input
+                  id="edit-daily-budget"
+                  type="number"
+                  min="10000"
+                  step="5000"
+                  value={editDailyBudget}
+                  onChange={(e) => setEditDailyBudget(e.target.value)}
+                  className="pr-8"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  원
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                하루 최대 광고비 한도입니다. (최소 10,000원)
+              </p>
+            </div>
+
+            {/* 예상 비용 안내 */}
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <p className="text-sm font-medium text-foreground mb-1">예상 월간 최대 비용</p>
+              <p className="text-xl font-bold text-primary">
+                {((parseInt(editDailyBudget) || 0) * 30 / 10000).toFixed(1)}만원
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                실제 비용은 클릭 발생 시에만 차감됩니다.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseEditModal} disabled={editSubmitting}>
+              취소
+            </Button>
+            <Button
+              onClick={handleUpdateCampaign}
+              disabled={editSubmitting}
+              className="btn-gradient-primary"
+            >
+              {editSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  수정 중...
+                </>
+              ) : (
+                <>
+                  <Edit className="mr-2 h-4 w-4" />
+                  수정 완료
                 </>
               )}
             </Button>
