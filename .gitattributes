@@ -11,3 +11,6 @@ Dockerfile text eol=lf
 *.ts text eol=lf
 *.java text eol=lf
 .gitignore text eol=lf
+
+# Validated fix for Docker build
+backend/gradlew text eol=lf
