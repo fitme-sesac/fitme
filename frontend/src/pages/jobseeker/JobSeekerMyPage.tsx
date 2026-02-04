@@ -426,23 +426,43 @@ const JobSeekerMyPage = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {applications.length > 0 ? (
-                        applications.map((app: { applicationId?: number; id?: number; jobId?: number; jobTitle?: string; status?: string; appliedAt?: string }) => (
+                        applications.map((app: { applicationId?: number; id?: number; jobId?: number; jobTitle?: string; companyName?: string; companyLogo?: string; location?: string; status?: string; appliedAt?: string }) => (
                           <Link
                             key={app.applicationId ?? app.id}
                             to={app.jobId ? `/jobs/${app.jobId}` : "#"}
                             className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer block"
                           >
                             <div className="flex items-center gap-4">
-                              {getStatusIcon(app.status)}
+                              {app.companyLogo ? (
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={app.companyLogo} />
+                                  <AvatarFallback>{app.companyName?.charAt(0) || "?"}</AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <Building2 className="h-5 w-5 text-primary" />
+                                </div>
+                              )}
                               <div>
                                 <p className="font-medium">{app.jobTitle ?? "채용공고"}</p>
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Building2 className="h-3 w-3" />
+                                  <span>{app.companyName || "기업명"}</span>
+                                  {app.location && (
+                                    <>
+                                      <span>•</span>
+                                      <MapPin className="h-3 w-3" />
+                                      <span>{app.location}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                  <Calendar className="h-3 w-3" />
                                   <span>지원일: {app.appliedAt ? format(new Date(app.appliedAt), "yyyy-MM-dd") : "-"}</span>
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
+                              {getStatusIcon(app.status)}
                               <Badge variant={getStatusBadgeVariant(app.status) as "default" | "secondary" | "destructive"}>
                                 {app.status ?? "SUBMITTED"}
                               </Badge>

@@ -233,7 +233,7 @@ public class EmployerController {
     // ===== 면접 일정 API =====
 
     /**
-     * 면접 일정 목록 조회
+     * 면접 일정 목록 조회 (memberId 기반으로 기업 소속 조회 → OAuth/일반 로그인 모두 대응)
      */
     @GetMapping("/interviews")
     public ResponseEntity<?> getInterviews(
@@ -243,8 +243,12 @@ public class EmployerController {
         if (principal == null) {
             return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
         }
+        Long memberId = resolveMemberId(principal);
+        if (memberId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "회원 정보를 찾을 수 없습니다."));
+        }
         try {
-            InterviewListDTO interviews = employerService.getInterviews(principal.getUserid(), year, month);
+            InterviewListDTO interviews = employerService.getInterviewsByMemberId(memberId, year, month);
             return ResponseEntity.ok(interviews);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

@@ -1,12 +1,7 @@
 package com.example.pproject.Config;
 
-// ================================================================
-// S3 설정 - 현재 비활성화 (주석처리)
-// S3를 사용하려면 아래 주석을 해제하세요
-// ================================================================
-
-/*
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -15,6 +10,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
+@ConditionalOnProperty(name = "cloud.aws.s3.enabled", havingValue = "true")
 public class S3Config {
 
     @Value("${cloud.aws.credentials.access-key:}")
@@ -43,10 +39,4 @@ public class S3Config {
                 .region(Region.of(region))
                 .build();
     }
-}
-*/
-
-// S3 비활성화 - 빈 클래스로 대체
-public class S3Config {
-    // S3 기능 비활성화됨
 }

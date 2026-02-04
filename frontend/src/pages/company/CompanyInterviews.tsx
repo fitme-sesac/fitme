@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -36,8 +38,10 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
+  ListOrdered,
+  CalendarDays,
 } from "lucide-react";
-import { useInterviews, useCreateInterview, useUpdateInterview, useDeleteInterview, useApplicants } from "@/hooks/useEmployers";
+import { useInterviews, useAllInterviews, useCreateInterview, useUpdateInterview, useDeleteInterview, useApplicants } from "@/hooks/useEmployers";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Interview {
@@ -90,6 +94,7 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 const weekDays = ["일", "월", "화", "수", "목", "금", "토"];
 
 export default function CompanyInterviews() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -100,13 +105,42 @@ export default function CompanyInterviews() {
   const month = currentDate.getMonth() + 1;
 
   const { data: interviewData, isLoading } = useInterviews(year, month);
+  const { data: allInterviewData, isLoading: isLoadingAll } = useAllInterviews();
   const { data: applicantData } = useApplicants("");
   const createMutation = useCreateInterview();
   const updateMutation = useUpdateInterview();
   const deleteMutation = useDeleteInterview();
 
   const interviews: Interview[] = interviewData?.interviews ?? [];
+  const allInterviews: Interview[] = allInterviewData?.interviews ?? [];
   const applicants: Applicant[] = applicantData?.applicants ?? [];
+
+  // URL에서 applicationId가 있으면 해당 지원자로 모달 열기
+  useEffect(() => {
+    const applicationId = searchParams.get("applicationId");
+    if (applicationId && applicants.length > 0) {
+      const targetApplicant = applicants.find(
+        (a) => String(a.applicationId) === applicationId
+      );
+      if (targetApplicant) {
+        setForm({
+          applicationId: applicationId,
+          stage: "1ST",
+          method: "ONSITE",
+          location: "",
+          meetingUrl: "",
+          startAt: formatDateTimeLocal(new Date(), 10, 0),
+          endAt: formatDateTimeLocal(new Date(), 11, 0),
+          memo: "",
+        });
+        setEditingInterview(null);
+        setShowModal(true);
+        // URL에서 applicationId 제거
+        searchParams.delete("applicationId");
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [applicants, searchParams, setSearchParams]);
 
   // 폼 상태
   const [form, setForm] = useState({
@@ -252,6 +286,34 @@ export default function CompanyInterviews() {
   };
 
   const todayInterviews = getInterviewsForDate(selectedDate || new Date());
+
+  // 전체 면접 일정 (날짜순 정렬) - 전체 조회 API 사용
+  const allInterviewsSorted = useMemo(() => {
+    return [...allInterviews].sort((a, b) => 
+      new Date(b.startAt).getTime() - new Date(a.startAt).getTime()
+    );
+  }, [allInterviews]);
+
+  // 다가오는 면접 (미래 일정만) - 전체 조회 API 사용
+  const upcomingInterviews = useMemo(() => {
+    const now = new Date();
+    return allInterviews
+      .filter((i) => new Date(i.startAt) >= now && i.status !== "CANCELED" && i.status !== "DONE")
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  }, [allInterviews]);
+
+  // 지난 면접 - 전체 조회 API 사용
+  const pastInterviews = useMemo(() => {
+    const now = new Date();
+    return allInterviews
+      .filter((i) => new Date(i.startAt) < now || i.status === "DONE")
+      .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+  }, [allInterviews]);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -407,117 +469,299 @@ export default function CompanyInterviews() {
                 </CardContent>
               </Card>
 
-              {/* 선택한 날짜의 일정 */}
+              {/* 면접 일정 탭 */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Clock className="h-5 w-5 text-primary" />
-                    {selectedDate
-                      ? `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 일정`
-                      : "오늘의 면접"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {todayInterviews.length > 0 ? (
-                    todayInterviews.map((interview) => {
-                      const MethodIcon = methodIcons[interview.method] || MapPin;
-                      const statusConfig = statusLabels[interview.status] || statusLabels.PROPOSED;
+                <Tabs defaultValue="selected" className="w-full">
+                  <CardHeader className="pb-2">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="selected" className="text-xs">
+                        <CalendarDays className="h-3 w-3 mr-1" />
+                        선택 날짜
+                      </TabsTrigger>
+                      <TabsTrigger value="upcoming" className="text-xs">
+                        <Clock className="h-3 w-3 mr-1" />
+                        다가오는
+                      </TabsTrigger>
+                      <TabsTrigger value="all" className="text-xs">
+                        <ListOrdered className="h-3 w-3 mr-1" />
+                        전체
+                      </TabsTrigger>
+                    </TabsList>
+                  </CardHeader>
+                  <CardContent>
+                    {/* 선택한 날짜의 일정 */}
+                    <TabsContent value="selected" className="mt-0 space-y-3">
+                      <div className="text-sm font-medium text-muted-foreground mb-2">
+                        {selectedDate
+                          ? `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 일정`
+                          : "오늘의 면접"}
+                      </div>
+                      {todayInterviews.length > 0 ? (
+                        todayInterviews.map((interview) => {
+                          const MethodIcon = methodIcons[interview.method] || MapPin;
+                          const statusConfig = statusLabels[interview.status] || statusLabels.PROPOSED;
 
-                      return (
-                        <div
-                          key={interview.interviewId}
-                          className="p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex gap-2">
-                              <Badge
-                                variant="outline"
-                                className={
-                                  interview.method === "VIDEO"
-                                    ? "bg-info/10 text-info"
-                                    : interview.method === "PHONE"
-                                    ? "bg-warning/10 text-warning"
-                                    : "bg-success/10 text-success"
-                                }
-                              >
-                                <MethodIcon className="h-3 w-3 mr-1" />
-                                {methodLabels[interview.method]}
-                              </Badge>
-                              <Badge variant="secondary">
-                                {stageLabels[interview.stage]}
-                              </Badge>
-                              <Badge variant="outline" className={statusConfig.className}>
-                                {statusConfig.label}
-                              </Badge>
+                          return (
+                            <div
+                              key={interview.interviewId}
+                              className="p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow"
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex flex-wrap gap-1">
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      interview.method === "VIDEO"
+                                        ? "bg-info/10 text-info"
+                                        : interview.method === "PHONE"
+                                        ? "bg-warning/10 text-warning"
+                                        : "bg-success/10 text-success"
+                                    }
+                                  >
+                                    <MethodIcon className="h-3 w-3 mr-1" />
+                                    {methodLabels[interview.method]}
+                                  </Badge>
+                                  <Badge variant="secondary">
+                                    {stageLabels[interview.stage]}
+                                  </Badge>
+                                  <Badge variant="outline" className={statusConfig.className}>
+                                    {statusConfig.label}
+                                  </Badge>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => openEditModal(interview)}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDelete(interview.interviewId)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{interview.applicantName}</span>
+                              </div>
+                              <div className="text-sm text-muted-foreground mb-1">
+                                {interview.jobTitle}
+                              </div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatTime(interview.startAt)} - {formatTime(interview.endAt)}
+                              </div>
+                              {interview.location && (
+                                <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {interview.location}
+                                </div>
+                              )}
+                              {interview.meetingUrl && (
+                                <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                                  <Video className="h-3 w-3" />
+                                  <a
+                                    href={interview.meetingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover:underline truncate"
+                                  >
+                                    회의 링크
+                                  </a>
+                                </div>
+                              )}
                             </div>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => openEditModal(interview)}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => handleDelete(interview.interviewId)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{interview.applicantName}</span>
-                          </div>
-                          <div className="text-sm text-muted-foreground mb-1">
-                            {interview.jobTitle}
-                          </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatTime(interview.startAt)} - {formatTime(interview.endAt)}
-                          </div>
-                          {interview.location && (
-                            <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                              <MapPin className="h-3 w-3" />
-                              {interview.location}
-                            </div>
-                          )}
-                          {interview.meetingUrl && (
-                            <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                              <Video className="h-3 w-3" />
-                              <a
-                                href={interview.meetingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline truncate"
-                              >
-                                {interview.meetingUrl}
-                              </a>
-                            </div>
-                          )}
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>예정된 면접이 없습니다.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => openCreateModal()}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            일정 추가
+                          </Button>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>예정된 면접이 없습니다.</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-3"
-                        onClick={() => openCreateModal()}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        일정 추가
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
+                      )}
+                    </TabsContent>
+
+                    {/* 다가오는 면접 */}
+                    <TabsContent value="upcoming" className="mt-0 space-y-3 max-h-[500px] overflow-y-auto">
+                      <div className="text-sm font-medium text-muted-foreground mb-2">
+                        다가오는 면접 ({upcomingInterviews.length}건)
+                      </div>
+                      {upcomingInterviews.length > 0 ? (
+                        upcomingInterviews.map((interview) => {
+                          const MethodIcon = methodIcons[interview.method] || MapPin;
+                          const statusConfig = statusLabels[interview.status] || statusLabels.PROPOSED;
+
+                          return (
+                            <div
+                              key={interview.interviewId}
+                              className="p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow"
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex flex-wrap gap-1">
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      interview.method === "VIDEO"
+                                        ? "bg-info/10 text-info"
+                                        : interview.method === "PHONE"
+                                        ? "bg-warning/10 text-warning"
+                                        : "bg-success/10 text-success"
+                                    }
+                                  >
+                                    <MethodIcon className="h-3 w-3 mr-1" />
+                                    {methodLabels[interview.method]}
+                                  </Badge>
+                                  <Badge variant="outline" className={statusConfig.className}>
+                                    {statusConfig.label}
+                                  </Badge>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => openEditModal(interview)}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDelete(interview.interviewId)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{interview.applicantName}</span>
+                              </div>
+                              <div className="text-sm text-muted-foreground mb-1">
+                                {interview.jobTitle}
+                              </div>
+                              <div className="text-sm text-primary font-medium flex items-center gap-1">
+                                <CalendarDays className="h-3 w-3" />
+                                {formatDate(interview.startAt)}
+                              </div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatTime(interview.startAt)} - {formatTime(interview.endAt)}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>다가오는 면접이 없습니다.</p>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* 전체 면접 일정 */}
+                    <TabsContent value="all" className="mt-0 space-y-3 max-h-[500px] overflow-y-auto">
+                      <div className="text-sm font-medium text-muted-foreground mb-2">
+                        전체 면접 일정 ({allInterviewsSorted.length}건)
+                      </div>
+                      {allInterviewsSorted.length > 0 ? (
+                        allInterviewsSorted.map((interview) => {
+                          const MethodIcon = methodIcons[interview.method] || MapPin;
+                          const statusConfig = statusLabels[interview.status] || statusLabels.PROPOSED;
+                          const isPast = new Date(interview.startAt) < new Date();
+
+                          return (
+                            <div
+                              key={interview.interviewId}
+                              className={`p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow ${
+                                isPast ? "opacity-60" : ""
+                              }`}
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex flex-wrap gap-1">
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      interview.method === "VIDEO"
+                                        ? "bg-info/10 text-info"
+                                        : interview.method === "PHONE"
+                                        ? "bg-warning/10 text-warning"
+                                        : "bg-success/10 text-success"
+                                    }
+                                  >
+                                    <MethodIcon className="h-3 w-3 mr-1" />
+                                    {methodLabels[interview.method]}
+                                  </Badge>
+                                  <Badge variant="secondary">
+                                    {stageLabels[interview.stage]}
+                                  </Badge>
+                                  <Badge variant="outline" className={statusConfig.className}>
+                                    {statusConfig.label}
+                                  </Badge>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => openEditModal(interview)}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDelete(interview.interviewId)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{interview.applicantName}</span>
+                              </div>
+                              <div className="text-sm text-muted-foreground mb-1">
+                                {interview.jobTitle}
+                              </div>
+                              <div className={`text-sm font-medium flex items-center gap-1 ${isPast ? "text-muted-foreground" : "text-primary"}`}>
+                                <CalendarDays className="h-3 w-3" />
+                                {formatDate(interview.startAt)}
+                              </div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatTime(interview.startAt)} - {formatTime(interview.endAt)}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <ListOrdered className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>면접 일정이 없습니다.</p>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </CardContent>
+                </Tabs>
               </Card>
             </div>
           </div>

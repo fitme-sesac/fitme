@@ -12,24 +12,37 @@ import java.util.List;
 public interface InterviewScheduleRepository extends JpaRepository<InterviewSchedule, Long> {
 
     /**
-     * 지원 ID로 면접 일정 조회 (최신순)
-     */
-    List<InterviewSchedule> findByApplicationIdOrderByStartAtDesc(Long applicationId);
-
-    /**
-     * 지원자(회원)의 모든 면접 일정 조회
+     * 지원 ID로 면접 일정 조회 (최신순) - JOIN FETCH로 연관 엔티티 즉시 로딩
      */
     @Query("SELECT i FROM InterviewSchedule i " +
-            "JOIN i.application a " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.job " +
+            "JOIN FETCH a.member " +
+            "LEFT JOIN FETCH a.resume " +
+            "WHERE a.id = :applicationId " +
+            "ORDER BY i.startAt DESC")
+    List<InterviewSchedule> findByApplicationIdOrderByStartAtDesc(@Param("applicationId") Long applicationId);
+
+    /**
+     * 지원자(회원)의 모든 면접 일정 조회 - JOIN FETCH로 연관 엔티티 즉시 로딩
+     */
+    @Query("SELECT i FROM InterviewSchedule i " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.job " +
+            "JOIN FETCH a.member " +
+            "LEFT JOIN FETCH a.resume " +
             "WHERE a.member.id = :memberId " +
             "ORDER BY i.startAt DESC")
     List<InterviewSchedule> findByMemberId(@Param("memberId") Long memberId);
 
     /**
-     * 지원자의 다가오는 면접 일정 조회 (확정된 것만)
+     * 지원자의 다가오는 면접 일정 조회 (확정된 것만) - JOIN FETCH로 연관 엔티티 즉시 로딩
      */
     @Query("SELECT i FROM InterviewSchedule i " +
-            "JOIN i.application a " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.job " +
+            "JOIN FETCH a.member " +
+            "LEFT JOIN FETCH a.resume " +
             "WHERE a.member.id = :memberId " +
             "AND i.status = :status " +
             "AND i.startAt > :now " +
@@ -40,21 +53,25 @@ public interface InterviewScheduleRepository extends JpaRepository<InterviewSche
             @Param("now") LocalDateTime now);
 
     /**
-     * 기업(고용주)의 모든 면접 일정 조회
+     * 기업(고용주)의 모든 면접 일정 조회 - JOIN FETCH로 연관 엔티티 즉시 로딩
      */
     @Query("SELECT i FROM InterviewSchedule i " +
-            "JOIN i.application a " +
-            "JOIN a.job j " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.job j " +
+            "JOIN FETCH a.member " +
+            "LEFT JOIN FETCH a.resume " +
             "WHERE j.employerId = :employerId " +
             "ORDER BY i.startAt DESC")
     List<InterviewSchedule> findByEmployerId(@Param("employerId") Long employerId);
 
     /**
-     * 기업의 다가오는 면접 일정 조회
+     * 기업의 다가오는 면접 일정 조회 - JOIN FETCH로 연관 엔티티 즉시 로딩
      */
     @Query("SELECT i FROM InterviewSchedule i " +
-            "JOIN i.application a " +
-            "JOIN a.job j " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.job j " +
+            "JOIN FETCH a.member " +
+            "LEFT JOIN FETCH a.resume " +
             "WHERE j.employerId = :employerId " +
             "AND i.status IN :statuses " +
             "AND i.startAt > :now " +
@@ -65,10 +82,13 @@ public interface InterviewScheduleRepository extends JpaRepository<InterviewSche
             @Param("now") LocalDateTime now);
 
     /**
-     * 특정 기간 내 면접 일정 조회 (캘린더용)
+     * 특정 기간 내 면접 일정 조회 (캘린더용) - JOIN FETCH로 연관 엔티티 즉시 로딩
      */
     @Query("SELECT i FROM InterviewSchedule i " +
-            "JOIN i.application a " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.job " +
+            "JOIN FETCH a.member " +
+            "LEFT JOIN FETCH a.resume " +
             "WHERE a.member.id = :memberId " +
             "AND i.startAt BETWEEN :startDate AND :endDate " +
             "ORDER BY i.startAt ASC")
