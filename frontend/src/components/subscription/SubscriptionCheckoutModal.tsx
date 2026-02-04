@@ -47,7 +47,7 @@ export function SubscriptionCheckoutModal({
 
             const currentOrigin = window.location.origin;
             const successUrl = new URL(`${currentOrigin}/subscription/success`);
-            successUrl.searchParams.set("productId", plan.id === "pro" ? "4" : "1"); // Map plan IDs to backend product IDs if necessary. Pro is 4 in previous context? Actually I should check product mapping.
+            successUrl.searchParams.set("productId", plan.id === "pro" ? "2" : "2"); // Fixed: Pro plan is ID 2 in DB.
             // Based on previous logs, Pro ID was often 4 or similar. Let's assume some mapping or use plan.id if it matches backend.
             // In SubscriptionCheckoutPage.tsx it was using productId from searchParams.
             successUrl.searchParams.set("price", String(plan.price));

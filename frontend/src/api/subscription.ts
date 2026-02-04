@@ -15,6 +15,7 @@ export interface SubscriptionResponse {
         productId: number;
         productCode: string;
         name: string;
+        priceAmount: number;
         planTier?: string;
     };
     nextProduct?: {

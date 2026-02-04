@@ -22,11 +22,16 @@ import {
     Crown,
     Shield,
     Bell,
-    Eye
+    Eye,
+    Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmployerProfile } from "@/hooks/useEmployers";
+import { useEmployerSubscriptions } from "@/features/payment/hooks/useSubscription";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom"; // Add useNavigate if needed, but looks like it's not used yet
 import { CompanyPaymentHistory } from "@/components/company/CompanyPaymentHistory";
 
 // 임시 팀원 데이터
@@ -73,6 +78,23 @@ export default function CompanyManagement() {
         weeklyReport: false,
         marketingEmail: false,
     });
+
+    // --- Subscription Data Integration ---
+    const { data: employerData, isLoading: isLoadingProfile } = useEmployerProfile();
+    const employerId = employerData?.employerId;
+    const { data: subscriptions, isLoading: isLoadingSubs } = useEmployerSubscriptions(employerId);
+
+    const activeSubscription = subscriptions?.find(s => s.status === "ACTIVE");
+    const nextBillingDate = activeSubscription?.nextBillingAt
+        ? format(new Date(activeSubscription.nextBillingAt), "yyyy년 M월 d일", { locale: ko })
+        : "-";
+
+    const planName = activeSubscription?.product?.name || "무료 플랜"; // Default to Free if no active
+    const planPrice = activeSubscription?.product?.priceAmount || 0;
+    const isFree = !activeSubscription;
+
+    const cardCompany = activeSubscription?.cardCompany;
+    const cardNumber = activeSubscription?.cardNumber; // Expected to be masked or partial
 
     return (
         <div className="min-h-screen bg-background">
@@ -414,18 +436,38 @@ export default function CompanyManagement() {
                                     <CardDescription>현재 이용 중인 요금제입니다</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex items-center justify-between p-6 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border">
-                                        <div>
-                                            <Badge className="mb-2">PRO</Badge>
-                                            <h3 className="text-2xl font-bold">프로 플랜</h3>
-                                            <p className="text-muted-foreground">월 99,000원 / 연 990,000원</p>
+                                    {isLoadingProfile || isLoadingSubs ? (
+                                        <div className="flex justify-center py-8">
+                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-sm text-muted-foreground">다음 결제일</p>
-                                            <p className="font-medium">2026년 2월 28일</p>
-                                            <Button variant="outline" className="mt-2">플랜 변경</Button>
+                                    ) : (
+                                        <div className="flex items-center justify-between p-6 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border">
+                                            <div>
+                                                <Badge className="mb-2">{isFree ? "Free" : "PRO"}</Badge>
+                                                <h3 className="text-2xl font-bold">{planName}</h3>
+                                                <p className="text-muted-foreground">
+                                                    {isFree ? "무료" : `월 ${Number(planPrice).toLocaleString()}원`}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                {isFree ? (
+                                                    <div className="text-right">
+                                                        <p className="text-sm text-muted-foreground">구독 중인 플랜이 없습니다.</p>
+                                                        <Button variant="default" className="mt-2" onClick={() => window.location.href = '/products'}>
+                                                            구독하러 가기
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <p className="text-sm text-muted-foreground">다음 결제일</p>
+                                                        <p className="font-medium">{nextBillingDate}</p>
+                                                        <Button variant="outline" className="mt-2">플랜 변경</Button>
+                                                    </>
+                                                )}
+
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
@@ -471,19 +513,28 @@ export default function CompanyManagement() {
                                     <CardDescription>등록된 결제 수단입니다</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex items-center justify-between p-4 rounded-lg border">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-16 rounded bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center text-white text-xs font-bold">
-                                                VISA
+                                    {!isFree && cardCompany ? (
+                                        <div className="flex items-center justify-between p-4 rounded-lg border">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-10 w-16 rounded bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center text-white text-xs font-bold">
+                                                    {cardCompany}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium">{cardNumber || "•••• •••• •••• ••••"}</p>
+                                                    <p className="text-sm text-muted-foreground">구독 결제 카드</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-medium">•••• •••• •••• 4242</p>
-                                                <p className="text-sm text-muted-foreground">만료: 12/28</p>
-                                            </div>
+                                            <Button variant="outline" size="sm">변경</Button>
                                         </div>
-                                        <Button variant="outline" size="sm">변경</Button>
-                                    </div>
-                                    <Button variant="ghost" className="mt-4 w-full">+ 새 결제 수단 추가</Button>
+                                    ) : (
+                                        <div className="text-center py-6 text-muted-foreground">
+                                            <p className="mb-4">등록된 결제 수단이 없습니다.</p>
+                                            <Button variant="outline" onClick={() => window.location.href = '/products'}>
+                                                구독하고 카드 등록하기
+                                            </Button>
+                                        </div>
+                                    )}
+                                    {/* <Button variant="ghost" className="mt-4 w-full">+ 새 결제 수단 추가</Button> */}
                                 </CardContent>
                             </Card>
 
