@@ -13,6 +13,12 @@ export const NotificationEventType = {
     INTERVIEW_CANCELED: "INTERVIEW_CANCELED",
     INTERVIEW_RESULT: "INTERVIEW_RESULT",
     
+    // 포지션 제안 관련 (구직자용)
+    PROPOSAL_RECEIVED: "PROPOSAL_RECEIVED",
+    PROPOSAL_ACCEPTED: "PROPOSAL_ACCEPTED",
+    PROPOSAL_REJECTED: "PROPOSAL_REJECTED",
+    PROPOSAL_EXPIRED: "PROPOSAL_EXPIRED",
+    
     // 채용 결과 관련
     HIRED: "HIRED",
     REJECTED: "REJECTED",
@@ -59,6 +65,12 @@ export const getNotificationIcon = (eventType) => {
         INTERVIEW_CANCELED: "bi bi-calendar-x",
         INTERVIEW_RESULT: "bi bi-clipboard-check",
         
+        // 포지션 제안 관련
+        PROPOSAL_RECEIVED: "bi bi-briefcase",
+        PROPOSAL_ACCEPTED: "bi bi-check-circle",
+        PROPOSAL_REJECTED: "bi bi-x-circle",
+        PROPOSAL_EXPIRED: "bi bi-hourglass",
+        
         // 채용 결과
         HIRED: "bi bi-trophy",
         REJECTED: "bi bi-x-circle",
@@ -104,6 +116,7 @@ export const getNotificationBgColor = (eventType) => {
         SUBSCRIPTION_STARTED: "bg-success",
         CREDIT_CHARGED: "bg-success",
         JOB_POSTING_APPROVED: "bg-success",
+        PROPOSAL_ACCEPTED: "bg-success",
         
         // 정보
         APPLICATION_VIEWED: "bg-info",
@@ -112,11 +125,13 @@ export const getNotificationBgColor = (eventType) => {
         INTERVIEW_REMINDER: "bg-warning",
         NEW_APPLICATION_RECEIVED: "bg-primary",
         SUBSCRIPTION_RENEWED: "bg-info",
+        PROPOSAL_RECEIVED: "bg-primary",
         
         // 경고/주의
         SUBSCRIPTION_EXPIRING: "bg-warning",
         CREDIT_LOW: "bg-warning",
         JOB_POSTING_EXPIRED: "bg-warning",
+        PROPOSAL_EXPIRED: "bg-warning",
         
         // 실패/부정
         REJECTED: "bg-secondary",
@@ -124,6 +139,7 @@ export const getNotificationBgColor = (eventType) => {
         INTERVIEW_CANCELED: "bg-danger",
         SUBSCRIPTION_CANCELED: "bg-secondary",
         JOB_POSTING_REJECTED: "bg-danger",
+        PROPOSAL_REJECTED: "bg-secondary",
         
         // 기타
         SYSTEM_NOTICE: "bg-dark"

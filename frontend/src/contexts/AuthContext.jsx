@@ -64,7 +64,6 @@ export function AuthProvider({ children }) {
         try {
             const status = await authApi.checkAuthStatus();
             setUser(status?.authenticated ? status : null);
-
             // Pass the user role to ensure we fetch the correct wallet
             if (status?.authenticated) {
                 try {
@@ -342,7 +341,6 @@ export function AuthProvider({ children }) {
                 // authenticated=false인 경우에는 user를 null로 유지해서
                 // 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
                 setUser(status?.authenticated ? status : null);
-
                 // Pass the user role to ensure we fetch the correct wallet
                 if (status?.authenticated) {
                     try {

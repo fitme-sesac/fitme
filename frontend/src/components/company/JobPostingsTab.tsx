@@ -28,7 +28,7 @@ import {
   Mail,
 } from "lucide-react";
 import { getJobPostings, deleteJobPosting } from "@/features/job/api/jobApi";
-import { getApplicants } from "@/api/employers";
+import { getApplicantsByJob } from "@/api/employers";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   OPEN: { label: "진행중", className: "bg-success/10 text-success border-success/20" },
@@ -105,7 +105,7 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
     fetchJobs();
   }, [refetchKey]);
 
-  // 지원자 목록: getApplicants → /api/employer/applicants (DB 연동, Mock 아님)
+  // 지원자 목록: getApplicantsByJob → /api/employer/jobs/{jobId}/applicants (특정 공고의 지원자만 조회)
   useEffect(() => {
     if (!applicantsModalJob) {
       setApplicantsList([]);
@@ -113,13 +113,10 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
     }
     let cancelled = false;
     setApplicantsLoading(true);
-    getApplicants("")
+    getApplicantsByJob(applicantsModalJob.jobId, "")
       .then((res: { applicants?: { applicationId: number; jobId: number; name?: string; email?: string; jobTitle?: string; appliedAt?: string; status?: string }[] }) => {
         if (cancelled) return;
-        const list = (res.applicants ?? []).filter(
-          (a: { jobId: number }) => Number(a.jobId) === Number(applicantsModalJob.jobId)
-        );
-        setApplicantsList(list);
+        setApplicantsList(res.applicants ?? []);
       })
       .catch(() => {
         if (!cancelled) setApplicantsList([]);
@@ -248,7 +245,7 @@ export function JobPostingsTab({ refetchKey = 0, onEditJob }: JobPostingsTabProp
             const techStack = job.stack
               ? job.stack.split(",").map((s) => s.trim()).filter(Boolean)
               : [];
-            const detailPath = `/employer/jobs/${job.jobUid ?? job.jobId}`;
+            const detailPath = `/jobs/${job.jobUid ?? job.jobId}`;
             return (
               <div
                 key={job.jobUid}

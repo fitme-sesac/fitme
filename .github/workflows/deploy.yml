@@ -1,0 +1,129 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
+  PROJECT_NAME: fitme
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Build and push Frontend
+      - name: Build and push Frontend image
+        working-directory: ./frontend
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          # Nginx production build (needs VITE_API_BASE_URL arg if built in CI, but here we just build docker)
+          # Note: If environment variables are needed at build time, add --build-arg
+          docker build --build-arg VITE_API_BASE_URL=http://fitme-alb-19198870.ap-northeast-2.elb.amazonaws.com \
+            -t $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG $ECR_REGISTRY/$PROJECT_NAME-frontend:latest
+          docker push $ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$PROJECT_NAME-frontend:latest
+          echo "FRONTEND_IMAGE=$ECR_REGISTRY/$PROJECT_NAME-frontend:$IMAGE_TAG" >> $GITHUB_ENV
+
+      # Build and push Backend
+      - name: Build and push Backend image
+        working-directory: ./backend
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t $ECR_REGISTRY/$PROJECT_NAME-backend:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$PROJECT_NAME-backend:$IMAGE_TAG $ECR_REGISTRY/$PROJECT_NAME-backend:latest
+          docker push $ECR_REGISTRY/$PROJECT_NAME-backend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$PROJECT_NAME-backend:latest
+          echo "BACKEND_IMAGE=$ECR_REGISTRY/$PROJECT_NAME-backend:$IMAGE_TAG" >> $GITHUB_ENV
+
+      # Build and push AI Worker
+      - name: Build and push AI Worker image
+        working-directory: ./ai-worker
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t $ECR_REGISTRY/$PROJECT_NAME-ai-worker:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$PROJECT_NAME-ai-worker:$IMAGE_TAG $ECR_REGISTRY/$PROJECT_NAME-ai-worker:latest
+          docker push $ECR_REGISTRY/$PROJECT_NAME-ai-worker:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$PROJECT_NAME-ai-worker:latest
+          echo "AI_IMAGE=$ECR_REGISTRY/$PROJECT_NAME-ai-worker:$IMAGE_TAG" >> $GITHUB_ENV
+
+      # Update Frontend task definition
+      - name: Render Frontend task definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend/frontend-task-def-READY.json
+          container-name: frontend
+          image: ${{ env.FRONTEND_IMAGE }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: ${{ env.PROJECT_NAME }}-frontend-service
+          cluster: ${{ env.PROJECT_NAME }}-cluster
+          wait-for-service-stability: true
+
+      # Update Backend task definition
+      - name: Render Backend task definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend/backend-task-def-READY.json
+          container-name: backend
+          image: ${{ env.BACKEND_IMAGE }}
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: ${{ env.PROJECT_NAME }}-backend-service
+          cluster: ${{ env.PROJECT_NAME }}-cluster
+          wait-for-service-stability: true
+
+      # Update AI Worker task definition
+      - name: Render AI Worker task definition
+        id: render-ai
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ai-worker/ai-worker-task-def-READY.json
+          container-name: ai-worker
+          image: ${{ env.AI_IMAGE }}
+
+      - name: Deploy AI Worker to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-ai.outputs.task-definition }}
+          service: ${{ env.PROJECT_NAME }}-ai-worker-service
+          cluster: ${{ env.PROJECT_NAME }}-cluster
+          wait-for-service-stability: true
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "Frontend: ${{ env.FRONTEND_IMAGE }}"
+          echo "Backend: ${{ env.BACKEND_IMAGE }}"
+          echo "AI Worker: ${{ env.AI_IMAGE }}"

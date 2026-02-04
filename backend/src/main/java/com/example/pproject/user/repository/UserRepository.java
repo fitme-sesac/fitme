@@ -2,8 +2,11 @@ package com.example.pproject.user.repository;
 
 import com.example.pproject.user.entity.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,4 +29,12 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findFirstByUsernameAndPhoneAndDeletedAtIsNull(String username, String phone);
 
     UserEntity findByEmailAndBirthdayAndUsername(String email, String birthday, String username);
+
+    // 특정 시점 이후 가입한 회원 수 조회 (삭제되지 않은 회원만)
+    @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.createdAt >= :since AND u.deletedAt IS NULL")
+    long countByCreatedAtAfterAndDeletedAtIsNull(@Param("since") Instant since);
+
+    // 주간 신규 회원 수 조회
+    @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.createdAt >= :weekAgo AND u.deletedAt IS NULL")
+    long countWeeklyNewMembers(@Param("weekAgo") Instant weekAgo);
 }

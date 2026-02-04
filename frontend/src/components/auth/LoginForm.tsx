@@ -186,45 +186,6 @@ export function LoginForm() {
       </div>
 
       <SocialLoginButtons />
-
-      {/* Development Helper: Create Dummy User */}
-      <div className="mt-8 pt-4 border-t border-dashed">
-        <p className="text-xs text-center text-muted-foreground mb-2">개발용 더미 계정 도구</p>
-        <Button
-          variant="outline"
-          className="w-full text-xs h-8 bg-slate-50"
-          onClick={async () => {
-            try {
-              const dummyUser = {
-                loginId: "candidate100",
-                password: "Password123!",
-                name: "김더미",
-                email: "candidate100@test.com",
-                phone: "01012345678",
-                role: "CANDIDATE",
-                marketingAgree: true,
-                terms: { age: true, service: true, privacy: true }
-              };
-              const { register } = await import("@/api/auth");
-              const res = await register(dummyUser);
-              console.log("Dummy creation result:", res);
-
-              if (res.error) {
-                toast({ title: "생성 실패", description: res.error, variant: "destructive" });
-              } else {
-                toast({ title: "생성 성공", description: "ID: candidate100 / PW: Password123!" });
-                setLoginId("candidate100");
-                setPassword("Password123!");
-              }
-            } catch (e) {
-              console.error(e);
-              toast({ title: "오류 발생", description: "콘솔을 확인하세요", variant: "destructive" });
-            }
-          }}
-        >
-          candidate100 계정 생성/채우기
-        </Button>
-      </div>
     </div>
   );
 }

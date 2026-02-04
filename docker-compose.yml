@@ -77,6 +77,14 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       FRONT_BASE_URL: ${FRONT_BASE_URL:-http://localhost:5173}
 
+      # AWS S3 (이미지 업로드)
+      AWS_S3_ENABLED: ${AWS_S3_ENABLED:-false}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN:-}
+
     ports:
       - "8080:8080"
     volumes:
@@ -131,6 +139,9 @@ services:
 
       # 토스페이먼츠 클라이언트 키 (.env.docker의 TOSS_CLIENT_KEY 사용)
       VITE_TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY}
+      
+      # 카카오맵 API 키 (.env.docker의 KAKAO_MAP_API_KEY 사용)
+      VITE_KAKAO_MAP_API_KEY: ${KAKAO_MAP_API_KEY}
     ports:
       - "5173:5173"
     depends_on:

@@ -54,9 +54,33 @@ public class PublicJobController {
     }
 
     /**
+     * 현재 필터 조건에 따른 포지션별 채용공고 카운트 조회
+     * - 각 포지션에 해당하는 공고 수를 반환
+     * - 필터 조건 적용 후 각 포지션의 가용 공고 수 확인용
+     */
+    @GetMapping("/position-counts")
+    public ResponseEntity<?> getPositionCounts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String stack,
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) Integer minExperience,
+            @RequestParam(required = false) Integer maxExperience,
+            @RequestParam(required = false) String industry) {
+        try {
+            log.info("포지션별 카운트 조회 - keyword: {}, stack: {}, location: {}, experience: {}-{}, industry: {}",
+                    keyword, stack, location, minExperience, maxExperience, industry);
+            Map<String, Long> counts = jobService.getPositionCounts(keyword, stack, location, minExperience, maxExperience, industry);
+            return ResponseEntity.ok(counts);
+        } catch (Exception e) {
+            log.error("포지션별 카운트 조회 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 공개 채용공고 목록 조회
      * - status='OPEN'인 공고만 반환
-     * - 검색, 필터링 지원
+     * - 다중 필터 지원 (keyword + stack + location + experience + position + industry)
      * - 로그인 사용자의 경우 기술 스택 매칭 정보 포함
      */
     @GetMapping
@@ -66,25 +90,30 @@ public class PublicJobController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String stack,
             @RequestParam(required = false) String location,
+            @RequestParam(required = false) Integer minExperience,
+            @RequestParam(required = false) Integer maxExperience,
+            @RequestParam(required = false) String position,
+            @RequestParam(required = false) String industry,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
-            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, memberId: {}",
-                    page, size, keyword, stack, location, memberId);
+            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, experience: {}-{}, position: {}, industry: {}, memberId: {}",
+                    page, size, keyword, stack, location, minExperience, maxExperience, position, industry, memberId);
 
             JobListResponseDTO response;
             if (memberId != null) {
-                // 로그인 사용자: 매칭 정보 포함 시도
+                // 로그인 사용자: 매칭 정보 포함 시도 (모든 필터 적용)
                 try {
-                    response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, memberId);
+                    response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, 
+                            minExperience, maxExperience, position, industry, memberId);
                 } catch (Exception matchError) {
                     // 매칭 계산 실패 시 기본 조회로 폴백
                     log.warn("매칭 정보 계산 실패, 기본 조회로 전환: {}", matchError.getMessage());
-                    response = jobService.getPublicJobs(page, size, keyword, stack, location);
+                    response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, industry);
                 }
             } else {
-                // 비로그인 사용자: 기본 조회
-                response = jobService.getPublicJobs(page, size, keyword, stack, location);
+                // 비로그인 사용자: 기본 조회 (다중 필터 적용)
+                response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, industry);
             }
             return ResponseEntity.ok(response);
         } catch (Exception e) {

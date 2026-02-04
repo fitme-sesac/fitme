@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, Bell, Menu, Target, LogIn, LogOut, User, Coins, ArrowRight, Loader2 } from "lucide-react";
 import { getMyLedgers } from "@/api/wallet";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useNotifications } from "@/features/notification/hooks/useNotifications";
+import { useNotificationContext } from "@/contexts/NotificationContext";
 
 import { CreditChargeModal } from "@/components/payment/CreditChargeModal";
 
@@ -25,29 +25,31 @@ export function Header() {
   const navigate = useNavigate();
   const [recentLedgers, setRecentLedgers] = useState<any[]>([]);
   const [loadingLedgers, setLoadingLedgers] = useState(false);
+  const notifCtx = useNotificationContext();
   const {
     notifications,
     unreadCount,
     loading: notifLoading,
     fetchRecentNotifications,
+    fetchUnreadCount,
     markAsRead,
     markAllAsRead,
-    startPolling,
-    stopPolling
-  } = useNotifications();
+  } = notifCtx ?? {
+    notifications: [],
+    unreadCount: 0,
+    loading: false,
+    fetchRecentNotifications: async () => {},
+    fetchUnreadCount: async () => {},
+    markAsRead: async () => {},
+    markAllAsRead: async () => {},
+  };
 
   const [searchParams] = useSearchParams();
   const [notifOpen, setNotifOpen] = useState(false);
   const [creditOpen, setCreditOpen] = useState(false);
   const [chargeModalOpen, setChargeModalOpen] = useState(false);
-
-  // 알림 폴링 시작/종료
-  useEffect(() => {
-    if (user) {
-      startPolling(30000);
-    }
-    return () => stopPolling();
-  }, [user, startPolling, stopPolling]);
+  const notifOpenOnceRef = useRef(false);
+  // 알림 폴링은 NotificationProvider에서 한 번만 수행 (Header/면접 페이지 동일 unreadCount)
 
   // 크레딧 내역 가져오기 (드롭다운 열릴 때)
   useEffect(() => {
@@ -57,8 +59,8 @@ export function Header() {
         try {
           const res = await getMyLedgers(userRole);
           setRecentLedgers(res.content?.slice(0, 5) || []);
-        } catch (error) {
-          console.error("Failed to fetch recent ledgers:", error);
+        } catch {
+          setRecentLedgers([]);
         } finally {
           setLoadingLedgers(false);
         }
@@ -70,21 +72,26 @@ export function Header() {
   // URL에 결제 성공/실패/확인 파라미터가 있으면 모달을 자동으로 엽니다.
   useEffect(() => {
     const shouldOpen =
-      searchParams.get("payment_success") === "true" ||
-      searchParams.get("payment_fail") === "true" ||
-      searchParams.get("payment_confirm") === "true";
+        searchParams.get("payment_success") === "true" ||
+        searchParams.get("payment_fail") === "true" ||
+        searchParams.get("payment_confirm") === "true";
 
     if (shouldOpen) {
       setChargeModalOpen(true);
     }
   }, [searchParams]);
 
-  // 알림 드롭다운 열릴 때 최신 알림 로드
+  // 알림 드롭다운 열릴 때 최신 알림 목록 + 읽지 않은 수 동시 갱신 (헤더/면접 페이지 동일 상태)
   useEffect(() => {
-    if (notifOpen && user) {
-      fetchRecentNotifications(10);
+    if (!notifOpen || !user) {
+      notifOpenOnceRef.current = false;
+      return;
     }
-  }, [notifOpen, user, fetchRecentNotifications]);
+    if (notifOpenOnceRef.current) return;
+    notifOpenOnceRef.current = true;
+    fetchRecentNotifications(10);
+    fetchUnreadCount();
+  }, [notifOpen, user, fetchRecentNotifications, fetchUnreadCount]);
 
   const handleNotificationClick = (notification: any) => {
     markAsRead(notification.id);
@@ -291,7 +298,7 @@ export function Header() {
                   className="w-full text-sm"
                   onClick={() => {
                     setNotifOpen(false);
-                    navigate("/notifications");
+                    navigate(isCompany ? "/company/dashboard" : "/interview?tab=notifications");
                   }}
                 >
                   모든 알림 보기

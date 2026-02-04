@@ -16,19 +16,19 @@ const RECOMMENDED_JOBS = [
     },
     {
         id: 102,
-        company: "Toss Bank",
+        company: "핀테크랩스",
         title: "Core Banking Server Developer (Java/Kotlin)",
         deadline: "채용시 마감",
         type: "recommend",
-        icon: "T"
+        icon: "F"
     },
     {
         id: 103,
-        company: "Danggeun",
-        title: "당근페이 서비스 서버 개발자",
+        company: "로컬커넥트",
+        title: "로컬 커뮤니티 서비스 서버 개발자",
         deadline: "~02.15",
         type: "recommend",
-        icon: "D"
+        icon: "L"
     },
     {
         id: 104,
@@ -40,11 +40,11 @@ const RECOMMENDED_JOBS = [
     },
     {
         id: 105,
-        company: "Coupang",
+        company: "이커머스테크",
         title: "E-Commerce Search Engine Engineer",
         deadline: "상시 채용",
         type: "recommend",
-        icon: "C"
+        icon: "E"
     },
     {
         id: 106,

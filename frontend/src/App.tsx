@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ProfileSetupModal } from "@/components/auth/ProfileSetupModal";
 
@@ -45,6 +46,7 @@ import Applications from "./pages/jobseeker/Applications";
 // Company Pages (기업회원 전용)
 // ============================================
 import CompanyDashboard from "./pages/company/CompanyDashboard";
+import CompanyInterviews from "./pages/company/CompanyInterviews";
 import CompanyManagement from "./pages/company/CompanyManagement";
 import Talents from "./pages/company/Talents";
 import TalentDetail from "./pages/company/TalentDetail";
@@ -104,6 +106,7 @@ export default function App() {
             <Sonner />
             <ProfileSetupModal />
             <BrowserRouter>
+                <NotificationProvider>
                 <Routes>
                     {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
                     <Route path="/Login" element={<RedirectToAuthTab tab="login" />} />
@@ -188,6 +191,14 @@ export default function App() {
                         element={
                             <PrivateRoute requiredRole="EMPLOYER">
                                 <CompanyDashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/company/interviews"
+                        element={
+                            <PrivateRoute requiredRole="EMPLOYER">
+                                <CompanyInterviews />
                             </PrivateRoute>
                         }
                     />
@@ -321,6 +332,7 @@ export default function App() {
 
                     <Route path="*" element={<NotFound />} />
                 </Routes>
+                </NotificationProvider>
             </BrowserRouter>
         </AuthProvider>
     );

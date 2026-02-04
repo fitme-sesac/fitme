@@ -6,7 +6,7 @@ import path from "path";
  * React Router(SPA) 경로는 Vite가 index.html을 내려줘야 한다.
  *
  * ⚠️ 브라우저 XHR(axios) 요청은 Accept 헤더에 text/html 이 없는 경우가 흔해서
- * GET 요청이 프록시로 넘어가면(예: 백엔드가 /Login, /Register 로 redirect) 
+ * GET 요청이 프록시로 넘어가면(예: 백엔드가 /Login, /Register 로 redirect)
  * 백엔드에 해당 GET 핸들러가 없거나 재-redirect 루프가 발생하며 500으로 보일 수 있다.
  *
  * 따라서 "페이지 경로" 로 분류한 엔드포인트는 GET이면 항상 SPA로 우회한다.
@@ -37,13 +37,13 @@ export default defineConfig(({ mode }) => {
      *   (컨테이너 DNS는 브라우저에서 해석 안 되므로 보통 http://localhost:8080 같은 값)
      */
 
-    // ✅ 프록시 타겟 (우선순위: process.env > env > default)
+        // ✅ 프록시 타겟 (우선순위: process.env > env > default)
     const backendTarget =
-        process.env.BACKEND_TARGET ||
-        env.BACKEND_TARGET ||
-        process.env.VITE_BACKEND_URL ||
-        env.VITE_BACKEND_URL ||
-        "http://localhost:8080";
+            process.env.BACKEND_TARGET ||
+            env.BACKEND_TARGET ||
+            process.env.VITE_BACKEND_URL ||
+            env.VITE_BACKEND_URL ||
+            "http://localhost:8080";
 
     const aiTarget =
         process.env.AI_WORKER_TARGET ||
@@ -80,6 +80,9 @@ export default defineConfig(({ mode }) => {
 
                 // API 프록시 (백엔드)
                 "/api": { target: backendTarget, changeOrigin: true },
+
+                // 업로드된 이미지 (백엔드)
+                "/images": { target: backendTarget, changeOrigin: true },
 
                 // ===== AI worker proxies =====
                 "/chatbot": { target: aiTarget, changeOrigin: true },

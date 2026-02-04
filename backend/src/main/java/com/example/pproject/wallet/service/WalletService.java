@@ -54,9 +54,9 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final WalletCreditLotRepository creditLotRepository;
     private final WalletLedgerRepository ledgerRepository;
+    private final EmployerMemberRepository employerMemberRepository;
     private final UserRepository userRepository;
     private final EmployerRepository employerRepository;
-    private final EmployerMemberRepository employerMemberRepository;
 
     // =================================================================================
     // 1. 조회 로직 (Read)
