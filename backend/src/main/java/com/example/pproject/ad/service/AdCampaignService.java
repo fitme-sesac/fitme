@@ -60,7 +60,7 @@ public class AdCampaignService {
             throw new IllegalArgumentException("이미 해당 채용공고에 대한 활성 광고 캠페인이 존재합니다. Job ID: " + dto.getJobId());
         }
 
-        Wallet wallet = walletService.getMyWallet(dto.getEmployerId(), RoleType.EMPLOYER);
+        Wallet wallet = walletService.getEmployerWallet(dto.getEmployerId());
         if (wallet.getBalance() < dto.getDailyBudget()) {
             throw new IllegalArgumentException(
                     String.format("잔액이 부족합니다. 현재 잔액: %d원, 필요 금액(일일 예산): %d원",

@@ -73,6 +73,19 @@ public class WalletService {
     }
 
     /**
+     * 기업 ID로 지갑을 조회합니다. (AdCampaignService 등에서 사용)
+     *
+     * @param employerId 기업 ID
+     * @return 조회된 지갑 엔티티
+     */
+    public Wallet getEmployerWallet(Long employerId) {
+        EmployerEntity employer = employerRepository.findById(employerId)
+                .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다. ID: " + employerId));
+        return walletRepository.findByEmployer(employer)
+                .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+    }
+
+    /**
      * 내 지갑의 거래 내역(원장)을 전체 조회합니다. (페이징)
      *
      * @param userId   사용자 ID

@@ -42,8 +42,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getAdStats, createAdCampaign, getMyJobPostings, updateAdCampaignStatus } from "@/api/employers";
+import { getAdStats, createAdCampaign, getMyJobPostings, updateAdCampaignStatus, getEmployerProfile } from "@/api/employers";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CampaignDTO {
   campaignId: number;
@@ -93,9 +94,27 @@ function getDefaultEndDate() {
 
 export function AdAnalyticsTab() {
   const { toast } = useToast();
+  const { user } = useAuth(); // [Fix] Hook은 최상위에서 호출
   const [adStats, setAdStats] = useState<AdStats | null>(null);
+  const [employerId, setEmployerId] = useState<number | null>(null); // [Added] 실제 employerId 저장
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // [Added] 컴포넌트 마운트 시 실제 Employer ID 가져오기
+  useEffect(() => {
+    async function fetchEmployerId() {
+      try {
+        const profile = await getEmployerProfile();
+        if (profile && profile.employerId) {
+          setEmployerId(profile.employerId);
+        }
+      } catch (err) {
+        console.error("Failed to fetch employer profile:", err);
+        // 에러 시 조치 (선택사항)
+      }
+    }
+    fetchEmployerId();
+  }, []);
 
   // 캠페인 생성 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -187,7 +206,7 @@ export function AdAnalyticsTab() {
     if (cpc < 100) {
       toast({
         title: "입찰가 오류",
-        description: "CPC 입찰가는 최소 100원 이상이어야 합니다.",
+        description: "CPC 입찰가는 최소 100크레딧 이상이어야 합니다.",
         variant: "destructive",
       });
       return;
@@ -196,7 +215,17 @@ export function AdAnalyticsTab() {
     if (budget < 10000) {
       toast({
         title: "예산 오류",
-        description: "일일 예산은 최소 10,000원 이상이어야 합니다.",
+        description: "일일 예산은 최소 10,000크레딧 이상이어야 합니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // [Fix] employerId 유효성 검사 (user.id 아님)
+    if (!employerId) {
+      toast({
+        title: "기업 정보 로딩 중",
+        description: "기업 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.",
         variant: "destructive",
       });
       return;
@@ -205,6 +234,7 @@ export function AdAnalyticsTab() {
     setSubmitting(true);
     try {
       await createAdCampaign({
+        employerId: employerId, // [Fix] 실제 employerId 사용
         jobId: parseInt(selectedJobId),
         cpcBid: cpc,
         dailyBudget: budget,
@@ -420,15 +450,15 @@ export function AdAnalyticsTab() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-3">
-                        <span>CPC: {campaign.cpcBid.toLocaleString()}원</span>
-                        <span>일일 예산: {campaign.dailyBudget.toLocaleString()}원</span>
+                        <span>CPC: {campaign.cpcBid.toLocaleString()} 크레딧</span>
+                        <span>일일 예산: {campaign.dailyBudget.toLocaleString()} 크레딧</span>
                       </div>
                       {/* 예산 진행률 */}
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">예상 월간 예산 대비 소진</span>
                           <span className="font-medium text-foreground">
-                            {(spent / 10000).toFixed(1)}만원 / {(monthlyBudget / 10000).toFixed(0)}만원
+                            {(spent / 10000).toFixed(1)}만 크레딧 / {(monthlyBudget / 10000).toFixed(0)}만 크레딧
                           </span>
                         </div>
                         <Progress value={monthlyBudget > 0 ? (spent / monthlyBudget) * 100 : 0} className="h-2" />
@@ -515,7 +545,7 @@ export function AdAnalyticsTab() {
                   className="pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  원
+                  크레딧
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -537,7 +567,7 @@ export function AdAnalyticsTab() {
                   className="pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  원
+                  크레딧
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -586,8 +616,8 @@ export function AdAnalyticsTab() {
                   const estimatedCost = (parseInt(dailyBudget) || 0) * (days > 0 ? days : 0);
 
                   return estimatedCost >= 10000
-                    ? `${(estimatedCost / 10000).toFixed(1)}크레딧`
-                    : `${estimatedCost.toLocaleString()}크레딧`;
+                    ? `${(estimatedCost / 10000).toFixed(1)}만 크레딧`
+                    : `${estimatedCost.toLocaleString()} 크레딧`;
                 })()}
               </p>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mt-2 text-xs text-muted-foreground gap-1">
