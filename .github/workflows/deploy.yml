@@ -9,7 +9,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REGISTRY: 116250269688.dkr.ecr.ap-northeast-2.amazonaws.com
   PROJECT_NAME: fitme
 
 jobs:
