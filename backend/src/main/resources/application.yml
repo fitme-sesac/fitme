@@ -124,6 +124,24 @@ server:
     whitelabel:
       enabled: false
 
+# Actuator 설정 - ECS health check용
+management:
+  endpoint:
+    health:
+      show-details: never
+      # Health check 타임아웃 설정 (5초)
+      probes:
+        enabled: true
+  health:
+    # Redis가 느릴 때 health check 실패 방지
+    redis:
+      enabled: false
+    # DB 체크는 유지하되 빠른 응답을 위해 간단하게
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+
 tempFolder: ${TEMP_FOLDER:C:/PProject/uploads/}
 uploadPath: ${UPLOAD_PATH:file:///C:/PProject/uploads/}
 
