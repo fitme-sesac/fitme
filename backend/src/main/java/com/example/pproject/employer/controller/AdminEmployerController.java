@@ -21,7 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/admin/employers")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN') or hasRole('SERVICEADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
 @Slf4j
 public class AdminEmployerController {
 
@@ -29,15 +29,28 @@ public class AdminEmployerController {
 
     /**
      * GET /api/v1/admin/employers
-     * 기업 목록 조회
+     * 기업 목록 조회 (상태 필터: null=전체, ACTIVE=승인, REJECTED=거절)
      */
     @GetMapping
     public ResponseEntity<Page<Map<String, Object>>> getEmployers(
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
-            @RequestParam(required = false) String search) {
-        log.info("관리자 기업 목록 조회: search={}", search);
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status) {
+        log.info("관리자 기업 목록 조회: search={}, status={}", search, status);
 
-        Page<EmployerEntity> employers = employerRepository.findAll(pageable);
+        String statusFilter = (status != null && !status.trim().isEmpty()) ? status.trim().toUpperCase() : null;
+        String keyword = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+
+        Page<EmployerEntity> employers;
+        if (keyword != null && statusFilter != null) {
+            employers = employerRepository.findByStatusAndNameContainingIgnoreCase(statusFilter, keyword, pageable);
+        } else if (statusFilter != null) {
+            employers = employerRepository.findByStatus(statusFilter, pageable);
+        } else if (keyword != null) {
+            employers = employerRepository.findByNameContainingIgnoreCase(keyword, pageable);
+        } else {
+            employers = employerRepository.findAll(pageable);
+        }
 
         Page<Map<String, Object>> result = employers.map(e -> {
             Map<String, Object> map = new HashMap<>();
@@ -45,11 +58,42 @@ public class AdminEmployerController {
             map.put("companyName", e.getName());
             map.put("status", e.getStatus());
             map.put("createdAt", e.getCreatedAt());
-            // map.put("businessNumber", e.getBusinessNumber()); // Entity에 없음
             return map;
         });
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * GET /api/v1/admin/employers/{employerId}
+     * 기업 단건 조회 (관리자용 프로필)
+     */
+    @GetMapping("/{employerId}")
+    public ResponseEntity<Map<String, Object>> getEmployer(@PathVariable Long employerId) {
+        log.info("관리자 기업 단건 조회: employerId={}", employerId);
+
+        EmployerEntity e = employerRepository.findById(employerId)
+                .orElseThrow(() -> new RuntimeException("기업을 찾을 수 없습니다: " + employerId));
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("employerId", e.getId());
+        map.put("companyName", e.getName());
+        map.put("status", e.getStatus());
+        map.put("createdAt", e.getCreatedAt());
+        map.put("logoUrl", e.getLogoUrl());
+        map.put("industry", e.getIndustry());
+        map.put("foundedYear", e.getFoundedYear());
+        map.put("employeeCount", e.getEmployeeCount());
+        map.put("location", e.getLocation());
+        map.put("description", e.getDescription());
+        map.put("culture", e.getCulture());
+        map.put("benefits", e.getBenefits());
+        map.put("techStack", e.getTechStack());
+        map.put("contactEmail", e.getContactEmail());
+        map.put("contactPhone", e.getContactPhone());
+        map.put("websiteUrl", e.getWebsiteUrl());
+
+        return ResponseEntity.ok(map);
     }
 
     /**

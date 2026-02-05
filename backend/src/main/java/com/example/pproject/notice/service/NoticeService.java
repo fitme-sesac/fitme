@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -34,23 +35,34 @@ public class NoticeService {
 
     @Transactional
     public NoticeResponse createNotice(NoticeCreateRequest request, Long adminId) {
-        // 1. 정책 문서 Rotation (기존 활성 약관 처리)
+        // TERMS/PRIVACY/POLICY: 타입당 1건만 유지. 기존 행이 있으면 UPDATE만 하고 INSERT 하지 않음 (notice_id 시퀀스 중복 방지)
         if (Notice.isUniqueActivePolicyType(request.getNoticeType())) {
-            // 주의: 만약 DB에 이미 중복된 Active 정책이 여러 개 있다면 여기서 에러가 날 수 있습니다.
-            // (Repository의 findActivePolicyForRotation이 Optional을 반환하기 때문)
-            // 테스트 중 발생한 중복 데이터는 DB에서 직접 정리하거나, 로직을 List 조회로 변경해야 합니다.
-            noticeRepository.findActivePolicyForRotation(request.getNoticeType())
-                    .ifPresent(existingNotice -> {
-                        existingNotice.markForDeletion();
-                        log.info("기존 약관(id={}) 상태 변경 -> PENDING_DELETE", existingNotice.getId());
-                    });
+            Optional<Notice> existingOpt = noticeRepository.findTopByNoticeTypeOrderByCreatedAtDesc(request.getNoticeType());
+            if (existingOpt.isPresent()) {
+                Notice existing = existingOpt.get();
+                existing.update(
+                        request.getTitle(),
+                        request.getBody(),
+                        request.getIsPublic() != null ? request.getIsPublic() : true,
+                        request.getNoticeType(),
+                        NoticeStatus.ACTIVE,
+                        request.getPurgeAfter(),
+                        adminId
+                );
+                Notice savedNotice = noticeRepository.save(existing);
+                if (savedNotice.getIsPublic()) {
+                    sendNotice(savedNotice.getId(), NoticeDelivery.DeliveryChannel.EMAIL, adminId);
+                    log.info("중요 약관 갱신으로 인한 자동 알림 발송 트리거 완료: noticeId={}", savedNotice.getId());
+                }
+                return NoticeResponse.from(savedNotice);
+            }
         }
 
-        // 2. 공지 생성
+        // OPS 또는 정책 타입이지만 기존 행 없음: 새 공지 INSERT
         Notice notice = Notice.builder()
                 .title(request.getTitle())
                 .body(request.getBody())
-                .isPublic(request.getIsPublic())
+                .isPublic(request.getIsPublic() != null ? request.getIsPublic() : true)
                 .noticeType(request.getNoticeType())
                 .status(NoticeStatus.ACTIVE)
                 .purgeAfter(request.getPurgeAfter())
@@ -58,7 +70,6 @@ public class NoticeService {
                 .updatedBy(adminId)
                 .build();
 
-        // 3. 첨부파일 처리
         if (request.getAttachments() != null) {
             for (NoticeCreateRequest.AttachmentRequest fileReq : request.getAttachments()) {
                 NoticeAttachment attachment = NoticeAttachment.builder()
@@ -71,7 +82,6 @@ public class NoticeService {
 
         Notice savedNotice = noticeRepository.save(notice);
 
-        // 4. 자동 알림 발송 트리거
         if (Notice.isUniqueActivePolicyType(savedNotice.getNoticeType()) && savedNotice.getIsPublic()) {
             sendNotice(savedNotice.getId(), NoticeDelivery.DeliveryChannel.EMAIL, adminId);
             log.info("중요 약관 등록으로 인한 자동 알림 발송 트리거 완료: noticeId={}", savedNotice.getId());
@@ -177,7 +187,10 @@ public class NoticeService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 공지사항입니다."));
     }
 
-    public Page<NoticeListResponse> getNoticesAdmin(Pageable pageable) {
+    public Page<NoticeListResponse> getNoticesAdmin(Pageable pageable, NoticeType noticeType) {
+        if (noticeType != null) {
+            return noticeRepository.findByNoticeType(noticeType, pageable).map(NoticeListResponse::from);
+        }
         return noticeRepository.findAll(pageable).map(NoticeListResponse::from);
     }
 

@@ -31,6 +31,7 @@ import NewPasswordPage from "./pages/guest/NewPasswordPage";
 import ChangePasswordPage from "./pages/guest/ChangePasswordPage";
 import FirstSocialLoginPage from "./pages/guest/FirstSocialLoginPage";
 import JobSeekerSignup from "./pages/guest/JobSeekerSignup";
+import AccountSuspendedPage from "./pages/guest/AccountSuspendedPage";
 
 // ============================================
 // JobSeeker Pages (구직자 전용)
@@ -70,6 +71,8 @@ import AdminCommunity from "./pages/admin/AdminCommunity";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminInquiries from "./pages/admin/AdminInquiries";
 import AdminSubscription from "./pages/admin/AdminSubscription";
+import AdminMemberProfilePage from "./pages/admin/AdminMemberProfilePage";
+import AdminCompanyProfilePage from "./pages/admin/AdminCompanyProfilePage";
 
 // ============================================
 // Payment Pages (결제)
@@ -131,6 +134,7 @@ export default function App() {
 
                     {/* ✅ 새 Auth 페이지 */}
                     <Route path="/auth" element={<Auth />} />
+                    <Route path="/account-suspended" element={<AccountSuspendedPage />} />
 
                     {/* ✅ 새 Auth 하위 경로(로그인 폼의 링크와 일치) */}
                     <Route path="/auth/find-id" element={<FindUserIdPage />} />
@@ -147,7 +151,7 @@ export default function App() {
                     <Route
                         path="/talents/:talentId"
                         element={
-                            <PrivateRoute requiredRole="EMPLOYER">
+                            <PrivateRoute allowedRoles={["EMPLOYER", "SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN"]}>
                                 <TalentDetail />
                             </PrivateRoute>
                         }
@@ -269,8 +273,16 @@ export default function App() {
                     <Route
                         path="/admin/members"
                         element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
+                            <PrivateRoute allowedRoles={["SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN"]}>
                                 <AdminMembers />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/members/:memberId"
+                        element={
+                            <PrivateRoute allowedRoles={["SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN"]}>
+                                <AdminMemberProfilePage />
                             </PrivateRoute>
                         }
                     />
@@ -285,8 +297,16 @@ export default function App() {
                     <Route
                         path="/admin/companies"
                         element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
+                            <PrivateRoute allowedRoles={["SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN"]}>
                                 <AdminCompanies />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/companies/:employerId"
+                        element={
+                            <PrivateRoute allowedRoles={["SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN"]}>
+                                <AdminCompanyProfilePage />
                             </PrivateRoute>
                         }
                     />

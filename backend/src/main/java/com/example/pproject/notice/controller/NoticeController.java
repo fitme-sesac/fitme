@@ -86,9 +86,10 @@ public class NoticeController {
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Page<NoticeListResponse>> getNoticesAdmin(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) NoticeType noticeType) {
         return ResponseEntity.ok(noticeService.getNoticesAdmin(
-                PageRequest.of(page, size, Sort.by("createdAt").descending())));
+                PageRequest.of(page, size, Sort.by("createdAt").descending()), noticeType));
     }
 
     @GetMapping("/admin/{noticeId}")

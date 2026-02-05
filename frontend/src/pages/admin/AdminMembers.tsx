@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { DataTable } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, UserX, UserCheck } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search } from "lucide-react";
 import { getMembers, updateMemberStatus } from "@/api/admin";
 import { toast } from "sonner";
 
@@ -19,17 +21,27 @@ interface Member {
     createdAt: string;
 }
 
+type StatusTab = "ALL" | "ACTIVE" | "SUSPENDED";
+
 const AdminMembers = () => {
+    const navigate = useNavigate();
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
     const [total, setTotal] = useState(0);
     const [search, setSearch] = useState("");
+    const [statusTab, setStatusTab] = useState<StatusTab>("ALL");
 
     const fetchMembers = async () => {
         setLoading(true);
         try {
-            const data = await getMembers({ page, size: 20, search: search || undefined });
+            const statusParam = statusTab === "ALL" ? undefined : statusTab;
+            const data = await getMembers({
+                page,
+                size: 20,
+                search: search || undefined,
+                status: statusParam,
+            });
             setMembers(data.content?.map((m: any) => ({ ...m, id: m.memberId })) || []);
             setTotal(data.totalElements || 0);
         } catch (error) {
@@ -42,11 +54,25 @@ const AdminMembers = () => {
 
     useEffect(() => {
         fetchMembers();
-    }, [page]);
+    }, [page, statusTab]);
 
     const handleSearch = () => {
         setPage(0);
         fetchMembers();
+    };
+
+    const handleStatusTabChange = (value: string) => {
+        setStatusTab(value as StatusTab);
+        setPage(0);
+    };
+
+    const handleViewProfile = (member: Member) => {
+        // 구직자는 인재풀 프로필로, 기업회원 등은 회원 프로필 페이지로
+        if (member.role === "CANDIDATE") {
+            navigate(`/talents/${member.memberId}`);
+        } else {
+            navigate(`/admin/members/${member.memberId}`);
+        }
     };
 
     const handleStatusChange = async (member: Member, status: string) => {
@@ -79,6 +105,15 @@ const AdminMembers = () => {
 
     return (
         <AdminLayout title="회원 관리" subtitle="서비스 회원을 관리합니다">
+            {/* Status Tabs */}
+            <Tabs value={statusTab} onValueChange={handleStatusTabChange} className="mb-6">
+                <TabsList>
+                    <TabsTrigger value="ALL">전체</TabsTrigger>
+                    <TabsTrigger value="ACTIVE">활성</TabsTrigger>
+                    <TabsTrigger value="SUSPENDED">정지</TabsTrigger>
+                </TabsList>
+            </Tabs>
+
             {/* Search */}
             <div className="flex gap-4 mb-6">
                 <div className="relative flex-1 max-w-md">
@@ -105,7 +140,7 @@ const AdminMembers = () => {
                     currentPage={page}
                     onPageChange={setPage}
                     actions={[
-                        { label: "프로필 보기", onClick: (item) => console.log("View", item) },
+                        { label: "프로필 보기", onClick: (item) => handleViewProfile(item) },
                         {
                             label: "정지",
                             onClick: (item) => handleStatusChange(item, "SUSPENDED"),

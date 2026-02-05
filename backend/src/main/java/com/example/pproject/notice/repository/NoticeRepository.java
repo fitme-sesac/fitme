@@ -54,6 +54,11 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     // ==================== [3] 관리자용 조회 (상태 무관) ====================
 
     /**
+     * 관리자: 유형별 목록 조회 (탭 필터)
+     */
+    Page<Notice> findByNoticeType(NoticeType noticeType, Pageable pageable);
+
+    /**
      * 제목+본문 검색 (관리자용 - 모든 상태 조회)
      */
     @Query("SELECT n FROM Notice n WHERE n.title LIKE %:keyword% OR n.body LIKE %:keyword% ORDER BY n.createdAt DESC")
@@ -64,6 +69,12 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
      */
     @Query("SELECT n FROM Notice n WHERE n.noticeType = :type AND n.status = 'ACTIVE'")
     Optional<Notice> findActivePolicyForRotation(@Param("type") NoticeType type);
+
+    /**
+     * [정책 타입당 1건] 해당 타입의 공지 1건 조회 (상태 무관, 최신 1건)
+     * 새 INSERT 대신 기존 행 업데이트 시 사용 (시퀀스 중복 방지)
+     */
+    Optional<Notice> findTopByNoticeTypeOrderByCreatedAtDesc(NoticeType noticeType);
 
 
     // ==================== [4] 통계용 ====================

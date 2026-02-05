@@ -106,7 +106,7 @@ public class Notice {
     }
 
     public enum NoticeType {
-        OPS, POLICY, PRIVACY, TERMS, COMMUNITY
+        OPS, POLICY, PRIVACY, TERMS
     }
 
     public enum NoticeStatus {

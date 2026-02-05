@@ -50,9 +50,13 @@ const AdminReports = () => {
         fetchReports();
     }, [page, status]);
 
-    const handleProcess = async (report: Report, action: string) => {
+    const handleProcess = async (report: Report, action: "APPROVE" | "REJECT") => {
         try {
-            await processReport(report.reportId, { action, penaltyPoints: 10 });
+            await processReport(report.reportId, {
+                decision: action === "APPROVE" ? "ACCEPT" : "REJECT",
+                violationType: action === "APPROVE" ? "MINOR_ETC" : undefined,
+                reason: action === "APPROVE" ? "신고 승인 처리" : "신고 거절",
+            });
             toast.success("신고가 처리되었습니다.");
             fetchReports();
         } catch (error) {

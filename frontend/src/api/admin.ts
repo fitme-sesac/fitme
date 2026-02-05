@@ -8,8 +8,13 @@ export const getAdminStats = async () => {
 };
 
 // === Members ===
-export const getMembers = async (params: { page: number; size: number; search?: string }) => {
+export const getMembers = async (params: { page: number; size: number; search?: string; status?: string }) => {
     const response = await http.get("/api/v1/admin/members", { params });
+    return response.data;
+};
+
+export const getMember = async (memberId: number) => {
+    const response = await http.get(`/api/v1/admin/members/${memberId}`);
     return response.data;
 };
 
@@ -29,9 +34,19 @@ export const updateJobStatus = async (jobId: number, status: string) => {
     return response.data;
 };
 
+export const deleteJobPermanent = async (jobId: number) => {
+    const response = await http.delete(`/api/v1/admin/jobs/${jobId}`);
+    return response.data;
+};
+
 // === Employers ===
-export const getEmployers = async (params: { page: number; size: number; search?: string }) => {
+export const getEmployers = async (params: { page: number; size: number; search?: string; status?: string }) => {
     const response = await http.get("/api/v1/admin/employers", { params });
+    return response.data;
+};
+
+export const getEmployer = async (employerId: number) => {
+    const response = await http.get(`/api/v1/admin/employers/${employerId}`);
     return response.data;
 };
 
@@ -41,19 +56,59 @@ export const verifyEmployer = async (employerId: number, action: 'APPROVE' | 'RE
 };
 
 // === Reports (Using existing API) ===
+// Map frontend tab status to backend: PENDING->OPEN, RESOLVED->ACCEPTED, REJECTED->REJECTED
+const REPORT_STATUS_TO_BACKEND: Record<string, string> = {
+    PENDING: "OPEN",
+    RESOLVED: "ACCEPTED",
+    REJECTED: "REJECTED",
+};
+
 export const getReports = async (status: string, params: { page: number; size: number }) => {
-    const response = await http.get(`/api/v1/reports/status/${status}`, { params });
+    const backendStatus = REPORT_STATUS_TO_BACKEND[status] ?? status;
+    const response = await http.get(`/api/v1/reports/status/${backendStatus}`, { params });
     return response.data;
 };
 
-export const processReport = async (reportId: number, data: { action: string; penaltyPoints?: number }) => {
+export const processReport = async (
+    reportId: number,
+    data: { decision: string; violationType?: string; reason?: string }
+) => {
     const response = await http.post(`/api/v1/reports/${reportId}/process`, data);
     return response.data;
 };
 
 // === Inquiries (FAQ) ===
-export const getInquiries = async (params: { page: number; size: number }) => {
-    const response = await http.get("/api/v1/faqs/admin/list", { params });
+export const getInquiries = async (params: {
+    page: number;
+    size: number;
+    isPublic?: boolean;
+}) => {
+    const { isPublic, ...rest } = params;
+    const url =
+        isPublic !== undefined
+            ? "/api/v1/faqs/admin/by-public"
+            : "/api/v1/faqs/admin/list";
+    const response = await http.get(url, {
+        params: isPublic !== undefined ? { ...rest, isPublic } : rest,
+    });
+    return response.data;
+};
+
+export const getFAQAdmin = async (faqId: number) => {
+    const response = await http.get(`/api/v1/faqs/admin/${faqId}`);
+    return response.data;
+};
+
+export const updateFAQ = async (
+    faqId: number,
+    data: { question: string; answer: string; isPublic: boolean; locked?: boolean }
+) => {
+    const response = await http.put(`/api/v1/faqs/admin/${faqId}`, data);
+    return response.data;
+};
+
+export const deleteFAQ = async (faqId: number) => {
+    const response = await http.delete(`/api/v1/faqs/admin/${faqId}`);
     return response.data;
 };
 
@@ -74,8 +129,26 @@ export const createNotice = async (data: { title: string; body: string; noticeTy
     return response.data;
 };
 
-export const getAdminNotices = async (params: { page: number; size: number }) => {
+export const getAdminNotices = async (params: { page: number; size: number; noticeType?: string }) => {
     const response = await http.get("/api/v1/notices/admin/list", { params });
+    return response.data;
+};
+
+export const getNoticeAdmin = async (noticeId: number) => {
+    const response = await http.get(`/api/v1/notices/admin/${noticeId}`);
+    return response.data;
+};
+
+export const updateNotice = async (
+    noticeId: number,
+    data: { title: string; body: string; noticeType: string; isPublic: boolean; status: string }
+) => {
+    const response = await http.put(`/api/v1/notices/admin/${noticeId}`, data);
+    return response.data;
+};
+
+export const deleteNotice = async (noticeId: number) => {
+    const response = await http.delete(`/api/v1/notices/admin/${noticeId}`);
     return response.data;
 };
 

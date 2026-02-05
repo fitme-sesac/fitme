@@ -262,4 +262,21 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       @Param("location") String location,
       @Param("skills") String skills,
       @Param("limit") int limit);
+
+  // 관리자 채용공고: 삭제되지 않은 것만 (전체/승인/마감 탭)
+  Page<JobEntity> findByDeletedAtIsNull(Pageable pageable);
+
+  @Query("SELECT j FROM JobEntity j WHERE j.deletedAt IS NULL AND j.status = :status")
+  Page<JobEntity> findByStatusAndDeletedAtIsNull(@Param("status") String status, Pageable pageable);
+
+  Page<JobEntity> findByTitleContainingIgnoreCaseAndDeletedAtIsNull(String title, Pageable pageable);
+
+  @Query("SELECT j FROM JobEntity j WHERE j.deletedAt IS NULL AND j.status = :status AND LOWER(j.title) LIKE LOWER(CONCAT('%', :title, '%'))")
+  Page<JobEntity> findByStatusAndDeletedAtIsNullAndTitleContainingIgnoreCase(
+      @Param("status") String status, @Param("title") String title, Pageable pageable);
+
+  // 관리자 삭제 탭: deletedAt IS NOT NULL
+  Page<JobEntity> findByDeletedAtIsNotNull(Pageable pageable);
+
+  Page<JobEntity> findByDeletedAtIsNotNullAndTitleContainingIgnoreCase(String title, Pageable pageable);
 }

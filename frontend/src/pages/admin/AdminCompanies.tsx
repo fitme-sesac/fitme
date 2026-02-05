@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { DataTable } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search } from "lucide-react";
 import { getEmployers, verifyEmployer } from "@/api/admin";
 import { toast } from "sonner";
@@ -16,17 +18,27 @@ interface Employer {
     createdAt: string;
 }
 
+type StatusTab = "ALL" | "ACTIVE" | "REJECTED";
+
 const AdminCompanies = () => {
+    const navigate = useNavigate();
     const [companies, setCompanies] = useState<Employer[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
     const [total, setTotal] = useState(0);
     const [search, setSearch] = useState("");
+    const [statusTab, setStatusTab] = useState<StatusTab>("ALL");
 
     const fetchCompanies = async () => {
         setLoading(true);
         try {
-            const data = await getEmployers({ page, size: 20, search: search || undefined });
+            const statusParam = statusTab === "ALL" ? undefined : statusTab;
+            const data = await getEmployers({
+                page,
+                size: 20,
+                search: search || undefined,
+                status: statusParam,
+            });
             setCompanies(data.content?.map((e: any) => ({ ...e, id: e.employerId })) || []);
             setTotal(data.totalElements || 0);
         } catch (error) {
@@ -39,11 +51,20 @@ const AdminCompanies = () => {
 
     useEffect(() => {
         fetchCompanies();
-    }, [page]);
+    }, [page, statusTab]);
 
     const handleSearch = () => {
         setPage(0);
         fetchCompanies();
+    };
+
+    const handleStatusTabChange = (value: string) => {
+        setStatusTab(value as StatusTab);
+        setPage(0);
+    };
+
+    const handleViewProfile = (company: Employer) => {
+        navigate(`/admin/companies/${company.employerId}`);
     };
 
     const handleVerify = async (company: Employer, action: 'APPROVE' | 'REJECT') => {
@@ -73,6 +94,15 @@ const AdminCompanies = () => {
 
     return (
         <AdminLayout title="기업 관리" subtitle="등록된 기업을 관리하고 인증을 처리합니다">
+            {/* Status Tabs */}
+            <Tabs value={statusTab} onValueChange={handleStatusTabChange} className="mb-6">
+                <TabsList>
+                    <TabsTrigger value="ALL">전체</TabsTrigger>
+                    <TabsTrigger value="ACTIVE">승인</TabsTrigger>
+                    <TabsTrigger value="REJECTED">거절</TabsTrigger>
+                </TabsList>
+            </Tabs>
+
             {/* Search */}
             <div className="flex gap-4 mb-6">
                 <div className="relative flex-1 max-w-md">
@@ -99,7 +129,7 @@ const AdminCompanies = () => {
                     currentPage={page}
                     onPageChange={setPage}
                     actions={[
-                        { label: "상세보기", onClick: (item) => console.log("View", item) },
+                        { label: "상세보기", onClick: (item) => handleViewProfile(item) },
                         { label: "승인", onClick: (item) => handleVerify(item, 'APPROVE') },
                         { label: "거절", onClick: (item) => handleVerify(item, 'REJECT') },
                     ]}

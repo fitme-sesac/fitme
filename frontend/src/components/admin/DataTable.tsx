@@ -27,6 +27,7 @@ interface DataTableProps<T> {
     actions?: { label: string; onClick: (item: T) => void }[];
     totalItems?: number;
     currentPage?: number;
+    pageSize?: number;
     onPageChange?: (page: number) => void;
 }
 
@@ -36,6 +37,7 @@ export function DataTable<T extends { id?: string | number }>({
     actions,
     totalItems = 0,
     currentPage = 0,
+    pageSize = 20,
     onPageChange,
 }: DataTableProps<T>) {
     return (
@@ -117,7 +119,7 @@ export function DataTable<T extends { id?: string | number }>({
                             variant="outline"
                             size="sm"
                             onClick={() => onPageChange(currentPage + 1)}
-                            disabled={data.length < 20}
+                            disabled={(currentPage + 1) * pageSize >= totalItems}
                         >
                             다음
                             <ChevronRight className="w-4 h-4 ml-1" />

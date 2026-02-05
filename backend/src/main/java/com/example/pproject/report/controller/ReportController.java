@@ -77,7 +77,7 @@ public class ReportController {
      * 신고 상세 조회 (신고자 본인 또는 관리자만 조회 가능)
      */
     @GetMapping("/{reportId}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'EMPLOYER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'EMPLOYER', 'ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<ReportResponse> getReport(
             @PathVariable Long reportId,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
@@ -87,7 +87,10 @@ public class ReportController {
 
         // 관리자가 아닌 경우, 본인의 신고만 조회 가능
         boolean isAdmin = principal.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(auth -> auth.getAuthority() != null && (auth.getAuthority().equals("ROLE_ADMIN")
+                        || auth.getAuthority().equals("ROLE_SERVICEADMIN")
+                        || auth.getAuthority().equals("ROLE_APPROVEADMIN")
+                        || auth.getAuthority().equals("ROLE_MASTER")));
 
         if (!isAdmin && !response.getReporterMemberId().equals(principal.getId())) {
             throw new org.springframework.security.access.AccessDeniedException("본인의 신고만 조회할 수 있습니다.");
@@ -101,7 +104,7 @@ public class ReportController {
      * 신고자별 신고 목록 (본인 또는 관리자만 조회 가능)
      */
     @GetMapping("/reporter/{reporterMemberId}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'EMPLOYER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'EMPLOYER', 'ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Page<ReportResponse>> getReportsByReporter(
             @PathVariable Long reporterMemberId,
             @RequestParam(defaultValue = "0") int page,
@@ -110,7 +113,10 @@ public class ReportController {
 
         // 관리자가 아닌 경우, 본인의 신고만 조회 가능
         boolean isAdmin = principal.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(auth -> auth.getAuthority() != null && (auth.getAuthority().equals("ROLE_ADMIN")
+                        || auth.getAuthority().equals("ROLE_SERVICEADMIN")
+                        || auth.getAuthority().equals("ROLE_APPROVEADMIN")
+                        || auth.getAuthority().equals("ROLE_MASTER")));
 
         if (!isAdmin && !reporterMemberId.equals(principal.getId())) {
             throw new org.springframework.security.access.AccessDeniedException("본인의 신고 목록만 조회할 수 있습니다.");
@@ -127,7 +133,7 @@ public class ReportController {
      * 상태별 신고 목록 (관리자용)
      */
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Page<ReportResponse>> getReportsByStatus(
             @PathVariable String status,
             @RequestParam(defaultValue = "0") int page,
@@ -143,7 +149,7 @@ public class ReportController {
      * 신고 대상 타입별 조회 (관리자용)
      */
     @GetMapping("/by-target-type/{targetType}")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Page<ReportResponse>> getReportsByTargetType(
             @PathVariable String targetType,
             @RequestParam(defaultValue = "0") int page,
@@ -159,7 +165,7 @@ public class ReportController {
      * 신고 처리 (중재 조치) - 관리자 전용
      */
     @PostMapping("/{reportId}/process")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<ModerationActionResponse> processReport(
             @PathVariable Long reportId,
             @Valid @RequestBody ProcessReportRequest request,
@@ -179,7 +185,7 @@ public class ReportController {
      * 회원별 신고 건수 조회 (관리자용)
      */
     @GetMapping("/target-member/{targetMemberId}/count")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Map<String, Object>> getReportCountByTargetMember(
             @PathVariable Long targetMemberId) {
         log.info("회원별 신고 건수 조회: targetMemberId={}", targetMemberId);
@@ -197,7 +203,7 @@ public class ReportController {
      * 채용공고별 신고 건수 조회 (관리자용)
      */
     @GetMapping("/target-job/{targetJobId}/count")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Map<String, Object>> getReportCountByTargetJob(
             @PathVariable Long targetJobId) {
         log.info("채용공고별 신고 건수 조회: targetJobId={}", targetJobId);
@@ -215,7 +221,7 @@ public class ReportController {
      * 회원 경고 점수 및 상태 조회 (관리자용)
      */
     @GetMapping("/member/{memberId}/penalty-points")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Map<String, Object>> getMemberPenaltyPoints(
             @PathVariable Long memberId) {
         log.info("회원 경고 점수 조회: memberId={}", memberId);
@@ -236,7 +242,7 @@ public class ReportController {
      * 회원 경고 이력 조회 (관리자용)
      */
     @GetMapping("/member/{memberId}/penalty-history")
-    @PreAuthorize("hasRole('ADMIN')") // 관리자만 접근 가능
+    @PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<List<MemberPenaltyPointResponse>> getMemberPenaltyHistory(
             @PathVariable Long memberId) {
         log.info("회원 경고 이력 조회: memberId={}", memberId);
