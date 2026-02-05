@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@tosspayments/tosspayments-sdk": "^2.5.0"
+    "@tosspayments/tosspayments-sdk": "^2.5.0",
+    "react-easy-crop": "^5.5.6"
   }
 }

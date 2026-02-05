@@ -81,6 +81,9 @@ export default defineConfig(({ mode }) => {
                 // API 프록시 (백엔드)
                 "/api": { target: backendTarget, changeOrigin: true },
 
+                // Static uploads (backend)
+                "/uploads": { target: backendTarget, changeOrigin: true },
+
                 // 업로드된 이미지 (백엔드)
                 "/images": { target: backendTarget, changeOrigin: true },
 

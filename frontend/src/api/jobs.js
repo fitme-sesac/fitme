@@ -30,6 +30,8 @@ export async function getPublicJobs({
   maxExperience = null,
   position = "",
   industry = "",
+  salaryMin = null,
+  salaryMax = null,
 } = {}) {
   const params = new URLSearchParams();
   params.append("page", page);
@@ -41,6 +43,8 @@ export async function getPublicJobs({
   if (maxExperience !== null && maxExperience < 10) params.append("maxExperience", maxExperience);
   if (position) params.append("position", position);
   if (industry) params.append("industry", industry);
+  if (salaryMin !== null) params.append("salaryMin", salaryMin);
+  if (salaryMax !== null) params.append("salaryMax", salaryMax);
 
   const response = await http.get(`/api/public/jobs?${params.toString()}`);
   return response.data;
@@ -83,6 +87,8 @@ export async function getPositionCounts({
   minExperience = null,
   maxExperience = null,
   industry = "",
+  salaryMin = null,
+  salaryMax = null,
 } = {}) {
   const params = new URLSearchParams();
   if (keyword) params.append("keyword", keyword);
@@ -91,6 +97,8 @@ export async function getPositionCounts({
   if (minExperience !== null && minExperience > 0) params.append("minExperience", minExperience);
   if (maxExperience !== null && maxExperience < 10) params.append("maxExperience", maxExperience);
   if (industry) params.append("industry", industry);
+  if (salaryMin !== null) params.append("salaryMin", salaryMin);
+  if (salaryMax !== null) params.append("salaryMax", salaryMax);
 
   const response = await http.get(`/api/public/jobs/position-counts?${params.toString()}`);
   return response.data;

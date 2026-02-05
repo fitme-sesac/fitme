@@ -65,11 +65,13 @@ public class PublicJobController {
             @RequestParam(required = false) String location,
             @RequestParam(required = false) Integer minExperience,
             @RequestParam(required = false) Integer maxExperience,
+            @RequestParam(required = false) Integer salaryMin,
+            @RequestParam(required = false) Integer salaryMax,
             @RequestParam(required = false) String industry) {
         try {
-            log.info("포지션별 카운트 조회 - keyword: {}, stack: {}, location: {}, experience: {}-{}, industry: {}",
-                    keyword, stack, location, minExperience, maxExperience, industry);
-            Map<String, Long> counts = jobService.getPositionCounts(keyword, stack, location, minExperience, maxExperience, industry);
+            log.info("포지션별 카운트 조회 - keyword: {}, stack: {}, location: {}, experience: {}-{}, salary: {}-{}, industry: {}",
+                    keyword, stack, location, minExperience, maxExperience, salaryMin, salaryMax, industry);
+            Map<String, Long> counts = jobService.getPositionCounts(keyword, stack, location, minExperience, maxExperience, salaryMin, salaryMax, industry);
             return ResponseEntity.ok(counts);
         } catch (Exception e) {
             log.error("포지션별 카운트 조회 중 오류 발생", e);
@@ -94,26 +96,28 @@ public class PublicJobController {
             @RequestParam(required = false) Integer maxExperience,
             @RequestParam(required = false) String position,
             @RequestParam(required = false) String industry,
+            @RequestParam(required = false) Integer salaryMin,
+            @RequestParam(required = false) Integer salaryMax,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
             Long memberId = getMemberIdFromPrincipal(principal);
-            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, experience: {}-{}, position: {}, industry: {}, memberId: {}",
-                    page, size, keyword, stack, location, minExperience, maxExperience, position, industry, memberId);
+            log.info("공개 채용공고 조회 - page: {}, size: {}, keyword: {}, stack: {}, location: {}, experience: {}-{}, position: {}, industry: {}, salary: {}-{}, memberId: {}",
+                    page, size, keyword, stack, location, minExperience, maxExperience, position, industry, salaryMin, salaryMax, memberId);
 
             JobListResponseDTO response;
             if (memberId != null) {
                 // 로그인 사용자: 매칭 정보 포함 시도 (모든 필터 적용)
                 try {
                     response = jobService.getPublicJobsWithMatch(page, size, keyword, stack, location, 
-                            minExperience, maxExperience, position, industry, memberId);
+                            minExperience, maxExperience, position, industry, salaryMin, salaryMax, memberId);
                 } catch (Exception matchError) {
                     // 매칭 계산 실패 시 기본 조회로 폴백
                     log.warn("매칭 정보 계산 실패, 기본 조회로 전환: {}", matchError.getMessage());
-                    response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, industry);
+                    response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, industry, salaryMin, salaryMax);
                 }
             } else {
                 // 비로그인 사용자: 기본 조회 (다중 필터 적용)
-                response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, industry);
+                response = jobService.getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, industry, salaryMin, salaryMax);
             }
             return ResponseEntity.ok(response);
         } catch (Exception e) {
