@@ -223,6 +223,11 @@ export default function Jobs() {
     const selectedIndustries = getSelectedArray("서비스 분야");
     const selectedPositions = getSelectedArray("포지션");
 
+    // 연봉 슬라이더(0~7) → 만원 단위 값(3000~10000)으로 변환
+    const salaryIndexToValue = (idx: number) => 3000 + (idx * 1000);
+    const salaryMin = salaryRange[0] > 0 ? salaryIndexToValue(salaryRange[0]) : null;
+    const salaryMax = salaryRange[1] < 7 ? salaryIndexToValue(salaryRange[1]) : null;
+
     // 현재 필터 조건에 따른 포지션별 카운트 조회 (포지션 필터 제외한 다른 필터 조건 적용)
     const { data: positionCountsData } = usePositionCounts({
         keyword: searchParams.get("keyword") || "",
@@ -231,6 +236,8 @@ export default function Jobs() {
         minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
         industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
+        salaryMin,
+        salaryMax,
     });
 
     // 포지션 카운트 기반으로 0개인 포지션 필터링 (전체는 항상 표시)
@@ -276,6 +283,8 @@ export default function Jobs() {
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
         position: selectedPositions.length > 0 ? selectedPositions.join(",") : "",
         industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
+        salaryMin,
+        salaryMax,
     });
 
     const data = rawData as JobsResponse | undefined;
