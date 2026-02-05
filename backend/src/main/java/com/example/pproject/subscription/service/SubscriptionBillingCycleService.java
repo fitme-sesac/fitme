@@ -14,8 +14,12 @@ import com.example.pproject.subscription.entity.Subscription;
 import com.example.pproject.subscription.entity.SubscriptionBillingCycle;
 import com.example.pproject.subscription.repository.SubscriptionBillingCycleRepository;
 import com.example.pproject.subscription.repository.SubscriptionRepository;
+import com.example.pproject.employer.repository.EmployerMemberRepository;
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import com.example.pproject.wallet.entity.WalletLedger;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,170 +31,230 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class SubscriptionBillingCycleService {
 
-    private final SubscriptionBillingCycleRepository billingCycleRepository;
-    private final SubscriptionRepository subscriptionRepository;
-    private final PaymentService paymentService;
-    private final PaymentRepository paymentRepository;
+        private final SubscriptionBillingCycleRepository billingCycleRepository;
+        private final SubscriptionRepository subscriptionRepository;
+        private final PaymentService paymentService;
+        private final PaymentRepository paymentRepository;
+        private final UserRepository userRepository;
+        private final EmployerMemberRepository employerMemberRepository;
 
-    // =============================================================================================
-    // [일반 유저 기능]
-    // =============================================================================================
+        // =============================================================================================
+        // [일반 유저 기능]
+        // =============================================================================================
 
-    /**
-     * [일반 유저] 내 구독의 결제/청구 이력 조회
-     */
-    public List<SubscriptionBillingCycleResponse> getBillingCycles(Long subscriptionId) {
-        return billingCycleRepository.findAllBySubscription_SubscriptionId(subscriptionId).stream()
-                .map(SubscriptionBillingCycleResponse::from)
-                .collect(Collectors.toList());
-    }
+        /**
+         * [일반 유저] 내 구독의 결제/청구 이력 조회
+         */
+        public List<SubscriptionBillingCycleResponse> getBillingCycles(String userid, Long subscriptionId) {
+                Long userId = getUserIdByUserid(userid);
+                Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                                .orElseThrow(() -> new IllegalArgumentException("구독 정보가 없습니다."));
 
-    /**
-     * [일반 유저] 특정 결제 주기 상세 조회
-     */
-    public SubscriptionBillingCycleResponse getBillingCycle(Long cycleId) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
-        return SubscriptionBillingCycleResponse.from(cycle);
-    }
+                validateSubscriptionOwnership(userId, subscription);
 
-    // =============================================================================================
-    // [관리자/시스템 기능]
-    // =============================================================================================
+                return billingCycleRepository.findAllBySubscription_SubscriptionId(subscriptionId).stream()
+                                .map(SubscriptionBillingCycleResponse::from)
+                                .collect(Collectors.toList());
+        }
 
-    /**
-     * [관리자] 모든 결제 주기 목록 조회
-     */
-    public List<SubscriptionBillingCycleResponse> getAllBillingCycles() {
-        return billingCycleRepository.findAll().stream()
-                .map(SubscriptionBillingCycleResponse::from)
-                .collect(Collectors.toList());
-    }
+        /**
+         * [일반 유저] 특정 결제 주기 상세 조회
+         */
+        public SubscriptionBillingCycleResponse getBillingCycle(String userid, Long cycleId) {
+                Long userId = getUserIdByUserid(userid);
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
 
-    /**
-     * [관리자] 결제 상태 강제 변경
-     */
-    @Transactional
-    public void updatePaymentStatus(Long cycleId, PaymentStatus newStatus) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
-        cycle.updatePaymentStatus(newStatus);
-    }
+                validateBillingCycleOwnership(userId, cycle);
 
-    /**
-     * [관리자] 크레딧 상태 강제 변경
-     */
-    @Transactional
-    public void updateCreditStatus(Long cycleId, CreditStatus newStatus) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
-        cycle.updateCreditStatus(newStatus);
-    }
+                return SubscriptionBillingCycleResponse.from(cycle);
+        }
 
-    /**
-     * [시스템/배치] 월별 정기 결제 처리 (결제 + 사이클 생성 + 크레딧 지급)
-     */
-    @Transactional
-    public void processMonthlyPayment(Long subscriptionId) {
-        Subscription subscription = subscriptionRepository.findById(subscriptionId)
-                .orElseThrow(() -> new IllegalArgumentException("구독 정보가 없습니다."));
+        // =============================================================================================
+        // [관리자/시스템 기능]
+        // =============================================================================================
 
-        // 1. 결제 요청 DTO 생성
-        PaymentCreateRequest request = new PaymentCreateRequest(
-                subscription.getProduct().getPrice().getAmount(), // amount (BigDecimal)
-                "구독 정기 결제", // orderName
-                PaymentMethod.CARD, // method
-                BuyerType.EMPLOYER, // buyerType
-                subscription.getProduct().getProductCode(), // productCode
-                UUID.randomUUID().toString() // idempotencyKey
-        );
+        /**
+         * [관리자] 모든 결제 주기 목록 조회
+         */
+        public List<SubscriptionBillingCycleResponse> getAllBillingCycles() {
+                return billingCycleRepository.findAll().stream()
+                                .map(SubscriptionBillingCycleResponse::from)
+                                .collect(Collectors.toList());
+        }
 
-        // 2. 빌링키 결제 시도 (PaymentService)
-        // payWithBillingKey 내부에서 PG사 결제 및 Wallet 크레딧 지급까지 완료됨
-        PaymentResponse paymentResponse = paymentService.payWithBillingKey(
-                subscription.getEmployer().getId(),
-                subscription.getBillingKey(),
-                request
-        );
+        /**
+         * [관리자] 결제 상태 강제 변경
+         */
+        @Transactional
+        public void updatePaymentStatus(Long cycleId, PaymentStatus newStatus) {
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+                cycle.updatePaymentStatus(newStatus);
+        }
 
-        // 3. 빌링 사이클 생성
-        SubscriptionBillingCycle cycle = SubscriptionBillingCycle.create(subscription, LocalDate.now());
+        /**
+         * [관리자] 크레딧 상태 강제 변경
+         */
+        @Transactional
+        public void updateCreditStatus(Long cycleId, CreditStatus newStatus) {
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+                cycle.updateCreditStatus(newStatus);
+        }
 
-        // 4. Payment 엔티티 조회 및 연결
-        Payment payment = paymentRepository.findById(paymentResponse.paymentId())
-                .orElseThrow(() -> new IllegalStateException("결제 정보가 생성되지 않았습니다."));
-        
-        cycle.markPaymentSuccess(payment);
+        /**
+         * [시스템/배치] 월별 정기 결제 처리 (결제 + 사이클 생성 + 크레딧 지급)
+         */
+        @Transactional
+        public void processMonthlyPayment(Long subscriptionId) {
+                Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                                .orElseThrow(() -> new IllegalArgumentException("구독 정보가 없습니다."));
 
-        // 5. 크레딧 상태 업데이트 (이미 지급되었으므로 상태만 변경)
-        cycle.updateCreditStatus(CreditStatus.GRANTED);
+                // 1. 결제 요청 DTO 생성
+                PaymentCreateRequest request = new PaymentCreateRequest(
+                                subscription.getProduct().getPrice().getAmount(), // amount (BigDecimal)
+                                "구독 정기 결제", // orderName
+                                PaymentMethod.CARD, // method
+                                BuyerType.EMPLOYER, // buyerType
+                                subscription.getProduct().getProductCode(), // productCode
+                                UUID.randomUUID().toString(), // idempotencyKey
+                                subscription.getCustomerKey() // customerKey
+                );
 
-        billingCycleRepository.save(cycle);
-    }
+                // 2. 빌링키 결제 시도 (PaymentService)
+                // payWithBillingKey는 userId(MemberId)를 요구하므로, 기업의 대표자(결제 담당자)를 찾아 결제자로 지정합니다.
+                // 1. OWNER 시도 -> 2. HR 시도 -> 3. 아무나(가장 먼저 가입한 사람)
+                Long representativeMemberId = employerMemberRepository
+                                .findFirstByEmployerIdAndRoleInCompanyAndActiveTrue(subscription.getEmployer().getId(),
+                                                "OWNER")
+                                .map(com.example.pproject.employer.entity.EmployerMemberEntity::getMemberId)
+                                .or(() -> employerMemberRepository
+                                                .findFirstByEmployerIdAndRoleInCompanyAndActiveTrue(
+                                                                subscription.getEmployer().getId(), "HR")
+                                                .map(com.example.pproject.employer.entity.EmployerMemberEntity::getMemberId))
+                                .or(() -> employerMemberRepository
+                                                .findByEmployerIdAndActiveTrue(subscription.getEmployer().getId())
+                                                .stream()
+                                                .findFirst()
+                                                .map(com.example.pproject.employer.entity.EmployerMemberEntity::getMemberId))
+                                .orElseThrow(() -> new IllegalStateException("기업에 소속된 회원이 없어 결제를 진행할 수 없습니다."));
 
-    /**
-     * [시스템/배치] 월별 빌링 사이클 생성 (청구서 생성) - 수동/테스트용
-     */
-    @Transactional
-    public SubscriptionBillingCycleResponse createBillingCycle(Long subscriptionId, LocalDate billingMonth) {
-        Subscription subscription = subscriptionRepository.findById(subscriptionId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독입니다."));
+                log.info("Subscription Payment: EmployerId={}, RepresentativeMemberId={}",
+                                subscription.getEmployer().getId(), representativeMemberId);
 
-        SubscriptionBillingCycle cycle = SubscriptionBillingCycle.create(subscription, billingMonth);
-        
-        cycle.validateStatusConsistency();
+                // payWithBillingKey 내부에서 PG사 결제 및 Wallet 크레딧 지급까지 완료됨
+                PaymentResponse paymentResponse = paymentService.payWithBillingKey(
+                                representativeMemberId,
+                                subscription.getBillingKey(),
+                                request);
 
-        SubscriptionBillingCycle saved = billingCycleRepository.save(cycle);
-        return SubscriptionBillingCycleResponse.from(saved);
-    }
+                // 3. 빌링 사이클 생성
+                SubscriptionBillingCycle cycle = SubscriptionBillingCycle.create(subscription, LocalDate.now());
 
-    /**
-     * [시스템/배치] 결제 성공 처리 (PG사 콜백 또는 배치 결과)
-     */
-    @Transactional
-    public void markPaymentSuccess(Long cycleId, Payment payment) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+                // 4. Payment 엔티티 조회 및 연결
+                Payment payment = paymentRepository.findById(paymentResponse.paymentId())
+                                .orElseThrow(() -> new IllegalStateException("결제 정보가 생성되지 않았습니다."));
 
-        cycle.markPaymentSuccess(payment);
-    }
+                cycle.markPaymentSuccess(payment);
 
-    /**
-     * [시스템/배치] 결제 실패 처리
-     */
-    @Transactional
-    public void markPaymentFailed(Long cycleId) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+                // 5. 크레딧 상태 업데이트 (이미 지급되었으므로 상태만 변경)
+                cycle.recordGrantedCredit(subscription.getProduct().getCreditAmount().intValue());
+                cycle.updateCreditStatus(CreditStatus.GRANTED);
 
-        cycle.markPaymentFailed();
-    }
+                billingCycleRepository.save(cycle);
+        }
 
-    /**
-     * [시스템/배치] 크레딧 지급 (결제 성공 후)
-     */
-    @Transactional
-    public void grantCredit(Long cycleId, Integer creditAmount, WalletLedger walletLedger) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+        /**
+         * [시스템/배치] 월별 빌링 사이클 생성 (청구서 생성) - 수동/테스트용
+         */
+        @Transactional
+        public SubscriptionBillingCycleResponse createBillingCycle(Long subscriptionId, LocalDate billingMonth) {
+                Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독입니다."));
 
-        cycle.validateStatusConsistency();
-        
-        cycle.grantCredit(creditAmount, walletLedger);
-        
-        cycle.validateCreditGrant();
-    }
+                SubscriptionBillingCycle cycle = SubscriptionBillingCycle.create(subscription, billingMonth);
 
-    /**
-     * [관리자/시스템] 크레딧 회수 (환불 처리 시)
-     */
-    @Transactional
-    public void revokeCredit(Long cycleId) {
-        SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+                cycle.validateStatusConsistency();
 
-        cycle.revokeCredit();
-    }
+                SubscriptionBillingCycle saved = billingCycleRepository.save(cycle);
+                return SubscriptionBillingCycleResponse.from(saved);
+        }
+
+        /**
+         * [시스템/배치] 결제 성공 처리 (PG사 콜백 또는 배치 결과)
+         */
+        @Transactional
+        public void markPaymentSuccess(Long cycleId, Payment payment) {
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+
+                cycle.markPaymentSuccess(payment);
+        }
+
+        /**
+         * [시스템/배치] 결제 실패 처리
+         */
+        @Transactional
+        public void markPaymentFailed(Long cycleId) {
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+
+                cycle.markPaymentFailed();
+        }
+
+        /**
+         * [시스템/배치] 크레딧 지급 (결제 성공 후)
+         */
+        @Transactional
+        public void grantCredit(Long cycleId, Integer creditAmount, WalletLedger walletLedger) {
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+
+                cycle.validateStatusConsistency();
+
+                cycle.grantCredit(creditAmount, walletLedger);
+
+                cycle.validateCreditGrant();
+        }
+
+        /**
+         * [관리자/시스템] 크레딧 회수 (환불 처리 시)
+         */
+        @Transactional
+        public void revokeCredit(Long cycleId) {
+                SubscriptionBillingCycle cycle = billingCycleRepository.findById(cycleId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 빌링 사이클입니다."));
+
+                cycle.revokeCredit();
+        }
+
+        // =============================================================================================
+        // [Private Helper Methods]
+        // =============================================================================================
+
+        private Long getUserIdByUserid(String userid) {
+                return userRepository.findByUserid(userid)
+                                .map(UserEntity::getId)
+                                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        }
+
+        private void validateEmployerMembership(Long userId, Long employerId) {
+                boolean isMember = employerMemberRepository.existsByEmployerIdAndMemberIdAndActiveTrue(employerId,
+                                userId);
+                if (!isMember) {
+                        throw new IllegalArgumentException("해당 기업의 구독 관리 권한이 없습니다.");
+                }
+        }
+
+        private void validateSubscriptionOwnership(Long userId, Subscription subscription) {
+                validateEmployerMembership(userId, subscription.getEmployer().getId());
+        }
+
+        private void validateBillingCycleOwnership(Long userId, SubscriptionBillingCycle cycle) {
+                validateSubscriptionOwnership(userId, cycle.getSubscription());
+        }
 }

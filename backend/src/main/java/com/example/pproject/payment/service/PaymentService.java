@@ -117,12 +117,31 @@ public class PaymentService {
         Payment paymentInfo = getValidatedPaymentForCancel(orderUid, userId);
         String paymentKey = paymentInfo.getPgPaymentKey();
 
-        // 2. 외부 PG사 취소 요청
-        TossPaymentResponse tossResponse = paymentPort.cancel(
-                paymentKey,
-                request.cancelReason());
+        // 2. 지갑 크레딧 회수 (선행 작업)
+        // - 크레딧을 이미 사용했다면 여기서 예외 발생 -> 환불 중단
+        try {
+            walletService.revokeCredit(userId, paymentInfo.getOrder().getBuyerType(), paymentInfo);
+        } catch (Exception e) {
+            log.warn("크레딧 회수 실패로 인한 환불 거부. orderId={}, reason={}", orderId, e.getMessage());
+            throw e; // Controller까지 전파
+        }
 
-        // 3. 결과 처리 (트랜잭션 분리)
+        // 3. 외부 PG사 취소 요청
+        TossPaymentResponse tossResponse;
+        try {
+            tossResponse = paymentPort.cancel(
+                    paymentKey,
+                    request.cancelReason());
+        } catch (Exception e) {
+            log.error("PG사 결제 취소 실패. 크레딧 복구 진행. orderId={}", orderId, e);
+            // 보상 트랜잭션: 회수했던 크레딧 복구
+            walletService.recoverCredit(userId, paymentInfo.getOrder().getBuyerType(), paymentInfo);
+            throw e;
+        }
+
+        // 4. 결과 처리 (트랜잭션 분리)
+        // 여기서 DB 업데이트 실패 시에도 크레딧은 이미 회수되고 돈은 환불된 상태임.
+        // 데이터 불일치가 발생할 수 있으나, 금전적 손해는 없음. (로그 확인 후 수동 처리 필요할 수 있음)
         transactionTemplate.execute(status -> {
             completeCancel(orderUid, tossResponse, request);
             return null;
@@ -191,7 +210,10 @@ public class PaymentService {
             return paymentRepository.findByOrder_BuyerMember_Id(userId, pageable)
                     .map(PaymentResponse::from);
         } else if (roleType == RoleType.EMPLOYER) {
-            return paymentRepository.findByOrder_BuyerEmployer_Id(userId, pageable)
+            // userId(MemberId) -> employerId 변환
+            EmployerMemberEntity em = employerMemberRepository.findFirstByMemberIdAndActiveTrue(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+            return paymentRepository.findByOrder_BuyerEmployer_Id(em.getEmployerId(), pageable)
                     .map(PaymentResponse::from);
         } else {
             throw new IllegalArgumentException("지원하지 않는 사용자 타입입니다.");
@@ -267,11 +289,32 @@ public class PaymentService {
         // 2. 외부 PG사 빌링키 결제 승인 요청
         TossPaymentResponse tossResponse = paymentPort.confirmBilling(
                 billingKey,
+                request.customerKey(),
                 orderUid.toString(),
                 request.amount());
 
         // 3. 결과 처리 (트랜잭션 분리)
         return transactionTemplate.execute(status -> completeConfirm(orderUid, userId, tossResponse));
+    }
+
+    /**
+     * 12. [관리자] 총 수익 조회 (순수익 = 결제 - 환불)
+     */
+    @Transactional(readOnly = true)
+    public Long getTotalRevenue() {
+        Long totalPayments = paymentRepository.sumTotalRevenue();
+        Long totalCancels = paymentCancelRepository.sumTotalCancels();
+        return totalPayments - totalCancels;
+    }
+
+    /**
+     * 13. [관리자] 구매자 유형별 총 수익 조회 (순수익 = 결제 - 환불)
+     */
+    @Transactional(readOnly = true)
+    public Long getTotalRevenueByBuyerType(BuyerType buyerType) {
+        Long totalPayments = paymentRepository.sumTotalRevenueByBuyerType(buyerType);
+        Long totalCancels = paymentCancelRepository.sumTotalCancelsByBuyerType(buyerType);
+        return totalPayments - totalCancels;
     }
 
     // =================================================================================

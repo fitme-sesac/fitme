@@ -76,6 +76,8 @@ import AdminSubscription from "./pages/admin/AdminSubscription";
 // ============================================
 import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
 import PaymentFailPage from "./pages/payment/PaymentFailPage";
+import SubscriptionCheckoutPage from "./pages/payment/SubscriptionCheckoutPage";
+import SubscriptionSuccessPage from "./pages/payment/SubscriptionSuccessPage";
 
 import PrivateRoute from "./components/auth/PrivateRoute";
 
@@ -161,7 +163,10 @@ export default function App() {
                     <Route path="/payment/success" element={<PaymentSuccessPage />} />
                     <Route path="/payment/fail" element={<PaymentFailPage />} />
                     <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
-                    <Route path="/payment/products" element={<Subscription />} />
+                    <Route path="/products" element={<Subscription />} />
+
+                    <Route path="/subscription/success" element={<SubscriptionSuccessPage />} />
+                    <Route path="/subscription/fail" element={<PaymentFailPage />} />
 
                     <Route path="/resume" element={<Resume />} />
                     <Route

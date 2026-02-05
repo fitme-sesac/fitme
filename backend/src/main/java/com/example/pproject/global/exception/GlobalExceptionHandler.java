@@ -46,8 +46,21 @@ public class GlobalExceptionHandler {
         log.warn("IllegalArgumentException 발생 - Message: {}", e.getMessage());
 
         return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST) // 400 에러로 응답
-                .body(ApiResponse.error("400", e.getMessage())); // 실제 에러 메시지 전달
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("400", e.getMessage()));
+    }
+
+    /**
+     * [추가] IllegalStateException 처리
+     * - 논리적 오류나 상태 오류 시 400 반환
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException e) {
+        log.warn("IllegalStateException 발생 - Message: {}", e.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("400", e.getMessage()));
     }
 
     /**

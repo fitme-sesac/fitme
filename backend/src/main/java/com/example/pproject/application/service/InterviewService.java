@@ -1,7 +1,9 @@
 package com.example.pproject.application.service;
 
 import com.example.pproject.Constant.ApplicationStatus;
+import com.example.pproject.Constant.InterviewMethod;
 import com.example.pproject.Constant.InterviewResponseType;
+import com.example.pproject.Constant.InterviewStage;
 import com.example.pproject.Constant.InterviewStatus;
 import com.example.pproject.application.dto.InterviewCreateRequest;
 import com.example.pproject.application.dto.InterviewDTO;
@@ -19,11 +21,13 @@ import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +46,7 @@ public class InterviewService {
     private final EmployerMemberRepository employerMemberRepository;
     private final EmployerRepository employerRepository;
     private final NotificationService notificationService;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * 면접 일정 생성 (기업용)
@@ -196,24 +201,139 @@ public class InterviewService {
     }
 
     /**
-     * 지원자의 면접 일정 목록 조회
+     * 지원자의 면접 일정 목록 조회 (JdbcTemplate 기반 - JPA 조인 이슈 해결)
      */
-    public List<InterviewDTO> getMyInterviews(Long userId) {
-        List<InterviewSchedule> interviews = interviewScheduleRepository.findByMemberId(userId);
-        return interviews.stream()
-                .map(this::toInterviewDTOWithCompanyName)
-                .collect(Collectors.toList());
+    public List<InterviewDTO> getMyInterviews(Long memberId) {
+        log.debug("지원자 면접 일정 조회: memberId={}", memberId);
+        
+        String sql = """
+            SELECT 
+                isc.interview_id,
+                isc.application_id,
+                ja.member_id as candidate_id,
+                m.name as candidate_name,
+                jp.job_id,
+                jp.title as job_title,
+                e.name as company_name,
+                r.title as resume_title,
+                isc.stage,
+                isc.method,
+                isc.location,
+                isc.meeting_url,
+                isc.start_at,
+                isc.end_at,
+                isc.status,
+                isc.created_at
+            FROM interview_schedule isc
+            JOIN job_application ja ON ja.application_id = isc.application_id
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            JOIN employer e ON e.employer_id = jp.employer_id
+            JOIN member m ON m.member_id = ja.member_id
+            LEFT JOIN resume r ON r.resume_id = ja.resume_id
+            WHERE ja.member_id = ?
+            ORDER BY isc.start_at DESC
+            """;
+        
+        try {
+            List<InterviewDTO> interviews = jdbcTemplate.query(sql, (rs, rowNum) -> 
+                InterviewDTO.builder()
+                    .interviewId(rs.getLong("interview_id"))
+                    .applicationId(rs.getLong("application_id"))
+                    .candidateId(rs.getLong("candidate_id"))
+                    .candidateName(rs.getString("candidate_name"))
+                    .jobId(rs.getLong("job_id"))
+                    .jobTitle(rs.getString("job_title"))
+                    .companyName(rs.getString("company_name"))
+                    .resumeTitle(rs.getString("resume_title"))
+                    .stage(InterviewStage.fromCode(rs.getString("stage")))
+                    .method(InterviewMethod.valueOf(rs.getString("method")))
+                    .location(rs.getString("location"))
+                    .meetingUrl(rs.getString("meeting_url"))
+                    .startAt(rs.getTimestamp("start_at") != null ? 
+                            rs.getTimestamp("start_at").toLocalDateTime() : null)
+                    .endAt(rs.getTimestamp("end_at") != null ? 
+                            rs.getTimestamp("end_at").toLocalDateTime() : null)
+                    .status(InterviewStatus.valueOf(rs.getString("status")))
+                    .createdAt(rs.getTimestamp("created_at") != null ? 
+                            rs.getTimestamp("created_at").toLocalDateTime() : null)
+                    .build(),
+                memberId);
+            
+            log.info("지원자 면접 일정 조회 완료: memberId={}, count={}", memberId, interviews.size());
+            return interviews;
+        } catch (Exception e) {
+            log.error("지원자 면접 일정 조회 실패: memberId={}, error={}", memberId, e.getMessage());
+            return new ArrayList<>();
+        }
     }
 
     /**
-     * 지원자의 다가오는 면접 일정 조회
+     * 지원자의 다가오는 면접 일정 조회 (JdbcTemplate 기반)
      */
-    public List<InterviewDTO> getUpcomingInterviews(Long userId) {
-        List<InterviewSchedule> interviews = interviewScheduleRepository.findUpcomingByMemberIdAndStatus(
-                userId, InterviewStatus.CONFIRMED, LocalDateTime.now());
-        return interviews.stream()
-                .map(this::toInterviewDTOWithCompanyName)
-                .collect(Collectors.toList());
+    public List<InterviewDTO> getUpcomingInterviews(Long memberId) {
+        log.debug("지원자 다가오는 면접 일정 조회: memberId={}", memberId);
+        
+        String sql = """
+            SELECT 
+                isc.interview_id,
+                isc.application_id,
+                ja.member_id as candidate_id,
+                m.name as candidate_name,
+                jp.job_id,
+                jp.title as job_title,
+                e.name as company_name,
+                r.title as resume_title,
+                isc.stage,
+                isc.method,
+                isc.location,
+                isc.meeting_url,
+                isc.start_at,
+                isc.end_at,
+                isc.status,
+                isc.created_at
+            FROM interview_schedule isc
+            JOIN job_application ja ON ja.application_id = isc.application_id
+            JOIN job_posting jp ON jp.job_id = ja.job_id
+            JOIN employer e ON e.employer_id = jp.employer_id
+            JOIN member m ON m.member_id = ja.member_id
+            LEFT JOIN resume r ON r.resume_id = ja.resume_id
+            WHERE ja.member_id = ?
+              AND isc.status IN ('PROPOSED', 'CONFIRMED')
+              AND isc.start_at > NOW()
+            ORDER BY isc.start_at ASC
+            """;
+        
+        try {
+            List<InterviewDTO> interviews = jdbcTemplate.query(sql, (rs, rowNum) -> 
+                InterviewDTO.builder()
+                    .interviewId(rs.getLong("interview_id"))
+                    .applicationId(rs.getLong("application_id"))
+                    .candidateId(rs.getLong("candidate_id"))
+                    .candidateName(rs.getString("candidate_name"))
+                    .jobId(rs.getLong("job_id"))
+                    .jobTitle(rs.getString("job_title"))
+                    .companyName(rs.getString("company_name"))
+                    .resumeTitle(rs.getString("resume_title"))
+                    .stage(InterviewStage.fromCode(rs.getString("stage")))
+                    .method(InterviewMethod.valueOf(rs.getString("method")))
+                    .location(rs.getString("location"))
+                    .meetingUrl(rs.getString("meeting_url"))
+                    .startAt(rs.getTimestamp("start_at") != null ? 
+                            rs.getTimestamp("start_at").toLocalDateTime() : null)
+                    .endAt(rs.getTimestamp("end_at") != null ? 
+                            rs.getTimestamp("end_at").toLocalDateTime() : null)
+                    .status(InterviewStatus.valueOf(rs.getString("status")))
+                    .createdAt(rs.getTimestamp("created_at") != null ? 
+                            rs.getTimestamp("created_at").toLocalDateTime() : null)
+                    .build(),
+                memberId);
+            
+            log.info("지원자 다가오는 면접 일정 조회 완료: memberId={}, count={}", memberId, interviews.size());
+            return interviews;
+        } catch (Exception e) {
+            log.error("지원자 다가오는 면접 일정 조회 실패: memberId={}, error={}", memberId, e.getMessage());
+            return new ArrayList<>();
+        }
     }
 
     /**

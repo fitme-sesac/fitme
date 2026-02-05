@@ -15,8 +15,8 @@ const footerLinkGroups = [
     title: "기업서비스",
     items: [
       { label: "인재풀 열람", path: "/talents" },
-      { label: "광고 상품", path: "/payment/products" },
-      { label: "구독 플랜", path: "/payment/products" },
+      { label: "광고 상품", path: "/products" },
+      { label: "구독 플랜", path: "/products" },
       { label: "API" },
     ],
   },

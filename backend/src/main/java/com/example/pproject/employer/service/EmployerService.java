@@ -2,6 +2,7 @@ package com.example.pproject.employer.service;
 
 import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.repository.AdCampaignRepository;
+import com.example.pproject.common.service.FileUploadService;
 import com.example.pproject.employer.dto.*;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.employer.entity.EmployerEntity;
@@ -21,6 +22,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -45,6 +49,7 @@ public class EmployerService {
     private final JobService jobService;
     private final ResumeSkillService resumeSkillService;
     private final AdCampaignRepository adCampaignRepository;
+    private final FileUploadService fileUploadService;
 
     /**
      * 로그인 사용자의 기업 프로필 조회
@@ -272,6 +277,83 @@ public class EmployerService {
             // 수정
             return updateProfile(userid, dto);
         }
+    }
+
+    /**
+     * 기업 로고 파일 업로드
+     */
+    @Transactional
+    public String uploadLogo(String userid, MultipartFile file) throws IOException {
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
+
+        Long memberId = user.getId().longValue();
+
+        // 소속 기업 확인
+        EmployerMemberEntity membership = employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(memberId)
+                .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다."));
+
+        // OWNER 또는 HR만 수정 가능
+        if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
+            throw new IllegalStateException("로고 수정 권한이 없습니다.");
+        }
+
+        EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
+                .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
+
+        // 기존 로고가 있으면 삭제 (내부 업로드 파일인 경우만)
+        String oldLogoUrl = employer.getLogoUrl();
+        if (oldLogoUrl != null && oldLogoUrl.startsWith("/images/")) {
+            fileUploadService.deleteFile(oldLogoUrl);
+        }
+
+        // 새 로고 업로드
+        String newLogoUrl = fileUploadService.uploadFile(file, "logos");
+
+        // DB 업데이트
+        employer.setLogoUrl(newLogoUrl);
+        employerRepository.save(employer);
+
+        log.info("기업 {} 로고 업로드 완료: {}", employer.getName(), newLogoUrl);
+
+        return newLogoUrl;
+    }
+
+    /**
+     * 기업 로고 삭제
+     */
+    @Transactional
+    public void deleteLogo(String userid) {
+        UserEntity user = userRepository.findByUserid(userid)
+                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
+
+        Long memberId = user.getId().longValue();
+
+        // 소속 기업 확인
+        EmployerMemberEntity membership = employerMemberRepository
+                .findFirstByMemberIdAndActiveTrue(memberId)
+                .orElseThrow(() -> new IllegalStateException("소속된 기업이 없습니다."));
+
+        // OWNER 또는 HR만 수정 가능
+        if (!"OWNER".equals(membership.getRoleInCompany()) && !"HR".equals(membership.getRoleInCompany())) {
+            throw new IllegalStateException("로고 수정 권한이 없습니다.");
+        }
+
+        EmployerEntity employer = employerRepository.findById(membership.getEmployerId())
+                .orElseThrow(() -> new IllegalStateException("기업 정보를 찾을 수 없습니다."));
+
+        // 기존 로고 삭제 (내부 업로드 파일인 경우만)
+        String oldLogoUrl = employer.getLogoUrl();
+        if (oldLogoUrl != null && oldLogoUrl.startsWith("/images/")) {
+            fileUploadService.deleteFile(oldLogoUrl);
+        }
+
+        // DB 업데이트
+        employer.setLogoUrl(null);
+        employerRepository.save(employer);
+
+        log.info("기업 {} 로고 삭제 완료", employer.getName());
     }
 
     /**
@@ -664,10 +746,26 @@ public class EmployerService {
     // ===== 면접 일정 관리 =====
 
     /**
-     * 면접 일정 목록 조회
+     * 면접 일정 목록 조회 (userid 기반, 일반 로그인용)
      */
     public InterviewListDTO getInterviews(String userid, Integer year, Integer month) {
         Long employerId = getEmployerIdByUserid(userid);
+        return getInterviewsByEmployerId(employerId, year, month);
+    }
+
+    /**
+     * 면접 일정 목록 조회 (member_id 기반, JWT id 클레임 또는 OAuth 사용자 대응)
+     */
+    public InterviewListDTO getInterviewsByMemberId(Long memberId, Integer year, Integer month) {
+        Long employerId = getEmployerIdByMemberId(memberId);
+        return getInterviewsByEmployerId(employerId, year, month);
+    }
+
+    /**
+     * 면접 일정 목록 조회 (employer_id 기반, 내부 공통 로직)
+     * year=0 이면 전체 면접 일정 조회 (날짜 필터 없음)
+     */
+    private InterviewListDTO getInterviewsByEmployerId(Long employerId, Integer year, Integer month) {
         if (employerId == null) {
             return InterviewListDTO.builder()
                     .interviews(List.of())
@@ -675,15 +773,75 @@ public class EmployerService {
                     .build();
         }
 
-        // 기본값: 현재 년/월
-        int y = year != null ? year : LocalDateTime.now().getYear();
-        int m = month != null ? month : LocalDateTime.now().getMonthValue();
-
-        YearMonth ym = YearMonth.of(y, m);
-        LocalDateTime startDate = ym.atDay(1).atStartOfDay();
-        LocalDateTime endDate = ym.atEndOfMonth().atTime(23, 59, 59);
+        // year=0 이면 전체 조회
+        boolean fetchAll = (year != null && year == 0);
 
         try {
+            List<InterviewDTO> interviews;
+
+            if (fetchAll) {
+                // 전체 면접 일정 조회 (날짜 필터 없음)
+                String sql = """
+                    SELECT 
+                        isc.interview_id,
+                        isc.application_id,
+                        ja.member_id as applicant_member_id,
+                        mb.name as applicant_name,
+                        mb.email as applicant_email,
+                        jp.title as job_title,
+                        isc.stage,
+                        isc.method,
+                        isc.location,
+                        isc.meeting_url,
+                        isc.start_at,
+                        isc.end_at,
+                        isc.status,
+                        isc.created_at,
+                        isc.updated_at
+                    FROM interview_schedule isc
+                    JOIN job_application ja ON ja.application_id = isc.application_id
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    JOIN member mb ON mb.member_id = ja.member_id
+                    WHERE jp.employer_id = ?
+                    ORDER BY isc.start_at DESC
+                    """;
+
+                interviews = jdbcTemplate.query(sql,
+                        (rs, rowNum) -> InterviewDTO.builder()
+                                .interviewId(rs.getLong("interview_id"))
+                                .applicationId(rs.getLong("application_id"))
+                                .applicantMemberId(rs.getLong("applicant_member_id"))
+                                .applicantName(rs.getString("applicant_name"))
+                                .applicantEmail(rs.getString("applicant_email"))
+                                .jobTitle(rs.getString("job_title"))
+                                .stage(rs.getString("stage"))
+                                .method(rs.getString("method"))
+                                .location(rs.getString("location"))
+                                .meetingUrl(rs.getString("meeting_url"))
+                                .startAt(rs.getTimestamp("start_at") != null ? 
+                                        rs.getTimestamp("start_at").toLocalDateTime().toString() : null)
+                                .endAt(rs.getTimestamp("end_at") != null ? 
+                                        rs.getTimestamp("end_at").toLocalDateTime().toString() : null)
+                                .status(rs.getString("status"))
+                                .createdAt(rs.getTimestamp("created_at") != null ? 
+                                        rs.getTimestamp("created_at").toLocalDateTime().toString() : null)
+                                .build(),
+                        employerId);
+
+                return InterviewListDTO.builder()
+                        .interviews(interviews)
+                        .total(interviews.size())
+                        .build();
+            }
+
+            // 기본값: 현재 년/월
+            int y = year != null ? year : LocalDateTime.now().getYear();
+            int m = month != null ? month : LocalDateTime.now().getMonthValue();
+
+            YearMonth ym = YearMonth.of(y, m);
+            LocalDateTime startDate = ym.atDay(1).atStartOfDay();
+            LocalDateTime endDate = ym.atEndOfMonth().atTime(23, 59, 59);
+
             String sql = """
                 SELECT 
                     isc.interview_id,
@@ -710,7 +868,7 @@ public class EmployerService {
                 ORDER BY isc.start_at ASC
                 """;
 
-            List<InterviewDTO> interviews = jdbcTemplate.query(sql,
+            interviews = jdbcTemplate.query(sql,
                     (rs, rowNum) -> InterviewDTO.builder()
                             .interviewId(rs.getLong("interview_id"))
                             .applicationId(rs.getLong("application_id"))
@@ -740,11 +898,13 @@ public class EmployerService {
                     .build();
         } catch (Exception e) {
             log.warn("면접 일정 조회 실패: {}", e.getMessage());
+            int fallbackYear = year != null && year != 0 ? year : LocalDateTime.now().getYear();
+            int fallbackMonth = month != null ? month : LocalDateTime.now().getMonthValue();
             return InterviewListDTO.builder()
                     .interviews(List.of())
                     .total(0)
-                    .year(y)
-                    .month(m)
+                    .year(fallbackYear)
+                    .month(fallbackMonth)
                     .build();
         }
     }

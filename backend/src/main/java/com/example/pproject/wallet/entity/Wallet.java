@@ -99,6 +99,17 @@ public class Wallet extends BaseTimeEntity {
         this.balance -= amount;
     }
 
+    // 환불로 인한 회수 (잔액이 부족하면 예외 발생)
+    public void revoke(long amount) {
+        verifyActive();
+        Assert.isTrue(amount > 0, "회수액은 0보다 커야 합니다.");
+
+        if (this.balance < amount) {
+            throw new IllegalStateException("지갑 잔액이 부족하여 환불할 수 없습니다. (이미 사용된 크레딧)");
+        }
+        this.balance -= amount;
+    }
+
     // 예산 예약 (Hold) - [Phase 2: Pre-deduction]
     // 가용 잔액에서 즉시 차감하여 예약금으로 이동
     public void hold(long amount) {

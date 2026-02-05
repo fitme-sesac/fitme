@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface WalletCreditLotRepository extends JpaRepository<WalletCreditLot, Long> {
 
@@ -23,4 +24,7 @@ public interface WalletCreditLotRepository extends JpaRepository<WalletCreditLot
 
     // (권장) 결제 멱등성 체크
     boolean existsByPayment(Payment paymentId);
+
+    // 결제 취소 시 해당 결제로 생성된 Lot 조회
+    Optional<WalletCreditLot> findByPayment(Payment payment);
 }

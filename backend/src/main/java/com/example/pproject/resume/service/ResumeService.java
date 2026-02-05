@@ -1,6 +1,7 @@
 package com.example.pproject.resume.service;
 
 import com.example.pproject.application.repository.JobApplicationRepository;
+import com.example.pproject.job.service.JobScrapService;
 import com.example.pproject.resume.dto.ResumeRequest;
 import com.example.pproject.resume.dto.ResumeResponse;
 import com.example.pproject.resume.entity.*;
@@ -22,6 +23,7 @@ public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
     private final JobApplicationRepository jobApplicationRepository;
+    private final JobScrapService jobScrapService;
 
     // 1. 내 이력서 목록 조회 (Long userId)
     public List<ResumeResponse> getResumes(Long userId) {
@@ -293,6 +295,10 @@ public class ResumeService {
         // 이력서 개수
         List<Resume> allResumes = resumeRepository.findAllByUser_Id(userId);
         summary.put("resumeCount", allResumes.size());
+
+        // 스크랩(관심공고) 개수
+        long savedJobCount = jobScrapService.getScrapCount(userId);
+        summary.put("savedJobCount", savedJobCount);
 
         return summary;
     }

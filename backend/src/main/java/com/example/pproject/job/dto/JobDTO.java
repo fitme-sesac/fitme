@@ -1,6 +1,7 @@
 package com.example.pproject.job.dto;
 
 import lombok.*;
+import java.util.List;
 
 /**
  * 채용공고 조회 DTO (ERD 기준)
@@ -38,6 +39,9 @@ public class JobDTO {
     // 기업 정보 (조인)
     private String companyName;
     private String companyLogoUrl;
+
+    // 채용공고 이미지 URL 목록
+    private List<String> images;
 
     // 매칭 정보 (로그인한 지원자에게만 표시)
     private JobMatchInfoDTO matchInfo;

@@ -1,6 +1,7 @@
 package com.example.pproject.job.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.common.service.FileUploadService;
 import com.example.pproject.job.dto.*;
 import com.example.pproject.job.service.JobService;
 import lombok.RequiredArgsConstructor;
@@ -8,7 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -18,6 +22,7 @@ import java.util.Map;
 public class JobController {
 
     private final JobService jobService;
+    private final FileUploadService fileUploadService;
 
     /**
      * 채용공고 목록 조회 (기업 본인 것만)
@@ -132,6 +137,45 @@ public class JobController {
         } catch (Exception e) {
             log.error("채용공고 삭제 중 오류 발생", e);
             return ResponseEntity.status(500).body(Map.of("error", "서버 오류: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 채용공고 이미지 업로드 (다중 파일)
+     * @param files 업로드할 이미지 파일들
+     * @return 업로드된 이미지 URL 목록
+     */
+    @PostMapping("/upload-images")
+    public ResponseEntity<?> uploadImages(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam("files") List<MultipartFile> files) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
+        }
+
+        if (files == null || files.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "업로드할 파일이 없습니다."));
+        }
+
+        try {
+            List<String> uploadedUrls = new ArrayList<>();
+            for (MultipartFile file : files) {
+                if (!file.isEmpty()) {
+                    String url = fileUploadService.uploadFile(file, "jobs");
+                    uploadedUrls.add(url);
+                    log.info("채용공고 이미지 업로드 완료: {}", url);
+                }
+            }
+            return ResponseEntity.ok(Map.of(
+                    "message", "이미지 업로드 완료",
+                    "urls", uploadedUrls
+            ));
+        } catch (IllegalArgumentException e) {
+            log.warn("이미지 업로드 실패 (잘못된 형식): {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("이미지 업로드 중 오류 발생", e);
+            return ResponseEntity.status(500).body(Map.of("error", "이미지 업로드 실패: " + e.getMessage()));
         }
     }
 }

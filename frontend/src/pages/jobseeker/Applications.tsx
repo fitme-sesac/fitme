@@ -15,7 +15,12 @@ import {
     DollarSign,
     Send,
     AlertCircle,
-    Inbox
+    Inbox,
+    Video,
+    Phone,
+    CheckCircle2,
+    XCircle,
+    Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +31,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMyApplications, cancelApplication } from "@/api/applications";
+import { getInterviewsByApplication, respondToInterview, InterviewDTO } from "@/api/interviews";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -51,6 +57,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { format, parseISO } from "date-fns";
+import { ko } from "date-fns/locale";
 
 interface Application {
     applicationId: number;
@@ -81,10 +89,46 @@ export default function Applications() {
     const [activeTab, setActiveTab] = useState("all");
     const [cancelTarget, setCancelTarget] = useState<Application | null>(null);
     const [canceling, setCanceling] = useState(false);
+    
+    // 면접 관련 상태
+    const [interviewsMap, setInterviewsMap] = useState<Record<number, InterviewDTO[]>>({});
+    const [respondingInterviewId, setRespondingInterviewId] = useState<number | null>(null);
+    const [interviewResponseDialog, setInterviewResponseDialog] = useState<{
+        open: boolean;
+        type: "accept" | "decline" | null;
+        interview: InterviewDTO | null;
+        applicationId: number | null;
+    }>({ open: false, type: null, interview: null, applicationId: null });
 
     useEffect(() => {
         loadApplications();
     }, []);
+
+    // 면접 상태인 지원에 대해 면접 일정 조회
+    useEffect(() => {
+        const fetchInterviews = async () => {
+            const interviewApps = applications.filter(app => app.status === "INTERVIEW");
+            const newInterviewsMap: Record<number, InterviewDTO[]> = {};
+            
+            await Promise.all(
+                interviewApps.map(async (app) => {
+                    try {
+                        const data = await getInterviewsByApplication(app.applicationId);
+                        const interviews = Array.isArray(data) ? data : (data as any)?.data ?? [];
+                        newInterviewsMap[app.applicationId] = interviews;
+                    } catch {
+                        newInterviewsMap[app.applicationId] = [];
+                    }
+                })
+            );
+            
+            setInterviewsMap(newInterviewsMap);
+        };
+        
+        if (applications.length > 0) {
+            fetchInterviews();
+        }
+    }, [applications]);
 
     const loadApplications = async () => {
         try {
@@ -113,6 +157,58 @@ export default function Applications() {
             toast.error(error?.response?.data?.message || "지원 취소에 실패했습니다.");
         } finally {
             setCanceling(false);
+        }
+    };
+
+    // 면접 응답 처리
+    const handleInterviewResponse = async () => {
+        const { type, interview, applicationId } = interviewResponseDialog;
+        if (!interview || !type) return;
+
+        setRespondingInterviewId(interview.interviewId);
+        try {
+            await respondToInterview(interview.interviewId, type === "accept" ? "ACCEPT" : "DECLINE");
+            toast.success(type === "accept" ? "면접 일정을 수락했습니다!" : "면접 일정을 거절했습니다.");
+            setInterviewResponseDialog({ open: false, type: null, interview: null, applicationId: null });
+            
+            // 면접 목록 새로고침
+            if (applicationId) {
+                const data = await getInterviewsByApplication(applicationId);
+                const interviews = Array.isArray(data) ? data : (data as any)?.data ?? [];
+                setInterviewsMap(prev => ({ ...prev, [applicationId]: interviews }));
+            }
+            
+            loadApplications(); // 지원 목록도 새로고침
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || "응답 처리에 실패했습니다.");
+        } finally {
+            setRespondingInterviewId(null);
+        }
+    };
+
+    // 면접 방식 라벨
+    const getMethodLabel = (method: string) => {
+        switch (method) {
+            case "ONSITE": return "대면 면접";
+            case "VIDEO": return "화상 면접";
+            case "PHONE": return "전화 면접";
+            default: return method;
+        }
+    };
+
+    // 면접 상태 라벨
+    const getInterviewStatusBadge = (status: string) => {
+        switch (status) {
+            case "PROPOSED":
+                return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">일정 제안</Badge>;
+            case "CONFIRMED":
+                return <Badge className="bg-green-100 text-green-800 border-green-200">확정됨</Badge>;
+            case "CANCELED":
+                return <Badge className="bg-gray-100 text-gray-600 border-gray-200">취소됨</Badge>;
+            case "DONE":
+                return <Badge className="bg-blue-100 text-blue-800 border-blue-200">완료</Badge>;
+            default:
+                return <Badge variant="outline">{status}</Badge>;
         }
     };
 
@@ -298,6 +394,117 @@ export default function Applications() {
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* 면접 일정 정보 (INTERVIEW 상태일 때) */}
+                                            {app.status === "INTERVIEW" && interviewsMap[app.applicationId]?.length > 0 && (
+                                                <div className="mt-4 pt-4 border-t border-dashed">
+                                                    <p className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">
+                                                        <Calendar className="h-4 w-4" />
+                                                        면접 일정
+                                                    </p>
+                                                    <div className="space-y-3">
+                                                        {interviewsMap[app.applicationId].map((interview) => (
+                                                            <div
+                                                                key={interview.interviewId}
+                                                                className="p-4 rounded-lg bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100"
+                                                            >
+                                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                                    <div className="space-y-2">
+                                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                                            {getInterviewStatusBadge(interview.status)}
+                                                                            <Badge variant="outline" className="bg-white">
+                                                                                {interview.method === "VIDEO" && <Video className="h-3 w-3 mr-1" />}
+                                                                                {interview.method === "PHONE" && <Phone className="h-3 w-3 mr-1" />}
+                                                                                {interview.method === "ONSITE" && <MapPin className="h-3 w-3 mr-1" />}
+                                                                                {getMethodLabel(interview.method)}
+                                                                            </Badge>
+                                                                            <Badge variant="secondary">
+                                                                                {interview.stage === "FIRST" ? "1차 면접" :
+                                                                                 interview.stage === "SECOND" ? "2차 면접" : "최종 면접"}
+                                                                            </Badge>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-4 text-sm text-gray-700">
+                                                                            <span className="flex items-center gap-1.5 font-medium">
+                                                                                <Calendar className="h-4 w-4 text-purple-500" />
+                                                                                {format(parseISO(interview.startAt), "M월 d일 (EEE)", { locale: ko })}
+                                                                            </span>
+                                                                            <span className="flex items-center gap-1.5">
+                                                                                <Clock className="h-4 w-4 text-purple-500" />
+                                                                                {format(parseISO(interview.startAt), "a h:mm", { locale: ko })}
+                                                                            </span>
+                                                                        </div>
+                                                                        {interview.location && (
+                                                                            <p className="text-sm text-gray-600 flex items-center gap-1.5">
+                                                                                <MapPin className="h-4 w-4 text-gray-400" />
+                                                                                {interview.location}
+                                                                            </p>
+                                                                        )}
+                                                                        {interview.meetingUrl && (
+                                                                            <a
+                                                                                href={interview.meetingUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-sm text-primary hover:underline flex items-center gap-1.5"
+                                                                            >
+                                                                                <Video className="h-4 w-4" />
+                                                                                화상 면접 링크
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* 면접 수락/거절 버튼 (PROPOSED 상태일 때만) */}
+                                                                    {interview.status === "PROPOSED" && (
+                                                                        <div className="flex gap-2">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                className="bg-green-600 hover:bg-green-700"
+                                                                                onClick={() => setInterviewResponseDialog({
+                                                                                    open: true,
+                                                                                    type: "accept",
+                                                                                    interview,
+                                                                                    applicationId: app.applicationId
+                                                                                })}
+                                                                                disabled={respondingInterviewId === interview.interviewId}
+                                                                            >
+                                                                                <CheckCircle2 className="h-4 w-4 mr-1" />
+                                                                                수락
+                                                                            </Button>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="text-red-600 border-red-200 hover:bg-red-50"
+                                                                                onClick={() => setInterviewResponseDialog({
+                                                                                    open: true,
+                                                                                    type: "decline",
+                                                                                    interview,
+                                                                                    applicationId: app.applicationId
+                                                                                })}
+                                                                                disabled={respondingInterviewId === interview.interviewId}
+                                                                            >
+                                                                                <XCircle className="h-4 w-4 mr-1" />
+                                                                                거절
+                                                                            </Button>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {interview.status === "CONFIRMED" && (
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            asChild
+                                                                        >
+                                                                            <Link to="/interview">
+                                                                                <Calendar className="h-4 w-4 mr-1" />
+                                                                                면접 관리
+                                                                            </Link>
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 );
@@ -334,6 +541,72 @@ export default function Applications() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* 면접 응답 확인 다이얼로그 */}
+            <Dialog 
+                open={interviewResponseDialog.open} 
+                onOpenChange={(open) => !open && setInterviewResponseDialog({ open: false, type: null, interview: null, applicationId: null })}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            {interviewResponseDialog.type === "accept" ? (
+                                <>
+                                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                    면접 일정 수락
+                                </>
+                            ) : (
+                                <>
+                                    <XCircle className="h-5 w-5 text-red-600" />
+                                    면접 일정 거절
+                                </>
+                            )}
+                        </DialogTitle>
+                        <DialogDescription className="space-y-3 pt-2">
+                            {interviewResponseDialog.interview && (
+                                <div className="p-4 rounded-lg bg-gray-50 space-y-2">
+                                    <p className="font-medium text-gray-900">
+                                        {interviewResponseDialog.interview.companyName} - {interviewResponseDialog.interview.jobTitle}
+                                    </p>
+                                    <div className="flex items-center gap-3 text-sm text-gray-600">
+                                        <span className="flex items-center gap-1">
+                                            <Calendar className="h-4 w-4" />
+                                            {format(parseISO(interviewResponseDialog.interview.startAt), "M월 d일 (EEE) a h:mm", { locale: ko })}
+                                        </span>
+                                    </div>
+                                    {interviewResponseDialog.interview.location && (
+                                        <p className="text-sm text-gray-600 flex items-center gap-1">
+                                            <MapPin className="h-4 w-4" />
+                                            {interviewResponseDialog.interview.location}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                            <p>
+                                {interviewResponseDialog.type === "accept"
+                                    ? "이 면접 일정을 수락하시겠습니까? 수락 시 기업에 알림이 발송됩니다."
+                                    : "이 면접 일정을 거절하시겠습니까? 거절 시 기업에 알림이 발송됩니다."}
+                            </p>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setInterviewResponseDialog({ open: false, type: null, interview: null, applicationId: null })}
+                        >
+                            취소
+                        </Button>
+                        <Button
+                            onClick={handleInterviewResponse}
+                            disabled={respondingInterviewId !== null}
+                            className={interviewResponseDialog.type === "accept" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+                        >
+                            {respondingInterviewId !== null && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            {interviewResponseDialog.type === "accept" ? "수락하기" : "거절하기"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

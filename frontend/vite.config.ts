@@ -84,6 +84,9 @@ export default defineConfig(({ mode }) => {
                 // Static uploads (backend)
                 "/uploads": { target: backendTarget, changeOrigin: true },
 
+                // 업로드된 이미지 (백엔드)
+                "/images": { target: backendTarget, changeOrigin: true },
+
                 // ===== AI worker proxies =====
                 "/chatbot": { target: aiTarget, changeOrigin: true },
                 "/employer-chatbot": { target: aiTarget, changeOrigin: true },
