@@ -93,7 +93,7 @@ function JumpToBackendSamePath() {
     const loc = useLocation();
     useEffect(() => {
         const backendPublic =
-            (import.meta as any).env?.VITE_API_BASE_URL?.trim() || "http://localhost:8080";
+            (import.meta as any).env?.VITE_API_BASE_URL?.trim() || window.location.origin;
         const base = backendPublic.replace(/\/+$/, "");
         window.location.replace(`${base}${loc.pathname}${loc.search}${loc.hash || ""}`);
     }, [loc.pathname, loc.search, loc.hash]);
@@ -107,231 +107,231 @@ export default function App() {
             <ProfileSetupModal />
             <BrowserRouter>
                 <NotificationProvider>
-                <Routes>
-                    {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
-                    <Route path="/Login" element={<RedirectToAuthTab tab="login" />} />
-                    <Route path="/Register" element={<RedirectToAuthTab tab="signup" />} />
-                    <Route path="/User/Register" element={<RedirectToAuthTab tab="signup" />} />
+                    <Routes>
+                        {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
+                        <Route path="/Login" element={<RedirectToAuthTab tab="login" />} />
+                        <Route path="/Register" element={<RedirectToAuthTab tab="signup" />} />
+                        <Route path="/User/Register" element={<RedirectToAuthTab tab="signup" />} />
 
-                    {/* ✅ 백엔드 redirectFront(..)가 사용하는 프론트 경로 호환 */}
-                    <Route path="/FindUserId" element={<FindUserIdPage />} />
-                    <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
-                    <Route path="/ResultUserId" element={<ResultUserIdPage />} />
-                    <Route path="/FindPassword" element={<FindPasswordPage />} />
-                    <Route path="/VerifyCode" element={<VerifyCodePage />} />
-                    <Route path="/NewPassword" element={<NewPasswordPage />} />
+                        {/* ✅ 백엔드 redirectFront(..)가 사용하는 프론트 경로 호환 */}
+                        <Route path="/FindUserId" element={<FindUserIdPage />} />
+                        <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
+                        <Route path="/ResultUserId" element={<ResultUserIdPage />} />
+                        <Route path="/FindPassword" element={<FindPasswordPage />} />
+                        <Route path="/VerifyCode" element={<VerifyCodePage />} />
+                        <Route path="/NewPassword" element={<NewPasswordPage />} />
 
-                    {/* ✅ 레거시/호환 URL 유지 */}
-                    <Route path="/User/Find_Userid" element={<FindUserIdPage />} />
-                    <Route path="/User/Find_Password" element={<FindPasswordPage />} />
-                    <Route path="/User/Verify_Userid_Code" element={<VerifyUserIdCodePage />} />
-                    <Route path="/User/Result_Userid" element={<ResultUserIdPage />} />
-                    <Route path="/User/Verify_Code" element={<VerifyCodePage />} />
-                    <Route path="/User/New_Password" element={<NewPasswordPage />} />
-                    <Route path="/User/Change_Password" element={<ChangePasswordPage />} />
-                    <Route path="/User/First_Social_Login" element={<JumpToBackendSamePath />} />
+                        {/* ✅ 레거시/호환 URL 유지 */}
+                        <Route path="/User/Find_Userid" element={<FindUserIdPage />} />
+                        <Route path="/User/Find_Password" element={<FindPasswordPage />} />
+                        <Route path="/User/Verify_Userid_Code" element={<VerifyUserIdCodePage />} />
+                        <Route path="/User/Result_Userid" element={<ResultUserIdPage />} />
+                        <Route path="/User/Verify_Code" element={<VerifyCodePage />} />
+                        <Route path="/User/New_Password" element={<NewPasswordPage />} />
+                        <Route path="/User/Change_Password" element={<ChangePasswordPage />} />
+                        <Route path="/User/First_Social_Login" element={<JumpToBackendSamePath />} />
 
-                    {/* ✅ 새 Auth 페이지 */}
-                    <Route path="/auth" element={<Auth />} />
+                        {/* ✅ 새 Auth 페이지 */}
+                        <Route path="/auth" element={<Auth />} />
 
-                    {/* ✅ 새 Auth 하위 경로(로그인 폼의 링크와 일치) */}
-                    <Route path="/auth/find-id" element={<FindUserIdPage />} />
-                    <Route path="/auth/find-id/result" element={<ResultUserIdPage />} />
-                    <Route path="/auth/find-password" element={<FindPasswordPage />} />
+                        {/* ✅ 새 Auth 하위 경로(로그인 폼의 링크와 일치) */}
+                        <Route path="/auth/find-id" element={<FindUserIdPage />} />
+                        <Route path="/auth/find-id/result" element={<ResultUserIdPage />} />
+                        <Route path="/auth/find-password" element={<FindPasswordPage />} />
 
-                    {/* ✅ 홈 */}
-                    <Route path="/" element={<Index />} />
+                        {/* ✅ 홈 */}
+                        <Route path="/" element={<Index />} />
 
-                    {/* ✅ 나머지 페이지 */}
-                    <Route path="/jobs" element={<Jobs />} />
-                    <Route path="/jobs/:jobId" element={<JobDetail />} />
-                    <Route path="/talents" element={<Talents />} />
-                    <Route
-                        path="/talents/:talentId"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <TalentDetail />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route path="/companies" element={<CompanyManagement />} />
-                    <Route path="/companies/:companyId" element={<CompanyDetail />} />
-                    <Route path="/community" element={<Community />} />
-                    <Route path="/interview" element={<Interview />} />
-                    <Route path="/support" element={<Support />} />
+                        {/* ✅ 나머지 페이지 */}
+                        <Route path="/jobs" element={<Jobs />} />
+                        <Route path="/jobs/:jobId" element={<JobDetail />} />
+                        <Route path="/talents" element={<Talents />} />
+                        <Route
+                            path="/talents/:talentId"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <TalentDetail />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route path="/companies" element={<CompanyManagement />} />
+                        <Route path="/companies/:companyId" element={<CompanyDetail />} />
+                        <Route path="/community" element={<Community />} />
+                        <Route path="/interview" element={<Interview />} />
+                        <Route path="/support" element={<Support />} />
 
-                    <Route path="/payment/success" element={<PaymentSuccessPage />} />
-                    <Route path="/payment/fail" element={<PaymentFailPage />} />
-                    <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
-                    <Route path="/products" element={<Subscription />} />
+                        <Route path="/payment/success" element={<PaymentSuccessPage />} />
+                        <Route path="/payment/fail" element={<PaymentFailPage />} />
+                        <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
+                        <Route path="/products" element={<Subscription />} />
 
-                    <Route path="/subscription/success" element={<SubscriptionSuccessPage />} />
-                    <Route path="/subscription/fail" element={<PaymentFailPage />} />
+                        <Route path="/subscription/success" element={<SubscriptionSuccessPage />} />
+                        <Route path="/subscription/fail" element={<PaymentFailPage />} />
 
-                    <Route path="/resume" element={<Resume />} />
-                    <Route
-                        path="/settings"
-                        element={
-                            <PrivateRoute>
-                                <Settings />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/subscription"
-                        element={
-                            <PrivateRoute>
-                                <Subscription />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route path="/mypage" element={<MyPage />} />
-                    <Route
-                        path="/company/dashboard"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <CompanyDashboard />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/company/interviews"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <CompanyInterviews />
-                            </PrivateRoute>
-                        }
-                    />
-                    {/* 기업 채용공고: 목록/상세/등록/수정 (수정하기 링크와 브레드크럼 연동) */}
-                    <Route path="/employer/dashboard" element={<Navigate to="/company/dashboard" replace />} />
-                    <Route
-                        path="/employer/jobs"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <JobListPage />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/employer/jobs/create"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <JobCreatePage />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/employer/jobs/:jobId"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <JobDetailPage />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/employer/jobs/:jobId/edit"
-                        element={
-                            <PrivateRoute requiredRole="EMPLOYER">
-                                <JobEditPage />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/jobseeker/mypage"
-                        element={
-                            <PrivateRoute requiredRole="CANDIDATE">
-                                <JobSeekerMyPage />
-                            </PrivateRoute>
-                        }
-                    />
-                    {/* 구직자용: 받은 제안 / 입사지원 현황 */}
-                    <Route
-                        path="/proposals"
-                        element={
-                            <PrivateRoute requiredRole="CANDIDATE">
-                                <Proposals />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/applications"
-                        element={
-                            <PrivateRoute requiredRole="CANDIDATE">
-                                <Applications />
-                            </PrivateRoute>
-                        }
-                    />
-                    {/* ✅ Admin Routes (관리자 전용) */}
-                    <Route
-                        path="/admin"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminDashboard />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
-                    <Route
-                        path="/admin/members"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminMembers />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/jobs"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminJobs />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/companies"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminCompanies />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/community"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminCommunity />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/reports"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminReports />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/inquiries"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminInquiries />
-                            </PrivateRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/subscriptions"
-                        element={
-                            <PrivateRoute requiredRole="SERVICEADMIN">
-                                <AdminSubscription />
-                            </PrivateRoute>
-                        }
-                    />
+                        <Route path="/resume" element={<Resume />} />
+                        <Route
+                            path="/settings"
+                            element={
+                                <PrivateRoute>
+                                    <Settings />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/subscription"
+                            element={
+                                <PrivateRoute>
+                                    <Subscription />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route path="/mypage" element={<MyPage />} />
+                        <Route
+                            path="/company/dashboard"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <CompanyDashboard />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/company/interviews"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <CompanyInterviews />
+                                </PrivateRoute>
+                            }
+                        />
+                        {/* 기업 채용공고: 목록/상세/등록/수정 (수정하기 링크와 브레드크럼 연동) */}
+                        <Route path="/employer/dashboard" element={<Navigate to="/company/dashboard" replace />} />
+                        <Route
+                            path="/employer/jobs"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <JobListPage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/employer/jobs/create"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <JobCreatePage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/employer/jobs/:jobId"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <JobDetailPage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/employer/jobs/:jobId/edit"
+                            element={
+                                <PrivateRoute requiredRole="EMPLOYER">
+                                    <JobEditPage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/jobseeker/mypage"
+                            element={
+                                <PrivateRoute requiredRole="CANDIDATE">
+                                    <JobSeekerMyPage />
+                                </PrivateRoute>
+                            }
+                        />
+                        {/* 구직자용: 받은 제안 / 입사지원 현황 */}
+                        <Route
+                            path="/proposals"
+                            element={
+                                <PrivateRoute requiredRole="CANDIDATE">
+                                    <Proposals />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/applications"
+                            element={
+                                <PrivateRoute requiredRole="CANDIDATE">
+                                    <Applications />
+                                </PrivateRoute>
+                            }
+                        />
+                        {/* ✅ Admin Routes (관리자 전용) */}
+                        <Route
+                            path="/admin"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminDashboard />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
+                        <Route
+                            path="/admin/members"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminMembers />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/jobs"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminJobs />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/companies"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminCompanies />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/community"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminCommunity />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/reports"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminReports />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/inquiries"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminInquiries />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin/subscriptions"
+                            element={
+                                <PrivateRoute requiredRole="SERVICEADMIN">
+                                    <AdminSubscription />
+                                </PrivateRoute>
+                            }
+                        />
 
-                    <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
+                        <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
 
-                    <Route path="*" element={<NotFound />} />
-                </Routes>
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
                 </NotificationProvider>
             </BrowserRouter>
         </AuthProvider>
