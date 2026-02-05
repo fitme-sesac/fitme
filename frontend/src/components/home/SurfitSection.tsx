@@ -28,8 +28,8 @@ export function SurfitSection({ displayName, jobs = [], resumeStatus }: SurfitSe
                 ? String(job.stack).split(",").map(s => s.trim())
                 : [];
 
-        // Match Score: similarity (0~1) -> percentage (0~100)
-        let matchScore = job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate;
+        // Match Score: matchRate (refined) -> matchInfo (standard) -> similarity (fallback)
+        let matchScore = job.matchRate ?? job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate;
         if (matchScore === undefined && job.similarity !== undefined) {
             matchScore = Math.round(job.similarity * 100);
         }
@@ -45,7 +45,7 @@ export function SurfitSection({ displayName, jobs = [], resumeStatus }: SurfitSe
                 ? (job.requiredExperience > 0 ? `경력 ${job.requiredExperience}년+` : "신입/무관")
                 : "신입/경력",
             location: (job.location?.split(" ").slice(0, 2).join(" ") || job.location) || "지역 정보 없음",
-            matchScore: matchScore ?? 80,
+            matchScore: matchScore,
             skills: skills,
             competitionRate: job.applicationCount !== undefined ? `${job.applicationCount}명 지원` : undefined,
             isNew: createdAt ? (Date.now() - new Date(createdAt).getTime()) < 1000 * 60 * 60 * 24 * 3 : false,

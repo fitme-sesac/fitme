@@ -30,6 +30,8 @@ export async function getPublicJobs({
   maxExperience = null,
   position = "",
   industry = "",
+  sortBy = "recent",
+  memberId = null,
 } = {}) {
   const params = new URLSearchParams();
   params.append("page", page);
@@ -42,6 +44,15 @@ export async function getPublicJobs({
   if (position) params.append("position", position);
   if (industry) params.append("industry", industry);
 
+  // [신규] 매칭률 높은 순 선택 시 고성능 매칭 엔드포인트 호출
+  if (sortBy === "match" && memberId) {
+    params.append("memberId", memberId);
+    const response = await http.get(`/api/v1/resume/match/jobs?${params.toString()}`);
+    return response.data;
+  }
+
+  // 기본 공고 조회 엔드포인트
+  params.append("sortBy", sortBy);
   const response = await http.get(`/api/public/jobs?${params.toString()}`);
   return response.data;
 }

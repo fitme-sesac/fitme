@@ -25,23 +25,29 @@ export function JobSeekerMain() {
     const { user, profile } = useAuth();
     const displayName = profile?.display_name || user?.user_metadata?.display_name || "지원자";
 
-    // 1. Fetch AI Recommendations (for logged in users)
-    const { data: aiJobs = [], isLoading: aiLoading } = useAiRecommendations({
+    // 1. Fetch AI Recommendations (for logged in users) - Using refined matching for consistency
+    // 1. Fetch AI Recommendations (for logged in users) - Using refined matching for consistency
+    const { data: rawAiData, isLoading: aiLoading } = usePublicJobs({
         memberId: user?.id,
-        limit: 4
+        sortBy: "match",
+        size: 12, // Fetch enough candidates (like Jobs page) to find high-score matches even if vector rank is lower
+        enabled: !!user
     });
+    // Display top 4 from the sorted list
+    const aiJobs = ((rawAiData as any)?.jobs || []).slice(0, 4);
 
-    // 2. Fallback to general jobs if needed
+    // 2. Fallback to general jobs if needed - Still pass memberId for real match calculation
     const { data: rawPublicData, isLoading: publicLoading } = usePublicJobs({
+        memberId: user?.id,
         page: 0,
-        size: 20,
+        size: 4,
         enabled: !user || aiJobs.length === 0
     });
 
     const publicJobs = (rawPublicData as any)?.jobs as Job[] || [];
 
     // Final jobs for display
-    const recommendedJobs = aiJobs.length > 0 ? aiJobs : publicJobs.slice(0, 4);
+    const recommendedJobs = aiJobs.length > 0 ? aiJobs : publicJobs;
 
     // Fetch resumes to check status
     const { data: resumes = [] } = useQuery<any[]>({

@@ -98,10 +98,14 @@ export default function Jobs() {
     const [page, setPage] = useState(0);
     const [activePopup, setActivePopup] = useState<string | null>(null);
     const [locationDrillRegion, setLocationDrillRegion] = useState<string | null>(null);
+    const [sortBy, setSortBy] = useState<"recent" | "match">(
+        (user && !isCompany) ? "match" : "recent"
+    );
     const filterScrollRef = useRef<HTMLDivElement>(null);
 
     // Login Prompt Logic
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+    const [showResumePrompt, setShowResumePrompt] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -163,16 +167,16 @@ export default function Jobs() {
         const baseOptions = filterOptionsData?.positionCategories?.length > 0
             ? filterOptionsData.positionCategories
             : DEFAULT_POSITION_OPTIONS;
-        
+
         if (!positionCountsData) return baseOptions;
-        
+
         return baseOptions.filter((option: string) => {
             if (option === "전체") return true;
             const count = positionCountsData[option] || 0;
             return count > 0;
         });
     }, [filterOptionsData, positionCountsData]);
-    
+
     // 필터 옵션 (DB 데이터 우선, 없으면 기본값 사용)
     // 포지션을 가장 왼쪽에 배치
     const FILTER_OPTIONS: Record<string, string[]> = useMemo(() => ({
@@ -189,18 +193,20 @@ export default function Jobs() {
             ? filterOptionsData.industries
             : DEFAULT_INDUSTRY_OPTIONS
     }), [filterOptionsData, filteredPositionOptions]);
-    
+
     // 서버 API 호출 - 필터 파라미터 전달 (포지션 + 서비스 분야 서버사이드 필터링 적용)
     const { data: rawData, isLoading, error } = usePublicJobs({
         page,
         size: 12,
         keyword: searchParams.get("keyword") || "",
         stack: selectedSkills.length > 0 ? selectedSkills.join(",") : "",
-        location: selectedLocations.length > 0 ? selectedLocations[0] : "", // 첫 번째 지역만 서버로 전달
+        location: selectedLocations.length > 0 ? selectedLocations[0] : "",
         minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
         position: selectedPositions.length > 0 ? selectedPositions.join(",") : "",
         industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
+        sortBy: sortBy, // 정렬 기준 전달
+        memberId: user?.id, // [신규] 매칭 정보 계산을 위한 회원 ID 전달
     });
 
     const data = rawData as JobsResponse | undefined;
@@ -235,18 +241,16 @@ export default function Jobs() {
             });
         }
 
-        // 정렬: (1) 매칭율 우선 (2) 최신순
-        filteredJobs.sort((a, b) => {
-            const aRate = a.matchInfo?.overallMatchRate ?? a.matchInfo?.matchRate;
-            const bRate = b.matchInfo?.overallMatchRate ?? b.matchInfo?.matchRate;
-            if (aRate !== undefined && bRate !== undefined) {
-                const rateDiff = (bRate || 0) - (aRate || 0);
-                if (rateDiff !== 0) return rateDiff;
-            }
-            if (aRate !== undefined && bRate === undefined) return -1;
-            if (aRate === undefined && bRate !== undefined) return 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+        // 정렬: sortBy에 따라 정렬 (서버에서 대부분 처리되지만 클라이언트에서도 보정)
+        if (sortBy === "match") {
+            filteredJobs.sort((a, b) => {
+                const aRate = a.matchInfo?.overallMatchRate ?? 0;
+                const bRate = b.matchInfo?.overallMatchRate ?? 0;
+                return bRate - aRate;
+            });
+        } else {
+            filteredJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
 
         return filteredJobs;
     };
@@ -540,9 +544,26 @@ export default function Jobs() {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-4 text-xs sm:text-sm">
+                                        <button
+                                            onClick={() => {
+                                                if (!user) {
+                                                    setShowLoginPrompt(true);
+                                                    return;
+                                                }
+                                                setSortBy("match");
+                                            }}
+                                            className={`transition-colors flex items-center gap-1 ${sortBy === "match" ? "text-gray-900 font-bold" : "text-gray-400 hover:text-gray-600"}`}
+                                        >
+                                            {sortBy === "match" && <Check className="h-3 w-3 text-[#10B981]" />}
+                                            <Sparkles className={`h-3 w-3 ${sortBy === "match" ? "text-amber-400" : ""}`} /> 매칭률 높은 순 (AI 추천)
+                                        </button>
                                         <button className="text-gray-400 hover:text-gray-600 transition-colors">응답 빠른 순</button>
-                                        <button className="text-gray-900 font-bold flex items-center gap-1">
-                                            <Check className="h-3 w-3 text-[#10B981]" /> 최근 업데이트 순
+                                        <button
+                                            onClick={() => setSortBy("recent")}
+                                            className={`transition-colors flex items-center gap-1 ${sortBy === "recent" ? "text-gray-900 font-bold" : "text-gray-400 hover:text-gray-600"}`}
+                                        >
+                                            {sortBy === "recent" && <Check className="h-3 w-3 text-[#10B981]" />}
+                                            최근 업데이트 순
                                         </button>
                                     </div>
                                 </div>
@@ -603,7 +624,7 @@ export default function Jobs() {
                                             postedAt={new Date(job.createdAt).toLocaleDateString()}
                                             createdAt={job.createdAt}
                                             isAd={(job.adBidCredit ?? 0) > 0}
-                                            matchScore={job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate}
+                                            matchScore={sortBy === "match" ? (job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate) : undefined}
                                             requiredExperience={job.requiredExperience}
                                             companySummary={job.employer?.summary || job.employer?.description}
                                             employmentType="정규직"
@@ -702,6 +723,26 @@ export default function Jobs() {
                     </div>
                 </main>
                 <Footer />
+                {/* Resume Registration Prompt Dialog */}
+                <Dialog open={showResumePrompt} onOpenChange={setShowResumePrompt}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>나에게 꼭 맞는 추천을 받아보세요!</DialogTitle>
+                            <DialogDescription>
+                                대표 이력서를 등록하시면 AI가 당신의 역량을 분석하여<br />
+                                가장 잘 맞는 채용 공고를 매칭률과 함께 보여드려요.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end gap-3 mt-4">
+                            <Button variant="outline" onClick={() => setShowResumePrompt(false)}>
+                                나중에 하기
+                            </Button>
+                            <Button onClick={() => navigate("/resume")} className="bg-primary hover:bg-primary/90">
+                                이력서 등록하러 가기
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             {/* Login Prompt Dialog */}

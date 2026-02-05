@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bookmark, MapPin, Briefcase } from "lucide-react";
+import { Bookmark, MapPin, Briefcase, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "react-router-dom";
 
@@ -45,8 +45,8 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
     const brandColor = getBrandColor(job.company);
     const mainGradient = "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)";
 
-    // For guests, show a rich mock match score if not provided
-    const matchScore = job.matchScore ?? (Math.floor(Math.random() * 21) + 75); // 75% ~ 95%
+    // Match score from refined API
+    const matchScore = job.matchScore;
 
     return (
         <Card className="hover:shadow-lg transition-all duration-300 border-border group overflow-hidden h-full flex flex-col">
@@ -87,24 +87,25 @@ export function AIJobCard({ job }: { job: AIJobProps }) {
                     </div>
                 </div>
 
-                {/* Match Score - Fixed Height Container */}
-                <div className="mb-4 space-y-1.5">
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-500">AI 매칭률</span>
-                        <span
-                            className="font-black text-transparent bg-clip-text"
-                            style={{ backgroundImage: mainGradient }}
-                        >
-                            {matchScore}%
-                        </span>
-                    </div>
+                {/* Standardized Match Score UI */}
+                <div className="mb-4">
+                    {matchScore !== undefined && matchScore !== null ? (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/5 border border-primary/20 shadow-sm mb-2">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                            <span className="text-xs font-black text-primary">
+                                AI 매칭률 {Math.round(matchScore)}%
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="h-[26px] mb-2" /> // Placeholder to maintain height
+                    )}
 
                     {/* Gradient Progress Bar */}
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div
-                            className="h-full rounded-full"
+                            className="h-full rounded-full transition-all duration-1000"
                             style={{
-                                width: `${matchScore}%`,
+                                width: `${matchScore ?? 0}%`,
                                 background: mainGradient
                             }}
                         />
