@@ -10,6 +10,35 @@ from app.chatbot.services.agent_core.types import ChatbotState
 from app.chatbot.utils.stack_detect import extract_stack_candidates
 
 
+# Region code(from parser) -> Jobs UI label
+_REGION_CODE_TO_UI = {
+    "SEOUL": "서울",
+    "BUSAN": "부산",
+    "DAEGU": "대구",
+    "INCHEON": "인천",
+    "GWANGJU": "광주",
+    "DAEJEON": "대전",
+    "ULSAN": "울산",
+    "SEJONG": "세종",
+    "GYEONGGI": "경기",
+    "GANGWON": "강원",
+    "CHUNGBUK": "충북",
+    "CHUNGNAM": "충남",
+    "JEONBUK": "전북",
+    "JEONNAM": "전남",
+    "GYEONGBUK": "경북",
+    "GYEONGNAM": "경남",
+    "JEJU": "제주",
+}
+
+
+def _region_code_to_ui_label(region: str) -> str:
+    if not region:
+        return ""
+    r = region.strip()
+    return _REGION_CODE_TO_UI.get(r.upper(), r)
+
+
 
 def _common_repo_kwargs(parsed: ChatbotParsedSpec, scope_ids: Optional[list[int]] = None) -> Dict[str, Any]:
     return {
@@ -82,7 +111,7 @@ def _build_jobs_filter_url(parsed: ChatbotParsedSpec, msg: str) -> tuple[str, li
     # location: prefer region (e.g. 서울) then admin area
     location = ""
     if parsed.regions_any:
-        location = parsed.regions_any[0]
+        location = _region_code_to_ui_label(parsed.regions_any[0])
     elif parsed.admin_areas_any:
         location = parsed.admin_areas_any[0]
 

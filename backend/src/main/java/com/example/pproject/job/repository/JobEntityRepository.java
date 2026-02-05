@@ -87,6 +87,11 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
   @Query(value = """
       SELECT j.* FROM job_posting j
       LEFT JOIN employer e ON e.employer_id = j.employer_id
+      LEFT JOIN LATERAL (
+          SELECT
+              (SELECT MIN((m[1])::int) FROM regexp_matches(replace(coalesce(j.salary_text, ''), ',', ''), '([0-9]{3,5})', 'g') AS m) AS sal_min,
+              (SELECT MAX((m[1])::int) FROM regexp_matches(replace(coalesce(j.salary_text, ''), ',', ''), '([0-9]{3,5})', 'g') AS m) AS sal_max
+      ) sal ON TRUE
       WHERE j.status = 'OPEN'
         AND j.deleted_at IS NULL
         AND (:keyword IS NULL OR :keyword = '' OR
@@ -99,6 +104,8 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
              LOWER(j.location) LIKE LOWER('%' || :location || '%'))
         AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+        AND (:salaryMin IS NULL OR (sal.sal_max IS NOT NULL AND sal.sal_max >= :salaryMin))
+        AND (:salaryMax IS NULL OR (sal.sal_min IS NOT NULL AND sal.sal_min <= :salaryMax))
         AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
              EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
         AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
@@ -107,6 +114,11 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       """, countQuery = """
       SELECT COUNT(*) FROM job_posting j
       LEFT JOIN employer e ON e.employer_id = j.employer_id
+      LEFT JOIN LATERAL (
+          SELECT
+              (SELECT MIN((m[1])::int) FROM regexp_matches(replace(coalesce(j.salary_text, ''), ',', ''), '([0-9]{3,5})', 'g') AS m) AS sal_min,
+              (SELECT MAX((m[1])::int) FROM regexp_matches(replace(coalesce(j.salary_text, ''), ',', ''), '([0-9]{3,5})', 'g') AS m) AS sal_max
+      ) sal ON TRUE
       WHERE j.status = 'OPEN'
         AND j.deleted_at IS NULL
         AND (:keyword IS NULL OR :keyword = '' OR
@@ -119,6 +131,8 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
              LOWER(j.location) LIKE LOWER('%' || :location || '%'))
         AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+        AND (:salaryMin IS NULL OR (sal.sal_max IS NOT NULL AND sal.sal_max >= :salaryMin))
+        AND (:salaryMax IS NULL OR (sal.sal_min IS NOT NULL AND sal.sal_min <= :salaryMax))
         AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
              EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
         AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
@@ -132,12 +146,19 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       @Param("maxExperience") Integer maxExperience,
       @Param("positionKeywords") String positionKeywords,
       @Param("industryKeywords") String industryKeywords,
+      @Param("salaryMin") Integer salaryMin,
+      @Param("salaryMax") Integer salaryMax,
       Pageable pageable);
 
   // 다중 필터 지원 공개 채용공고 카운트 - 포지션별 카운트용
   @Query(value = """
       SELECT COUNT(*) FROM job_posting j
       LEFT JOIN employer e ON e.employer_id = j.employer_id
+      LEFT JOIN LATERAL (
+          SELECT
+              (SELECT MIN((m[1])::int) FROM regexp_matches(replace(coalesce(j.salary_text, ''), ',', ''), '([0-9]{3,5})', 'g') AS m) AS sal_min,
+              (SELECT MAX((m[1])::int) FROM regexp_matches(replace(coalesce(j.salary_text, ''), ',', ''), '([0-9]{3,5})', 'g') AS m) AS sal_max
+      ) sal ON TRUE
       WHERE j.status = 'OPEN'
         AND j.deleted_at IS NULL
         AND (:keyword IS NULL OR :keyword = '' OR
@@ -150,6 +171,8 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
              LOWER(j.location) LIKE LOWER('%' || :location || '%'))
         AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
         AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+        AND (:salaryMin IS NULL OR (sal.sal_max IS NOT NULL AND sal.sal_max >= :salaryMin))
+        AND (:salaryMax IS NULL OR (sal.sal_min IS NOT NULL AND sal.sal_min <= :salaryMax))
         AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
              EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
         AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
@@ -162,7 +185,9 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
       @Param("minExperience") Integer minExperience,
       @Param("maxExperience") Integer maxExperience,
       @Param("positionKeywords") String positionKeywords,
-      @Param("industryKeywords") String industryKeywords);
+      @Param("industryKeywords") String industryKeywords,
+      @Param("salaryMin") Integer salaryMin,
+      @Param("salaryMax") Integer salaryMax);
 
   // ===== 필터 옵션 조회 =====
 
