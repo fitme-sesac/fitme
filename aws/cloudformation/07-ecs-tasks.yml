@@ -131,6 +131,33 @@ Resources:
             - Name: NAVER_CLIENT_SECRET
               ValueFrom:
                 Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:NAVER_CLIENT_SECRET::"
+            - Name: OTP_PEPPER
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/app:OTP_PEPPER::"
+            - Name: VERIFY_PEPPER
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/app:VERIFY_PEPPER::"
+            - Name: MAIL_USERNAME
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/email:MAIL_USERNAME::"
+            - Name: MAIL_PASSWORD
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/email:MAIL_PASSWORD::"
+            - Name: TOSS_SECRET_KEY
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:TOSS_SECRET_KEY::"
+            - Name: TOSS_CLIENT_KEY
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:TOSS_CLIENT_KEY::"
+            - Name: SOLAPI_API_KEY
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:SOLAPI_API_KEY::"
+            - Name: SOLAPI_API_SECRET
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:SOLAPI_API_SECRET::"
+            - Name: SOLAPI_SENDER
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:SOLAPI_SENDER::"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -145,7 +172,7 @@ Resources:
             Interval: 30
             Timeout: 10
             Retries: 3
-            StartPeriod: 600
+            StartPeriod: 300
 
   #============================================================================
   # AI Worker Task Definition
