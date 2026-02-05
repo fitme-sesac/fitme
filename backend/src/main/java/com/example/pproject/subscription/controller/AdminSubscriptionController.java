@@ -39,6 +39,14 @@ public class AdminSubscriptionController {
     }
 
     /**
+     * 활성 구독(기업) 수 조회
+     */
+    @GetMapping("/count/active")
+    public ResponseEntity<Long> countActiveSubscriptions() {
+        return ResponseEntity.ok(subscriptionService.countActiveSubscriptions());
+    }
+
+    /**
      * 구독 상태 강제 변경
      */
     @PutMapping("/{subscriptionId}/status")

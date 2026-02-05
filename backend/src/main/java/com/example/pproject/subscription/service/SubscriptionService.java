@@ -321,6 +321,14 @@ public class SubscriptionService {
                 subscription.validateBillableState();
         }
 
+        /**
+         * [관리자] 활성 구독(기업) 수 조회
+         */
+        public long countActiveSubscriptions() {
+                return subscriptionRepository.countActiveSubscriptions(SubscriptionStatus.ACTIVE,
+                                java.time.Instant.now());
+        }
+
         // =============================================================================================
         // [Private Helper Methods]
         // =============================================================================================

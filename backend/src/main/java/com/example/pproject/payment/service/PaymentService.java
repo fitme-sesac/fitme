@@ -297,6 +297,26 @@ public class PaymentService {
         return transactionTemplate.execute(status -> completeConfirm(orderUid, userId, tossResponse));
     }
 
+    /**
+     * 12. [관리자] 총 수익 조회 (순수익 = 결제 - 환불)
+     */
+    @Transactional(readOnly = true)
+    public Long getTotalRevenue() {
+        Long totalPayments = paymentRepository.sumTotalRevenue();
+        Long totalCancels = paymentCancelRepository.sumTotalCancels();
+        return totalPayments - totalCancels;
+    }
+
+    /**
+     * 13. [관리자] 구매자 유형별 총 수익 조회 (순수익 = 결제 - 환불)
+     */
+    @Transactional(readOnly = true)
+    public Long getTotalRevenueByBuyerType(BuyerType buyerType) {
+        Long totalPayments = paymentRepository.sumTotalRevenueByBuyerType(buyerType);
+        Long totalCancels = paymentCancelRepository.sumTotalCancelsByBuyerType(buyerType);
+        return totalPayments - totalCancels;
+    }
+
     // =================================================================================
     // Private Helper Methods
     // =================================================================================
