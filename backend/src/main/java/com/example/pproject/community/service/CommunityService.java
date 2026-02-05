@@ -3,6 +3,7 @@ package com.example.pproject.community.service;
 import com.example.pproject.community.dto.*;
 import com.example.pproject.community.entity.*;
 import com.example.pproject.community.repository.*;
+import com.example.pproject.notification.service.NotificationService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -27,6 +29,7 @@ public class CommunityService {
     private final CommunityCommentRepository commentRepository;
     private final CommunityLikeRepository likeRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     // ============================================
     // 게시글 관련
@@ -93,9 +96,12 @@ public class CommunityService {
             throw new IllegalStateException("수정 권한이 없습니다.");
         }
 
-        if (request.getTitle() != null) post.setTitle(request.getTitle());
-        if (request.getContent() != null) post.setContent(request.getContent());
-        if (request.getCategory() != null) post.setCategory(request.getCategory());
+        if (request.getTitle() != null)
+            post.setTitle(request.getTitle());
+        if (request.getContent() != null)
+            post.setContent(request.getContent());
+        if (request.getCategory() != null)
+            post.setCategory(request.getCategory());
 
         postRepository.save(post);
         log.info("게시글 수정: {}", post.getTitle());
@@ -155,6 +161,26 @@ public class CommunityService {
         // 댓글 수 증가
         post.setCommentCount(post.getCommentCount() + 1);
         postRepository.save(post);
+
+        // 게시글 작성자에게 댓글 알림 발송 (본인 글에 본인이 댓글 달면 제외)
+        Long postAuthorId = post.getAuthor().getId();
+        if (!postAuthorId.equals(memberId)) {
+            try {
+                notificationService.sendNotification(
+                        postAuthorId,
+                        "COMMUNITY_COMMENT",
+                        Map.of(
+                                "postId", postId,
+                                "postTitle", post.getTitle() != null ? post.getTitle() : "게시글",
+                                "commenterName", author.getUsername() != null ? author.getUsername() : "익명",
+                                "commentPreview", request.getContent().length() > 30
+                                        ? request.getContent().substring(0, 30) + "..."
+                                        : request.getContent()));
+                log.info("댓글 알림 발송: postAuthor={}, commenter={}", postAuthorId, memberId);
+            } catch (Exception e) {
+                log.warn("댓글 알림 발송 실패: {}", e.getMessage());
+            }
+        }
 
         log.info("댓글 생성: postId={}, by {}", postId, author.getUsername());
 

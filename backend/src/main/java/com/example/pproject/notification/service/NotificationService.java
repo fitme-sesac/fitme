@@ -57,9 +57,9 @@ public class NotificationService {
      */
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getNotifications(Long memberId, Pageable pageable) {
-        log.debug("[알림] 회원 {} 알림 목록 조회, page: {}, size: {}", 
+        log.debug("[알림] 회원 {} 알림 목록 조회, page: {}, size: {}",
                 memberId, pageable.getPageNumber(), pageable.getPageSize());
-        
+
         return deliveryRepository.findByMemberId(memberId, pageable)
                 .map(NotificationDTO::from);
     }
@@ -68,13 +68,13 @@ public class NotificationService {
      * 최근 알림 조회 (드롭다운용)
      * 
      * @param memberId 회원 ID
-     * @param limit 조회 개수
+     * @param limit    조회 개수
      * @return 최근 알림 목록
      */
     @Transactional(readOnly = true)
     public List<NotificationDTO> getRecentNotifications(Long memberId, int limit) {
         log.debug("[알림] 회원 {} 최근 알림 조회, limit: {}", memberId, limit);
-        
+
         return deliveryRepository.findRecentByMemberId(memberId, PageRequest.of(0, limit))
                 .stream()
                 .map(NotificationDTO::from)
@@ -98,21 +98,21 @@ public class NotificationService {
      * 알림 생성 (Outbox 패턴에서 호출)
      * 
      * ERD 매핑:
-     * - member_id    <- request.memberId (FK -> member.member_id)
-     * - template_id  <- 템플릿 코드로 조회 (FK -> notification_template.template_id)
-     * - event_type   <- request.eventType
-     * - channel      <- request.channel
-     * - payload      <- request.payload (JSONB)
-     * - link_url     <- request.linkUrl
-     * - status       <- 'PENDING' (DEFAULT)
-     * - created_at   <- now() (DEFAULT)
+     * - member_id <- request.memberId (FK -> member.member_id)
+     * - template_id <- 템플릿 코드로 조회 (FK -> notification_template.template_id)
+     * - event_type <- request.eventType
+     * - channel <- request.channel
+     * - payload <- request.payload (JSONB)
+     * - link_url <- request.linkUrl
+     * - status <- 'PENDING' (DEFAULT)
+     * - created_at <- now() (DEFAULT)
      * 
      * @param request 알림 생성 요청
      * @return 생성된 알림 DTO
      */
     @Transactional
     public NotificationDTO createNotification(NotificationCreateRequest request) {
-        log.info("[알림] 알림 생성 - memberId: {}, eventType: {}, channel: {}", 
+        log.info("[알림] 알림 생성 - memberId: {}, eventType: {}, channel: {}",
                 request.getMemberId(), request.getEventType(), request.getChannel());
 
         // 회원 조회 (member_id FK 검증)
@@ -148,15 +148,15 @@ public class NotificationService {
     /**
      * 간편 알림 생성 (PUSH 채널 기본)
      *
-     * @param memberId 회원 ID
+     * @param memberId  회원 ID
      * @param eventType 이벤트 타입
-     * @param payload 페이로드 JSON
-     * @param linkUrl 링크 URL
+     * @param payload   페이로드 JSON
+     * @param linkUrl   링크 URL
      * @return 생성된 알림 DTO
      */
     @Transactional
     public NotificationDTO createPushNotification(Long memberId, String eventType,
-                                                   String payload, String linkUrl) {
+            String payload, String linkUrl) {
         NotificationCreateRequest request = NotificationCreateRequest.builder()
                 .memberId(memberId)
                 .eventType(eventType)
@@ -171,9 +171,9 @@ public class NotificationService {
     /**
      * Map 기반 알림 발송 (제안/지원 등에서 사용)
      *
-     * @param memberId 회원 ID
+     * @param memberId  회원 ID
      * @param eventType 이벤트 타입 (PROPOSAL_RECEIVED, PROPOSAL_ACCEPTED 등)
-     * @param data 알림 데이터 (JSON 변환됨)
+     * @param data      알림 데이터 (JSON 변환됨)
      */
     @Transactional
     public void sendNotification(Long memberId, String eventType, Map<String, Object> data) {
@@ -207,6 +207,18 @@ public class NotificationService {
                 }
             }
             case "APPLICATION_STATUS_CHANGED" -> "/jobseeker/mypage";
+            // 커뮤니티 알림
+            case "COMMUNITY_COMMENT" -> {
+                Object postId = data.get("postId");
+                yield postId != null ? "/community/posts/" + postId : "/community";
+            }
+            // 구직자 알림
+            case "RESUME_VIEWED" -> "/jobseeker/resume";
+            case "APPLICATION_DEADLINE" -> "/jobs";
+            // 기업 알림
+            case "SUBSCRIPTION_RENEWED", "SUBSCRIPTION_EXPIRING" -> "/company/subscription";
+            case "CREDIT_LOW", "CREDIT_CHARGED" -> "/company/credits";
+            case "JOB_SCRAP_ALERT" -> "/company/scraps";
             default -> "/";
         };
     }
@@ -217,15 +229,15 @@ public class NotificationService {
      * 특정 알림 읽음 처리
      * 
      * @param notificationId 알림 ID (delivery_id)
-     * @param memberId 회원 ID (소유권 확인)
+     * @param memberId       회원 ID (소유권 확인)
      */
     @Transactional
     public void markAsRead(Long notificationId, Long memberId) {
         log.debug("[알림] 읽음 처리 - notificationId: {}, memberId: {}", notificationId, memberId);
-        
+
         NotificationDelivery delivery = deliveryRepository.findByIdAndMemberId(notificationId, memberId)
                 .orElseThrow(() -> new IllegalArgumentException("알림을 찾을 수 없습니다: " + notificationId));
-        
+
         delivery.markAsRead();
         deliveryRepository.save(delivery);
     }
@@ -246,15 +258,15 @@ public class NotificationService {
      * 알림 삭제
      * 
      * @param notificationId 알림 ID
-     * @param memberId 회원 ID (소유권 확인)
+     * @param memberId       회원 ID (소유권 확인)
      */
     @Transactional
     public void deleteNotification(Long notificationId, Long memberId) {
         log.debug("[알림] 알림 삭제 - notificationId: {}, memberId: {}", notificationId, memberId);
-        
+
         NotificationDelivery delivery = deliveryRepository.findByIdAndMemberId(notificationId, memberId)
                 .orElseThrow(() -> new IllegalArgumentException("알림을 찾을 수 없습니다: " + notificationId));
-        
+
         deliveryRepository.delete(delivery);
     }
 
