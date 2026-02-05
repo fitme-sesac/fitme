@@ -4,10 +4,10 @@ import {
   getPublicJob,
   getFilterOptions,
   getPositionCounts,
-  scrapJob,
   unscrapJob,
   applyToJob,
 } from "@/api/jobs";
+import { getAiRecommendations } from "@/api/recommendations";
 
 /**
  * 공개 채용공고 목록 조회 hook
@@ -97,5 +97,18 @@ export function useApplyToJob() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["publicJob"] });
     },
+  });
+}
+
+/**
+ * AI 추천 채용공고 조회 hook
+ * @param {Object} params - 필터 파라미터 (memberId 필수)
+ */
+export function useAiRecommendations(params = {}) {
+  return useQuery({
+    queryKey: ["aiRecommendations", params],
+    queryFn: () => getAiRecommendations(params),
+    enabled: !!params.memberId,
+    staleTime: 1000 * 60 * 5,
   });
 }

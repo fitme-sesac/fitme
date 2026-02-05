@@ -9,7 +9,7 @@ export const getAiRecommendations = async (params = {}) => {
     // 현재 로그인한 사용자 ID를 알아야 함.
     // 프론트엔드에서 user 객체에서 id를 가져와서 넘겨야 함.
 
-    const response = await api.get('/resume/recommend', {
+    const response = await api.get('/api/v1/resume/recommend', {
         params: {
             limit,
             location,
