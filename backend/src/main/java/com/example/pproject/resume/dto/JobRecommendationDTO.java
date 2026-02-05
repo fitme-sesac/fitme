@@ -27,6 +27,7 @@ public class JobRecommendationDTO {
     private String companyLogoUrl;
     private String createdAt;
     private Integer requiredExperience;
+    private Integer matchRate;
 
     /**
      * Native Query 결과에서 DTO 생성
@@ -57,7 +58,7 @@ public class JobRecommendationDTO {
                 .build();
     }
 
-    private static Long parseSalary(Object value) {
+    public static Long parseSalary(Object value) {
         if (value == null)
             return null;
         if (value instanceof Number)

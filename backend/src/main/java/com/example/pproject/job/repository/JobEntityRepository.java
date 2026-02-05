@@ -45,7 +45,85 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
      @Query("SELECT j FROM JobEntity j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL")
      Page<JobEntity> findPublicJobs(Pageable pageable);
 
-     // 공개 채용공고 검색 (제목, 기술스택, 지역 검색) - 네이티브 쿼리 사용 (stack이 text[] 배열 타입)
+     // 다중 필터 지원 공개 채용공고 검색
+     @Query(value = """
+               SELECT j.* FROM job_posting j
+               LEFT JOIN employer e ON e.employer_id = j.employer_id
+               WHERE j.status = 'OPEN'
+                 AND j.deleted_at IS NULL
+                 AND (:keyword IS NULL OR :keyword = '' OR
+                      LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
+                      OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%'))
+                 AND (:stack IS NULL OR :stack = '' OR
+                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
+                 AND (:location IS NULL OR :location = '' OR
+                      LOWER(j.location) LIKE LOWER('%' || :location || '%'))
+                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+                      LOWER(array_to_string(j.stack, ',')) LIKE ANY(string_to_array(LOWER(:positionKeywords), ',')))
+                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(LOWER(:industryKeywords), ',')))
+               ORDER BY j.created_at DESC
+               """, countQuery = """
+               SELECT COUNT(*) FROM job_posting j
+               LEFT JOIN employer e ON e.employer_id = j.employer_id
+               WHERE j.status = 'OPEN'
+                 AND j.deleted_at IS NULL
+                 AND (:keyword IS NULL OR :keyword = '' OR
+                      LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
+                      OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%'))
+                 AND (:stack IS NULL OR :stack = '' OR
+                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
+                 AND (:location IS NULL OR :location = '' OR
+                      LOWER(j.location) LIKE LOWER('%' || :location || '%'))
+                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+                      LOWER(array_to_string(j.stack, ',')) LIKE ANY(string_to_array(LOWER(:positionKeywords), ',')))
+                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(LOWER(:industryKeywords), ',')))
+               """, nativeQuery = true)
+     Page<JobEntity> findPublicJobsWithFilters(
+               @Param("keyword") String keyword,
+               @Param("stack") String stack,
+               @Param("location") String location,
+               @Param("minExperience") Integer minExperience,
+               @Param("maxExperience") Integer maxExperience,
+               @Param("positionKeywords") String positionKeywords,
+               @Param("industryKeywords") String industryKeywords,
+               Pageable pageable);
+
+     // 다중 필터 지원 공개 채용공고 카운트
+     @Query(value = """
+               SELECT COUNT(*) FROM job_posting j
+               LEFT JOIN employer e ON e.employer_id = j.employer_id
+               WHERE j.status = 'OPEN'
+                 AND j.deleted_at IS NULL
+                 AND (:keyword IS NULL OR :keyword = '' OR
+                      LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
+                      OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%'))
+                 AND (:stack IS NULL OR :stack = '' OR
+                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
+                 AND (:location IS NULL OR :location = '' OR
+                      LOWER(j.location) LIKE LOWER('%' || :location || '%'))
+                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+                      LOWER(array_to_string(j.stack, ',')) LIKE ANY(string_to_array(LOWER(:positionKeywords), ',')))
+                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(LOWER(:industryKeywords), ',')))
+               """, nativeQuery = true)
+     long countPublicJobsWithFilters(
+               @Param("keyword") String keyword,
+               @Param("stack") String stack,
+               @Param("location") String location,
+               @Param("minExperience") Integer minExperience,
+               @Param("maxExperience") Integer maxExperience,
+               @Param("positionKeywords") String positionKeywords,
+               @Param("industryKeywords") String industryKeywords);
+
+     // 공개 채용공고 검색 (Admin용 등)
      @Query(value = """
                SELECT * FROM job_posting j
                WHERE j.status = 'OPEN'
@@ -64,178 +142,30 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
                """, nativeQuery = true)
      Page<JobEntity> searchPublicJobs(@Param("keyword") String keyword, Pageable pageable);
 
-     // 스택/기술별 공개 채용공고 - 네이티브 쿼리 사용 (stack이 text[] 배열 타입)
-     @Query(value = """
-               SELECT * FROM job_posting j
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%'))
-               ORDER BY j.created_at DESC
-               """, countQuery = """
-               SELECT COUNT(*) FROM job_posting j
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%'))
-               """, nativeQuery = true)
-     Page<JobEntity> findPublicJobsByStack(@Param("stack") String stack, Pageable pageable);
-
-     // 지역별 공개 채용공고
-     @Query("SELECT j FROM JobEntity j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL AND LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))")
-     Page<JobEntity> findPublicJobsByLocation(@Param("location") String location, Pageable pageable);
-
-     // 다중 필터 지원 공개 채용공고 검색 - 네이티브 쿼리 사용 (포지션 키워드 + industry 필터 포함)
-     @Query(value = """
-               SELECT j.* FROM job_posting j
-               LEFT JOIN employer e ON e.employer_id = j.employer_id
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND (:keyword IS NULL OR :keyword = '' OR
-                      LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
-                      OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%')
-                      OR LOWER(j.location) LIKE LOWER('%' || :keyword || '%'))
-                 AND (:stack IS NULL OR :stack = '' OR
-                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
-                 AND (:location IS NULL OR :location = '' OR
-                      LOWER(j.location) LIKE LOWER('%' || :location || '%'))
-                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
-                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
-                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
-                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
-                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
-                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(:industryKeywords, ',')))
-               ORDER BY j.created_at DESC
-               """, countQuery = """
-               SELECT COUNT(*) FROM job_posting j
-               LEFT JOIN employer e ON e.employer_id = j.employer_id
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND (:keyword IS NULL OR :keyword = '' OR
-                      LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
-                      OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%')
-                      OR LOWER(j.location) LIKE LOWER('%' || :keyword || '%'))
-                 AND (:stack IS NULL OR :stack = '' OR
-                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
-                 AND (:location IS NULL OR :location = '' OR
-                      LOWER(j.location) LIKE LOWER('%' || :location || '%'))
-                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
-                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
-                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
-                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
-                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
-                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(:industryKeywords, ',')))
-               """, nativeQuery = true)
-     Page<JobEntity> findPublicJobsWithFilters(
-               @Param("keyword") String keyword,
-               @Param("stack") String stack,
-               @Param("location") String location,
-               @Param("minExperience") Integer minExperience,
-               @Param("maxExperience") Integer maxExperience,
-               @Param("positionKeywords") String positionKeywords,
-               @Param("industryKeywords") String industryKeywords,
-               Pageable pageable);
-
-     // 다중 필터 지원 공개 채용공고 카운트 - 포지션별 카운트용
-     @Query(value = """
-               SELECT COUNT(*) FROM job_posting j
-               LEFT JOIN employer e ON e.employer_id = j.employer_id
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND (:keyword IS NULL OR :keyword = '' OR
-                      LOWER(j.title) LIKE LOWER('%' || :keyword || '%')
-                      OR LOWER(array_to_string(j.stack, ',')) LIKE LOWER('%' || :keyword || '%')
-                      OR LOWER(j.location) LIKE LOWER('%' || :keyword || '%'))
-                 AND (:stack IS NULL OR :stack = '' OR
-                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE LOWER('%' || :stack || '%')))
-                 AND (:location IS NULL OR :location = '' OR
-                      LOWER(j.location) LIKE LOWER('%' || :location || '%'))
-                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
-                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
-                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
-                      EXISTS (SELECT 1 FROM unnest(j.stack) AS s WHERE LOWER(s) LIKE ANY(string_to_array(:positionKeywords, ','))))
-                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
-                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(:industryKeywords, ',')))
-               """, nativeQuery = true)
-     long countPublicJobsWithFilters(
-               @Param("keyword") String keyword,
-               @Param("stack") String stack,
-               @Param("location") String location,
-               @Param("minExperience") Integer minExperience,
-               @Param("maxExperience") Integer maxExperience,
-               @Param("positionKeywords") String positionKeywords,
-               @Param("industryKeywords") String industryKeywords);
-
-     // ===== 필터 옵션 조회 =====
-
-     // 공개 채용공고에서 사용된 모든 스택 목록 조회 (중복 제거)
-     @Query(value = """
-               SELECT DISTINCT unnest(j.stack) AS stack_item
-               FROM job_posting j
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND j.stack IS NOT NULL
-               ORDER BY stack_item
-               """, nativeQuery = true)
-     List<String> findDistinctStacks();
-
-     // 공개 채용공고에서 사용된 모든 지역 목록 조회 (시/도 단위로 파싱, 중복 제거)
-     @Query(value = """
-               SELECT DISTINCT
-                 CASE
-                   WHEN position(' ' in j.location) > 0 THEN split_part(j.location, ' ', 1)
-                   ELSE j.location
-                 END AS region
-               FROM job_posting j
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND j.location IS NOT NULL
-                 AND j.location != ''
-               ORDER BY region
-               """, nativeQuery = true)
-     List<String> findDistinctLocations();
-
-     // 공개 채용공고의 모든 스택 배열 조회 (포지션 도출용)
-     @Query(value = """
-               SELECT array_to_string(j.stack, ',') AS stack_str
-               FROM job_posting j
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND j.stack IS NOT NULL
-                 AND array_length(j.stack, 1) > 0
-               """, nativeQuery = true)
-     List<String> findAllStacksAsStrings();
-
-     // 공개 채용공고의 기업 업종 목록 조회 (서비스 분야 필터용)
-     @Query(value = """
-               SELECT DISTINCT e.industry
-               FROM job_posting j
-               JOIN employer e ON e.employer_id = j.employer_id
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND e.deleted_at IS NULL
-                 AND e.industry IS NOT NULL
-                 AND e.industry != ''
-               ORDER BY e.industry
-               """, nativeQuery = true)
-     List<String> findDistinctIndustries();
-
-     // 공개 채용공고 단일 조회 (조회수 증가용)
-     @Query("SELECT j FROM JobEntity j WHERE j.id = :id AND j.status = 'OPEN' AND j.deletedAt IS NULL")
-     Optional<JobEntity> findPublicJobById(@Param("id") Long id);
-
-     // 조회수 증가 (embedding 필드 제외하여 pgvector null 바인딩 문제 방지)
-     @Modifying
-     @Query("UPDATE JobEntity j SET j.viewCount = j.viewCount + 1, j.updatedAt = CURRENT_TIMESTAMP WHERE j.id = :id")
-     void incrementViewCount(@Param("id") Long id);
-
-     // ===== 이력서 기반 채용공고 추천 (순수 유사도) =====
+     // ===== [V3: 최적화된 매칭 엔진 (Recall CTE 패턴)] =====
 
      /**
-      * [이력서 기반 채용공고 추천 - Native Query]
-      * - 사용자 이력서 embedding과 채용공고 embedding 간의 유사도 계산
-      * - 순수 유사도 순으로 정렬 (광고/입찰가 무관)
-      * - 선택적 지역/스택 필터링
+      * [홈 화면 전용: AI 추천 고속 검색]
+      * - 성능 최적화(Recall CTE): HNSW 인덱스를 활용해 상위 후보군(200개)을 먼저 초고속으로 추출
       */
      @Query(value = """
+               WITH user_vec AS (
+                   SELECT CAST(:userEmbedding AS vector) as u_vec
+               ),
+               recall AS (
+                   -- 1단계: HNSW Index Scan으로 상위 200개 후보 추출
+                   SELECT
+                       j.job_id,
+                       1 - (j.embedding <=> uv.u_vec) AS similarity
+                   FROM job_posting j
+                   CROSS JOIN user_vec uv
+                   WHERE j.status = 'OPEN'
+                     AND j.deleted_at IS NULL
+                     AND j.embedding IS NOT NULL
+                   ORDER BY j.embedding <=> uv.u_vec
+                   LIMIT 200
+               )
+               -- 2단계: 추출된 후보의 상세 정보 조회 (추천 순 정렬)
                SELECT
                    j.job_id,
                    j.employer_id,
@@ -245,20 +175,18 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
                    j.salary_text,
                    j.summary,
                    j.status,
-                   1 - (j.embedding <=> CAST(:userEmbedding AS vector)) AS similarity,
+                   r.similarity,
                    e.name AS company_name,
                    e.logo_url AS company_logo_url,
                    j.created_at,
                    j.required_experience
-               FROM job_posting j
+               FROM recall r
+               JOIN job_posting j ON j.job_id = r.job_id
                LEFT JOIN employer e ON e.employer_id = j.employer_id
-               WHERE j.status = 'OPEN'
-                 AND j.deleted_at IS NULL
-                 AND j.embedding IS NOT NULL
-                 AND (1 - (j.embedding <=> CAST(:userEmbedding AS vector))) >= :minSimilarity
+               WHERE r.similarity >= :minSimilarity
                  AND (:location IS NULL OR j.location LIKE '%' || :location || '%')
                  AND (:skills IS NULL OR array_to_string(j.stack, ',') LIKE '%' || :skills || '%')
-               ORDER BY similarity DESC
+               ORDER BY r.similarity DESC
                LIMIT :limit
                """, nativeQuery = true)
      List<Object[]> findJobsBySimilarity(
@@ -267,4 +195,112 @@ public interface JobEntityRepository extends JpaRepository<JobEntity, Long> {
                @Param("location") String location,
                @Param("skills") String skills,
                @Param("limit") int limit);
+
+     /**
+      * [채용공고 페이지: 검색/필터 + 매칭률 정렬 통합 쿼리]
+      * - 다중 필터(키워드, 지역, 경력 등)를 적용하면서 매칭률 순으로 정렬
+      * - 성능 최적화: Recall CTE 패턴으로 상위 후보군을 먼저 확보한 후 필터링 수행
+      */
+     @Query(value = """
+               WITH user_vec AS (
+                   SELECT CAST(:userEmbedding AS vector) as u_vec
+               ),
+               recall AS (
+                   -- [고성능 검색 포인트 1] 전체 공고 중 나에게 맞는 후보군 1000개 추출
+                   -- ORDER BY (embedding <=> uv.u_vec)는 HNSW 인덱스를 순차적으로 태울 수 있어
+                   -- 대량 데이터에서도 매우 빠르게 유사한 것부터 뽑아낼 수 있습니다. (Recall 기법)
+                   SELECT
+                       j.job_id,
+                       1 - (j.embedding <=> uv.u_vec) AS similarity
+                   FROM job_posting j
+                   CROSS JOIN user_vec uv
+                   WHERE j.status = 'OPEN'
+                     AND j.deleted_at IS NULL
+                     AND j.embedding IS NOT NULL
+                   ORDER BY j.embedding <=> uv.u_vec
+                   LIMIT 1000
+               )
+               -- 후보군 내에서 실시간 검색/필터 적용
+               SELECT j.*
+               FROM recall r
+               JOIN job_posting j ON j.job_id = r.job_id
+               LEFT JOIN employer e ON e.employer_id = j.employer_id
+               WHERE r.similarity >= :minSimilarity
+                 AND (:keyword IS NULL OR j.title LIKE '%' || :keyword || '%' OR j.summary LIKE '%' || :keyword || '%')
+                 AND (:stack IS NULL OR array_to_string(j.stack, ',') LIKE '%' || :stack || '%')
+                 AND (:location IS NULL OR j.location LIKE '%' || :location || '%')
+                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+                      LOWER(array_to_string(j.stack, ',')) LIKE ANY(string_to_array(LOWER(:positionKeywords), ',')))
+                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(LOWER(:industryKeywords), ',')))
+               ORDER BY r.similarity DESC
+               """, countQuery = """
+               WITH user_vec AS (
+                   SELECT CAST(:userEmbedding AS vector) as u_vec
+               ),
+               recall AS (
+                   SELECT
+                       j.job_id,
+                       1 - (j.embedding <=> uv.u_vec) AS similarity
+                   FROM job_posting j
+                   CROSS JOIN user_vec uv
+                   WHERE j.status = 'OPEN'
+                     AND j.deleted_at IS NULL
+                     AND j.embedding IS NOT NULL
+                   ORDER BY j.embedding <=> uv.u_vec
+                   LIMIT 1000
+               )
+               SELECT COUNT(j.job_id)
+               FROM recall r
+               JOIN job_posting j ON j.job_id = r.job_id
+               LEFT JOIN employer e ON e.employer_id = j.employer_id
+               WHERE r.similarity >= :minSimilarity
+                 AND (:keyword IS NULL OR j.title LIKE '%' || :keyword || '%' OR j.summary LIKE '%' || :keyword || '%')
+                 AND (:stack IS NULL OR array_to_string(j.stack, ',') LIKE '%' || :stack || '%')
+                 AND (:location IS NULL OR j.location LIKE '%' || :location || '%')
+                 AND (:minExperience IS NULL OR j.required_experience >= :minExperience)
+                 AND (:maxExperience IS NULL OR j.required_experience <= :maxExperience)
+                 AND (:positionKeywords IS NULL OR :positionKeywords = '' OR
+                      LOWER(array_to_string(j.stack, ',')) LIKE ANY(string_to_array(LOWER(:positionKeywords), ',')))
+                 AND (:industryKeywords IS NULL OR :industryKeywords = '' OR
+                      LOWER(COALESCE(e.industry, '')) LIKE ANY(string_to_array(LOWER(:industryKeywords), ',')))
+               """, nativeQuery = true)
+     Page<JobEntity> findPublicJobsWithSimilarity(
+               @Param("userEmbedding") String userEmbedding,
+               @Param("minSimilarity") double minSimilarity,
+               @Param("keyword") String keyword,
+               @Param("stack") String stack,
+               @Param("location") String location,
+               @Param("minExperience") Integer minExperience,
+               @Param("maxExperience") Integer maxExperience,
+               @Param("positionKeywords") String positionKeywords,
+               @Param("industryKeywords") String industryKeywords,
+               Pageable pageable);
+
+     // ===== 필터 옵션 조회 =====
+
+     @Query(value = "SELECT DISTINCT unnest(j.stack) FROM job_posting j WHERE j.status = 'OPEN' AND j.deleted_at IS NULL", nativeQuery = true)
+     List<String> findDistinctStacks();
+
+     @Query(value = """
+               SELECT DISTINCT
+                 CASE WHEN position(' ' in j.location) > 0 THEN split_part(j.location, ' ', 1) ELSE j.location END
+               FROM job_posting j WHERE j.status = 'OPEN' AND j.deleted_at IS NULL
+               """, nativeQuery = true)
+     List<String> findDistinctLocations();
+
+     @Query(value = "SELECT DISTINCT e.industry FROM job_posting j JOIN employer e ON e.employer_id = j.employer_id WHERE j.status = 'OPEN'", nativeQuery = true)
+     List<String> findDistinctIndustries();
+
+     @Modifying
+     @Query("UPDATE JobEntity j SET j.viewCount = j.viewCount + 1, j.updatedAt = CURRENT_TIMESTAMP WHERE j.id = :id")
+     void incrementViewCount(@Param("id") Long id);
+
+     @Query("SELECT j FROM JobEntity j WHERE j.id = :id AND j.status = 'OPEN' AND j.deletedAt IS NULL")
+     Optional<JobEntity> findPublicJobById(@Param("id") Long id);
+
+     @Query(value = "SELECT array_to_string(j.stack, ',') FROM job_posting j WHERE j.status = 'OPEN' AND j.deleted_at IS NULL AND j.stack IS NOT NULL", nativeQuery = true)
+     List<String> findAllStacksAsStrings();
 }

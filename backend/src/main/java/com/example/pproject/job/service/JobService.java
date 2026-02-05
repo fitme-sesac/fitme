@@ -15,7 +15,6 @@ import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.resume.service.ResumeSkillService;
 import com.example.pproject.user.entity.UserEntity;
 import com.example.pproject.user.repository.UserRepository;
-import com.example.pproject.common.constants.JobPositionConstants;
 import com.example.pproject.common.util.ArrayStringUtil;
 import com.example.pproject.common.util.IndustryUtil;
 import com.example.pproject.common.util.JobPositionUtil;
@@ -695,7 +694,7 @@ public class JobService {
     /**
      * 공개 채용공고 DTO 변환 (기업 정보 포함)
      */
-    private JobDTO toPublicJobDTO(JobEntity job) {
+    public JobDTO toPublicJobDTO(JobEntity job) {
         // 기업 정보 조회
         EmployerEntity employer = employerRepository.findById(job.getEmployerId())
                 .orElse(null);
@@ -813,7 +812,7 @@ public class JobService {
      * 급여 정보 표시용 포맷
      * salaryText가 String으로 변경되어 그대로 반환
      */
-    private String formatSalary(String salaryText) {
+    public String formatSalary(String salaryText) {
         if (salaryText == null || salaryText.isBlank()) {
             return null;
         }
@@ -927,37 +926,20 @@ public class JobService {
                 candidateSkills = Collections.emptySet();
             }
 
-            if (candidateSkills.isEmpty()) {
-                log.debug("[상세] 지원자에게 등록된 기술 스택이 없습니다 (memberId: {})", memberId);
-                // 경력 매칭만 수행
-                if (jobEntity != null && jobEntity.getRequiredExperience() != null
-                        && jobEntity.getRequiredExperience() > 0) {
-                    JobMatchInfoDTO matchInfo = calculateMatchInfoWithProficiency(
-                            job.getStack(),
-                            candidateSkills,
-                            Collections.emptyMap(),
-                            jobEntity,
-                            memberId,
-                            false);
-                    job.setMatchInfo(matchInfo);
-                }
-                return job;
-            }
-
             log.debug("[상세] 공고 기술 스택 (jobId: {}): {}", jobId, job.getStack());
 
             // 숙련도 맵 조회
             Map<String, Integer> proficiencyMap = resumeSkillService.getSkillProficiencyMap(memberId);
             log.debug("[상세] 지원자 숙련도 맵: {}", proficiencyMap);
 
-            // 매칭 정보 계산 (숙련도 기반 + 경력 매칭, 벡터 매칭은 비활성화)
+            // 매칭 정보 계산 (숙련도 기반 + 경력 매칭, 벡터 매칭 포함)
             JobMatchInfoDTO matchInfo = calculateMatchInfoWithProficiency(
                     job.getStack(),
                     candidateSkills,
                     proficiencyMap,
-                    jobEntity, // 경력 매칭용
+                    jobEntity, // 경력 및 벡터 매칭용
                     memberId,
-                    false);
+                    true, null, null);
             job.setMatchInfo(matchInfo);
             log.debug("[상세] 매칭 결과 - 매칭률: {}%, 스택매칭: {}%, 경력매칭: {}%",
                     matchInfo.getOverallMatchRate(), matchInfo.getStackMatchRate(), matchInfo.getExperienceMatchRate());
@@ -1084,7 +1066,7 @@ public class JobService {
         if (includeVectorMatch && vectorMatchRate > 0) {
             overallMatchRate = (int) Math.round(stackMatchRate * 0.4 + vectorMatchRate * 0.6);
         } else {
-            // 벡터 매칭이 없으면 기술 스택만 사용
+            // 원본 로직: 벡터 매칭이 없으면 기술 스택 100%
             overallMatchRate = stackMatchRate;
         }
 
@@ -1109,14 +1091,14 @@ public class JobService {
     }
 
     /**
-     * 숙련도 기반 채용공고-지원자 매칭 정보 계산 (상세 분석용)
-     * - 각 기술별 매칭 상세 정보 포함
-     * - 숙련도(중복 사용 빈도)에 따른 가중치 적용
+     * [AI 매칭 핵심 로직] 숙련도 및 경력을 기반으로 채용공고-지원자 매칭 정보를 계산합니다.
      */
-    private JobMatchInfoDTO calculateMatchInfoWithProficiency(String jobStack, Set<String> candidateSkills,
+    public JobMatchInfoDTO calculateMatchInfoWithProficiency(String jobStack, Set<String> candidateSkills,
             Map<String, Integer> proficiencyMap,
             JobEntity jobEntity, Long memberId,
-            boolean includeVectorMatch) {
+            boolean includeVectorMatch, List<Double> preFetchedResumeEmbedding,
+            Integer preFetchedCandidateExperience) {
+
         if (jobStack == null || jobStack.isBlank()) {
             return createEmptyMatchInfo();
         }
@@ -1133,34 +1115,27 @@ public class JobService {
             proficiencyMap = Collections.emptyMap();
         }
 
-        // 정규화된 지원자 스택
         Set<String> normalizedCandidateSkills = candidateSkills.stream()
                 .map(String::toLowerCase)
                 .map(String::trim)
                 .collect(Collectors.toSet());
 
-        // 상세 매칭 정보 계산
         List<String> matchedStacks = new ArrayList<>();
         List<String> missingStacks = new ArrayList<>();
         List<JobMatchInfoDTO.SkillMatchDetail> skillDetails = new ArrayList<>();
 
         for (String required : requiredStacks) {
             String normalizedRequired = required.toLowerCase().trim();
-
-            // 매칭 여부 확인 (정확히 일치 또는 동의어 일치)
             boolean matched = normalizedCandidateSkills.stream()
                     .anyMatch(candidate -> candidate.equals(normalizedRequired) ||
                             candidate.contains(normalizedRequired) ||
                             normalizedRequired.contains(candidate) ||
                             isSynonymMatch(normalizedRequired, candidate));
 
-            // 숙련도 조회 (매칭된 경우)
             int proficiency = 0;
             if (matched) {
                 matchedStacks.add(required);
-                // 정규화된 이름으로 숙련도 조회
                 proficiency = proficiencyMap.getOrDefault(normalizedRequired, 1);
-                // 동의어도 체크
                 if (proficiency == 0) {
                     for (String candidate : normalizedCandidateSkills) {
                         if (isSynonymMatch(normalizedRequired, candidate)) {
@@ -1171,179 +1146,87 @@ public class JobService {
                     }
                 }
                 if (proficiency == 0)
-                    proficiency = 1; // 기본값
+                    proficiency = 1;
             } else {
                 missingStacks.add(required);
             }
-
-            // 상세 정보 추가
             skillDetails.add(JobMatchInfoDTO.SkillMatchDetail.of(required, matched, proficiency));
         }
 
-        // 기술 스택 매칭률 계산 (매칭된 스택 수 / 요구 스택 수)
         int stackMatchRate = (int) Math.round((matchedStacks.size() / (double) requiredStacks.size()) * 100);
 
-        // 벡터 유사도 매칭률 (필요시)
         int vectorMatchRate = 0;
-        if (includeVectorMatch && jobEntity != null && memberId != null) {
+        if (includeVectorMatch && jobEntity != null && (memberId != null || preFetchedResumeEmbedding != null)) {
             try {
-                vectorMatchRate = calculateVectorSimilarity(jobEntity, memberId);
+                if (preFetchedResumeEmbedding != null && jobEntity.getEmbedding() != null) {
+                    double cosineSimilarity = calculateCosineSimilarity(jobEntity.getEmbedding(),
+                            preFetchedResumeEmbedding);
+                    vectorMatchRate = (int) Math.round(Math.max(0, Math.min(1, cosineSimilarity)) * 100);
+                } else if (memberId != null) {
+                    vectorMatchRate = calculateVectorSimilarity(jobEntity, memberId);
+                }
             } catch (Exception e) {
                 log.warn("벡터 유사도 계산 중 오류 발생: {}", e.getMessage());
             }
         }
 
-        // 경력 매칭률 계산
-        int experienceMatchRate = 100; // 기본값: 경력 정보 없으면 100%
+        int experienceMatchRate = 100;
         Integer requiredExperience = null;
         Integer candidateExperience = null;
 
-        if (jobEntity != null && memberId != null) {
+        if (jobEntity != null && (memberId != null || preFetchedCandidateExperience != null)) {
             requiredExperience = jobEntity.getRequiredExperience();
-            // 이력서에서 경력 조회
-            candidateExperience = getCandidateExperience(memberId);
+            candidateExperience = (preFetchedCandidateExperience != null) ? preFetchedCandidateExperience
+                    : getCandidateExperience(memberId);
 
             if (requiredExperience != null && requiredExperience > 0) {
                 if (candidateExperience != null && candidateExperience >= requiredExperience) {
-                    experienceMatchRate = 100; // 요구 경력 충족
+                    experienceMatchRate = 100;
                 } else if (candidateExperience != null) {
-                    // 경력 부족: 비율로 계산
                     experienceMatchRate = (int) Math.round((candidateExperience / (double) requiredExperience) * 100);
                     experienceMatchRate = Math.min(experienceMatchRate, 100);
                 } else {
-                    experienceMatchRate = 0; // 경력 정보 없음
+                    experienceMatchRate = 0;
                 }
             }
         }
 
-        // 종합 매칭률 (스택 50% + 벡터 30% + 경력 20%)
         int overallMatchRate;
         if (includeVectorMatch && vectorMatchRate > 0) {
-            overallMatchRate = (int) Math.round(
-                    stackMatchRate * 0.5 + vectorMatchRate * 0.3 + experienceMatchRate * 0.2);
+            overallMatchRate = (int) Math
+                    .round(stackMatchRate * 0.5 + vectorMatchRate * 0.3 + experienceMatchRate * 0.2);
         } else {
-            // 벡터 매칭 없으면: 스택 70% + 경력 30%
             overallMatchRate = (int) Math.round(stackMatchRate * 0.7 + experienceMatchRate * 0.3);
         }
 
-        String matchLevel = JobMatchInfoDTO.calculateMatchLevel(overallMatchRate);
-
-        // 지원자 스택 목록 (원본 대소문자 유지)
-        List<String> candidateStackList = new ArrayList<>(candidateSkills);
-
-        log.debug("숙련도 기반 매칭 - 요구: {}, 매칭: {}, 스택매칭: {}%, 경력매칭: {}%, 종합: {}%",
-                requiredStacks, matchedStacks, stackMatchRate, experienceMatchRate, overallMatchRate);
-
         JobMatchInfoDTO matchInfo = JobMatchInfoDTO.builder()
-                .stackMatchRate(stackMatchRate)
-                .vectorMatchRate(vectorMatchRate)
+                .stackMatchRate(stackMatchRate).vectorMatchRate(vectorMatchRate)
                 .experienceMatchRate(experienceMatchRate)
-                .requiredExperience(requiredExperience)
-                .candidateExperience(candidateExperience)
-                .requiredStacks(requiredStacks)
-                .matchedStacks(matchedStacks)
-                .missingStacks(missingStacks)
-                .matchLevel(matchLevel)
-                .skillDetails(skillDetails)
-                .candidateStacks(candidateStackList)
-                .skillProficiencyMap(proficiencyMap)
-                .build();
+                .requiredExperience(requiredExperience).candidateExperience(candidateExperience)
+                .requiredStacks(requiredStacks).matchedStacks(matchedStacks).missingStacks(missingStacks)
+                .matchLevel(JobMatchInfoDTO.calculateMatchLevel(overallMatchRate))
+                .skillDetails(skillDetails).candidateStacks(new ArrayList<>(candidateSkills))
+                .skillProficiencyMap(proficiencyMap).build();
 
         matchInfo.setOverallMatchRate(overallMatchRate);
         return matchInfo;
     }
 
-    /**
-     * 빈 매칭 정보 생성 (공고에 스택 정보가 없는 경우)
-     */
     private JobMatchInfoDTO createEmptyMatchInfo() {
         JobMatchInfoDTO matchInfo = JobMatchInfoDTO.builder()
-                .stackMatchRate(0)
-                .vectorMatchRate(0)
-                .requiredStacks(Collections.emptyList())
-                .matchedStacks(Collections.emptyList())
-                .missingStacks(Collections.emptyList())
-                .skillDetails(Collections.emptyList())
-                .candidateStacks(Collections.emptyList())
-                .skillProficiencyMap(Collections.emptyMap())
-                .matchLevel("LOW")
-                .build();
+                .stackMatchRate(0).vectorMatchRate(0).requiredStacks(Collections.emptyList())
+                .matchedStacks(Collections.emptyList()).missingStacks(Collections.emptyList())
+                .matchLevel("LOW").build();
         matchInfo.setOverallMatchRate(0);
         return matchInfo;
     }
 
-    /**
-     * 채용공고 벡터와 지원자 이력서 벡터 간 코사인 유사도 계산
-     * 
-     * @param jobEntity 채용공고 엔티티 (embedding 필드 포함)
-     * @param memberId  지원자 회원 ID
-     * @return 벡터 유사도 기반 매칭률 (0~100)
-     */
-    private int calculateVectorSimilarity(JobEntity jobEntity, Long memberId) {
-        try {
-            // memberId null 체크
-            if (memberId == null) {
-                log.debug("memberId가 null입니다.");
-                return 0;
-            }
-
-            // jobEntity null 체크
-            if (jobEntity == null) {
-                log.debug("jobEntity가 null입니다.");
-                return 0;
-            }
-
-            // 채용공고 벡터 조회
-            List<Double> jobEmbedding = jobEntity.getEmbedding();
-            if (jobEmbedding == null || jobEmbedding.isEmpty()) {
-                log.debug("채용공고 {}의 벡터가 없습니다.", jobEntity.getId());
-                return 0;
-            }
-
-            // 지원자의 대표 이력서 벡터 조회
-            Optional<Resume> resumeOpt = resumeRepository.findByUser_IdAndPrimaryTrue(memberId);
-            if (resumeOpt.isEmpty()) {
-                log.debug("회원 {}의 대표 이력서가 없습니다.", memberId);
-                return 0;
-            }
-
-            Resume resume = resumeOpt.get();
-            List<Double> resumeEmbedding = resume.getEmbedding();
-            if (resumeEmbedding == null || resumeEmbedding.isEmpty()) {
-                log.debug("이력서 {}의 벡터가 없습니다.", resume.getId());
-                return 0;
-            }
-
-            // 코사인 유사도 계산
-            double cosineSimilarity = calculateCosineSimilarity(jobEmbedding, resumeEmbedding);
-
-            // 유사도를 0~100 범위로 변환 (코사인 유사도는 -1~1 범위이지만, 임베딩은 보통 0~1)
-            int matchRate = (int) Math.round(Math.max(0, Math.min(1, cosineSimilarity)) * 100);
-
-            log.debug("벡터 유사도 계산 - 공고: {}, 이력서: {}, 유사도: {}, 매칭률: {}%",
-                    jobEntity.getId(), resume.getId(), cosineSimilarity, matchRate);
-
-            return matchRate;
-        } catch (Exception e) {
-            log.warn("벡터 유사도 계산 중 오류 발생: {}", e.getMessage());
-            return 0;
-        }
-    }
-
-    /**
-     * 지원자의 경력 연수 조회
-     * 
-     * @param memberId 지원자 회원 ID
-     * @return 경력 연수 (없으면 null)
-     */
     private Integer getCandidateExperience(Long memberId) {
         try {
             Optional<Resume> resumeOpt = resumeRepository.findByUser_IdAndPrimaryTrue(memberId);
             if (resumeOpt.isEmpty()) {
-                // 대표 이력서 없으면 최근 이력서 조회
                 resumeOpt = resumeRepository.findFirstByUser_IdOrderByLastModifiedAtDesc(memberId);
             }
-
             if (resumeOpt.isPresent()) {
                 Integer careerYears = resumeOpt.get().getCareerYears();
                 return careerYears != null ? careerYears : 0;
@@ -1354,67 +1237,51 @@ public class JobService {
         return null;
     }
 
-    /**
-     * 두 벡터 간 코사인 유사도 계산
-     * 
-     * @param vector1 첫 번째 벡터
-     * @param vector2 두 번째 벡터
-     * @return 코사인 유사도 (-1 ~ 1)
-     */
-    private double calculateCosineSimilarity(List<Double> vector1, List<Double> vector2) {
-        if (vector1.size() != vector2.size()) {
-            throw new IllegalArgumentException("벡터 차원이 일치하지 않습니다.");
+    public int calculateVectorSimilarity(JobEntity jobEntity, Long memberId) {
+        try {
+            if (memberId == null || jobEntity == null)
+                return 0;
+            List<Double> jobEmbedding = jobEntity.getEmbedding();
+            if (jobEmbedding == null || jobEmbedding.isEmpty())
+                return 0;
+            Optional<Resume> resumeOpt = resumeRepository.findByUser_IdAndPrimaryTrue(memberId);
+            if (resumeOpt.isEmpty())
+                return 0;
+            List<Double> resumeEmbedding = resumeOpt.get().getEmbedding();
+            if (resumeEmbedding == null || resumeEmbedding.isEmpty())
+                return 0;
+            double cosineSimilarity = calculateCosineSimilarity(jobEmbedding, resumeEmbedding);
+            return (int) Math.round(Math.max(0, Math.min(1, cosineSimilarity)) * 100);
+        } catch (Exception e) {
+            log.warn("벡터 유사도 계산 중 오류 발생: {}", e.getMessage());
+            return 0;
         }
+    }
 
-        double dotProduct = 0.0;
-        double norm1 = 0.0;
-        double norm2 = 0.0;
-
+    public double calculateCosineSimilarity(List<Double> vector1, List<Double> vector2) {
+        if (vector1.size() != vector2.size())
+            throw new IllegalArgumentException("벡터 차원이 일치하지 않습니다.");
+        double dotProduct = 0.0, norm1 = 0.0, norm2 = 0.0;
         for (int i = 0; i < vector1.size(); i++) {
-            double v1 = vector1.get(i);
-            double v2 = vector2.get(i);
+            double v1 = vector1.get(i), v2 = vector2.get(i);
             dotProduct += v1 * v2;
             norm1 += v1 * v1;
             norm2 += v2 * v2;
         }
-
         double denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
-        if (denominator == 0.0) {
-            return 0.0;
-        }
-
-        return dotProduct / denominator;
+        return denominator == 0.0 ? 0.0 : dotProduct / denominator;
     }
 
-    /**
-     * 기술 스택 문자열 파싱
-     * - 쉼표, 슬래시, 세미콜론 등으로 구분된 문자열을 리스트로 변환
-     */
-    private List<String> parseStackString(String stackString) {
-        if (stackString == null || stackString.isBlank()) {
+    public List<String> parseStackString(String stackString) {
+        if (stackString == null || stackString.isBlank())
             return Collections.emptyList();
-        }
-
-        // PostgreSQL 배열 형식 처리: {AWS, Vue.js, ""} -> AWS, Vue.js
-        // 중괄호 제거
         String cleaned = stackString.replaceAll("^\\{|\\}$", "");
-
-        // 다양한 구분자 지원: 쉼표, 슬래시, 세미콜론, 파이프
-        return Arrays.stream(cleaned.split("[,/;|]"))
-                .map(String::trim)
-                // 따옴표 제거 ("Vue.js" -> Vue.js)
-                .map(s -> s.replaceAll("^\"|\"$", ""))
-                .map(String::trim)
-                // 빈 문자열, 공백만 있는 문자열 필터링
-                .filter(s -> !s.isEmpty() && !s.isBlank())
-                .collect(Collectors.toList());
+        return Arrays.stream(cleaned.split("[,/;|]")).map(String::trim)
+                .map(s -> s.replaceAll("^\"|\"$", "")).map(String::trim)
+                .filter(s -> !s.isEmpty() && !s.isBlank()).collect(Collectors.toList());
     }
 
-    /**
-     * 동의어 매칭 확인
-     * - JavaScript ↔ JS, TypeScript ↔ TS 등
-     */
-    private boolean isSynonymMatch(String stack1, String stack2) {
+    public boolean isSynonymMatch(String stack1, String stack2) {
         Map<String, Set<String>> synonyms = Map.ofEntries(
                 Map.entry("javascript", Set.of("js", "자바스크립트")),
                 Map.entry("typescript", Set.of("ts", "타입스크립트")),
@@ -1423,26 +1290,18 @@ public class JobService {
                 Map.entry("angular", Set.of("angularjs", "angular.js", "앵귤러")),
                 Map.entry("node", Set.of("nodejs", "node.js", "노드")),
                 Map.entry("spring", Set.of("springboot", "spring boot", "스프링")),
-                Map.entry("java", Set.of("자바")),
-                Map.entry("python", Set.of("파이썬")),
-                Map.entry("kotlin", Set.of("코틀린")),
-                Map.entry("postgresql", Set.of("postgres", "포스트그레스")),
-                Map.entry("mysql", Set.of("마이에스큐엘")),
-                Map.entry("mongodb", Set.of("mongo", "몽고디비")),
+                Map.entry("java", Set.of("자바")), Map.entry("python", Set.of("파이썬")),
+                Map.entry("kotlin", Set.of("코틀린")), Map.entry("postgresql", Set.of("postgres", "포스트그레스")),
+                Map.entry("mysql", Set.of("마이에스큐엘")), Map.entry("mongodb", Set.of("mongo", "몽고디비")),
                 Map.entry("aws", Set.of("amazon web services", "아마존")),
                 Map.entry("gcp", Set.of("google cloud", "구글클라우드")),
-                Map.entry("docker", Set.of("도커")),
-                Map.entry("kubernetes", Set.of("k8s", "쿠버네티스")));
-
+                Map.entry("docker", Set.of("도커")), Map.entry("kubernetes", Set.of("k8s", "쿠버네티스")));
         for (Map.Entry<String, Set<String>> entry : synonyms.entrySet()) {
             Set<String> allVariants = new HashSet<>(entry.getValue());
             allVariants.add(entry.getKey());
-
-            if (allVariants.contains(stack1) && allVariants.contains(stack2)) {
+            if (allVariants.contains(stack1) && allVariants.contains(stack2))
                 return true;
-            }
         }
-
         return false;
     }
 }
