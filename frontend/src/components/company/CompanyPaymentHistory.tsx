@@ -96,7 +96,8 @@ export function CompanyPaymentHistory() {
             payMethod: p.method,
             status: p.status === '승인 완료' ? '승인 완료' : (p.status === '전체 취소' || p.status === '부분 취소') ? '환불 완료' : '진행 중',
             paymentKey: p.orderId,
-            canRefund: p.status === '승인 완료'
+            canRefund: p.status === '승인 완료',
+            sourceType: 'PAYMENT' as const // sourceType 추가
         })),
         ...ledgers
             .filter((l: any) => l.sourceType !== 'PAYMENT') // 결제(PAYMENT)로 인한 충전 중복 제거
@@ -105,13 +106,14 @@ export function CompanyPaymentHistory() {
                 type: l.type === 'CREDIT' ? 'charge' : 'use',
                 amount: l.amount,
                 paidAmount: null,
-                title: l.memo,
+                title: l.sourceType === 'SUBSCRIPTION' ? '구독 크레딧 지급' : l.memo,
                 date: new Date(l.occurredAt).toLocaleString(),
                 isPlus: l.type === 'CREDIT',
                 payMethod: '크레딧',
                 status: l.type === 'CREDIT' ? '충전 완료' : '사용 완료',
                 canRefund: false,
-                paymentKey: undefined
+                paymentKey: undefined,
+                sourceType: l.sourceType // sourceType 추가
             }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -141,8 +143,8 @@ export function CompanyPaymentHistory() {
                         </div>
                     ) : (
                         unifiedHistory.map((item) => {
-                            // 구독 관련 내역 여부 확인 (제목에 '구독' 포함)
-                            const isSubscription = item.title.includes("구독");
+                            // 구독 관련 내역 여부 확인 (sourceType으로 정확하게 판단)
+                            const isSubscription = item.sourceType === 'SUBSCRIPTION';
 
                             return (
                                 <div key={item.id} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
