@@ -2,8 +2,40 @@ import { Button } from "@/components/ui/button";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getMyPayments } from "@/api/payment";
+import { getScrapCount, getRecentViewedJobs } from "@/features/job/api/jobApi";
 
 export function JobSeekerWidgets() {
+    const [scrapCount, setScrapCount] = useState<number>(0);
+    const [recentViewCount, setRecentViewCount] = useState<number>(0);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchCounts = async () => {
+            try {
+                // 스크랩 수 조회
+                const scrapResponse = await getScrapCount();
+                setScrapCount(scrapResponse?.count ?? scrapResponse ?? 0);
+            } catch (error) {
+                console.debug("스크랩 수 조회 실패:", error);
+            }
+
+            try {
+                // 최근 본 공고 수 조회
+                const recentResponse = await getRecentViewedJobs(100);
+                const recentList = Array.isArray(recentResponse?.content) 
+                    ? recentResponse.content 
+                    : (Array.isArray(recentResponse) ? recentResponse : []);
+                setRecentViewCount(recentList.length);
+            } catch (error) {
+                console.debug("최근 본 공고 조회 실패:", error);
+            }
+
+            setLoading(false);
+        };
+
+        fetchCounts();
+    }, []);
+
     return (
         <div className="space-y-6">
             {/* Counts */}
@@ -11,14 +43,14 @@ export function JobSeekerWidgets() {
                 <div className="flex justify-between items-center p-5 border-b hover:bg-muted/30 cursor-pointer transition-colors group">
                     <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">스크랩 공고</span>
                     <div className="flex items-center gap-2">
-                        <span className="font-bold text-lg text-[#5A639C]">0</span>
+                        <span className="font-bold text-lg text-[#5A639C]">{loading ? '-' : scrapCount}</span>
                         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
                     </div>
                 </div>
                 <div className="flex justify-between items-center p-5 hover:bg-muted/30 cursor-pointer transition-colors group">
                     <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">최근 본 공고</span>
                     <div className="flex items-center gap-2">
-                        <span className="font-bold text-lg text-[#5A639C]">0</span>
+                        <span className="font-bold text-lg text-[#5A639C]">{loading ? '-' : recentViewCount}</span>
                         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
                     </div>
                 </div>

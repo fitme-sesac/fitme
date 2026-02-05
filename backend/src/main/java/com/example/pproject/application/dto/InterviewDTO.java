@@ -65,7 +65,7 @@ public class InterviewDTO {
                 .companyName(null)  // employer 조인 필요시 별도 처리
                 .candidateId(member.getId().longValue())
                 .candidateName(member.getUsername())
-                .resumeTitle(resume.getTitle())
+                .resumeTitle(resume != null ? resume.getTitle() : null)
                 .createdAt(interview.getCreatedAt() != null 
                         ? LocalDateTime.ofInstant(interview.getCreatedAt(), ZoneId.systemDefault()) 
                         : null)

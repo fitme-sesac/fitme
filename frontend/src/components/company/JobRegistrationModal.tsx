@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Upload } from "lucide-react";
+import { X, Plus, Upload, Loader2 } from "lucide-react";
 import { createJobPosting, getJobPosting, updateJobPosting } from "@/features/job/api/jobApi";
+import { http } from "@/api/http";
 
 interface JobRegistrationModalProps {
     open: boolean;
@@ -46,6 +47,7 @@ export function JobRegistrationModal({ open, onOpenChange, onSuccess, editJobUid
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [submitting, setSubmitting] = useState(false);
     const [loadingJob, setLoadingJob] = useState(false);
+    const [uploadingImages, setUploadingImages] = useState(false);
     const [formData, setFormData] = useState({
         title: "",
         position: "",
@@ -60,6 +62,7 @@ export function JobRegistrationModal({ open, onOpenChange, onSuccess, editJobUid
         images: [] as File[]
     });
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+    const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
 
     const isEditMode = !!editJobUid;
 
@@ -146,6 +149,37 @@ export function JobRegistrationModal({ open, onOpenChange, onSuccess, editJobUid
         setPreviewUrls(prev => prev.filter((_, i) => i !== index));
     };
 
+    // 연봉 텍스트에 "만원" 자동 추가
+    const formatSalaryText = (salary: string): string => {
+        if (!salary || salary.trim() === "") return "";
+        const trimmed = salary.trim();
+        // 이미 "만원", "원", "협의" 등이 포함되어 있으면 그대로 반환
+        if (/만원|원|협의|면접|회의/i.test(trimmed)) {
+            return trimmed;
+        }
+        // 숫자만 있거나 숫자~숫자 형태인 경우 "만원" 추가
+        if (/^[\d,.\s~\-]+$/.test(trimmed)) {
+            return `${trimmed}만원`;
+        }
+        return trimmed;
+    };
+
+    // 이미지 업로드 함수
+    const uploadImages = async (files: File[]): Promise<string[]> => {
+        if (files.length === 0) return [];
+        
+        const formDataObj = new FormData();
+        files.forEach((file) => {
+            formDataObj.append("files", file);
+        });
+        
+        const response = await http.post("/api/jobs/upload-images", formDataObj, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        
+        return response.data.urls || [];
+    };
+
     const handleSubmit = async () => {
         if (!formData.title || !formData.position || !formData.location || !formData.description) {
             alert("필수 항목을 모두 입력해주세요.");
@@ -154,15 +188,25 @@ export function JobRegistrationModal({ open, onOpenChange, onSuccess, editJobUid
 
         setSubmitting(true);
         try {
+            // 이미지가 있으면 먼저 업로드
+            let imageUrls: string[] = [...uploadedImageUrls];
+            if (formData.images.length > 0) {
+                setUploadingImages(true);
+                const newUrls = await uploadImages(formData.images);
+                imageUrls = [...imageUrls, ...newUrls];
+                setUploadingImages(false);
+            }
+
             const payload = {
                 title: formData.title,
                 description: formData.description,
                 location: formData.location,
-                salaryText: formData.salary || null,
+                salaryText: formatSalaryText(formData.salary) || null,
                 stack: formData.techStack.length > 0 ? formData.techStack.join(",") : null,
                 requiredExperience: formData.experience ? parseInt(formData.experience, 10) : 0,
                 recruitmentCapacity: formData.recruitmentCapacity ? parseInt(formData.recruitmentCapacity, 10) : 0,
                 status: "OPEN",
+                images: imageUrls.length > 0 ? imageUrls : null,
             };
             if (isEditMode && editJobUid) {
                 await updateJobPosting(editJobUid, payload);
@@ -186,8 +230,10 @@ export function JobRegistrationModal({ open, onOpenChange, onSuccess, editJobUid
                 images: [],
             });
             setPreviewUrls([]);
+            setUploadedImageUrls([]);
             onSuccess?.();
         } catch (err: unknown) {
+            setUploadingImages(false);
             const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? (isEditMode ? "수정에 실패했습니다." : "등록에 실패했습니다.");
             alert(msg);
         } finally {

@@ -53,9 +53,9 @@ export async function getUpcomingInterviews() {
  * 면접 응답 (지원자용) - 수락/거절/일정변경요청
  * POST /api/v1/interviews/{interviewId}/respond
  */
-export async function respondToInterview(interviewId: number, type: "ACCEPT" | "DECLINE" | "RESCHEDULE", message?: string) {
+export async function respondToInterview(interviewId: number, responseType: "ACCEPT" | "DECLINE" | "REQUEST_CHANGE", message?: string) {
     const response = await http.post(`/api/v1/interviews/${interviewId}/respond`, {
-        type,
+        response: responseType,
         message
     });
     return response.data;

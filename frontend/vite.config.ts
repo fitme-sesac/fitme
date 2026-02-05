@@ -1,30 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import fs from "fs";
-
-/**
- * fitme/.env.docker 같은 커스텀 env 파일 파싱 (key=value, # 주석 무시)
- */
-function loadEnvFile(filePath: string): Record<string, string> {
-    const out: Record<string, string> = {};
-    try {
-        if (!fs.existsSync(filePath)) return out;
-        const content = fs.readFileSync(filePath, "utf-8");
-        for (const line of content.split(/\r?\n/)) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith("#")) continue;
-            const eq = trimmed.indexOf("=");
-            if (eq <= 0) continue;
-            const key = trimmed.slice(0, eq).trim();
-            const value = trimmed.slice(eq + 1).trim();
-            if (key) out[key] = value;
-        }
-    } catch {
-        // ignore
-    }
-    return out;
-}
 
 /**
  * React Router(SPA) 경로는 Vite가 index.html을 내려줘야 한다.
@@ -43,29 +19,12 @@ const bypassSpaPageGet = (req: any) => {
 };
 
 export default defineConfig(({ mode }) => {
-    const rootDir = path.resolve(__dirname, "..");
-    const frontendDir = process.cwd();
-
-    // 1) fitme/.env
-    const envRoot = loadEnv(mode, rootDir, "");
-    // 2) fitme/.env.docker (있으면 적용, 나중 것이 우선)
-    const envDocker = loadEnvFile(path.join(rootDir, ".env.docker"));
-    // 3) frontend/.env
-    const envFrontend = loadEnv(mode, frontendDir, "");
-
-    const env: Record<string, string> = {
-        ...envRoot,
-        ...envDocker,
-        ...envFrontend,
+    // Vite env (.env, .env.development 등) 로드
+    // 프로젝트 루트(.env)와 frontend 폴더(.env) 모두 로드 시도
+    const env = {
+        ...loadEnv(mode, path.resolve(__dirname, ".."), ""),
+        ...loadEnv(mode, process.cwd(), ""),
     };
-
-    // 백엔드용 변수 → 프론트 VITE_ 변수로 매핑 (VITE_*가 없을 때만)
-    if (!env.VITE_KAKAO_MAP_API_KEY && env.KAKAO_MAP_API_KEY) {
-        env.VITE_KAKAO_MAP_API_KEY = env.KAKAO_MAP_API_KEY;
-    }
-    if (!env.VITE_TOSS_CLIENT_KEY && env.TOSS_CLIENT_KEY) {
-        env.VITE_TOSS_CLIENT_KEY = env.TOSS_CLIENT_KEY;
-    }
 
     /**
      * 핵심: "프록시 타겟(서버/컨테이너 내부용)" 과
@@ -131,11 +90,8 @@ export default defineConfig(({ mode }) => {
                 "/resumes": { target: aiTarget, changeOrigin: true },
             },
         },
-        // 외부(fitme/.env, fitme/.env.docker) + frontend/.env 에서 로드한 VITE_* 를 클라이언트에 주입
-        define: Object.fromEntries(
-            Object.entries(env)
-                .filter(([key]) => key.startsWith("VITE_"))
-                .map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value ?? "")])
-        ),
+        define: {
+            "import.meta.env.VITE_TOSS_CLIENT_KEY": JSON.stringify(process.env.TOSS_CLIENT_KEY || env.TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY),
+        },
     };
 });

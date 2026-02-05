@@ -1,10 +1,12 @@
-import { MapPin, Building2, Globe, Users, Bookmark, Heart, Sparkles, Coins } from "lucide-react";
+import { MapPin, Building2, Globe, Users, Bookmark, Heart, Sparkles, Coins, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { scrapJob, checkScrapStatus } from "@/api/jobs";
 
 interface JobCardProps {
     id: number;
@@ -76,8 +78,52 @@ export function WideJobCard({
     recruitmentCapacity = 0,
 }: JobCardProps) {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const queryClient = useQueryClient();
     const [interested, setInterested] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    // 스크랩 상태 조회
+    useEffect(() => {
+        const fetchScrapStatus = async () => {
+            if (!user || !id) return;
+            try {
+                const response = await checkScrapStatus(id);
+                setInterested(response?.scraped ?? false);
+            } catch (error) {
+                console.error("스크랩 상태 조회 실패:", error);
+            }
+        };
+        fetchScrapStatus();
+    }, [id, user]);
+
+    // 스크랩 토글
+    const handleScrapToggle = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!user) {
+            alert("로그인이 필요합니다.");
+            return;
+        }
+
+        if (loading) return;
+
+        setLoading(true);
+        try {
+            const response = await scrapJob(id);
+            setInterested(response?.scraped ?? !interested);
+            // 캐시 무효화
+            queryClient.invalidateQueries({ queryKey: ["myScrapedJobs"] });
+            queryClient.invalidateQueries({ queryKey: ["scrapedJobs"] });
+            queryClient.invalidateQueries({ queryKey: ["profileSummary"] });
+        } catch (error) {
+            console.error("스크랩 토글 실패:", error);
+            alert("스크랩 처리에 실패했습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
     const rawSkills = Array.isArray(skillsProp)
         ? skillsProp
         : skillsProp != null && typeof skillsProp === "string"
@@ -217,13 +263,14 @@ export function WideJobCard({
                                 "h-11 px-4 border-gray-200 text-gray-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 gap-2 font-medium transition-all",
                                 interested && "text-red-500 border-red-200 bg-red-50"
                             )}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setInterested((v) => !v);
-                            }}
+                            onClick={handleScrapToggle}
+                            disabled={loading}
                         >
-                            <Heart className={cn("w-5 h-5", interested && "fill-current")} />
+                            {loading ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <Heart className={cn("w-5 h-5", interested && "fill-current")} />
+                            )}
                             <span className="hidden sm:inline">관심</span>
                         </Button>
                         <Button

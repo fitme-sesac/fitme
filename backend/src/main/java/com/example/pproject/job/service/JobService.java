@@ -230,6 +230,7 @@ public class JobService {
                 .requiredExperience(dto.getRequiredExperience() != null ? dto.getRequiredExperience() : 0)
                 .recruitmentCapacity(dto.getRecruitmentCapacity() != null ? dto.getRecruitmentCapacity() : 0)
                 .requiredQuestions(dto.getRequiredQuestions())
+                .images(dto.getImages())
                 .build();
 
         jobEntityRepository.save(job);
@@ -285,6 +286,7 @@ public class JobService {
         if (dto.getRequiredExperience() != null) job.setRequiredExperience(dto.getRequiredExperience());
         if (dto.getRecruitmentCapacity() != null) job.setRecruitmentCapacity(dto.getRecruitmentCapacity());
         if (dto.getRequiredQuestions() != null) job.setRequiredQuestions(dto.getRequiredQuestions());
+        if (dto.getImages() != null) job.setImages(dto.getImages());
 
         jobEntityRepository.save(job);
         log.info("채용공고 수정: {}", job.getTitle());
@@ -704,6 +706,7 @@ public class JobService {
                 .updatedAt(job.getUpdatedAt() != null ? job.getUpdatedAt().toString() : null)
                 .companyName(employer != null ? employer.getName() : "알 수 없음")
                 .companyLogoUrl(employer != null ? employer.getLogoUrl() : null)
+                .images(job.getImages())
                 .build();
     }
 
@@ -790,6 +793,7 @@ public class JobService {
                 .updatedAt(job.getUpdatedAt() != null ? job.getUpdatedAt().toString() : null)
                 .companyName(employer.getName())
                 .companyLogoUrl(employer.getLogoUrl())
+                .images(job.getImages())
                 .build();
     }
     

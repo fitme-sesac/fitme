@@ -1,6 +1,5 @@
 import { useState } from "react";
 import NotificationBell from "../features/notification/components/NotificationBell";
-import FitMeLogo from "./FitMeLogo";
 import "../features/notification/components/NotificationBell.css";
 import "../features/notification/components/NotificationDropdown.css";
 
@@ -35,13 +34,17 @@ export default function Header({ isAuthenticated, displayName, apiBase, role }) 
                 <div className="row justify-content-center g-0">
                     <div className="col-12 col-md-9 px-2">
                         <div className="d-flex align-items-center justify-content-between py-2">
-                            {/* 로고: 왼쪽 타겟 아이콘 + FITME */}
+                            {/* 로고 */}
                             <a 
                                 href="/" 
                                 className="logo d-flex align-items-center" 
-                                style={{ marginRight: 0, paddingLeft: 0, textDecoration: "none" }}
+                                style={{ marginRight: 0, paddingLeft: 0 }}
                             >
-                                <FitMeLogo height={50} />
+                                <img
+                                    src="/assets/img/main/fit_me_logo.png"
+                                    alt="로고"
+                                    style={{ height: "50px", width: "auto", display: "block" }}
+                                />
                             </a>
 
                             <div className="d-flex align-items-center">
