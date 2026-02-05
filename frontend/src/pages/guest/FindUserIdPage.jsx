@@ -110,7 +110,7 @@ export default function FindUserIdPage() {
 
     return (
         <div className="min-h-screen flex w-full bg-slate-50 overflow-hidden relative">
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-multiply pointer-events-none"></div>
+            <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.03] mix-blend-multiply pointer-events-none"></div>
 
             <div className="hidden lg:flex w-1/2 items-center justify-center relative overflow-hidden z-10">
                 <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#0EA5E9] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />

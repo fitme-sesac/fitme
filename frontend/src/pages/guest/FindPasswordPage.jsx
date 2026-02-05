@@ -141,7 +141,7 @@ export default function FindPasswordPage() {
   return (
     <div className="min-h-screen flex w-full bg-slate-50 overflow-hidden relative">
       {/* Background Texture */}
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-multiply pointer-events-none" />
+      <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.03] mix-blend-multiply pointer-events-none" />
 
       {/* Left Panel: Brand Visual */}
       <div className="hidden lg:flex w-1/2 items-center justify-center relative overflow-hidden z-10">

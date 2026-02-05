@@ -220,7 +220,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <Avatar className="h-10 w-10 border-2 border-white/20">
-                                <AvatarImage src="/ai-avatar.png" />
+                                <AvatarImage src="/ai-avatar.svg" />
                                 <AvatarFallback className="bg-white/10 text-white">
                                     <Bot className="h-6 w-6" />
                                 </AvatarFallback>
