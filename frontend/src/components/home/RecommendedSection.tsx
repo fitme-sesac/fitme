@@ -2,9 +2,10 @@ import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ChevronLeft, Building2, Sparkles, Loader2, MapPin } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAds } from "@/hooks/useAds"; // Using Ad API
+import { trackAdClick } from "@/api/ads"; // Ad Click Tracking
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -14,6 +15,7 @@ const TABS = [
 
 export function RecommendedSection() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState("fit");
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -28,6 +30,22 @@ export function RecommendedSection() {
             const scrollAmount = direction === "left" ? -400 : 400;
             scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
         }
+    };
+
+    // 광고 클릭 핸들러: 클릭 이벤트 추적 후 페이지 이동
+    const handleAdClick = async (job: any, e: React.MouseEvent) => {
+        e.preventDefault(); // Link 기본 동작 방지
+
+        // 클릭 이벤트 추적 (비동기, 실패해도 이동은 진행)
+        if (job.campaignId) {
+            trackAdClick({
+                campaignId: job.campaignId,
+                memberId: user?.id || null,
+            });
+        }
+
+        // 페이지 이동
+        navigate(`/jobs/${job.jobId}`);
     };
 
     return (
@@ -90,6 +108,7 @@ export function RecommendedSection() {
                             <Link
                                 key={job.jobId || job.campaignId}
                                 to={`/jobs/${job.jobId}`}
+                                onClick={(e) => handleAdClick(job, e)}
                                 className="flex-none w-[220px] group/card"
                             >
                                 <div className="h-[200px] bg-white rounded-2xl border border-gray-100 p-4 shadow-sm transition-all duration-300 group-hover/card:shadow-xl group-hover/card:-translate-y-1 group-hover/card:border-primary/20 flex flex-col justify-between relative overflow-hidden">
