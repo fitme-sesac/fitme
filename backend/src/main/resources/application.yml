@@ -5,7 +5,7 @@ spring:
   batch:
     jdbc:
       # schema.sql에 BATCH 테이블이 이미 정의되어 있으므로 never로 설정
-      initialize-schema: always
+      initialize-schema: never
     job:
       # 애플리케이션 시작 시 Job 자동 실행 방지
       enabled: false
