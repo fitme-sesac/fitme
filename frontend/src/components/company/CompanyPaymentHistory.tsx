@@ -85,28 +85,32 @@ export function CompanyPaymentHistory() {
 
     // Merge payments and ledgers for a unified chronological view
     const unifiedHistory = [
-        ...payments.map(p => ({
-            id: `pay-${p.paymentId}`,
-            type: 'charge',
-            amount: p.creditAmount || 0,  // 크레딧 수량을 메인 금액으로
-            paidAmount: p.totalAmount,     // 결제금액을 보조로
-            title: '크레딧 충전',  // 단건결제는 '크레딧 충전'으로 통일
-            date: p.approvedAt ? new Date(p.approvedAt).toLocaleString() : '진행 중',
-            isPlus: true,
-            payMethod: p.method,
-            status: p.status === '승인 완료' ? '승인 완료' : (p.status === '전체 취소' || p.status === '부분 취소') ? '환불 완료' : '진행 중',
-            paymentKey: p.orderId,
-            canRefund: p.status === '승인 완료',
-            sourceType: 'PAYMENT' as const // sourceType 추가
-        })),
+        ...payments.map(p => {
+            // 상품명에 '구독'이 포함되어 있으면 구독 결제로 판단
+            const isSubscriptionPayment = p.orderName?.includes('구독') || p.productName?.includes('구독');
+            return {
+                id: `pay-${p.paymentId}`,
+                type: 'charge',
+                amount: p.creditAmount || 0,  // 크레딧 수량을 메인 금액으로
+                paidAmount: p.totalAmount,     // 결제금액을 보조로
+                title: isSubscriptionPayment ? '구독 크레딧 지급' : '크레딧 충전',
+                date: p.approvedAt ? new Date(p.approvedAt).toLocaleString() : '진행 중',
+                isPlus: true,
+                payMethod: p.method,
+                status: p.status === '승인 완료' ? '승인 완료' : (p.status === '전체 취소' || p.status === '부분 취소') ? '환불 완료' : '진행 중',
+                paymentKey: p.orderId,
+                canRefund: p.status === '승인 완료',
+                sourceType: isSubscriptionPayment ? 'SUBSCRIPTION' : 'PAYMENT' as const
+            };
+        }),
         ...ledgers
-            .filter((l: any) => l.sourceType !== 'PAYMENT') // 결제(PAYMENT)로 인한 충전 중복 제거
+            .filter((l: any) => l.sourceType !== 'PAYMENT' && l.sourceType !== 'SUBSCRIPTION') // 결제로 인한 충전 중복 제거 (일반결제 + 구독)
             .map(l => ({
                 id: `ledger-${l.ledgerId}`,
                 type: l.type === 'CREDIT' ? 'charge' : 'use',
                 amount: l.amount,
                 paidAmount: null,
-                title: l.sourceType === 'SUBSCRIPTION' ? '구독 크레딧 지급' : l.memo,
+                title: l.memo,
                 date: new Date(l.occurredAt).toLocaleString(),
                 isPlus: l.type === 'CREDIT',
                 payMethod: '크레딧',

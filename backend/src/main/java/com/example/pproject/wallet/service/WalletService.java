@@ -177,15 +177,20 @@ public class WalletService {
 
         String productName = payment.getOrder().getProduct().getName();
         String memo;
+        SourceType sourceType;
+
         if (payment.getOrder().getProduct().isSubscription()) {
             memo = "구독 크레딧 지급 (" + productName + ")";
+            sourceType = SourceType.SUBSCRIPTION; // 구독은 SUBSCRIPTION 타입으로 구분
         } else if (payment.getOrder().getProduct().isOneTime()) {
             memo = "크레딧 충전"; // 단건결제는 간단하게 표시
+            sourceType = SourceType.PAYMENT;
         } else {
             memo = "크레딧 충전 (" + productName + ")";
+            sourceType = SourceType.PAYMENT;
         }
 
-        executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(), memo);
+        executeCharge(wallet, amount, price, sourceType, payment, "PAYMENT:" + payment.getPaymentId(), memo);
     }
 
     /**
