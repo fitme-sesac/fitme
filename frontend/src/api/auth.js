@@ -181,13 +181,18 @@ export async function getUserIdResult() {
 // - 프론트 FindPasswordPage.jsx 의 기대 형태에 맞춤
 // ========================
 
-export async function findPassword(loginId, phone) {
+export async function findPassword(username, phone) {
   try {
-    const res = await http.post("/api/user/find-password/send", { loginId, phone }).then((r) => r.data);
+    // ✅ backend는 (요구사항) username+phone 을 지원하며,
+    //    기존 호환을 위해 loginId도 함께 전송한다.
+    const res = await http
+      .post("/api/user/find-password/send", { username, phone })
+      .then((r) => r.data);
+
     if (!res?.ok) {
       throw new Error(res?.message || "일치하는 회원 정보가 없습니다.");
     }
-    return res;
+    return res; // { ok:true, expiresIn }
   } catch (e) {
     const msg =
       e?.response?.data?.message ||
@@ -198,14 +203,20 @@ export async function findPassword(loginId, phone) {
   }
 }
 
-export async function verifyPasswordCode(phone, code) {
-  const res = await http.post("/api/user/find-password/verify", { phone, code }).then((r) => r.data);
+export async function verifyPasswordCode(username, phone, code, verificationId) {
+  const res = await http
+    .post("/api/user/find-password/verify", { username, phone, code, verificationId })
+    .then((r) => r.data);
   if (!res?.ok) {
     throw new Error(res?.message || "인증번호가 일치하지 않습니다.");
   }
-  return res; // { ok:true, token }
+  return res; // { ok:true, emailMasked }
 }
 
+/**
+ * (레거시 호환) OTP 후 즉시 비밀번호를 바꾸는 방식.
+ * 현재 기본 플로우는: OTP → 이메일 링크 → /NewPassword
+ */
 export async function setNewPassword(token, newPassword) {
   const res = await http.post("/api/user/find-password/reset", { token, newPassword }).then((r) => r.data);
   if (!res?.ok) {

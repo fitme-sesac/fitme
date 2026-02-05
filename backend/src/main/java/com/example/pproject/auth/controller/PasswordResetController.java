@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -36,6 +37,14 @@ public class PasswordResetController {
     @Value("${app.front-base-url:http://localhost:5173}")
     private String frontBaseUrl;
 
+    /**
+     * 외부(배포)에서 접근 가능한 백엔드 공개 Base URL.
+     * - 개발: 기본값 http://localhost:8080
+     * - 운영: https://api.example.com 또는 https://example.com 등으로 설정
+     */
+    @Value("${app.public-backend-url:http://localhost:8080}")
+    private String publicBackendUrl;
+
     private String redirectFront(String path) {
         return "redirect:" + frontBaseUrl + path;
     }
@@ -48,16 +57,113 @@ public class PasswordResetController {
     private String enc(String v) {
         return v == null ? "" : URLEncoder.encode(v, StandardCharsets.UTF_8);
     }
+private boolean isLocalHost(String host) {
+    if (host == null) return false;
+    String h = host.toLowerCase();
+    return "localhost".equals(h) || "127.0.0.1".equals(h) || "::1".equals(h);
+}
 
-    private String baseUrl(HttpServletRequest request) {
-        // e.g. http://localhost:8080
-        String url = request.getRequestURL().toString();
-        String uri = request.getRequestURI();
-        if (url.endsWith(uri)) {
-            return url.substring(0, url.length() - uri.length());
+private String firstHeader(HttpServletRequest request, String name) {
+    String v = request.getHeader(name);
+    if (v == null || v.isBlank()) return null;
+    // 일부 프록시는 "a,b" 형태로 전달
+    return v.split(",")[0].trim();
+}
+
+/**
+ * 외부(사용자 브라우저/이메일에서) 접근 가능한 Base URL을 자동 추론한다.
+ * - 우선순위: Forwarded / X-Forwarded-* 헤더 → request scheme/host/port
+ * - (개발) Vite 프록시 Host=5173 같은 케이스는 app.public-backend-url(기본 localhost:8080)로 보정
+ */
+private String externalBaseUrl(HttpServletRequest request) {
+    String proto = firstHeader(request, "X-Forwarded-Proto");
+    String host = firstHeader(request, "X-Forwarded-Host");
+    String port = firstHeader(request, "X-Forwarded-Port");
+
+    String forwarded = request.getHeader("Forwarded");
+    if ((proto == null || host == null) && forwarded != null && !forwarded.isBlank()) {
+        // Forwarded: proto=https;host=example.com:443
+        String first = forwarded.split(",")[0].trim();
+        for (String part : first.split(";")) {
+            String p = part.trim();
+            int eq = p.indexOf('=');
+            if (eq <= 0) continue;
+            String k = p.substring(0, eq).trim().toLowerCase();
+            String v = p.substring(eq + 1).trim().replace(""", "");
+            if ("proto".equals(k) && (proto == null || proto.isBlank())) proto = v;
+            if ("host".equals(k) && (host == null || host.isBlank())) host = v;
         }
-        int idx = url.indexOf("/User/");
-        return idx > 0 ? url.substring(0, idx) : url;
+    }
+
+    if (proto == null || proto.isBlank()) proto = request.getScheme();
+    if (host == null || host.isBlank()) host = request.getServerName();
+
+    // host에 이미 포트가 포함되어 있을 수 있음
+    String effectivePort = port;
+    if (effectivePort == null || effectivePort.isBlank()) effectivePort = String.valueOf(request.getServerPort());
+
+    StringBuilder sb = new StringBuilder();
+    sb.append(proto).append("://").append(host);
+    if (!host.contains(":")) {
+        boolean isDefaultPort =
+                ("https".equalsIgnoreCase(proto) && "443".equals(effectivePort))
+                        || ("http".equalsIgnoreCase(proto) && "80".equals(effectivePort));
+        if (!isDefaultPort) sb.append(":").append(effectivePort);
+    }
+    return sb.toString().replaceAll("/+$", "");
+}
+
+private String publicBackendBase(HttpServletRequest request) {
+    // 운영에서 env/app.yml 미설정이어도 "localhost 기본값"이 링크에 박히지 않도록:
+    // - 요청이 외부 도메인이면, 기본 localhost 설정은 무시하고 헤더 기반으로 추론
+    String derived = externalBaseUrl(request);
+
+    String cfg = (publicBackendUrl == null ? "" : publicBackendUrl).trim();
+    if (!cfg.isBlank()) {
+        cfg = cfg.replaceAll("/+$", "");
+        boolean cfgIsLocal = cfg.contains("localhost") || cfg.contains("127.0.0.1");
+        boolean reqIsLocal = isLocalHost(request.getServerName());
+
+        if (!cfgIsLocal) return cfg;        // 명시 설정(운영)
+        if (reqIsLocal) return cfg;         // 개발(localhost)
+        // cfg는 localhost인데 요청은 외부 도메인 → cfg 무시
+    }
+    return derived;
+}
+
+private String effectiveFrontBase(HttpServletRequest request) {
+    // 기본값(localhost:5173)이 운영에서 남아있어도 자동 추론되도록 처리
+    String cfg = (frontBaseUrl == null ? "" : frontBaseUrl).trim();
+    if (!cfg.isBlank()) {
+        cfg = cfg.replaceAll("/+$", "");
+        boolean cfgIsLocal = cfg.contains("localhost") || cfg.contains("127.0.0.1");
+        boolean reqIsLocal = isLocalHost(request.getServerName());
+        if (!cfgIsLocal) return cfg;
+        if (reqIsLocal) return cfg;
+    }
+
+    String derived = externalBaseUrl(request);
+    try {
+        URI u = URI.create(derived);
+        String host = u.getHost();
+        String scheme = u.getScheme();
+        int port = u.getPort();
+        if (host != null && host.startsWith("api.")) {
+            host = host.substring(4);
+            StringBuilder sb = new StringBuilder();
+            sb.append(scheme).append("://").append(host);
+            if (port != -1) {
+                boolean isDefaultPort =
+                        ("https".equalsIgnoreCase(scheme) && port == 443)
+                                || ("http".equalsIgnoreCase(scheme) && port == 80);
+                if (!isDefaultPort) sb.append(":").append(port);
+            }
+            return sb.toString();
+        }
+    } catch (Exception ignored) { }
+    return derived;
+}
+        return baseUrl(request);
     }
 
     private java.util.Map<String, Object> flowClaimsOf(Claims c) {
@@ -94,7 +200,7 @@ public class PasswordResetController {
 
             // 15분 유효
             String token = jwtTokenProvider.createFlowToken("PW_RESET_LINK", claims, 900);
-            String link = baseUrl(request) + "/User/Password_Reset_Link?token=" + enc(token);
+            String link = publicBackendBase(request) + "/User/Password_Reset_Link?token=" + enc(token);
 
             sendPasswordResetLinkEmail(verifiedEmail, link);
             return ResponseEntity.ok(java.util.Map.of("ok", true));
@@ -117,12 +223,12 @@ public class PasswordResetController {
                                         HttpServletResponse response) {
 
         if (token == null || token.isBlank() || !jwtTokenProvider.validateToken(token)) {
-            return redirectFrontWithQuery("/FindPassword", "error=" + enc("링크가 만료되었거나 올바르지 않습니다."));
+            return "redirect:" + effectiveFrontBase(request) + "/FindPassword?error=" + enc("링크가 만료되었거나 올바르지 않습니다.");
         }
 
         Claims c = jwtTokenProvider.getClaims(token);
         if (!"PW_RESET_LINK".equals(c.get("flowType", String.class))) {
-            return redirectFrontWithQuery("/FindPassword", "error=" + enc("링크가 만료되었거나 올바르지 않습니다."));
+            return "redirect:" + effectiveFrontBase(request) + "/FindPassword?error=" + enc("링크가 만료되었거나 올바르지 않습니다.");
         }
 
         java.util.Map<String, Object> flow = flowClaimsOf(c);
@@ -130,7 +236,7 @@ public class PasswordResetController {
         String email = flow.get("email") == null ? null : flow.get("email").toString();
 
         if (userid == null || userid.isBlank() || email == null || email.isBlank()) {
-            return redirectFrontWithQuery("/FindPassword", "error=" + enc("링크가 만료되었거나 올바르지 않습니다."));
+            return "redirect:" + effectiveFrontBase(request) + "/FindPassword?error=" + enc("링크가 만료되었거나 올바르지 않습니다.");
         }
 
         // ✅ NewPassword 제출 시 검증할 쿠키(PW_RESET_TMP) 발급
@@ -141,8 +247,8 @@ public class PasswordResetController {
         String tmp = jwtTokenProvider.createFlowToken("PW_RESET", claims, 900);
         CookieUtils.addHttpOnlyCookie(request, response, "PW_RESET_TMP", tmp, 900, "Lax");
 
-        return redirectFrontWithQuery("/NewPassword", "userid=" + enc(userid));
-    }
+        return "redirect:" + effectiveFrontBase(request) + "/NewPassword?userid=" + enc(userid);
+}
 
     @PostMapping("/User/Find_Password")
     public String findPassword(@RequestParam String userid,
@@ -198,8 +304,8 @@ public class PasswordResetController {
         }
 
         if (inputCode.equals(savedCode)) {
-            return redirectFrontWithQuery("/NewPassword", "userid=" + enc(userid));
-        }
+            return "redirect:" + effectiveFrontBase(request) + "/NewPassword?userid=" + enc(userid);
+}
 
         return redirectFrontWithQuery("/VerifyCode", "userid=" + enc(userid) + "&error=" + enc("인증번호가 일치하지 않습니다."));
     }
