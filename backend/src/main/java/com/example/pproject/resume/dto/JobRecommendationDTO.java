@@ -23,6 +23,10 @@ public class JobRecommendationDTO {
     private String summary;
     private String status;
     private Double similarity;
+    private String companyName;
+    private String companyLogoUrl;
+    private String createdAt;
+    private Integer requiredExperience;
 
     /**
      * Native Query 결과에서 DTO 생성
@@ -46,6 +50,10 @@ public class JobRecommendationDTO {
                 .summary((String) row[6])
                 .status((String) row[7])
                 .similarity(parseSimilarity(row[8]))
+                .companyName((String) row[9])
+                .companyLogoUrl((String) row[10])
+                .createdAt(row[11] != null ? row[11].toString() : null)
+                .requiredExperience(row[12] != null ? ((Number) row[12]).intValue() : null)
                 .build();
     }
 
