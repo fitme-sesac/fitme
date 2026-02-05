@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronRight, ChevronLeft, Building2, Sparkles, Loader2, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePublicJobs } from "@/hooks/useJobs";
+import { useAds } from "@/hooks/useAds"; // Using Ad API
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -17,15 +17,11 @@ export function RecommendedSection() {
     const [activeTab, setActiveTab] = useState("fit");
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Refined Matching for high-quality scores (97%+)
-    const { data: rawData, isLoading } = usePublicJobs({
-        memberId: user?.id,
-        sortBy: "match",
-        size: 10,
-        enabled: !!user
+    // Ad API Integration (V3 Hybrid for logged-in, V3 Public for guest)
+    const { data: recommendations, isLoading } = useAds({
+        memberId: user?.id, // Optional: undefined if not logged in
+        limit: 10,
     });
-
-    const recommendations = (rawData as any)?.jobs || [];
 
     const scroll = (direction: "left" | "right") => {
         if (scrollContainerRef.current) {
@@ -33,8 +29,6 @@ export function RecommendedSection() {
             scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
         }
     };
-
-    if (!user) return null;
 
     return (
         <div className="mb-8 space-y-4">
@@ -94,11 +88,15 @@ export function RecommendedSection() {
                     ) : recommendations && recommendations.length > 0 ? (
                         recommendations.map((job: any) => (
                             <Link
-                                key={job.jobId}
+                                key={job.jobId || job.campaignId}
                                 to={`/jobs/${job.jobId}`}
                                 className="flex-none w-[220px] group/card"
                             >
                                 <div className="h-[200px] bg-white rounded-2xl border border-gray-100 p-4 shadow-sm transition-all duration-300 group-hover/card:shadow-xl group-hover/card:-translate-y-1 group-hover/card:border-primary/20 flex flex-col justify-between relative overflow-hidden">
+                                    {/* Ad Badge */}
+                                    <div className="absolute top-0 right-0 px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-500 rounded-bl-lg z-10">
+                                        AD
+                                    </div>
                                     <div>
                                         <div className="flex items-center gap-3 mb-3">
                                             <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-50 flex items-center justify-center overflow-hidden">
@@ -110,7 +108,8 @@ export function RecommendedSection() {
                                                     </div>
                                                 )}
                                             </div>
-                                            {job.similarity !== null && (
+                                            {/* Show Match Rate only if available (logged in) */}
+                                            {job.similarity != null && !isNaN(job.similarity) && (
                                                 <div className="px-2 py-0.5 rounded-full bg-primary/5 border border-primary/10 flex items-center gap-1">
                                                     <Sparkles className="w-3 h-3 text-amber-400 fill-amber-400" />
                                                     <span className="text-[10px] font-black text-primary">
@@ -120,7 +119,7 @@ export function RecommendedSection() {
                                             )}
                                         </div>
                                         <h3 className="font-bold text-gray-900 leading-snug line-clamp-2 mb-1 group-hover/card:text-primary transition-colors">
-                                            {job.title}
+                                            {job.jobTitle || job.title}
                                         </h3>
                                         <p className="text-xs font-bold text-gray-500">{job.companyName}</p>
                                     </div>

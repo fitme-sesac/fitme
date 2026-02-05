@@ -1,6 +1,8 @@
 package com.example.pproject.ad.controller;
 
 import com.example.pproject.ad.scheduler.AdBudgetScheduler;
+import com.example.pproject.wallet.entity.Wallet;
+import com.example.pproject.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,6 +25,7 @@ import java.util.Map;
 public class AdAdminController {
 
     private final AdBudgetScheduler adBudgetScheduler;
+    private final WalletRepository walletRepository;
 
     /**
      * [수동 트리거] 일일 예산 정산 및 Redis 세팅 스케줄러
@@ -32,21 +36,62 @@ public class AdAdminController {
      * 3. Redis에 budget/cpc/status 세팅
      */
     @PostMapping("/scheduler/trigger")
-    public ResponseEntity<Map<String, String>> triggerBudgetScheduler() {
+    public ResponseEntity<Map<String, Object>> triggerBudgetScheduler() {
         log.warn("[ADMIN] Manual trigger of AdBudgetScheduler requested");
 
         try {
-            adBudgetScheduler.resetAndReserveDailyBudgets();
+            Map<String, Object> stats = adBudgetScheduler.processDailyBudgets();
             log.info("[ADMIN] AdBudgetScheduler completed successfully");
 
-            return ResponseEntity.ok(Map.of(
-                    "status", "success",
-                    "message", "스케줄러 실행 완료. Redis에 예산 데이터가 세팅되었습니다."));
+            Map<String, Object> response = new java.util.HashMap<>(stats);
+            response.put("status", "success");
+            response.put("message", "스케줄러 실행 완료.");
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("[ADMIN] AdBudgetScheduler failed", e);
             return ResponseEntity.internalServerError().body(Map.of(
                     "status", "error",
                     "message", "스케줄러 실행 실패: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/wallet/charge-all")
+    public ResponseEntity<Map<String, Object>> chargeAllWallets() {
+        log.warn("[ADMIN] Manual charge of ALL wallets requested");
+
+        try {
+            List<Wallet> allWallets = walletRepository.findAll();
+            int successCount = 0;
+            long chargeAmount = 100_000_000L; // 1억 충전
+
+            for (Wallet wallet : allWallets) {
+                if (wallet.getEmployer() != null) {
+                    try {
+                        // Wallet 엔티티의 charge 메서드 사용 (상태 체크 등 포함됨)
+                        wallet.charge(chargeAmount);
+                        // Dirty Checking으로 저장됨 (@Transactional 필요)
+                        successCount++;
+                    } catch (Exception e) {
+                        log.error("Failed to charge wallet id: {}", wallet.getWalletId(), e);
+                    }
+                }
+            }
+
+            // 명시적 저장을 위해 flush (Optional, Transactional이 클래스 레벨에 있으면 불필요하지만 안전하게)
+            walletRepository.saveAll(allWallets);
+
+            log.info("[ADMIN] Charged {} wallets with {}", successCount, chargeAmount);
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", successCount + "개 지갑에 1억씩 충전 완료",
+                    "charged_wallets", successCount));
+        } catch (Exception e) {
+            log.error("[ADMIN] Wallet charge failed", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "충전 실패: " + e.getMessage()));
         }
     }
 }
