@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FitMe ECS Services
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: fitme
+    Description: Environment name prefix
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+    Description: Desired number of tasks
+
+Resources:
+  #============================================================================
+  # Frontend Service
+  #============================================================================
+  FrontendService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${EnvironmentName}-frontend
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ClusterName
+      TaskDefinition: !ImportValue
+        Fn::Sub: ${EnvironmentName}-FrontendTaskDefinitionArn
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroupId
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 80
+          TargetGroupArn: !ImportValue
+            Fn::Sub: ${EnvironmentName}-FrontendTargetGroupArn
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      EnableExecuteCommand: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-frontend
+
+  #============================================================================
+  # Backend Service
+  #============================================================================
+  BackendService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${EnvironmentName}-backend
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ClusterName
+      TaskDefinition: !ImportValue
+        Fn::Sub: ${EnvironmentName}-BackendTaskDefinitionArn
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroupId
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 8080
+          TargetGroupArn: !ImportValue
+            Fn::Sub: ${EnvironmentName}-BackendTargetGroupArn
+      HealthCheckGracePeriodSeconds: 180
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      EnableExecuteCommand: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-backend
+
+  #============================================================================
+  # AI Worker Service
+  #============================================================================
+  AIWorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${EnvironmentName}-ai-worker
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ClusterName
+      TaskDefinition: !ImportValue
+        Fn::Sub: ${EnvironmentName}-AIWorkerTaskDefinitionArn
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroupId
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1Id
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: ai-worker
+          ContainerPort: 8000
+          TargetGroupArn: !ImportValue
+            Fn::Sub: ${EnvironmentName}-AIWorkerTargetGroupArn
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      EnableExecuteCommand: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ai-worker
+
+#============================================================================
+# Outputs
+#============================================================================
+Outputs:
+  FrontendServiceArn:
+    Description: Frontend Service ARN
+    Value: !Ref FrontendService
+    Export:
+      Name: !Sub ${EnvironmentName}-FrontendServiceArn
+
+  BackendServiceArn:
+    Description: Backend Service ARN
+    Value: !Ref BackendService
+    Export:
+      Name: !Sub ${EnvironmentName}-BackendServiceArn
+
+  AIWorkerServiceArn:
+    Description: AI Worker Service ARN
+    Value: !Ref AIWorkerService
+    Export:
+      Name: !Sub ${EnvironmentName}-AIWorkerServiceArn

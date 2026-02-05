@@ -114,6 +114,16 @@ export function useInterviews(year, month) {
 }
 
 /**
+ * 전체 면접 일정 조회 hook (날짜 필터 없이 전체 조회)
+ */
+export function useAllInterviews() {
+  return useQuery({
+    queryKey: ["interviews", "all"],
+    queryFn: () => getInterviews(0, null), // year=0 은 전체 조회
+  });
+}
+
+/**
  * 면접 일정 생성 mutation hook
  */
 export function useCreateInterview() {

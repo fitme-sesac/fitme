@@ -11,9 +11,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getMyProfileSummary } from "@/api/resumes";
 import { getAiRecommendations, getRecentlyViewedJobs } from "@/api/recommendations";
 import { getMyApplications } from "@/api/applications";
-import { getMyScrapedJobs } from "@/api/jobs";
+import { getMyScrapedJobs, scrapJob } from "@/api/jobs";
 import { getMyPayments, cancelPayment } from "@/api/payment";
 import { getMyLedgers } from "@/api/wallet";
+import { useQueryClient } from "@tanstack/react-query";
 import { CommunityManagement } from "@/components/mypage/CommunityManagement";
 import {
   User,
@@ -35,7 +36,8 @@ import {
   Coins,
   CreditCard,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Bot
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link, useSearchParams } from "react-router-dom";
@@ -230,11 +232,14 @@ const getStatusBadgeVariant = (status: string) => {
 
 const JobSeekerMyPage = () => {
   const { user, signOut } = useAuth();
+  const queryClient = useQueryClient();
   const [profileSummary, setProfileSummary] = useState<any>(null);
   const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
   const [viewedJobs, setViewedJobs] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [savedJobs, setSavedJobs] = useState<any[]>([]);
+  const [unscrapingJobId, setUnscrapingJobId] = useState<number | null>(null);
+  const [unscrappedJobIds, setUnscrappedJobIds] = useState<Set<number>>(new Set()); // 해제된 공고 ID 추적
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'applications';
 
@@ -244,6 +249,53 @@ const JobSeekerMyPage = () => {
 
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'profile' | 'community'>('profile');
+  
+  // 관심 공고 해제 (목록에서 즉시 사라지지 않고, 하트만 빈 상태로 변경)
+  const handleUnscrapJob = async (jobId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!jobId) return;
+    
+    setUnscrapingJobId(jobId);
+    try {
+      await scrapJob(jobId); // 토글 방식
+      // 해제된 공고 ID 추적 (목록에서 즉시 제거하지 않음)
+      setUnscrappedJobIds((prev) => new Set(prev).add(jobId));
+      // React Query 캐시 무효화 (다음 페이지 이동/새로고침 시 반영)
+      queryClient.invalidateQueries({ queryKey: ["myScrapedJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["scrapedJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["profileSummary"] });
+    } catch (error) {
+      console.error("관심 공고 해제 실패:", error);
+    } finally {
+      setUnscrapingJobId(null);
+    }
+  };
+  
+  // 관심 공고 다시 추가 (해제 취소)
+  const handleRescrapJob = async (jobId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!jobId) return;
+    
+    setUnscrapingJobId(jobId);
+    try {
+      await scrapJob(jobId); // 토글 방식으로 다시 추가
+      // 해제 목록에서 제거
+      setUnscrappedJobIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(jobId);
+        return newSet;
+      });
+      queryClient.invalidateQueries({ queryKey: ["myScrapedJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["scrapedJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["profileSummary"] });
+    } catch (error) {
+      console.error("관심 공고 추가 실패:", error);
+    } finally {
+      setUnscrapingJobId(null);
+    }
+  };
 
   // Sync state with URL when it changes
   useEffect(() => {
@@ -435,23 +487,43 @@ const JobSeekerMyPage = () => {
                   <CardContent>
                     <div className="space-y-4">
                       {applications.length > 0 ? (
-                        applications.map((app: { applicationId?: number; id?: number; jobId?: number; jobTitle?: string; status?: string; appliedAt?: string }) => (
+                        applications.map((app: { applicationId?: number; id?: number; jobId?: number; jobTitle?: string; companyName?: string; companyLogo?: string; location?: string; status?: string; appliedAt?: string }) => (
                           <Link
                             key={app.applicationId ?? app.id}
                             to={app.jobId ? `/jobs/${app.jobId}` : "#"}
                             className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer block"
                           >
                             <div className="flex items-center gap-4">
-                              {getStatusIcon(app.status)}
+                              {app.companyLogo ? (
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={app.companyLogo} />
+                                  <AvatarFallback>{app.companyName?.charAt(0) || "?"}</AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <Building2 className="h-5 w-5 text-primary" />
+                                </div>
+                              )}
                               <div>
                                 <p className="font-medium">{app.jobTitle ?? "채용공고"}</p>
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Building2 className="h-3 w-3" />
+                                  <span>{app.companyName || "기업명"}</span>
+                                  {app.location && (
+                                    <>
+                                      <span>•</span>
+                                      <MapPin className="h-3 w-3" />
+                                      <span>{app.location}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                  <Calendar className="h-3 w-3" />
                                   <span>지원일: {app.appliedAt ? format(new Date(app.appliedAt), "yyyy-MM-dd") : "-"}</span>
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
+                              {getStatusIcon(app.status)}
                               <Badge variant={getStatusBadgeVariant(app.status) as "default" | "secondary" | "destructive"}>
                                 {app.status ?? "SUBMITTED"}
                               </Badge>
@@ -479,11 +551,14 @@ const JobSeekerMyPage = () => {
                       {savedJobs.length > 0 ? (
                         savedJobs.map((item, index) => {
                           const job = item.job || item; // 구조에 따라 다를 수 있음
-                          const keyId = job.id || job.jobId || item.scrapId || item.id || `saved-${index}`;
+                          const jobId = job.id || job.jobId || item.jobId;
+                          const keyId = jobId || item.scrapId || item.id || `saved-${index}`;
+                          const isUnscraping = unscrapingJobId === jobId;
+                          const isUnscrapped = unscrappedJobIds.has(jobId); // 해제된 상태인지 확인
                           return (
                             <div
                               key={keyId}
-                              className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                              className={`flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer ${isUnscrapped ? 'opacity-60' : ''}`}
                             >
                               <div>
                                 <p className="font-medium">{job.title}</p>
@@ -496,10 +571,26 @@ const JobSeekerMyPage = () => {
                                 </div>
                                 <p className="text-sm text-primary mt-1">{job.salary || "회사 내규에 따름"}</p>
                               </div>
-                              <div className="text-right">
+                              <div className="flex items-center gap-2">
                                 <Badge variant="outline">마감: {job.deadline ? format(new Date(job.deadline), 'yyyy-MM-dd') : "상시"}</Badge>
-                                <Button size="sm" className="ml-3 btn-gradient-primary border-0" asChild>
-                                  <Link to={`/jobs/${job.id}`}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`h-9 w-9 p-0 ${isUnscrapped ? 'hover:bg-red-50' : 'hover:bg-red-50'}`}
+                                  onClick={(e) => isUnscrapped ? handleRescrapJob(jobId, e) : handleUnscrapJob(jobId, e)}
+                                  disabled={isUnscraping}
+                                  title={isUnscrapped ? "관심 추가" : "관심 해제"}
+                                >
+                                  {isUnscraping ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                  ) : isUnscrapped ? (
+                                    <Heart className="h-5 w-5 text-gray-400" />
+                                  ) : (
+                                    <Heart className="h-5 w-5 text-red-500 fill-red-500" />
+                                  )}
+                                </Button>
+                                <Button size="sm" className="btn-gradient-primary border-0" asChild>
+                                  <Link to={`/jobs/${jobId}`}>
                                     지원하기
                                   </Link>
                                 </Button>
@@ -546,14 +637,34 @@ const JobSeekerMyPage = () => {
                           </div>
                         ))}
                       </div>
+                    ) : profileSummary?.primaryResume ? (
+                      // 대표이력서는 있지만 AI 분석이 완료되지 않은 경우
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                          <Bot className="h-8 w-8 text-amber-600" />
+                        </div>
+                        <h3 className="text-lg font-medium mb-2">AI 분석이 필요합니다</h3>
+                        <p className="text-muted-foreground mb-4">
+                          대표이력서가 설정되어 있습니다.<br />
+                          이력서 페이지에서 AI 분석을 시작하면 맞춤 공고를 추천받을 수 있습니다.
+                        </p>
+                        <Button asChild className="btn-gradient-primary border-0">
+                          <Link to="/resume">
+                            <Bot className="h-4 w-4 mr-2" />
+                            AI 분석 시작하기
+                          </Link>
+                        </Button>
+                      </div>
                     ) : (
+                      // 대표이력서가 없는 경우
                       <div className="flex flex-col items-center justify-center py-12 text-center">
                         <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                           <User className="h-8 w-8 text-primary" />
                         </div>
-                        <h3 className="text-lg font-medium mb-2">이력서를 완성해주세요</h3>
+                        <h3 className="text-lg font-medium mb-2">대표 이력서를 설정해주세요</h3>
                         <p className="text-muted-foreground mb-4">
-                          이력서 정보를 바탕으로 AI가 맞춤 공고를 추천해드립니다.
+                          이력서를 작성하고 대표 이력서로 설정하면<br />
+                          AI가 맞춤 공고를 추천해드립니다.
                         </p>
                         <Button asChild className="btn-gradient-primary border-0">
                           <Link to="/resume">

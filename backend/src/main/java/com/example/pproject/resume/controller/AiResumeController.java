@@ -5,6 +5,8 @@ import com.example.pproject.global.response.ApiResponse;
 import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.resume.dto.AiResumeResponse;
 import com.example.pproject.resume.service.AiResumeService;
+import com.example.pproject.user.entity.UserEntity;
+import com.example.pproject.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 public class AiResumeController {
 
     private final AiResumeService aiResumeService;
+    private final UserRepository userRepository;
 
     /**
      * 이력서 AI 첨삭 및 요약 요청 (기본)
@@ -123,8 +126,39 @@ public class AiResumeController {
         if (principal == null) {
             throw new SecurityException("로그인이 필요합니다.");
         }
-        // JwtUserPrincipal에서 userId 추출 (구현에 따라 다를 수 있음)
-        return Long.valueOf(principal.getUserid());
+        
+        // 1. JWT에 ID가 포함된 경우 (정상 케이스)
+        Long id = principal.getId();
+        if (id != null) {
+            return id;
+        }
+        
+        // 2. ID가 없으면 userid 또는 email로 DB 조회
+        String userid = principal.getUserid();
+        String email = principal.getEmail();
+        
+        log.warn("JWT에 ID가 없음. userid={}, email={} 로 DB 조회 시도", userid, email);
+        
+        // userid로 조회
+        if (userid != null && !userid.isBlank()) {
+            UserEntity user = userRepository.findByUserid(userid).orElse(null);
+            if (user != null) {
+                log.info("userid로 사용자 조회 성공: id={}", user.getId());
+                return user.getId();
+            }
+        }
+        
+        // email로 조회
+        if (email != null && !email.isBlank()) {
+            UserEntity user = userRepository.findByEmail(email).orElse(null);
+            if (user != null) {
+                log.info("email로 사용자 조회 성공: id={}", user.getId());
+                return user.getId();
+            }
+        }
+        
+        log.error("사용자 조회 실패: userid={}, email={}", userid, email);
+        throw new SecurityException("사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
     }
 
     private String getStatusMessage(SummaryStatus status) {

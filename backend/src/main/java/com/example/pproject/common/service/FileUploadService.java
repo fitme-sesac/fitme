@@ -1,14 +1,15 @@
 package com.example.pproject.common.service;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-// S3 관련 import 주석처리
-// import software.amazon.awssdk.core.sync.RequestBody;
-// import software.amazon.awssdk.services.s3.S3Client;
-// import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-// import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import org.springframework.beans.factory.ObjectProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,10 +19,10 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FileUploadService {
 
-    // S3Client 주석처리 - S3 비활성화
-    // private final S3Client s3Client;
+    private final ObjectProvider<S3Client> s3ClientProvider;
 
     @Value("${tempFolder:C:/PProject/uploads/}")
     private String uploadPath;
@@ -69,20 +70,21 @@ public class FileUploadService {
         // UUID로 고유 파일명 생성
         String savedFilename = UUID.randomUUID().toString() + extension;
 
-        // S3 비활성화 - 항상 로컬 저장 사용
-        // if (s3Enabled && bucketName != null && !bucketName.isBlank()) {
-        //     return uploadToS3(file, subDirectory, savedFilename);
-        // } else {
-        //     return uploadToLocal(file, subDirectory, savedFilename);
-        // }
+        // S3 또는 로컬 저장
+        if (s3Enabled && bucketName != null && !bucketName.isBlank()) {
+            S3Client s3Client = s3ClientProvider.getIfAvailable();
+            if (s3Client != null) {
+                return uploadToS3(s3Client, file, subDirectory, savedFilename);
+            }
+            log.warn("S3 업로드가 활성화되어 있으나 S3Client 빈이 없습니다. 로컬 저장으로 대체합니다.");
+        }
         return uploadToLocal(file, subDirectory, savedFilename);
     }
 
     /**
-     * S3에 파일 업로드 - 현재 비활성화
+     * S3에 파일 업로드
      */
-    /*
-    private String uploadToS3(MultipartFile file, String subDirectory, String savedFilename) throws IOException {
+    private String uploadToS3(S3Client s3Client, MultipartFile file, String subDirectory, String savedFilename) throws IOException {
         String s3Key = subDirectory + "/" + savedFilename;
 
         // Content-Type 설정
@@ -108,7 +110,6 @@ public class FileUploadService {
             return "https://" + bucketName + ".s3.amazonaws.com/" + s3Key;
         }
     }
-    */
 
     /**
      * 로컬에 파일 업로드
@@ -140,12 +141,15 @@ public class FileUploadService {
         }
 
         try {
-            // S3 비활성화 - 로컬 파일만 삭제
-            // if (s3Enabled && (fileUrl.contains(".s3.amazonaws.com/") || 
-            //         (cloudfrontDomain != null && fileUrl.contains(cloudfrontDomain)))) {
-            //     deleteFromS3(fileUrl);
-            // } else 
-            if (fileUrl.startsWith("/images/")) {
+            if (s3Enabled && (fileUrl.contains(".s3.amazonaws.com/") || 
+                    (cloudfrontDomain != null && fileUrl.contains(cloudfrontDomain)))) {
+                S3Client s3Client = s3ClientProvider.getIfAvailable();
+                if (s3Client != null) {
+                    deleteFromS3(s3Client, fileUrl);
+                } else {
+                    log.warn("S3 삭제가 요청되었으나 S3Client 빈이 없습니다. skip: {}", fileUrl);
+                }
+            } else if (fileUrl.startsWith("/images/")) {
                 deleteFromLocal(fileUrl);
             }
         } catch (Exception e) {
@@ -154,10 +158,9 @@ public class FileUploadService {
     }
 
     /**
-     * S3에서 파일 삭제 - 현재 비활성화
+     * S3에서 파일 삭제
      */
-    /*
-    private void deleteFromS3(String fileUrl) {
+    private void deleteFromS3(S3Client s3Client, String fileUrl) {
         // S3 키 추출
         String s3Key;
         if (fileUrl.contains(".s3.amazonaws.com/")) {
@@ -177,7 +180,6 @@ public class FileUploadService {
         s3Client.deleteObject(deleteObjectRequest);
         log.info("S3 파일 삭제 완료: s3://{}/{}", bucketName, s3Key);
     }
-    */
 
     /**
      * 로컬에서 파일 삭제

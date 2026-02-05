@@ -1,6 +1,7 @@
 package com.example.pproject.job.dto;
 
 import lombok.*;
+import java.util.List;
 
 /**
  * 채용공고 생성 DTO (ERD 기준)
@@ -23,4 +24,7 @@ public class JobCreateDTO {
     private Integer requiredExperience;  // 요구 경력 (0: 신입/무관)
     private Integer recruitmentCapacity; // 모집 정원
     private String requiredQuestions; // JSON 문자열
+    
+    // 채용공고 이미지 URL 목록
+    private List<String> images;
 }

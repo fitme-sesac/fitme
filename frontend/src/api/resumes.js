@@ -140,3 +140,45 @@ export async function getMyProfileSummary() {
   const response = await http.get("/api/v1/resumes/my-profile-summary");
   return response.data;
 }
+
+// ==================== AI 첨삭 관련 API ====================
+
+/**
+ * AI 이력서 첨삭 요청 (기본)
+ * @param {number} resumeId - 이력서 ID
+ * @param {string} summaryType - 요약 타입 ("brief", "detailed", "professional")
+ * @returns {Promise<{success: boolean, message: string, data: string}>}
+ */
+export async function requestAiAnalysis(resumeId, summaryType = "detailed") {
+  const response = await http.post("/api/v1/ai/resumes/analyze", {
+    resumeId,
+    summaryType,
+  });
+  return response.data;
+}
+
+/**
+ * 채용공고 맞춤 AI 이력서 첨삭 요청
+ * @param {number} resumeId - 이력서 ID
+ * @param {number} jobId - 채용공고 ID
+ * @param {string} summaryType - 요약 타입 ("brief", "detailed", "professional")
+ * @returns {Promise<{success: boolean, message: string, data: string}>}
+ */
+export async function requestAiAnalysisForJob(resumeId, jobId, summaryType = "detailed") {
+  const response = await http.post("/api/v1/ai/resumes/analyze/job-match", {
+    resumeId,
+    jobId,
+    summaryType,
+  });
+  return response.data;
+}
+
+/**
+ * AI 분석 상태 조회
+ * @param {number} resumeId - 이력서 ID
+ * @returns {Promise<{resumeId: number, status: string, message: string}>}
+ */
+export async function getAiAnalysisStatus(resumeId) {
+  const response = await http.get(`/api/v1/ai/resumes/${resumeId}/status`);
+  return response.data;
+}

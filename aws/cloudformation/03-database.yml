@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FitMe RDS PostgreSQL Database
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: fitme
+    Description: Environment name prefix
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.medium
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+    Description: RDS instance class
+
+  DBName:
+    Type: String
+    Default: fitme_project
+    Description: Database name
+
+  DBUsername:
+    Type: String
+    Default: postgres
+    Description: Database master username
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Database master password (min 8 characters)
+
+Resources:
+  #============================================================================
+  # RDS PostgreSQL Instance
+  #============================================================================
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub ${EnvironmentName}-postgres
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      EngineVersion: '17.7'  # PostgreSQL 17.7
+      AllocatedStorage: 30
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !ImportValue
+        Fn::Sub: ${EnvironmentName}-DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !ImportValue
+          Fn::Sub: ${EnvironmentName}-RDSSecurityGroupId
+      MultiAZ: false  # Single AZ for cost optimization
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: 03:00-04:00
+      PreferredMaintenanceWindow: Mon:04:00-Mon:05:00
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      DeletionProtection: false  # Set to true for production
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-postgres
+
+#============================================================================
+# Outputs
+#============================================================================
+Outputs:
+  RDSEndpoint:
+    Description: RDS PostgreSQL Endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${EnvironmentName}-RDSEndpoint
+
+  RDSPort:
+    Description: RDS PostgreSQL Port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub ${EnvironmentName}-RDSPort
+
+  RDSConnectionString:
+    Description: JDBC Connection String
+    Value: !Sub 
+      - jdbc:postgresql://${Endpoint}:${Port}/${DBName}
+      - Endpoint: !GetAtt RDSInstance.Endpoint.Address
+        Port: !GetAtt RDSInstance.Endpoint.Port
+        DBName: !Ref DBName
+    Export:
+      Name: !Sub ${EnvironmentName}-RDSConnectionString

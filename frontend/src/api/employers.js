@@ -130,14 +130,15 @@ export async function updateApplicantStatus(applicationId, status) {
 
 /**
  * 면접 일정 목록 조회 (로그인 필요)
- * @param {number} year - 연도
+ * @param {number} year - 연도 (0이면 전체 조회)
  * @param {number} month - 월
  * @returns {Promise<InterviewListDTO>}
  */
 export async function getInterviews(year, month) {
   const params = new URLSearchParams();
-  if (year) params.append("year", year);
-  if (month) params.append("month", month);
+  // year=0은 전체 조회를 의미하므로 null/undefined만 체크
+  if (year !== null && year !== undefined) params.append("year", year);
+  if (month !== null && month !== undefined) params.append("month", month);
   const query = params.toString() ? `?${params.toString()}` : "";
   const response = await http.get(`/api/employer/interviews${query}`);
   return response.data;

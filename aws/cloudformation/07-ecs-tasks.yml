@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FitMe ECS Task Definitions
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: fitme
+    Description: Environment name prefix
+
+  AWSAccountId:
+    Type: String
+    Default: '116250269688'
+    Description: AWS Account ID
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag
+
+Resources:
+  #============================================================================
+  # Frontend Task Definition
+  #============================================================================
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-frontend
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-TaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-TaskRoleArn
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fitme-frontend:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-FrontendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: frontend
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost/ || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+
+  #============================================================================
+  # Backend Task Definition
+  #============================================================================
+  BackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-backend
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-TaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-TaskRoleArn
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fitme-backend:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: prod
+            - Name: TZ
+              Value: Asia/Seoul
+          Secrets:
+            - Name: DB_URL
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_URL::"
+            - Name: DB_USERNAME
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_USERNAME::"
+            - Name: DB_PASSWORD
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_PASSWORD::"
+            - Name: REDIS_HOST
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/redis:REDIS_HOST::"
+            - Name: REDIS_PORT
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/redis:REDIS_PORT::"
+            - Name: REDIS_PASSWORD
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/redis:REDIS_PASSWORD::"
+            - Name: JWT_SECRET
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/app:JWT_SECRET::"
+            - Name: OAUTH2_AUTH_REQUEST_COOKIE_SECRET
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/app:OAUTH2_AUTH_REQUEST_COOKIE_SECRET::"
+            - Name: OPENAI_API_KEY
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:OPENAI_API_KEY::"
+            - Name: GOOGLE_CLIENT_ID
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:GOOGLE_CLIENT_ID::"
+            - Name: GOOGLE_CLIENT_SECRET
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:GOOGLE_CLIENT_SECRET::"
+            - Name: KAKAO_CLIENT_ID
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:KAKAO_CLIENT_ID::"
+            - Name: KAKAO_CLIENT_SECRET
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:KAKAO_CLIENT_SECRET::"
+            - Name: NAVER_CLIENT_ID
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:NAVER_CLIENT_ID::"
+            - Name: NAVER_CLIENT_SECRET
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/oauth:NAVER_CLIENT_SECRET::"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backend
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8080/actuator/health || exit 1
+            Interval: 30
+            Timeout: 10
+            Retries: 3
+            StartPeriod: 120
+
+  #============================================================================
+  # AI Worker Task Definition
+  #============================================================================
+  AIWorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-ai-worker
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-TaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-TaskRoleArn
+      ContainerDefinitions:
+        - Name: ai-worker
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fitme-ai-worker:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: TZ
+              Value: Asia/Seoul
+          Secrets:
+            - Name: DB_HOST
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_HOST::"
+            - Name: DB_PORT
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_PORT::"
+            - Name: DB_NAME
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_NAME::"
+            - Name: DB_USER
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_USERNAME::"
+            - Name: DB_PASSWORD
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/database:DB_PASSWORD::"
+            - Name: OPENAI_API_KEY
+              ValueFrom:
+                Fn::Sub: "arn:aws:secretsmanager:${AWS::Region}:${AWSAccountId}:secret:${EnvironmentName}/api-keys:OPENAI_API_KEY::"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-AIWorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ai-worker
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8000/health || exit 1
+            Interval: 30
+            Timeout: 10
+            Retries: 3
+            StartPeriod: 60
+
+#============================================================================
+# Outputs
+#============================================================================
+Outputs:
+  FrontendTaskDefinitionArn:
+    Description: Frontend Task Definition ARN
+    Value: !Ref FrontendTaskDefinition
+    Export:
+      Name: !Sub ${EnvironmentName}-FrontendTaskDefinitionArn
+
+  BackendTaskDefinitionArn:
+    Description: Backend Task Definition ARN
+    Value: !Ref BackendTaskDefinition
+    Export:
+      Name: !Sub ${EnvironmentName}-BackendTaskDefinitionArn
+
+  AIWorkerTaskDefinitionArn:
+    Description: AI Worker Task Definition ARN
+    Value: !Ref AIWorkerTaskDefinition
+    Export:
+      Name: !Sub ${EnvironmentName}-AIWorkerTaskDefinitionArn
