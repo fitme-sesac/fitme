@@ -80,7 +80,7 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn: !ImportValue
             Fn::Sub: ${EnvironmentName}-BackendTargetGroupArn
-      HealthCheckGracePeriodSeconds: 180
+      HealthCheckGracePeriodSeconds: 600
       DeploymentConfiguration:
         MinimumHealthyPercent: 100
         MaximumPercent: 200

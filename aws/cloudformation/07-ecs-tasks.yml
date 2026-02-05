@@ -145,7 +145,7 @@ Resources:
             Interval: 30
             Timeout: 10
             Retries: 3
-            StartPeriod: 120
+            StartPeriod: 600
 
   #============================================================================
   # AI Worker Task Definition
