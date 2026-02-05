@@ -270,24 +270,14 @@ class SummaryService:
             4. collaboration: 협업 스타일 및 가치관 (1-2문장)
             
             5. universal_competencies (리스트):
-               - 위 내용들을 채용 공고에 자주 등장하는 '일반화된 역량 키워드'로 변환하여 리스트로 나열하라.
-               - **[Critical Constraint 1 - Hallucination Prevention]**:
-                 - 반드시 **입력 데이터에 명시된 사실**에 기반해야 한다.
-                 - **도구의 단순 사용을 해당 도구가 속한 전체 카테고리(General Concept)로 과대포장하지 마라.**
-               - **[Critical Constraint 2 - Attribution Check]**:
-                 - **팀 프로젝트에서 사용된 기술이라도, 후보자가 '직접' 기여한 명확한 서술이 없으면 역량으로 포함하지 마라.**
+               - 후보자의 경험을 채용 공고(JD)의 '자격 요건' 및 '우대 사항' 섹션에 등장하는 표준적인 **기술 키워드 및 전문 역량**으로 변환하여 리스트로 나열하라.
+               - 반드시 **명사형 키워드** 위주로 짧고 간결하게 작성하라. (예: ["대규모 트래픽 처리", "MSA 아키텍처 설계", "CI/CD 자동화"])
+               - **[Hallucination Prevention]**: 데이터에 명시된 사실만 포함하고, 직접 기여가 확인되지 않은 팀 기술은 제외하라.
             
             6. job_category:
                - 후보자의 경험과 기술 스택을 종합하여 **가장 적합한 표준 직무명(Standard Job Category)** 하나를 추출하라. (예: "백엔드 개발자")
             
-            7. embedding_summary (필수 - 검색 최적화):
-               - **채용 공고(JD)와의 벡터 유사도 매칭을 극대화하기 위해, 지원자의 모든 역량을 '문맥이 살아있는 완결된 서술문(Narrative)'으로 통합 요약하라.**
-               - **[작성 규칙]:**
-                 - **개조식 금지**, **명사형 종결(~함) 금지**. 반드시 '주어+목적어+서술어'가 있는 **완전한 문장**으로 작성하라.
-                 - 문장 구조: "이 지원자는 [직무]로서 [핵심 기술]을 활용하여 [구체적 경험]을 수행하였으며, 이를 통해 [성과]를 달성했습니다."
-                 - **학력/전공 통합**: "컴퓨터공학을 전공하여 CS 기초가 탄탄하며..." 와 같이 문맥에 자연스럽게 녹여라.
-
-            8. ai_reasoning: 분석 근거 (가장 핵심적인 근거 2-3개만)
+            7. ai_reasoning: 분석 근거 (가장 핵심적인 근거 2-3개만)
             
             * 주의: 마크다운 리스트 기호(`-`, `*`)는 가독성을 해치므로 쓰지 마라. 모든 항목은 일반 텍스트 문단으로 작성한다.
             """
@@ -444,8 +434,8 @@ class SummaryService:
         parser = JsonOutputParser(pydantic_object=EvalOut)
         llm = ChatOpenAI(model=settings.OPENAI_MODEL_NAME, temperature=0, openai_api_key=settings.OPENAI_API_KEY)
         
-        # Escape Braces
-        safe_original = original[:2000].replace("{", "{{").replace("}", "}}")
+        # [요청하신 대로 한계치를 대폭 늘립니다] 원문이 길어질 수 있으므로 8000자까지 허용 (GPT-4o 충분히 수용 가능)
+        safe_original = original[:8000].replace("{", "{{").replace("}", "}}")
         safe_summary = summary.replace("{", "{{").replace("}", "}}")
 
         prompt = ChatPromptTemplate.from_messages([
@@ -473,8 +463,8 @@ class SummaryService:
         llm = ChatOpenAI(model=settings.OPENAI_MODEL_NAME, temperature=0, openai_api_key=settings.OPENAI_API_KEY)
         parser = self.json_parser
         
-        # Escape Braces
-        safe_original = original[:2000].replace("{", "{{").replace("}", "}}")
+        # [요정하신 대로 한계치를 대폭 늘립니다] 피드백 시에도 원문 전체를 볼 수 있도록 8000자 허용
+        safe_original = original[:8000].replace("{", "{{").replace("}", "}}")
         safe_prev_summary = prev_summary.replace("{", "{{").replace("}", "}}")
         safe_feedback = feedback.replace("{", "{{").replace("}", "}}")
 
