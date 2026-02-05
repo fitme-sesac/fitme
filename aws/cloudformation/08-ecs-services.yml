@@ -44,7 +44,7 @@ Resources:
             Fn::Sub: ${EnvironmentName}-FrontendTargetGroupArn
       HealthCheckGracePeriodSeconds: 60
       DeploymentConfiguration:
-        MinimumHealthyPercent: 50
+        MinimumHealthyPercent: 100
         MaximumPercent: 200
       EnableExecuteCommand: true
       Tags:
@@ -82,7 +82,7 @@ Resources:
             Fn::Sub: ${EnvironmentName}-BackendTargetGroupArn
       HealthCheckGracePeriodSeconds: 180
       DeploymentConfiguration:
-        MinimumHealthyPercent: 50
+        MinimumHealthyPercent: 100
         MaximumPercent: 200
       EnableExecuteCommand: true
       Tags:
@@ -120,7 +120,7 @@ Resources:
             Fn::Sub: ${EnvironmentName}-AIWorkerTargetGroupArn
       HealthCheckGracePeriodSeconds: 120
       DeploymentConfiguration:
-        MinimumHealthyPercent: 50
+        MinimumHealthyPercent: 100
         MaximumPercent: 200
       EnableExecuteCommand: true
       Tags:

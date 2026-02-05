@@ -9,6 +9,12 @@ spring:
     job:
       # 애플리케이션 시작 시 Job 자동 실행 방지
       enabled: false
+
+  # [NEW] 데이터 초기화 설정 (data.sql 실행)
+  sql:
+    init:
+      mode: always
+
   task:
     scheduling:
       pool:
