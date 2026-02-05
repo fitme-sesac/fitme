@@ -1,5 +1,6 @@
 package com.example.pproject.payment.repository;
 
+import com.example.pproject.Constant.BuyerType;
 import com.example.pproject.payment.entity.Payment;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
@@ -42,4 +43,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     // 총 수익 계산 (결제 완료된 금액 합계)
     @Query("SELECT COALESCE(SUM(p.paidAmount.amount), 0) FROM Payment p WHERE p.appStatus = com.example.pproject.Constant.PaymentAppStatus.APPROVED")
     Long sumTotalRevenue();
+
+    // 구매자 유형별 총 수익 계산
+    @Query("SELECT COALESCE(SUM(p.paidAmount.amount), 0) FROM Payment p WHERE p.appStatus = com.example.pproject.Constant.PaymentAppStatus.APPROVED AND p.order.buyerType = :buyerType")
+    Long sumTotalRevenueByBuyerType(@Param("buyerType") BuyerType buyerType);
 }

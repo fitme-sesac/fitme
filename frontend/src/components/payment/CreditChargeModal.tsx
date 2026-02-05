@@ -1,36 +1,17 @@
 import { useState, useEffect } from "react";
-import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
-import { createPayment, confirmPayment } from "@/api/payment";
+import { useCreditPayment } from "@/features/payment/hooks/useCreditPayment";
 import {
     Dialog,
     DialogContent,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Coins, CheckCircle2, ShieldCheck, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
-
-interface CreditOption {
-    id: string;
-    credits: number;
-    price: number;
-    bonus?: number;
-    isPopular?: boolean;
-}
-
-const CREDIT_OPTIONS: CreditOption[] = [
-    { id: "1", credits: 1000, price: 11000 },
-    { id: "2", credits: 5000, price: 55000, bonus: 250 },
-    { id: "3", credits: 10000, price: 110000, bonus: 1000, isPopular: true },
-    { id: "4", credits: 30000, price: 330000, bonus: 4500 },
-    { id: "5", credits: 50000, price: 550000, bonus: 10000 },
-    { id: "6", credits: 100000, price: 990000, bonus: 25000 },
-];
+import { fetchProducts, Product } from "@/api/product";
+import { PaymentProduct } from "@/features/payment/hooks/useCreditPayment";
 
 export function CreditChargeModal({
     open,
@@ -39,179 +20,88 @@ export function CreditChargeModal({
     open: boolean;
     onOpenChange: (open: boolean) => void
 }) {
-    const { user, isCompany, refreshCredits } = useAuth() as any;
-    const [selectedId, setSelectedId] = useState<string>("3");
-    const [searchParams, setSearchParams] = useSearchParams();
-    const isSuccess = searchParams.get("payment_success") === "true";
-    const isFail = searchParams.get("payment_fail") === "true";
-    const isConfirming = searchParams.get("payment_confirm") === "true";
+    const { user } = useAuth() as any;
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
-    const successOrderId = searchParams.get("orderId");
-    const successAmount = searchParams.get("amount");
-    const failMessage = searchParams.get("message");
+    const {
+        isCharging,
+        isInternalConfirming,
+        isConfirming,
+        isSuccess,
+        isFail,
+        paymentMethod,
+        simplePayType,
+        agreed,
+        successAmount,
+        failMessage,
+        setPaymentMethod,
+        setSimplePayType,
+        setAgreed,
+        requestPayment,
+        resetParams,
+        closeResultAndReset
+    } = useCreditPayment({ onOpenChange });
 
-    const [isInternalConfirming, setIsInternalConfirming] = useState(false);
-    const [isCharging, setIsCharging] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState("SIMPLE"); // SIMPLE, CARD, PHONE, TRANSFER, GIFT
-    const [simplePayType, setSimplePayType] = useState<string | null>(null);
-    const [agreed, setAgreed] = useState(false);
-
-    // 결제 승인 처리 (Confirmation)
     useEffect(() => {
-        if (!isConfirming || isInternalConfirming) return;
-
-        const confirm = async () => {
-            const paymentKey = searchParams.get("paymentKey");
-            const orderId = searchParams.get("orderId");
-            const amount = Number(searchParams.get("amount"));
-
-            if (!paymentKey || !orderId || !amount) return;
-
-            setIsInternalConfirming(true);
-            try {
-                await confirmPayment({
-                    paymentKey,
-                    orderId,
-                    amount
-                });
-
-                await refreshCredits?.();
-
-                // 성공 파라미터로 전환
-                // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
-                const newParams = new URLSearchParams();
-                newParams.set("payment_success", "true");
-                newParams.set("orderId", orderId);
-                newParams.set("amount", String(amount));
-                setSearchParams(newParams, { replace: true });
-            } catch (err: any) {
-                console.error("Payment confirmation failed:", err);
-                const errorMsg = err.response?.data?.message || "결제 승인 중 오류가 발생했습니다.";
-
-                // 실패 파라미터로 전환
-                // CRITICAL: Clean all previous result parameters to avoid flickering or state contamination
-                const newParams = new URLSearchParams();
-                newParams.set("payment_fail", "true");
-                newParams.set("message", errorMsg);
-                setSearchParams(newParams, { replace: true });
-            } finally {
-                setIsInternalConfirming(false);
-            }
-        };
-
-        confirm();
-    }, [isConfirming, searchParams, setSearchParams, refreshCredits]);
-
-    const selectedOption = CREDIT_OPTIONS.find(opt => opt.id === selectedId) || CREDIT_OPTIONS[2];
-    const totalCredits = selectedOption.credits + (selectedOption.bonus || 0);
-
-    const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
-    const customerKey = user?.id || user?.email?.replace(/[^a-zA-Z0-9]/g, "") || "ANONYMOUS";
-
-    const handleCharge = async () => {
-        if (!agreed) {
-            alert("구매 조건 및 결제 진행 동의가 필요합니다.");
-            return;
-        }
-
-        console.log("handleCharge triggered", { isCharging, price: selectedOption.price, customerKey });
-        setIsCharging(true);
-
-        try {
-            const productCodeMapValue: Record<number, string> = {
-                1000: "CREDIT_1000",
-                5000: "CREDIT_5000",
-                10000: "CREDIT_10000",
-                30000: "CREDIT_30000",
-                50000: "CREDIT_50000",
-                100000: "CREDIT_100000",
-            };
-
-            const productCode = productCodeMapValue[selectedOption.credits] || "CREDIT_GENERIC";
-
-            let backendOrder;
-            try {
-                backendOrder = await createPayment({
-                    amount: selectedOption.price,
-                    orderName: `${selectedOption.credits.toLocaleString()} 크레딧 충전`,
-                    buyerType: isCompany ? "EMPLOYER" : "MEMBER",
-                    productCode: productCode,
-                    idempotencyKey: `ORDER-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-                });
-            } catch (err: any) {
-                console.error("Backend payment creation failed:", err);
-                throw new Error(err.response?.data?.message || "서버 결제 요청 생성에 실패했습니다.");
-            }
-
-            const orderId = backendOrder.orderId;
-            console.log("Backend Order Created:", orderId);
-
-            // Dummy Simulation
-            if (!clientKey || clientKey === "test") {
-                const currentPath = encodeURIComponent(window.location.pathname + window.location.search);
-                window.location.href = `${window.location.origin}/payment/success?paymentKey=mock_${Date.now()}&orderId=${orderId}&amount=${selectedOption.price}&next=${currentPath}`;
-                return;
-            }
-
-            // Real Toss Payments
-            const tossPayments = await loadTossPayments(clientKey);
-            const payment = tossPayments.payment({ customerKey });
-
-            // method mapping based on tabs/selection
-            let method = "CARD";
-
-            if (paymentMethod === "SIMPLE") {
-                if (simplePayType === "kakao") {
-                    method = "CARD";
+        if (open) {
+            const loadProducts = async () => {
+                setIsLoadingProducts(true);
+                try {
+                    const data = await fetchProducts("ONE_TIME");
+                    setProducts(data.content);
+                    if (data.content.length > 0 && selectedId === null) {
+                        // Default select logic (maybe the middle one or first)
+                        // Selecting the 3rd one if exists, else first
+                        if (data.content.length >= 3) {
+                            setSelectedId(data.content[2].productId);
+                        } else {
+                            setSelectedId(data.content[0].productId);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to load products", error);
+                } finally {
+                    setIsLoadingProducts(false);
                 }
-            } else if (paymentMethod === "PHONE") {
-                method = "MOBILE_PHONE";
-            } else if (paymentMethod === "TRANSFER") {
-                method = "TRANSFER";
-            } else if (paymentMethod === "GIFT") {
-                method = "GIFT_CERTIFICATE";
-            }
-
-            await payment.requestPayment({
-                method: method as any,
-                amount: {
-                    value: selectedOption.price,
-                    currency: "KRW",
-                },
-                orderId: orderId,
-                orderName: `${selectedOption.credits.toLocaleString()} 크레딧 충전`,
-                customerEmail: user?.email,
-                customerName: user?.user_metadata?.display_name || "사용자",
-                successUrl: `${window.location.origin}/payment/success?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
-                failUrl: `${window.location.origin}/payment/fail?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
-                card: {
-                    useEscrow: false,
-                    flowMode: "DEFAULT",
-                    useCardPoint: false,
-                    useAppCardOnly: false,
-                },
-            });
-
-        } catch (error: any) {
-            console.error("Payment Error:", error);
-            setIsCharging(false);
-            alert(`결제 오류: ${error?.message || "결제 진행 중 오류가 발생했습니다."}`);
+            };
+            loadProducts();
         }
+    }, [open]);
+
+    const selectedProduct = products.find(p => p.productId === selectedId) || products[0];
+    const totalCredits = selectedProduct ? selectedProduct.creditAmount : 0;
+    const totalPrice = selectedProduct ? selectedProduct.priceAmount : 0;
+
+    // 성공 시 표시할 크레딧 계산 (금액 기반 역추적)
+    const getCreditsFromAmount = (amount: number) => {
+        const product = products.find(p => p.priceAmount === amount);
+        if (product) {
+            return product.creditAmount.toLocaleString();
+        }
+        return "0";
     };
 
-    const handleClose = () => {
-        if (isResultView) {
-            // URL 파라미터 정리
-            const newParams = new URLSearchParams();
-            setSearchParams(newParams, { replace: true });
-        }
-        onOpenChange(false);
+    const handleCharge = () => {
+        if (!selectedProduct) return;
+
+        // Convert to PaymentProduct interface expected by hook
+        const paymentOption: PaymentProduct = {
+            id: selectedProduct.productId,
+            credits: selectedProduct.creditAmount,
+            price: selectedProduct.priceAmount,
+            productCode: selectedProduct.productCode,
+            name: selectedProduct.name
+        };
+
+        requestPayment(paymentOption);
     };
 
     const isResultView = isSuccess || isFail || isConfirming;
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
+        <Dialog open={open} onOpenChange={() => closeResultAndReset()}>
             <DialogContent className={cn(
                 "max-w-5xl p-0 overflow-hidden border-none bg-white rounded-2xl shadow-2xl transition-all [&>button]:hidden",
                 isResultView ? "max-w-md" : "w-[95vw] max-h-[90vh] h-[750px] flex flex-col"
@@ -247,7 +137,7 @@ export function CreditChargeModal({
                                 <>
                                     <h2 className="text-2xl font-bold text-slate-900">충전이 완료되었습니다!</h2>
                                     <p className="text-slate-500">
-                                        주문번호: {successOrderId}<br />
+                                        충전된 크레딧: <span className="font-bold text-slate-900">{getCreditsFromAmount(Number(successAmount || 0))} 크레딧</span><br />
                                         결제금액: {Number(successAmount || 0).toLocaleString()}원
                                     </p>
                                     <p className="text-sm font-bold text-blue-600 mt-2">
@@ -268,19 +158,12 @@ export function CreditChargeModal({
                         </div>
                         <div className="pt-4 flex gap-2">
                             {!isConfirming && !isInternalConfirming && isFail && (
-                                <Button variant="outline" onClick={() => {
-                                    const newParams = new URLSearchParams(searchParams);
-                                    newParams.delete("payment_fail");
-                                    newParams.delete("message");
-                                    newParams.delete("code");
-                                    setSearchParams(newParams, { replace: true });
-                                    // Stay in modal, reset to charge state
-                                }} className="flex-1 text-lg py-6 rounded-xl">
+                                <Button variant="outline" onClick={resetParams} className="flex-1 text-lg py-6 rounded-xl">
                                     다시 시도
                                 </Button>
                             )}
                             {!isInternalConfirming && !isConfirming && (
-                                <Button onClick={handleClose} className={cn("flex-1 text-lg py-6 rounded-xl text-white", isSuccess ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800")}>
+                                <Button onClick={closeResultAndReset} className={cn("flex-1 text-lg py-6 rounded-xl text-white", isSuccess ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-slate-800")}>
                                     확인
                                 </Button>
                             )}
@@ -313,12 +196,6 @@ export function CreditChargeModal({
                                         <span className="text-[10px] text-blue-400 block font-bold">CREDITS</span>
                                     </div>
                                 </div>
-                                {selectedOption.bonus && (
-                                    <div className="flex justify-between items-baseline text-xs font-bold text-emerald-500">
-                                        <span>보너스 합산됨</span>
-                                        <span>+{selectedOption.bonus.toLocaleString()}</span>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="mt-auto">
@@ -329,7 +206,7 @@ export function CreditChargeModal({
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="font-bold text-slate-500 text-sm">결제 금액</span>
-                                        <span className="text-lg font-black text-slate-900">{selectedOption.price.toLocaleString()}원</span>
+                                        <span className="text-lg font-black text-slate-900">{totalPrice.toLocaleString()}원</span>
                                     </div>
                                 </div>
                             </div>
@@ -351,41 +228,39 @@ export function CreditChargeModal({
                             {/* Scrollable Content */}
                             <div className="flex-1 overflow-y-auto p-6 pt-2">
                                 {/* Step 1: Grid */}
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
-                                    {CREDIT_OPTIONS.map((opt) => (
-                                        <div
-                                            key={opt.id}
-                                            onClick={() => setSelectedId(opt.id)}
-                                            className={cn(
-                                                "relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md",
-                                                selectedId === opt.id
-                                                    ? "border-blue-500 bg-white ring-2 ring-blue-50/50"
-                                                    : "border-slate-100 bg-white hover:border-slate-200"
-                                            )}
-                                        >
-                                            {opt.isPopular && (
-                                                <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-100 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                                                    인기
+                                {isLoadingProducts ? (
+                                    <div className="flex justify-center items-center h-40">
+                                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+                                        {products.map((opt) => (
+                                            <div
+                                                key={opt.productId}
+                                                onClick={() => setSelectedId(opt.productId)}
+                                                className={cn(
+                                                    "relative cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md",
+                                                    selectedId === opt.productId
+                                                        ? "border-blue-500 bg-white ring-2 ring-blue-50/50"
+                                                        : "border-slate-100 bg-white hover:border-slate-200"
+                                                )}
+                                            >
+                                                {/* Popular badge logic could go here if we had data, currently omitted */}
+
+                                                {selectedId === opt.productId && (
+                                                    <div className="absolute top-2 right-2 text-blue-500">
+                                                        <CheckCircle2 className="h-4 w-4 fill-blue-50" />
+                                                    </div>
+                                                )}
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">CREDITS</p>
+                                                    <p className="text-xl font-black text-slate-800">{opt.creditAmount.toLocaleString()}</p>
+                                                    <p className="text-sm font-medium text-slate-500">{opt.priceAmount.toLocaleString()}원</p>
                                                 </div>
-                                            )}
-                                            {selectedId === opt.id && (
-                                                <div className="absolute top-2 right-2 text-blue-500">
-                                                    <CheckCircle2 className="h-4 w-4 fill-blue-50" />
-                                                </div>
-                                            )}
-                                            <div className="space-y-0.5">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">CREDITS</p>
-                                                <p className="text-xl font-black text-slate-800">{opt.credits.toLocaleString()}</p>
-                                                <p className="text-sm font-medium text-slate-500">{opt.price.toLocaleString()}원</p>
                                             </div>
-                                            {opt.bonus && (
-                                                <div className="mt-2 inline-flex items-center rounded-md bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                                                    +{opt.bonus.toLocaleString()} 보너스
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {/* Step 2: Payment Method */}
                                 <div className="mb-6">
@@ -469,7 +344,7 @@ export function CreditChargeModal({
 
                                     <Button
                                         onClick={handleCharge}
-                                        disabled={isCharging}
+                                        disabled={isCharging || !selectedProduct}
                                         className={cn(
                                             "w-full h-12 text-base font-black rounded-xl transition-all shadow-lg shadow-blue-100",
                                             "bg-blue-600 hover:bg-blue-700 text-white"

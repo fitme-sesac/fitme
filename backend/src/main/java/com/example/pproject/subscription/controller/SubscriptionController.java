@@ -1,6 +1,7 @@
 package com.example.pproject.subscription.controller;
 
 import com.example.pproject.Config.JwtUserPrincipal;
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.Constant.SubscriptionStatus;
 import com.example.pproject.employer.entity.EmployerMemberEntity;
 import com.example.pproject.employer.repository.EmployerMemberRepository;
@@ -26,6 +27,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/subscriptions")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
@@ -45,7 +47,7 @@ public class SubscriptionController {
     public ResponseEntity<?> checkMySubscriptionStatus(@AuthenticationPrincipal JwtUserPrincipal principal) {
         try {
             Long employerId = getEmployerIdFromPrincipal(principal);
-            
+
             if (employerId == null) {
                 return ResponseEntity.ok(Map.of(
                         "hasActiveSubscription", false,
@@ -55,7 +57,7 @@ public class SubscriptionController {
 
             Instant now = Instant.now();
             boolean hasActive = subscriptionRepository.hasActiveSubscription(employerId, SubscriptionStatus.ACTIVE, now);
-            
+
             if (hasActive) {
                 var subscription = subscriptionRepository.findActiveByEmployerId(employerId, SubscriptionStatus.ACTIVE, now);
                 return ResponseEntity.ok(Map.of(
@@ -86,19 +88,19 @@ public class SubscriptionController {
      */
     private Long getEmployerIdFromPrincipal(JwtUserPrincipal principal) {
         if (principal == null) return null;
-        
+
         try {
             String userid = principal.getUserid();
             String email = principal.getEmail();
-            
-            var userOpt = userid != null ? userRepository.findByUserid(userid) : 
+
+            var userOpt = userid != null ? userRepository.findByUserid(userid) :
                          email != null ? userRepository.findByEmail(email) : null;
-            
+
             if (userOpt == null || userOpt.isEmpty()) return null;
-            
+
             Long memberId = userOpt.get().getId();
             var membership = employerMemberRepository.findFirstByMemberIdAndActiveTrue(memberId);
-            
+
             return membership.map(EmployerMemberEntity::getEmployerId).orElse(null);
         } catch (Exception e) {
             log.warn("기업 ID 조회 실패: {}", e.getMessage());
@@ -114,8 +116,10 @@ public class SubscriptionController {
      * 구독 생성 (신청)
      */
     @PostMapping
-    public ResponseEntity<SubscriptionResponse> createSubscription(@RequestBody SubscriptionCreateRequest request) {
-        SubscriptionResponse response = subscriptionService.createSubscription(request);
+    public ResponseEntity<SubscriptionResponse> createSubscription(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody SubscriptionCreateRequest request) {
+        SubscriptionResponse response = subscriptionService.createSubscription(principal.getUserid(), request);
         return ResponseEntity.ok(response);
     }
 
@@ -123,8 +127,10 @@ public class SubscriptionController {
      * 내 구독 상세 조회
      */
     @GetMapping("/{subscriptionId}")
-    public ResponseEntity<SubscriptionResponse> getSubscription(@PathVariable Long subscriptionId) {
-        SubscriptionResponse response = subscriptionService.getSubscription(subscriptionId);
+    public ResponseEntity<SubscriptionResponse> getSubscription(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long subscriptionId) {
+        SubscriptionResponse response = subscriptionService.getSubscription(principal.getUserid(), subscriptionId);
         return ResponseEntity.ok(response);
     }
 
@@ -132,8 +138,11 @@ public class SubscriptionController {
      * 기업의 구독 목록 조회
      */
     @GetMapping("/employer/{employerId}")
-    public ResponseEntity<List<SubscriptionResponse>> getSubscriptionsByEmployer(@PathVariable Long employerId) {
-        List<SubscriptionResponse> responses = subscriptionService.getSubscriptionsByEmployer(employerId);
+    public ResponseEntity<List<SubscriptionResponse>> getSubscriptionsByEmployer(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long employerId) {
+        List<SubscriptionResponse> responses = subscriptionService.getSubscriptionsByEmployer(principal.getUserid(),
+                employerId);
         return ResponseEntity.ok(responses);
     }
 
@@ -141,8 +150,10 @@ public class SubscriptionController {
      * 구독 취소 (해지 예약)
      */
     @PostMapping("/{subscriptionId}/cancel")
-    public ResponseEntity<Void> cancelSubscription(@PathVariable Long subscriptionId) {
-        subscriptionService.cancelSubscription(subscriptionId);
+    public ResponseEntity<Void> cancelSubscription(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long subscriptionId) {
+        subscriptionService.cancelSubscription(principal.getUserid(), subscriptionId);
         return ResponseEntity.ok().build();
     }
 
@@ -150,8 +161,10 @@ public class SubscriptionController {
      * 구독 재개 (결제 실패 등으로 중단된 경우)
      */
     @PostMapping("/{subscriptionId}/resume")
-    public ResponseEntity<Void> resumeSubscription(@PathVariable Long subscriptionId) {
-        subscriptionService.resumeSubscription(subscriptionId);
+    public ResponseEntity<Void> resumeSubscription(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long subscriptionId) {
+        subscriptionService.resumeSubscription(principal.getUserid(), subscriptionId);
         return ResponseEntity.ok().build();
     }
 
@@ -160,9 +173,10 @@ public class SubscriptionController {
      */
     @PutMapping("/{subscriptionId}/billing-info")
     public ResponseEntity<Void> updateBillingInfo(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable Long subscriptionId,
             @RequestBody SubscriptionBillingInfoUpdateRequest request) {
-        subscriptionService.updateBillingInfo(subscriptionId, request);
+        subscriptionService.updateBillingInfo(principal.getUserid(), subscriptionId, request);
         return ResponseEntity.ok().build();
     }
 
@@ -171,9 +185,10 @@ public class SubscriptionController {
      */
     @PostMapping("/{subscriptionId}/change-product")
     public ResponseEntity<Void> scheduleProductChange(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable Long subscriptionId,
             @RequestBody SubscriptionProductUpdateRequest request) {
-        subscriptionService.scheduleProductChange(subscriptionId, request);
+        subscriptionService.scheduleProductChange(principal.getUserid(), subscriptionId, request);
         return ResponseEntity.ok().build();
     }
 
@@ -181,8 +196,11 @@ public class SubscriptionController {
      * 예약된 상품 변경 정보 조회
      */
     @GetMapping("/{subscriptionId}/scheduled-product-change")
-    public ResponseEntity<SubscriptionResponse> getScheduledProductChange(@PathVariable Long subscriptionId) {
-        SubscriptionResponse response = subscriptionService.getScheduledProductChange(subscriptionId);
+    public ResponseEntity<SubscriptionResponse> getScheduledProductChange(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long subscriptionId) {
+        SubscriptionResponse response = subscriptionService.getScheduledProductChange(principal.getUserid(),
+                subscriptionId);
         return ResponseEntity.ok(response);
     }
 
@@ -190,8 +208,10 @@ public class SubscriptionController {
      * 예약된 상품 변경 취소
      */
     @PostMapping("/{subscriptionId}/cancel-scheduled-product-change")
-    public ResponseEntity<Void> cancelScheduledProductChange(@PathVariable Long subscriptionId) {
-        subscriptionService.cancelScheduledProductChange(subscriptionId);
+    public ResponseEntity<Void> cancelScheduledProductChange(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @PathVariable Long subscriptionId) {
+        subscriptionService.cancelScheduledProductChange(principal.getUserid(), subscriptionId);
         return ResponseEntity.ok().build();
     }
 }

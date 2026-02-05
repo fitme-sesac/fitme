@@ -20,6 +20,7 @@ import com.example.pproject.wallet.repository.WalletCreditLotRepository;
 import com.example.pproject.wallet.repository.WalletLedgerRepository;
 import com.example.pproject.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +43,7 @@ import java.util.List;
  * - 모든 잔액 변경은 원장(Ledger)에 기록됩니다.
  * </p>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -62,32 +64,38 @@ public class WalletService {
 
     /**
      * 내 지갑 정보를 조회합니다.
+     * 지갑이 없으면 자동으로 생성합니다.
      *
      * @param userId   사용자 ID
      * @param roleType 사용자 역할 (CANDIDATE / EMPLOYER)
      * @return 조회된 지갑 엔티티
-     * @throws IllegalArgumentException 지갑이 존재하지 않을 경우
      */
+    @Transactional
     public Wallet getMyWallet(Long userId, RoleType roleType) {
-        return findWalletByOwner(userId, roleType);
+        BuyerType buyerType = roleType == RoleType.CANDIDATE ? BuyerType.MEMBER : BuyerType.EMPLOYER;
+        return findWalletByOwnerWithLock(userId, buyerType);
     }
 
     /**
      * 내 지갑의 거래 내역(원장)을 전체 조회합니다. (페이징)
+     * 지갑이 없으면 자동으로 생성합니다.
      *
      * @param userId   사용자 ID
      * @param roleType 사용자 역할
      * @param pageable 페이징 정보
      * @return 거래 내역 리스트 (DTO)
      */
+    @Transactional
     public Page<WalletLedgerResponse> getMyLedgers(Long userId, RoleType roleType, Pageable pageable) {
-        Wallet wallet = findWalletByOwner(userId, roleType);
+        BuyerType buyerType = roleType == RoleType.CANDIDATE ? BuyerType.MEMBER : BuyerType.EMPLOYER;
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
         return ledgerRepository.findByWalletOrderByOccurredAtDesc(wallet, pageable)
                 .map(WalletLedgerResponse::from);
     }
 
     /**
      * 내 지갑의 거래 내역을 특정 월별로 조회합니다.
+     * 지갑이 없으면 자동으로 생성합니다.
      *
      * @param userId   사용자 ID
      * @param roleType 사용자 역할
@@ -96,9 +104,11 @@ public class WalletService {
      * @param pageable 페이징 정보
      * @return 해당 월의 거래 내역 리스트 (DTO)
      */
+    @Transactional
     public Page<WalletLedgerResponse> getMyLedgersByMonth(Long userId, RoleType roleType, int year, int month,
             Pageable pageable) {
-        Wallet wallet = findWalletByOwner(userId, roleType);
+        BuyerType buyerType = roleType == RoleType.CANDIDATE ? BuyerType.MEMBER : BuyerType.EMPLOYER;
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
 
         YearMonth ym = YearMonth.of(year, month);
         LocalDateTime startAt = ym.atDay(1).atStartOfDay();
@@ -112,13 +122,16 @@ public class WalletService {
 
     /**
      * 내 지갑의 유효한(잔여량이 있는) 크레딧 묶음(Lot) 목록을 조회합니다.
+     * 지갑이 없으면 자동으로 생성합니다.
      *
      * @param userId   사용자 ID
      * @param roleType 사용자 역할
      * @return 잔여 크레딧 Lot 리스트 (오래된 순)
      */
+    @Transactional
     public List<WalletCreditLot> getMyCreditLots(Long userId, RoleType roleType) {
-        Wallet wallet = findWalletByOwner(userId, roleType);
+        BuyerType buyerType = roleType == RoleType.CANDIDATE ? BuyerType.MEMBER : BuyerType.EMPLOYER;
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
         return creditLotRepository.findByWalletAndRemainingCreditGreaterThanOrderByCreatedAtAsc(wallet, 0L);
     }
 
@@ -141,17 +154,17 @@ public class WalletService {
      * 해당 paymentId가 유효하고, 현재 요청한 userId의 결제인지 반드시 검증해야 합니다.
      * </p>
      *
-     * @param userId   사용자 ID
-     * @param roleType 사용자 역할
-     * @param amount   충전할 크레딧 양
-     * @param price    결제 금액 정보
-     * @param payment  결제 엔티티 (멱등성 키로 사용)
+     * @param userId    사용자 ID
+     * @param buyerType 사용자 역할 (BuyerType)
+     * @param amount    충전할 크레딧 양
+     * @param price     결제 금액 정보
+     * @param payment   결제 엔티티 (멱등성 키로 사용)
      */
     @Transactional
-    public void chargeCredit(Long userId, BuyerType roleType, long amount, Money price, Payment payment) {
+    public void chargeCredit(Long userId, BuyerType buyerType, long amount, Money price, Payment payment) {
 
         // 1. 락 획득
-        Wallet wallet = findWalletByOwnerWithLock(userId, roleType);
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
 
         // 2. 락 획득 후 멱등성 체크
         if (creditLotRepository.existsByPayment(payment)) {
@@ -162,8 +175,22 @@ public class WalletService {
         // - 소유권 검증: prepareConfirm()에서 validateOwner() 호출
         // - 금액 검증: payment.approve()에서 토스 응답과 비교
 
-        executeCharge(wallet, amount, price, SourceType.PAYMENT, payment, "PAYMENT:" + payment.getPaymentId(),
-                "크레딧 충전 (결제)");
+        String productName = payment.getOrder().getProduct().getName();
+        String memo;
+        SourceType sourceType;
+
+        if (payment.getOrder().getProduct().isSubscription()) {
+            memo = "구독 크레딧 지급 (" + productName + ")";
+            sourceType = SourceType.SUBSCRIPTION; // 구독은 SUBSCRIPTION 타입으로 구분
+        } else if (payment.getOrder().getProduct().isOneTime()) {
+            memo = "크레딧 충전"; // 단건결제는 간단하게 표시
+            sourceType = SourceType.PAYMENT;
+        } else {
+            memo = "크레딧 충전 (" + productName + ")";
+            sourceType = SourceType.PAYMENT;
+        }
+
+        executeCharge(wallet, amount, price, sourceType, payment, "PAYMENT:" + payment.getPaymentId(), memo);
     }
 
     /**
@@ -193,6 +220,73 @@ public class WalletService {
         }
 
         executeUse(wallet, amount, sourceType, null, orderId, "크레딧 사용 (주문: " + orderId + ")");
+    }
+
+    /**
+     * [시스템/환불] 결제 취소 시 크레딧을 회수합니다.
+     * <p>
+     * 1. 해당 결제로 생성된 CreditLot 조회
+     * 2. 사용 여부 검증 (이미 사용했으면 예외 발생)
+     * 3. 지갑 잔액 차감 및 Lot 삭제
+     * 4. Ledger 기록
+     * </p>
+     *
+     * @param userId    사용자 ID
+     * @param buyerType 사용자 역할
+     * @param payment   취소할 결제 정보
+     */
+    @Transactional
+    public void revokeCredit(Long userId, BuyerType buyerType, Payment payment) {
+        // 1. 락 획득
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
+
+        // 2. 해당 결제로 생성된 Lot 조회
+        WalletCreditLot lot = creditLotRepository.findByPayment(payment)
+                .orElseThrow(() -> new IllegalStateException("해당 결제로 충전된 크레딧 정보를 찾을 수 없습니다."));
+
+        // 3. 사용 여부 검증 (부분 환불 미지원 시, 전액 남아있어야 함)
+        if (!lot.isRefundable()) {
+            throw new IllegalStateException("이미 사용된 크레딧이 포함되어 있어 환불할 수 없습니다.");
+        }
+
+        long revokeAmount = lot.getRemainingCredit();
+        long balanceBefore = wallet.getBalance();
+
+        // 4. 지갑 잔액 차감 (회수)
+        wallet.revoke(revokeAmount);
+
+        // 5. Lot 삭제 (또는 만료 처리) - 여기서는 삭제하여 재사용 방지
+        creditLotRepository.delete(lot);
+
+        // 6. Ledger 기록 (DEBIT)
+        String idempotencyKey = "REVOKE:" + payment.getPaymentId();
+        if (!ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
+            WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.PAYMENT, payment.getPaymentId(),
+                    revokeAmount, balanceBefore, idempotencyKey, "결제 취소로 인한 크레딧 회수");
+            ledgerRepository.save(ledger);
+        }
+    }
+
+    /**
+     * [시스템/환불실패] 결제 취소 실패 시 회수했던 크레딧을 복구합니다. (보상 트랜잭션)
+     */
+    @Transactional
+    public void recoverCredit(Long userId, BuyerType buyerType, Payment payment) {
+        // 1. 락 획득
+        Wallet wallet = findWalletByOwnerWithLock(userId, buyerType);
+
+        // 2. 이미 복구되었거나 Lot이 존재하는지 확인
+        if (creditLotRepository.existsByPayment(payment)) {
+            return;
+        }
+
+        // 3. 원래 충전했던 금액만큼 다시 충전 (기존 로직 재사용)
+        // 주의: Payment 엔티티의 paidAmount를 참조하여 원래 금액 복구
+        long amountToRecover = payment.getOrder().getProduct().getCreditAmount().longValue();
+        Money price = payment.getPaidAmount();
+
+        executeCharge(wallet, amountToRecover, price, SourceType.PAYMENT, payment,
+                "RECOVER:" + payment.getPaymentId(), "결제 취소 실패로 인한 크레딧 복구");
     }
 
     // =================================================================================
@@ -471,7 +565,7 @@ public class WalletService {
         } else if (buyerType == BuyerType.EMPLOYER) {
             // userId(MemberId) -> employerId 변환
             EmployerMemberEntity em = employerMemberRepository.findFirstByMemberIdAndActiveTrue(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다."));
+                    .orElseThrow(() -> new IllegalArgumentException("소속된 기업이 없습니다. memberId: " + userId));
             Long employerId = em.getEmployerId();
 
             return walletRepository.findByEmployerWithLock(employerId)

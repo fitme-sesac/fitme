@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { getEmployerProfile, saveEmployerProfile, uploadEmployerLogo, deleteEmployerLogo } from "@/api/employers";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -38,13 +38,21 @@ import {
     X,
     ZoomIn,
     ZoomOut,
-    RotateCw
+    RotateCw,
+    Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Cropper from "react-easy-crop";
 import type { Area, Point } from "react-easy-crop";
+import { useEmployerProfile } from "@/hooks/useEmployers";
+import { useEmployerSubscriptions } from "@/features/payment/hooks/useSubscription";
+import { cancelSubscription, resumeSubscription, cancelScheduledProductChange, updateBillingInfo } from "@/api/subscription";
+import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { getPlanDetails } from "@/utils/subscriptionUtils";
 
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom"; // Add useNavigate if needed, but looks like it's not used yet
 import { CompanyPaymentHistory } from "@/components/company/CompanyPaymentHistory";
 
 // 크롭된 이미지를 Blob으로 변환하는 유틸리티 함수
@@ -108,6 +116,33 @@ const getCroppedImg = async (
     });
 };
 
+// Toss Payments 카드사 코드 매핑
+const cardCompanyMap: { [key: string]: string } = {
+    "3K": "기업비씨",
+    "46": "광주",
+    "71": "롯데",
+    "30": "산업",
+    "31": "비씨",
+    "51": "삼성",
+    "38": "새마을",
+    "41": "신한",
+    "62": "신협",
+    "36": "씨티",
+    "33": "우리",
+    "37": "우체국",
+    "39": "저축",
+    "35": "전북",
+    "42": "제주",
+    "15": "카카오뱅크",
+    "3A": "케이뱅크",
+    "24": "토스뱅크",
+    "21": "하나",
+    "61": "현대",
+    "11": "KB국민",
+    "91": "NH농협",
+    "34": "수협"
+};
+
 // 임시 팀원 데이터
 const mockTeamMembers = [
     { id: 1, name: "김대표", email: "ceo@company.com", role: "관리자", avatar: null },
@@ -117,6 +152,7 @@ const mockTeamMembers = [
 
 export default function CompanyManagement() {
     const { profile } = useAuth();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const initialTab = searchParams.get("tab") || "profile";
     const [activeTab, setActiveTab] = useState(initialTab);
@@ -133,6 +169,7 @@ export default function CompanyManagement() {
     const [profileLoading, setProfileLoading] = useState(true);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+    const [isProcessingSubscription, setIsProcessingSubscription] = useState(false);
     const [companyProfile, setCompanyProfile] = useState({
         name: "",
         industry: "",
@@ -226,6 +263,7 @@ export default function CompanyManagement() {
         }
     };
 
+
     // 로고 업로드 및 크롭 상태
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [logoUploading, setLogoUploading] = useState(false);
@@ -291,7 +329,7 @@ export default function CompanyManagement() {
         try {
             // 크롭된 이미지를 Blob으로 변환
             const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels, rotation);
-            
+
             // File 객체로 변환
             const croppedFile = new File([croppedBlob], "logo.png", { type: "image/png" });
 
@@ -299,7 +337,7 @@ export default function CompanyManagement() {
             const result = await uploadEmployerLogo(croppedFile);
             setCompanyProfile(prev => ({ ...prev, logo: result.logoUrl }));
             toast.success("로고가 업로드되었습니다.");
-            
+
             // 다이얼로그 닫기
             setCropDialogOpen(false);
             setImageSrc(null);
@@ -333,11 +371,93 @@ export default function CompanyManagement() {
         marketingEmail: false,
     });
 
+    // --- Subscription Data Integration ---
+    const { data: employerData, isLoading: isLoadingProfile } = useEmployerProfile();
+    const employerId = employerData?.employerId;
+    const { data: subscriptions, isLoading: isLoadingSubs } = useEmployerSubscriptions(employerId);
+
+    const currentSubscription = subscriptions?.find(s => s.status === "ACTIVE");
+    const nextBillingDate = currentSubscription?.nextBillingAt
+        ? format(new Date(currentSubscription.nextBillingAt), "yyyy년 M월 d일", { locale: ko })
+        : "-";
+
+    const planDetails = currentSubscription?.product ? getPlanDetails(currentSubscription.product.productCode, currentSubscription.product.creditAmount) : null;
+    const planName = planDetails?.name || currentSubscription?.product?.name || "무료 플랜"; // Use mapped name
+    const planPrice = currentSubscription?.product?.priceAmount || 0;
+    const isFree = !currentSubscription;
+
+    const cardCompany = currentSubscription?.cardCompany;
+    const cardNumber = currentSubscription?.cardNumber; // Expected to be masked or partial
+
+    // 결제 수단 변경 핸들러
+    const handleChangePaymentMethod = async () => {
+        try {
+            const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
+            if (!clientKey) {
+                alert("토스 클라이언트 키가 설정되지 않았습니다.");
+                return;
+            }
+
+            // @ts-ignore
+            const tossPayments = await loadTossPayments(clientKey);
+            // @ts-ignore
+            const payment = tossPayments.payment({
+                customerKey: profile?.id ? `USER-${profile.id}` : `ANONYMOUS-${Date.now()}`
+            });
+
+            // 현재 URL에 action 파라미터를 추가하여 리다이렉트
+            const currentOrigin = window.location.origin;
+            const successUrl = new URL(`${currentOrigin}/companies`);
+            successUrl.searchParams.set("tab", "billing");
+            successUrl.searchParams.set("action", "update_billing");
+
+            await payment.requestBillingAuth({
+                method: "CARD",
+                successUrl: successUrl.toString(),
+                failUrl: window.location.href, // 실패 시 현재 페이지 유지
+                customerEmail: profile?.email,
+                customerName: profile?.username || "사용자",
+            });
+        } catch (error) {
+            console.error("Billing Auth Request Failed:", error);
+            toast.error("결제 수단 변경 요청 중 오류가 발생했습니다.");
+        }
+    };
+
+    // 결제 수단 변경 콜백 처리 (URL 파라미터 확인)
+    useEffect(() => {
+        const action = searchParams.get("action");
+        const authKey = searchParams.get("authKey");
+        const customerKey = searchParams.get("customerKey");
+
+        if (action === "update_billing" && authKey && customerKey && currentSubscription) {
+            const updateBilling = async () => {
+                const toastId = toast.loading("결제 수단을 변경하고 있습니다...");
+                try {
+                    await updateBillingInfo(currentSubscription.subscriptionId, { authKey, customerKey });
+                    toast.success("결제 수단이 성공적으로 변경되었습니다.", { id: toastId });
+
+                    // 파라미터 제거 및 리로드
+                    navigate("/companies?tab=billing", { replace: true });
+                    window.location.reload();
+                } catch (error) {
+                    console.error(error);
+                    toast.error("결제 수단 변경에 실패했습니다.", { id: toastId });
+                    navigate("/companies?tab=billing", { replace: true });
+                }
+            };
+            updateBilling();
+        }
+    }, [searchParams, currentSubscription, navigate]);
+
     return (
-        <div className="min-h-screen bg-background">
+        <div className="flex min-h-screen bg-background">
             <Sidebar />
-            <div className="lg:pl-64 transition-all duration-300">
-                <div className="p-6 lg:p-8">
+
+            <div className="flex-1 flex flex-col lg:ml-64">
+                <Header />
+
+                <main className="flex-1 p-6 lg:p-8">
                     {/* 헤더 */}
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-foreground">기업 관리</h1>
@@ -381,276 +501,276 @@ export default function CompanyManagement() {
                                     </Button>
                                 </div>
                             ) : (
-                            <div className="grid gap-6 lg:grid-cols-3">
-                                {/* 로고 및 기본 정보 */}
-                                <Card className="lg:col-span-1">
-                                    <CardHeader>
-                                        <CardTitle>기업 로고</CardTitle>
-                                        <CardDescription>구직자에게 표시되는 로고입니다</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="flex flex-col items-center gap-4">
-                                        <div className="relative">
-                                            <Avatar className="h-32 w-32">
-                                                <AvatarImage src={companyProfile.logo || undefined} />
-                                                <AvatarFallback className="bg-primary/10 text-primary text-3xl">
-                                                    <Building2 className="h-12 w-12" />
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            {logoUploading && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-full">
-                                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        
-                                        {/* 숨겨진 파일 입력 */}
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            onChange={handleFileChange}
-                                            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                                            className="hidden"
-                                        />
-                                        
-                                        <div className="flex gap-2 justify-center">
-                                            <Button 
-                                                variant="outline" 
-                                                className="gap-2" 
-                                                onClick={handleFileSelect}
-                                                disabled={logoUploading}
-                                            >
-                                                <Upload className="h-4 w-4" />
-                                                로고 업로드
-                                            </Button>
-                                            {companyProfile.logo && (
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    onClick={handleRemoveLogo} 
-                                                    className="text-destructive hover:text-destructive"
-                                                    disabled={logoUploading}
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-muted-foreground text-center">
-                                            권장 크기: 400x400px<br />
-                                            지원 형식: PNG, JPG, GIF, WEBP<br />
-                                            최대 크기: 5MB
-                                        </p>
-                                    </CardContent>
-                                </Card>
-
-                                {/* 로고 크롭 다이얼로그 */}
-                                <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
-                                    <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden">
-                                        <DialogHeader>
-                                            <DialogTitle>로고 이미지 편집</DialogTitle>
-                                            <DialogDescription>
-                                                이미지를 드래그하여 위치를 조정하고, 슬라이더로 크기와 회전을 조절하세요
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                        
-                                        <div className="space-y-4">
-                                            {/* 크롭 영역 */}
-                                            <div className="relative h-[300px] bg-muted rounded-lg overflow-hidden">
-                                                {imageSrc && (
-                                                    <Cropper
-                                                        image={imageSrc}
-                                                        crop={crop}
-                                                        zoom={zoom}
-                                                        rotation={rotation}
-                                                        aspect={1}
-                                                        cropShape="round"
-                                                        showGrid={false}
-                                                        onCropChange={setCrop}
-                                                        onCropComplete={onCropComplete}
-                                                        onZoomChange={setZoom}
-                                                    />
+                                <div className="grid gap-6 lg:grid-cols-3">
+                                    {/* 로고 및 기본 정보 */}
+                                    <Card className="lg:col-span-1">
+                                        <CardHeader>
+                                            <CardTitle>기업 로고</CardTitle>
+                                            <CardDescription>구직자에게 표시되는 로고입니다</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col items-center gap-4">
+                                            <div className="relative">
+                                                <Avatar className="h-32 w-32">
+                                                    <AvatarImage src={companyProfile.logo || undefined} />
+                                                    <AvatarFallback className="bg-primary/10 text-primary text-3xl">
+                                                        <Building2 className="h-12 w-12" />
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                {logoUploading && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-full">
+                                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            {/* 컨트롤 패널 */}
-                                            <div className="space-y-4 px-2">
-                                                {/* 줌 컨트롤 */}
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label className="flex items-center gap-2">
-                                                            <ZoomIn className="h-4 w-4" />
-                                                            크기 조절
-                                                        </Label>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            {Math.round(zoom * 100)}%
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <ZoomOut className="h-4 w-4 text-muted-foreground" />
-                                                        <Slider
-                                                            value={[zoom]}
-                                                            min={1}
-                                                            max={3}
-                                                            step={0.1}
-                                                            onValueChange={(value) => setZoom(value[0])}
-                                                            className="flex-1"
+                                            {/* 숨겨진 파일 입력 */}
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                onChange={handleFileChange}
+                                                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                                                className="hidden"
+                                            />
+
+                                            <div className="flex gap-2 justify-center">
+                                                <Button
+                                                    variant="outline"
+                                                    className="gap-2"
+                                                    onClick={handleFileSelect}
+                                                    disabled={logoUploading}
+                                                >
+                                                    <Upload className="h-4 w-4" />
+                                                    로고 업로드
+                                                </Button>
+                                                {companyProfile.logo && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={handleRemoveLogo}
+                                                        className="text-destructive hover:text-destructive"
+                                                        disabled={logoUploading}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground text-center">
+                                                권장 크기: 400x400px<br />
+                                                지원 형식: PNG, JPG, GIF, WEBP<br />
+                                                최대 크기: 5MB
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* 로고 크롭 다이얼로그 */}
+                                    <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
+                                        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden">
+                                            <DialogHeader>
+                                                <DialogTitle>로고 이미지 편집</DialogTitle>
+                                                <DialogDescription>
+                                                    이미지를 드래그하여 위치를 조정하고, 슬라이더로 크기와 회전을 조절하세요
+                                                </DialogDescription>
+                                            </DialogHeader>
+
+                                            <div className="space-y-4">
+                                                {/* 크롭 영역 */}
+                                                <div className="relative h-[300px] bg-muted rounded-lg overflow-hidden">
+                                                    {imageSrc && (
+                                                        <Cropper
+                                                            image={imageSrc}
+                                                            crop={crop}
+                                                            zoom={zoom}
+                                                            rotation={rotation}
+                                                            aspect={1}
+                                                            cropShape="round"
+                                                            showGrid={false}
+                                                            onCropChange={setCrop}
+                                                            onCropComplete={onCropComplete}
+                                                            onZoomChange={setZoom}
                                                         />
-                                                        <ZoomIn className="h-4 w-4 text-muted-foreground" />
-                                                    </div>
+                                                    )}
                                                 </div>
 
-                                                {/* 회전 컨트롤 */}
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label className="flex items-center gap-2">
-                                                            <RotateCw className="h-4 w-4" />
-                                                            회전
-                                                        </Label>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            {rotation}°
-                                                        </span>
+                                                {/* 컨트롤 패널 */}
+                                                <div className="space-y-4 px-2">
+                                                    {/* 줌 컨트롤 */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <Label className="flex items-center gap-2">
+                                                                <ZoomIn className="h-4 w-4" />
+                                                                크기 조절
+                                                            </Label>
+                                                            <span className="text-sm text-muted-foreground">
+                                                                {Math.round(zoom * 100)}%
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <ZoomOut className="h-4 w-4 text-muted-foreground" />
+                                                            <Slider
+                                                                value={[zoom]}
+                                                                min={1}
+                                                                max={3}
+                                                                step={0.1}
+                                                                onValueChange={(value) => setZoom(value[0])}
+                                                                className="flex-1"
+                                                            />
+                                                            <ZoomIn className="h-4 w-4 text-muted-foreground" />
+                                                        </div>
                                                     </div>
-                                                    <Slider
-                                                        value={[rotation]}
-                                                        min={0}
-                                                        max={360}
-                                                        step={1}
-                                                        onValueChange={(value) => setRotation(value[0])}
+
+                                                    {/* 회전 컨트롤 */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <Label className="flex items-center gap-2">
+                                                                <RotateCw className="h-4 w-4" />
+                                                                회전
+                                                            </Label>
+                                                            <span className="text-sm text-muted-foreground">
+                                                                {rotation}°
+                                                            </span>
+                                                        </div>
+                                                        <Slider
+                                                            value={[rotation]}
+                                                            min={0}
+                                                            max={360}
+                                                            step={1}
+                                                            onValueChange={(value) => setRotation(value[0])}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <DialogFooter className="gap-2 sm:gap-0">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={handleCropCancel}
+                                                    disabled={logoUploading}
+                                                >
+                                                    취소
+                                                </Button>
+                                                <Button
+                                                    onClick={handleCropConfirm}
+                                                    disabled={logoUploading}
+                                                    className="gap-2"
+                                                >
+                                                    {logoUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                                                    적용하기
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+
+                                    {/* 상세 정보 */}
+                                    <Card className="lg:col-span-2">
+                                        <CardHeader>
+                                            <CardTitle>기업 정보</CardTitle>
+                                            <CardDescription>기업의 기본 정보를 입력하세요</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="companyName">기업명</Label>
+                                                    <Input
+                                                        id="companyName"
+                                                        value={companyProfile.name}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, name: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="industry">업종</Label>
+                                                    <Input
+                                                        id="industry"
+                                                        value={companyProfile.industry}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, industry: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="size">기업 규모</Label>
+                                                    <Input
+                                                        id="size"
+                                                        value={companyProfile.size}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, size: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="founded">설립년도</Label>
+                                                    <Input
+                                                        id="founded"
+                                                        value={companyProfile.founded}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, founded: e.target.value }))}
                                                     />
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        <DialogFooter className="gap-2 sm:gap-0">
-                                            <Button 
-                                                variant="outline" 
-                                                onClick={handleCropCancel}
-                                                disabled={logoUploading}
-                                            >
-                                                취소
-                                            </Button>
-                                            <Button 
-                                                onClick={handleCropConfirm}
-                                                disabled={logoUploading}
-                                                className="gap-2"
-                                            >
-                                                {logoUploading && <Loader2 className="h-4 w-4 animate-spin" />}
-                                                적용하기
-                                            </Button>
-                                        </DialogFooter>
-                                    </DialogContent>
-                                </Dialog>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="description">기업 소개</Label>
+                                                <Textarea
+                                                    id="description"
+                                                    rows={4}
+                                                    value={companyProfile.description}
+                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, description: e.target.value }))}
+                                                    placeholder="기업 소개를 입력하세요..."
+                                                />
+                                            </div>
 
-                                {/* 상세 정보 */}
-                                <Card className="lg:col-span-2">
-                                    <CardHeader>
-                                        <CardTitle>기업 정보</CardTitle>
-                                        <CardDescription>기업의 기본 정보를 입력하세요</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="grid gap-4 sm:grid-cols-2">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="companyName">기업명</Label>
-                                                <Input
-                                                    id="companyName"
-                                                    value={companyProfile.name}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, name: e.target.value }))}
-                                                />
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="website" className="flex items-center gap-2">
+                                                        <Globe className="h-4 w-4" /> 웹사이트
+                                                    </Label>
+                                                    <Input
+                                                        id="website"
+                                                        value={companyProfile.website}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, website: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="email" className="flex items-center gap-2">
+                                                        <Mail className="h-4 w-4" /> 이메일
+                                                    </Label>
+                                                    <Input
+                                                        id="email"
+                                                        value={companyProfile.email}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, email: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="phone" className="flex items-center gap-2">
+                                                        <Phone className="h-4 w-4" /> 전화번호
+                                                    </Label>
+                                                    <Input
+                                                        id="phone"
+                                                        value={companyProfile.phone}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, phone: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="address" className="flex items-center gap-2">
+                                                        <MapPin className="h-4 w-4" /> 주소
+                                                    </Label>
+                                                    <Input
+                                                        id="address"
+                                                        value={companyProfile.address}
+                                                        onChange={(e) => setCompanyProfile(prev => ({ ...prev, address: e.target.value }))}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="industry">업종</Label>
-                                                <Input
-                                                    id="industry"
-                                                    value={companyProfile.industry}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, industry: e.target.value }))}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="size">기업 규모</Label>
-                                                <Input
-                                                    id="size"
-                                                    value={companyProfile.size}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, size: e.target.value }))}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="founded">설립년도</Label>
-                                                <Input
-                                                    id="founded"
-                                                    value={companyProfile.founded}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, founded: e.target.value }))}
-                                                />
-                                            </div>
-                                        </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="description">기업 소개</Label>
-                                            <Textarea
-                                                id="description"
-                                                rows={4}
-                                                value={companyProfile.description}
-                                                onChange={(e) => setCompanyProfile(prev => ({ ...prev, description: e.target.value }))}
-                                                placeholder="기업 소개를 입력하세요..."
-                                            />
-                                        </div>
-
-                                        <div className="grid gap-4 sm:grid-cols-2">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="website" className="flex items-center gap-2">
-                                                    <Globe className="h-4 w-4" /> 웹사이트
-                                                </Label>
-                                                <Input
-                                                    id="website"
-                                                    value={companyProfile.website}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, website: e.target.value }))}
-                                                />
+                                            <div className="flex justify-end pt-4">
+                                                <Button
+                                                    className="btn-gradient-primary"
+                                                    onClick={handleSaveProfile}
+                                                    disabled={profileLoading || profileSaving}
+                                                >
+                                                    {profileSaving ? (
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    ) : null}
+                                                    저장하기
+                                                </Button>
                                             </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="email" className="flex items-center gap-2">
-                                                    <Mail className="h-4 w-4" /> 이메일
-                                                </Label>
-                                                <Input
-                                                    id="email"
-                                                    value={companyProfile.email}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, email: e.target.value }))}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="phone" className="flex items-center gap-2">
-                                                    <Phone className="h-4 w-4" /> 전화번호
-                                                </Label>
-                                                <Input
-                                                    id="phone"
-                                                    value={companyProfile.phone}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, phone: e.target.value }))}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="address" className="flex items-center gap-2">
-                                                    <MapPin className="h-4 w-4" /> 주소
-                                                </Label>
-                                                <Input
-                                                    id="address"
-                                                    value={companyProfile.address}
-                                                    onChange={(e) => setCompanyProfile(prev => ({ ...prev, address: e.target.value }))}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex justify-end pt-4">
-                                            <Button
-                                                className="btn-gradient-primary"
-                                                onClick={handleSaveProfile}
-                                                disabled={profileLoading || profileSaving}
-                                            >
-                                                {profileSaving ? (
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                ) : null}
-                                                저장하기
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
                             )}
                         </TabsContent>
 
@@ -830,18 +950,172 @@ export default function CompanyManagement() {
                                     <CardDescription>현재 이용 중인 요금제입니다</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex items-center justify-between p-6 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border">
-                                        <div>
-                                            <Badge className="mb-2">PRO</Badge>
-                                            <h3 className="text-2xl font-bold">프로 플랜</h3>
-                                            <p className="text-muted-foreground">월 99,000원 / 연 990,000원</p>
+                                    {isLoadingProfile || isLoadingSubs ? (
+                                        <div className="flex justify-center py-8">
+                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-sm text-muted-foreground">다음 결제일</p>
-                                            <p className="font-medium">2026년 2월 28일</p>
-                                            <Button variant="outline" className="mt-2">플랜 변경</Button>
+                                    ) : (
+                                        <div className={`flex items-center ${isFree ? "justify-center" : "justify-between"} p-6 rounded-lg ${isFree ? "bg-background border-dashed" : "bg-gradient-to-r from-primary/10 to-accent/10"} border`}>
+                                            {!isFree && (
+                                                <div>
+                                                    <Badge className="mb-2">PRO</Badge>
+                                                    <h3 className="text-2xl font-bold">{planName}</h3>
+                                                    <p className="text-muted-foreground">
+                                                        {`월 ${Number(planPrice).toLocaleString()}원`}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div className={isFree ? "text-center" : "text-right"}>
+                                                {isFree ? (
+                                                    <div>
+                                                        <p className="text-muted-foreground mb-4">현재 구독 중인 플랜이 없습니다.</p>
+                                                        <Button variant="default" onClick={() => navigate('/subscription')}>
+                                                            구독하러 가기
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        {currentSubscription?.endedAt ? (
+                                                            <>
+                                                                <div className="mb-2">
+                                                                    <Badge variant="destructive" className="mb-1">해지 예약됨</Badge>
+                                                                    <p className="text-sm text-destructive font-medium">
+                                                                        {format(new Date(currentSubscription.endedAt), "yyyy년 MM월 dd일")} 종료 예정
+                                                                    </p>
+                                                                </div>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="mt-2 border-primary text-primary hover:bg-primary/5"
+                                                                    disabled={isProcessingSubscription}
+                                                                    onClick={async () => {
+                                                                        if (!confirm("해지 예약을 취소하고 구독을 유지하시겠습니까?")) return;
+                                                                        if (!currentSubscription?.subscriptionId) return;
+
+                                                                        setIsProcessingSubscription(true);
+                                                                        try {
+                                                                            await resumeSubscription(currentSubscription.subscriptionId);
+                                                                            alert("구독이 정상적으로 재개되었습니다.");
+                                                                            window.location.reload();
+                                                                        } catch (e) {
+                                                                            console.error(e);
+                                                                            alert("처리 중 오류가 발생했습니다.");
+                                                                        } finally {
+                                                                            setIsProcessingSubscription(false);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "해지 취소 (구독 유지)"}
+                                                                </Button>
+                                                            </>
+                                                        ) : currentSubscription?.nextProduct ? (
+                                                            <>
+                                                                <div className="mb-2">
+                                                                    <Badge className="mb-1 bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200">
+                                                                        변경 예약됨
+                                                                    </Badge>
+                                                                    <p className="text-sm font-medium text-blue-700">
+                                                                        {format(new Date(currentSubscription.nextBillingAt), "yyyy년 MM월 dd일")}부터<br />
+                                                                        {currentSubscription.nextProduct.name} 플랜 적용
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex justify-end gap-2 mt-2">
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        onClick={() => navigate('/subscription')}
+                                                                    >
+                                                                        플랜 변경
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        className="text-muted-foreground hover:text-foreground"
+                                                                        disabled={isProcessingSubscription}
+                                                                        onClick={async () => {
+                                                                            if (!confirm("플랜 변경 예약을 취소하시겠습니까?")) return;
+                                                                            if (!currentSubscription?.subscriptionId) return;
+
+                                                                            setIsProcessingSubscription(true);
+                                                                            try {
+                                                                                await cancelScheduledProductChange(currentSubscription.subscriptionId);
+                                                                                alert("플랜 변경 예약이 취소되었습니다.");
+                                                                                window.location.reload();
+                                                                            } catch (e) {
+                                                                                console.error(e);
+                                                                                alert("처리 중 오류가 발생했습니다.");
+                                                                            } finally {
+                                                                                setIsProcessingSubscription(false);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "변경 예약 취소"}
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        className="text-muted-foreground hover:text-destructive"
+                                                                        disabled={isProcessingSubscription}
+                                                                        onClick={async () => {
+                                                                            if (!confirm("정말로 구독 취소를 진행하시겠습니까?")) return;
+                                                                            if (!currentSubscription?.subscriptionId) return;
+
+                                                                            setIsProcessingSubscription(true);
+                                                                            try {
+                                                                                await cancelSubscription(currentSubscription.subscriptionId);
+                                                                                alert("해지 예약이 완료되었습니다.\n다음 결제일에 구독이 종료됩니다.");
+                                                                                window.location.reload();
+                                                                            } catch (e) {
+                                                                                console.error(e);
+                                                                                alert("처리 중 오류가 발생했습니다.");
+                                                                            } finally {
+                                                                                setIsProcessingSubscription(false);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "구독 취소"}
+                                                                    </Button>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-sm text-muted-foreground">다음 결제일</p>
+                                                                <p className="font-medium">{nextBillingDate}</p>
+                                                                <div className="flex justify-end gap-2 mt-2">
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        onClick={() => navigate('/subscription')}
+                                                                    >
+                                                                        플랜 변경
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        className="text-muted-foreground hover:text-destructive"
+                                                                        disabled={isProcessingSubscription}
+                                                                        onClick={async () => {
+                                                                            if (!confirm("정말로 구독을 취소하시겠습니까?\n취소하더라도 다음 결제일까지는 혜택이 유지되며, 이후 자동 결제가 중단됩니다.")) return;
+                                                                            if (!currentSubscription?.subscriptionId) return;
+
+                                                                            setIsProcessingSubscription(true);
+                                                                            try {
+                                                                                await cancelSubscription(currentSubscription.subscriptionId);
+                                                                                alert("해지 예약이 완료되었습니다.\n다음 결제일에 구독이 종료됩니다.");
+                                                                                window.location.reload();
+                                                                            } catch (e) {
+                                                                                console.error(e);
+                                                                                alert("처리 중 오류가 발생했습니다.");
+                                                                            } finally {
+                                                                                setIsProcessingSubscription(false);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {isProcessingSubscription ? <Loader2 className="h-4 w-4 animate-spin" /> : "구독 취소"}
+                                                                    </Button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
@@ -887,26 +1161,32 @@ export default function CompanyManagement() {
                                     <CardDescription>등록된 결제 수단입니다</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex items-center justify-between p-4 rounded-lg border">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-16 rounded bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center text-white text-xs font-bold">
-                                                VISA
+                                    {!isFree && cardCompany ? (
+                                        <div className="flex items-center justify-between p-4 rounded-lg border">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-10 w-16 rounded bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center text-white text-xs font-bold">
+                                                    {cardCompany && cardCompanyMap[cardCompany] ? cardCompanyMap[cardCompany] : cardCompany}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium">{cardNumber || "•••• •••• •••• ••••"}</p>
+                                                    <p className="text-sm text-muted-foreground">구독 결제 카드</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-medium">•••• •••• •••• 4242</p>
-                                                <p className="text-sm text-muted-foreground">만료: 12/28</p>
-                                            </div>
+                                            <Button variant="outline" size="sm" onClick={handleChangePaymentMethod}>변경</Button>
                                         </div>
-                                        <Button variant="outline" size="sm">변경</Button>
-                                    </div>
-                                    <Button variant="ghost" className="mt-4 w-full">+ 새 결제 수단 추가</Button>
+                                    ) : (
+                                        <div className="text-center py-6 text-muted-foreground">
+                                            <p className="mb-4">등록된 결제 수단이 없습니다.</p>
+                                        </div>
+                                    )}
+                                    {/* <Button variant="ghost" className="mt-4 w-full">+ 새 결제 수단 추가</Button> */}
                                 </CardContent>
                             </Card>
 
                             <CompanyPaymentHistory />
                         </TabsContent>
                     </Tabs>
-                </div>
+                </main>
             </div>
         </div>
     );

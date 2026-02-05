@@ -57,11 +57,14 @@ public class TossPaymentAdapter implements PaymentPort {
     @Override
     @CircuitBreaker(name = TOSS_PAYMENT, fallbackMethod = "fallbackConfirmBilling")
     @Retry(name = TOSS_PAYMENT)
-    public TossPaymentResponse confirmBilling(String billingKey, String orderId, BigDecimal amount) {
-        // 빌링키 결제는 URL 경로에 billingKey가 들어감
+    public TossPaymentResponse confirmBilling(String billingKey, String customerKey, String orderId,
+            BigDecimal amount) {
+        log.info("빌링키 결제 요청: billingKey={}, customerKey={}, orderId={}", billingKey, customerKey, orderId);
+
+        // 빌링키에 특수문자(==)가 포함될 수 있으므로, 경로 변수 치환을 사용하여 RestClient가 인코딩하도록 함
         return tossRestClient.post()
-                .uri("/v1/billing/" + billingKey)
-                .body(new TossBillingConfirmRequest(null, orderId, amount)) // customerKey는 선택사항
+                .uri("/v1/billing/{billingKey}", billingKey)
+                .body(new TossBillingConfirmRequest(customerKey, orderId, amount)) // customerKey는 선택사항
                 .retrieve()
                 .body(TossPaymentResponse.class);
     }
@@ -73,43 +76,50 @@ public class TossPaymentAdapter implements PaymentPort {
      * null을 반환하거나 특수 상태 객체를 반환하여 Service 계층에서 후처리(재시도/대기)를 할 수 있게 함.
      */
     public TossPaymentResponse fallbackConfirm(String paymentKey, String orderId, BigDecimal amount, Throwable t) {
-        log.error("토스 결제 승인 요청 실패 (Fallback 실행). paymentKey={}, orderId={}, error={}", paymentKey, orderId, t.getMessage());
+        log.error("토스 결제 승인 요청 실패 (Fallback 실행). paymentKey={}, orderId={}, error={}", paymentKey, orderId,
+                t.getMessage());
         return createUnknownResponse(paymentKey, orderId, amount);
     }
 
     public TossPaymentResponse fallbackCancel(String paymentKey, String cancelReason, Throwable t) {
-        log.error("토스 결제 취소 요청 실패 (Fallback 실행). paymentKey={}, reason={}, error={}", paymentKey, cancelReason, t.getMessage());
+        log.error("토스 결제 취소 요청 실패 (Fallback 실행). paymentKey={}, reason={}, error={}", paymentKey, cancelReason,
+                t.getMessage());
         return createUnknownResponse(paymentKey, null, null);
     }
 
     public TossBillingResponse fallbackIssueBillingKey(String authKey, String customerKey, Throwable t) {
-        log.error("토스 빌링키 발급 요청 실패 (Fallback 실행). authKey={}, customerKey={}, error={}", authKey, customerKey, t.getMessage());
+        log.error("토스 빌링키 발급 요청 실패 (Fallback 실행). authKey={}, customerKey={}, error={}", authKey, customerKey,
+                t.getMessage());
         // 빌링키 발급 실패는 즉시 에러를 던지는 것이 나을 수 있음 (사용자 인터랙션 중이므로)
         throw new RuntimeException("빌링키 발급 중 오류가 발생했습니다.", t);
     }
 
-    public TossPaymentResponse fallbackConfirmBilling(String billingKey, String orderId, BigDecimal amount, Throwable t) {
-        log.error("토스 빌링키 결제 승인 요청 실패 (Fallback 실행). billingKey={}, orderId={}, error={}", billingKey, orderId, t.getMessage());
+    public TossPaymentResponse fallbackConfirmBilling(String billingKey, String customerKey, String orderId,
+            BigDecimal amount,
+            Throwable t) {
+        log.info("토스 빌링키 결제 승인 요청 실패 (Fallback 실행). billingKey={}, customerKey={}, orderId={}, error={}", billingKey,
+                customerKey, orderId,
+                t.getMessage());
         return createUnknownResponse(null, orderId, amount);
     }
 
     private TossPaymentResponse createUnknownResponse(String paymentKey, String orderId, BigDecimal amount) {
         return new TossPaymentResponse(
                 paymentKey, // paymentKey
-                orderId,    // orderId
-                null,       // orderName
-                "UNKNOWN",  // status
-                null,       // transactionKey
-                null,       // lastTransactionKey
-                null,       // requestedAt
-                null,       // approvedAt
-                amount,     // totalAmount
-                null,       // balanceAmount
-                null,       // method
-                null,       // receipt
-                null,       // cancels
-                null,       // card
-                null        // virtualAccount
+                orderId, // orderId
+                null, // orderName
+                "UNKNOWN", // status
+                null, // transactionKey
+                null, // lastTransactionKey
+                null, // requestedAt
+                null, // approvedAt
+                amount, // totalAmount
+                null, // balanceAmount
+                null, // method
+                null, // receipt
+                null, // cancels
+                null, // card
+                null // virtualAccount
         );
     }
 }
