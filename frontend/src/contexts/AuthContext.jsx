@@ -18,9 +18,7 @@ export function AuthProvider({ children }) {
         const axiosMsg = err?.response?.data?.message || err?.response?.data?.error;
         if (axiosMsg) return axiosMsg;
 
-        // ✅ 백엔드가 redirect URL query(errorMessage=...)로 에러를 전달하는 경우
-        // - XHR이 redirect를 따라가면서 최종 responseURL에 남는다.
-        // - proxy/환경에 따라 최종 요청이 4xx/5xx로 떨어질 수 있으므로 여기서도 파싱한다.
+        // 백엔드가 redirect URL query(errorMessage=...)로 에러를 전달하는 경우 파싱
         const finalUrl =
             err?.response?.request?.responseURL ||
             err?.request?.responseURL ||
@@ -40,36 +38,69 @@ export function AuthProvider({ children }) {
         // authApi may throw plain object like { ok:false, message: "..." }
         if (typeof err?.message === "string" && err.message.trim()) return err.message;
 
-        // generic
         return fallback;
     };
 
-    const refreshCredits = useCallback(async (role) => {
-        // Role Normalization (Backend RoleType)
-        // If the user has "EMPLOYER" role, explicitly ask for EMPLOYER wallet.
-        // Otherwise default to CANDIDATE.
+    const inferRoleType = (role) => {
+        // Backend RoleType 기준:
+        // EMPLOYER / CANDIDATE (또는 COMPANY/ROLE_* fallback)
         let roleType = "CANDIDATE";
-        if (role && (role.includes("EMPLOYER") || role.includes("COMPANY"))) {
+        if (role && (String(role).includes("EMPLOYER") || String(role).includes("COMPANY"))) {
             roleType = "EMPLOYER";
         }
+        return roleType;
+    };
 
-        const res = await getMyWallet(roleType);
-        // Backend returns 'balance' field.
-        const c = Number(res?.balance ?? 0);
+    /**
+     * 크레딧(지갑) 갱신
+     * - roleType 지원(EMPLOYER/CANDIDATE)
+     * - 백엔드 응답키(balance 또는 credits) 모두 지원
+     * - 실패 시 기본은 "throw" (호출부에서 로그인/로그아웃 정책에 맞게 처리)
+     */
+    const refreshCredits = useCallback(async (role) => {
+        const roleType = inferRoleType(role);
+
+        // getMyWallet이 (roleType)을 받는 버전 / 안 받는 버전 모두 대응
+        // JS에서는 extra args 무시되므로 getMyWallet(roleType)만 호출해도 대부분 안전하지만,
+        // 혹시 구현에 따라 예외가 날 수 있어 try/catch로 보호.
+        let res;
+        try {
+            res = await getMyWallet(roleType);
+        } catch (e) {
+            // 파라미터 없는 구현일 수도 있으니 한 번 더 시도
+            res = await getMyWallet();
+        }
+
+        // Backend returns 'balance' OR legacy 'credits'
+        const c = Number(res?.balance ?? res?.credits ?? 0);
         setCredits(Number.isFinite(c) ? c : 0);
+
+        return res;
     }, []);
 
     // 세션 확인 (외부 노출용)
     const checkSession = useCallback(async () => {
         try {
             const status = await authApi.checkAuthStatus();
-            setUser(status?.authenticated ? status : null);
-            // Pass the user role to ensure we fetch the correct wallet
-            await refreshCredits(status?.role);
+            const authed = Boolean(status?.authenticated);
+
+            setUser(authed ? status : null);
+
+            if (authed) {
+                try {
+                    await refreshCredits(status?.role);
+                } catch (error) {
+                    console.error("Failed to refresh credits during session check:", error);
+                    // 지갑 조회 실패 시: 로그인 상태 유지, credits는 유지(0으로 강제 초기화하지 않음)
+                }
+            } else {
+                // 로그아웃 상태일 때만 credits 0
+                setCredits(0);
+            }
+
             return status;
         } catch {
             setUser(null);
-            // 세션 확인 실패 시에만 크레딧 0으로 설정 (로그아웃 상태)
             setCredits(0);
             return null;
         }
@@ -79,21 +110,22 @@ export function AuthProvider({ children }) {
     const signIn = async (userid, password) => {
         try {
             const response = await authApi.login(userid, password);
-            // 로그인 성공시 상태 갱신
+
+            // 로그인 성공 시 상태 갱신
             const status = await authApi.checkAuthStatus();
             if (!status?.authenticated) {
                 setUser(null);
                 setCredits(0);
                 return { data: null, error: "로그인 상태 확인에 실패했습니다." };
             }
+
             setUser(status);
 
-            // Pass the user role to ensure we fetch the correct wallet
             try {
                 await refreshCredits(status?.role);
             } catch (error) {
                 console.error("Failed to refresh credits during sign in:", error);
-                // 로그인은 성공했지만 지갑 조회 실패 시 기존 크레딧 값 유지
+                // 로그인은 성공했지만 지갑 조회 실패 시 credits 유지
             }
 
             return { data: response, error: null };
@@ -141,10 +173,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.findUserId(name, phone);
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: extractErrorMessage(error, "아이디 찾기에 실패했습니다.")
-            };
+            return { data: null, error: extractErrorMessage(error, "아이디 찾기에 실패했습니다.") };
         }
     };
 
@@ -154,10 +183,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.verifyUserIdCode(phone, code);
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: extractErrorMessage(error, "인증 코드 확인에 실패했습니다.")
-            };
+            return { data: null, error: extractErrorMessage(error, "인증 코드 확인에 실패했습니다.") };
         }
     };
 
@@ -167,10 +193,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.getUserIdResult();
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: extractErrorMessage(error, "아이디 조회에 실패했습니다.")
-            };
+            return { data: null, error: extractErrorMessage(error, "아이디 조회에 실패했습니다.") };
         }
     };
 
@@ -180,10 +203,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.findPassword(userid, email);
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: error.response?.data?.error || "비밀번호 찾기에 실패했습니다."
-            };
+            return { data: null, error: error.response?.data?.error || "비밀번호 찾기에 실패했습니다." };
         }
     };
 
@@ -193,10 +213,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.verifyPasswordCode(userid, email, code);
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: error.response?.data?.error || "인증 코드 확인에 실패했습니다."
-            };
+            return { data: null, error: error.response?.data?.error || "인증 코드 확인에 실패했습니다." };
         }
     };
 
@@ -206,10 +223,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.setNewPassword(userid, email, newPassword);
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: error.response?.data?.error || "비밀번호 재설정에 실패했습니다."
-            };
+            return { data: null, error: error.response?.data?.error || "비밀번호 재설정에 실패했습니다." };
         }
     };
 
@@ -219,10 +233,7 @@ export function AuthProvider({ children }) {
             const response = await authApi.changePassword(currentPassword, newPassword);
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: error.response?.data?.error || "비밀번호 변경에 실패했습니다."
-            };
+            return { data: null, error: error.response?.data?.error || "비밀번호 변경에 실패했습니다." };
         }
     };
 
@@ -231,7 +242,7 @@ export function AuthProvider({ children }) {
         try {
             const response = await authApi.requestPhoneVerification(phone);
 
-            // ✅ 백엔드가 ok=false 로 내려주면(HTTP 400/502 포함) 프론트에서는 실패로 통일 처리
+            // 백엔드가 ok=false 로 내려주면 실패로 통일 처리
             if (!response?.ok) {
                 return {
                     data: response ?? null,
@@ -241,10 +252,7 @@ export function AuthProvider({ children }) {
 
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: extractErrorMessage(error, "인증번호 발송에 실패했습니다."),
-            };
+            return { data: null, error: extractErrorMessage(error, "인증번호 발송에 실패했습니다.") };
         }
     };
 
@@ -254,7 +262,6 @@ export function AuthProvider({ children }) {
             const response = await authApi.verifyPhone(phone, code);
 
             const ok = Boolean(response?.verified ?? response?.ok);
-
             if (!ok) {
                 return {
                     data: response ?? null,
@@ -264,10 +271,7 @@ export function AuthProvider({ children }) {
 
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: extractErrorMessage(error, "인증 확인에 실패했습니다."),
-            };
+            return { data: null, error: extractErrorMessage(error, "인증 확인에 실패했습니다.") };
         }
     };
 
@@ -275,24 +279,17 @@ export function AuthProvider({ children }) {
     const updateProfile = async (formData) => {
         try {
             const response = await authApi.updateProfile(formData);
-            // 업데이트 성공 시 세션 갱신
             await checkSession();
             return { data: response, error: null };
         } catch (error) {
-            return {
-                data: null,
-                error: extractErrorMessage(error, "프로필 업데이트에 실패했습니다."),
-            };
+            return { data: null, error: extractErrorMessage(error, "프로필 업데이트에 실패했습니다.") };
         }
     };
 
     // Role helpers
     const userRole = user?.role || "";
-    // Backend RoleType: EMPLOYER
-    const isCompany = userRole === "EMPLOYER" || userRole === "ROLE_COMPANY"; // keeping legacy fallback just in case
-    // Backend RoleType: SERVICEADMIN, APPROVEADMIN, MASTER
+    const isCompany = userRole === "EMPLOYER" || userRole === "ROLE_COMPANY";
     const isAdmin = ["SERVICEADMIN", "APPROVEADMIN", "MASTER", "ADMIN", "ROLE_ADMIN"].includes(userRole);
-    // Backend RoleType: CANDIDATE
     const isJobSeeker = userRole === "CANDIDATE" || userRole === "JOB_SEEKER" || userRole === "USER";
 
     const value = {
@@ -327,19 +324,18 @@ export function AuthProvider({ children }) {
         (async () => {
             try {
                 const status = await authApi.checkAuthStatus();
-                // authenticated=false인 경우에는 user를 null로 유지해서
-                // 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
-                setUser(status?.authenticated ? status : null);
-                // Pass the user role to ensure we fetch the correct wallet
-                if (status?.authenticated) {
+                const authed = Boolean(status?.authenticated);
+
+                setUser(authed ? status : null);
+
+                if (authed) {
                     try {
                         await refreshCredits(status?.role);
                     } catch (error) {
                         console.error("Failed to refresh credits during initialization:", error);
-                        // 초기화 시 지갑 조회 실패해도 기존 크레딧 값 유지
+                        // 초기화 시 지갑 조회 실패해도 로그인 상태 유지, credits 유지
                     }
                 } else {
-                    // 로그아웃 상태일 때만 크레딧 0으로 설정
                     setCredits(0);
                 }
             } catch {
@@ -351,17 +347,11 @@ export function AuthProvider({ children }) {
         })();
     }, [refreshCredits]);
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
     const ctx = useContext(AuthContext);
-    if (!ctx) {
-        throw new Error("useAuth must be used within an AuthProvider");
-    }
+    if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
     return ctx;
 }
