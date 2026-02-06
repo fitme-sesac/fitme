@@ -204,12 +204,19 @@ public class SecurityConfig {
                                 .failureHandler(customAuthenticationFailureHandler));
 
                 http.logout(logout -> logout
-                                // SPA(React)에서 사용하는 로그아웃 엔드포인트
-                                .logoutUrl("/api/auth/logout")
-                                .deleteCookies("JSESSIONID", "ACCESS_TOKEN")
-                                .logoutSuccessUrl(frontBaseUrl + "/")
-                                .invalidateHttpSession(true)
-                                .clearAuthentication(true));
+                        .logoutUrl("/api/auth/logout")
+                        .addLogoutHandler((request, response, authentication) -> {
+                            CookieUtils.deleteCookie(request, response, "ACCESS_TOKEN");
+                            CookieUtils.deleteCookie(request, response, "JSESSIONID");
+                            CookieUtils.deleteCookie(request, response, "OAUTH2_TMP");
+                        })
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            response.setStatus(200);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"success\":true}");
+                        })
+                        .clearAuthentication(true)
+                );
 
                 http.csrf(csrf -> csrf
                                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())

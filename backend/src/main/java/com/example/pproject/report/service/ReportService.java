@@ -70,8 +70,9 @@ public class ReportService {
         return reportRepository.findByReporterMemberId(reporterMemberId, pageable).map(this::toReportResponse);
     }
     public Page<ReportResponse> getReportsByStatus(String status, Pageable pageable) {
-        validateStatus(status);
-        return reportRepository.findByStatus(status, pageable).map(this::toReportResponse);
+        String normalized = normalizeStatus(status);
+        validateStatus(normalized);
+        return reportRepository.findByStatus(normalized, pageable).map(this::toReportResponse);
     }
     public Page<ReportResponse> getReportsByTargetType(String targetType, Pageable pageable) {
         validateTargetType(targetType);
@@ -293,6 +294,22 @@ public class ReportService {
     private void validateTargetType(String targetType) {
         if (!targetType.matches("^(JOB_POSTING|MEMBER|ETC)$")) throw new InvalidReportStatusException("Invalid type");
     }
+
+    /**
+     * 프론트/기존 클라이언트의 상태값(PENDING/RESOLVED 등)을 백엔드 표준 상태로 정규화.
+     * - PENDING  -> OPEN
+     * - RESOLVED -> ACCEPTED
+     */
+    private String normalizeStatus(String status) {
+        if (status == null) return "";
+        String s = status.trim().toUpperCase();
+        return switch (s) {
+            case "PENDING" -> "OPEN";
+            case "RESOLVED" -> "ACCEPTED";
+            default -> s;
+        };
+    }
+
     private void validateStatus(String status) {
         if (!status.matches("^(OPEN|ACCEPTED|REJECTED)$")) throw new InvalidReportStatusException("Invalid status");
     }

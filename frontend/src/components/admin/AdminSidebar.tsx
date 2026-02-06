@@ -12,6 +12,7 @@ import {
     CreditCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
     { icon: LayoutDashboard, label: "대시보드", href: "/admin" },
@@ -26,6 +27,7 @@ const navItems = [
 
 export const AdminSidebar = () => {
     const location = useLocation();
+    const { signOut } = useAuth();
 
     return (
         <aside className="fixed inset-y-0 left-0 z-20 w-64 bg-card border-r border-border hidden lg:block">
@@ -64,6 +66,13 @@ export const AdminSidebar = () => {
 
             {/* Bottom */}
             <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+                <button
+                    onClick={signOut}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                    <LogOut className="w-5 h-5" />
+                    로그아웃
+                </button>
                 <Link
                     to="/"
                     className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

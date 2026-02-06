@@ -1,4 +1,3 @@
-import React from "react";
 import {
     Table,
     TableBody,
@@ -16,25 +15,18 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export interface Column<T> {
+interface Column<T> {
     key: keyof T | string;
     label: string;
     render?: (item: T) => React.ReactNode;
 }
 
-interface ActionItem<T> {
-    label: string;
-    onClick: (item: T) => void;
-    disabled?: (item: T) => boolean;
-}
-
 interface DataTableProps<T> {
     columns: Column<T>[];
     data: T[];
-    actions?: ActionItem<T>[];
+    actions?: { label: string; onClick: (item: T) => void }[];
     totalItems?: number;
     currentPage?: number;
-    pageSize?: number;
     onPageChange?: (page: number) => void;
 }
 
@@ -44,11 +36,8 @@ export function DataTable<T extends { id?: string | number }>({
     actions,
     totalItems = 0,
     currentPage = 0,
-    pageSize = 20,
     onPageChange,
 }: DataTableProps<T>) {
-    const totalPages = Math.ceil(totalItems / pageSize);
-
     return (
         <div className="bg-card rounded-xl border border-border overflow-hidden">
             <Table>
@@ -73,7 +62,7 @@ export function DataTable<T extends { id?: string | number }>({
                         </TableRow>
                     ) : (
                         data.map((item, index) => (
-                            <TableRow key={item.id ?? index} className="hover:bg-muted/30">
+                            <TableRow key={item.id || index} className="hover:bg-muted/30">
                                 {columns.map((column) => (
                                     <TableCell key={String(column.key)}>
                                         {column.render
@@ -94,7 +83,6 @@ export function DataTable<T extends { id?: string | number }>({
                                                     <DropdownMenuItem
                                                         key={action.label}
                                                         onClick={() => action.onClick(item)}
-                                                        disabled={action.disabled ? action.disabled(item) : false}
                                                     >
                                                         {action.label}
                                                     </DropdownMenuItem>
@@ -109,11 +97,12 @@ export function DataTable<T extends { id?: string | number }>({
                 </TableBody>
             </Table>
 
-            {onPageChange && totalItems > pageSize && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-                    <p className="text-sm text-muted-foreground">
-                        총 {totalItems}개 항목
-                    </p>
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                <p className="text-sm text-muted-foreground">
+                    총 {totalItems || data.length}개 항목
+                </p>
+                {onPageChange && (
                     <div className="flex items-center gap-2">
                         <Button
                             variant="outline"
@@ -124,21 +113,18 @@ export function DataTable<T extends { id?: string | number }>({
                             <ChevronLeft className="w-4 h-4 mr-1" />
                             이전
                         </Button>
-                        <span className="text-sm">
-                            {currentPage + 1} / {totalPages}
-                        </span>
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => onPageChange(currentPage + 1)}
-                            disabled={currentPage + 1 >= totalPages}
+                            disabled={data.length < 20}
                         >
                             다음
                             <ChevronRight className="w-4 h-4 ml-1" />
                         </Button>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 }

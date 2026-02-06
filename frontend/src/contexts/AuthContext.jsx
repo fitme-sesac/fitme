@@ -97,12 +97,6 @@ export function AuthProvider({ children }) {
                 setCredits(0);
                 return { data: null, error: "로그인 상태 확인에 실패했습니다." };
             }
-            // 정지된 계정: 로그아웃 후 정지 안내 페이지로 이동
-            if (status?.status === "SUSPENDED") {
-                await signOut();
-                window.location.href = "/account-suspended";
-                return { data: null, error: null };
-            }
             setUser(status);
 
             // Pass the user role to ensure we fetch the correct wallet
@@ -344,19 +338,6 @@ export function AuthProvider({ children }) {
         (async () => {
             try {
                 const status = await authApi.checkAuthStatus();
-                // 정지된 계정: 로그아웃 후 정지 안내 페이지로 이동
-                if (status?.authenticated && status?.status === "SUSPENDED") {
-                    try {
-                        await authApi.logout();
-                    } catch {
-                        // ignore
-                    }
-                    setUser(null);
-                    setCredits(0);
-                    setLoading(false);
-                    window.location.href = "/account-suspended";
-                    return;
-                }
                 // authenticated=false인 경우에는 user를 null로 유지해서
                 // 라우트 가드/헤더 등에서 로그인 상태가 정확히 표시되도록 함
                 setUser(status?.authenticated ? status : null);

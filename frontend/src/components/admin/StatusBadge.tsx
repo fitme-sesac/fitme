@@ -17,9 +17,6 @@ const statusStyles: Record<string, string> = {
     closed: "bg-gray-500/10 text-gray-600",
     resolved: "bg-gray-500/10 text-gray-600",
     new: "bg-primary/10 text-primary",
-    // 구독 상태 추가
-    canceled: "bg-gray-500/10 text-gray-600",
-    payment_failed: "bg-red-500/10 text-red-600",
 };
 
 const statusLabels: Record<string, string> = {
@@ -32,9 +29,6 @@ const statusLabels: Record<string, string> = {
     closed: "마감",
     resolved: "해결됨",
     new: "신규",
-    // 구독 상태 라벨 추가
-    canceled: "취소됨",
-    payment_failed: "결제 실패",
 };
 
 export const StatusBadge = ({ status, label }: StatusBadgeProps) => {

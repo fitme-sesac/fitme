@@ -1,19 +1,10 @@
 import { ReactNode, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { AdminSidebar } from "./AdminSidebar";
-import { Bell, Search, LogOut } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { getAdminNotifications } from "@/api/admin";
 
 interface AdminLayoutProps {
@@ -32,8 +23,7 @@ interface Notification {
 }
 
 export const AdminLayout = ({ children, title, subtitle }: AdminLayoutProps) => {
-    const { user, signOut } = useAuth();
-    const navigate = useNavigate();
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
 
@@ -45,11 +35,6 @@ export const AdminLayout = ({ children, title, subtitle }: AdminLayoutProps) => 
         } catch (error) {
             console.error("Failed to fetch notifications", error);
         }
-    };
-
-    const handleLogout = async () => {
-        await signOut();
-        navigate("/");
     };
 
     useEffect(() => {
@@ -115,33 +100,11 @@ export const AdminLayout = ({ children, title, subtitle }: AdminLayoutProps) => 
                                 </PopoverContent>
                             </Popover>
 
-
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
-                                        <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
-                                            <span className="text-sm font-semibold text-primary-foreground">
-                                                {user?.user_metadata?.display_name?.charAt(0) || "A"}
-                                            </span>
-                                        </div>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-56" align="end" forceMount>
-                                    <DropdownMenuLabel className="font-normal">
-                                        <div className="flex flex-col space-y-1">
-                                            <p className="text-sm font-medium leading-none">{user?.user_metadata?.display_name || "Admin"}</p>
-                                            <p className="text-xs leading-none text-muted-foreground">
-                                                {user?.email}
-                                            </p>
-                                        </div>
-                                    </DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
-                                        <LogOut className="mr-2 h-4 w-4" />
-                                        <span>로그아웃</span>
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
+                                <span className="text-sm font-semibold text-primary-foreground">
+                                    {user?.user_metadata?.display_name?.charAt(0) || "A"}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </header>
