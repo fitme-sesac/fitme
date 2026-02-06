@@ -5,6 +5,7 @@ from app.resumes.api.controller import router as resume_router
 from app.jobpostings.api.controller import router as job_router
 from app.chatbot.router import router as chatbot_router
 from app.employer_chatbot.router import router as employer_chatbot_router
+from app.legacy.resume_analyze_router import router as legacy_resume_analyze_router
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -70,6 +71,7 @@ def health():
 
 # Register Routers
 app.include_router(resume_router)
+app.include_router(legacy_resume_analyze_router)
 app.include_router(chatbot_router)
 app.include_router(employer_chatbot_router)
 app.include_router(job_router)

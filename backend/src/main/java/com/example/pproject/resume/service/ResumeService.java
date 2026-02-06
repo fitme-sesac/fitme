@@ -23,12 +23,15 @@ public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final UserRepository userRepository;
     private final JobApplicationRepository jobApplicationRepository;
+
+    // ✅ 내 코드 기능 유지
     private final JobScrapService jobScrapService;
-    private final ResumeSummaryService resumeSummaryService; // AI 요약 서비스 추가
+
+    // ✅ 가져오려는 코드 기능 유지 (AI 요약/임베딩 비동기 요청)
+    private final ResumeSummaryService resumeSummaryService;
 
     // 1. 내 이력서 목록 조회 (Long userId)
     public List<ResumeResponse> getResumes(Long userId) {
-        // findAllByUser_Id : Long 타입 ID를 지원하는 표준 메소드 사용
         return resumeRepository.findAllByUser_Id(userId).stream()
                 .map(ResumeResponse::from)
                 .collect(Collectors.toList());
@@ -46,11 +49,9 @@ public class ResumeService {
         UserEntity user = getUser(userId);
         Resume resume = request.toEntity(user);
 
-        // 첫 이력서라면 대표 이력서로 설정 (findAllByUser_Id 사용)
+        // 첫 이력서라면 대표 이력서로 설정
         if (resumeRepository.findAllByUser_Id(userId).isEmpty()) {
             resume.setPrimary(true);
-            // AI 요약/임베딩 요청 (비동기)
-            resumeSummaryService.requestSummary(resume.getId(), userId);
         }
 
         // 프로필(사진, 주소) 저장
@@ -61,7 +62,15 @@ public class ResumeService {
         // 자식 엔티티 추가 (경력, 프로젝트 등)
         addChildrenToResume(resume, request);
 
-        return resumeRepository.save(resume).getId();
+        // ✅ 저장 먼저 해서 resumeId 확보
+        Long savedId = resumeRepository.save(resume).getId();
+
+        // ✅ (가져오려는 코드) 첫 이력서(=대표)일 때 AI 요약/임베딩 요청
+        if (Boolean.TRUE.equals(resume.isPrimary())) {
+            resumeSummaryService.requestSummary(savedId, userId);
+        }
+
+        return savedId;
     }
 
     // 4. 이력서 수정 (Long userId)
@@ -75,19 +84,18 @@ public class ResumeService {
                 request.getPublicOption(), request.getField(),
                 request.getPreferenceLocation(), request.getPreferenceSalary(),
                 request.getEmploymentType(),
-                request.getReStack(), // List<String>
+                request.getReStack(),     // List<String>
                 request.getCareerYears(), // Integer
-                request.getSchool(), request.getSchoolState(), request.getSchoolClass());
+                request.getSchool(), request.getSchoolState(), request.getSchoolClass()
+        );
 
-        // 대표 이력서 변경 로직 (findByUser_IdAndPrimaryTrue 사용)
-        // 대표 이력서 변경 로직 (findByUser_IdAndPrimaryTrue 사용)
+        // 대표 이력서 변경 로직
         if (Boolean.TRUE.equals(request.getPrimary())) {
             resumeRepository.findByUser_IdAndPrimaryTrue(userId)
                     .ifPresent(old -> old.setPrimary(false));
             resume.setPrimary(true);
 
-            // AI 요약/임베딩 요청 (비동기)
-            // 기존 이력서가 변경되었으므로 내용을 다시 분석해야 함
+            // ✅ (가져오려는 코드) 대표 이력서로 설정/변경 시 AI 요약/임베딩 요청
             resumeSummaryService.requestSummary(resume.getId(), userId);
         }
 
@@ -137,9 +145,6 @@ public class ResumeService {
                     .photoUrl(original.getProfile().getPhotoUrl())
                     .build());
         }
-
-        // (선택사항) 자식 데이터(경력, 프로젝트 등) 복제 로직 필요 시 여기에 추가
-        // copyChildren(original, copy);
 
         return resumeRepository.save(copy).getId();
     }
@@ -226,32 +231,27 @@ public class ResumeService {
         resume.getAttachments().removeIf(attachment -> attachment.getId().equals(attachmentId));
     }
 
-    // --- Helper Methods ---
-
     /**
-     * [NEW] 특정 이력서를 대표 이력서로 설정 + AI 요약 요청
+     * ✅ (가져오려는 코드) 특정 이력서를 대표 이력서로 설정 + AI 요약 요청
+     * - 프론트에서 "대표 이력서 설정"을 별도 API로 호출하는 구조면 이 메소드가 필요
      */
     @Transactional
     public void setPrimaryResume(Long resumeId, Long userId) {
         Resume resume = getResumeEntity(resumeId);
         validateOwner(resume, userId);
 
-        if (resume.isPrimary()) {
-            return; // 이미 대표 이력서임
-        }
+        if (resume.isPrimary()) return;
 
-        // 1. 기존 대표 해제
         resumeRepository.findByUser_IdAndPrimaryTrue(userId)
                 .ifPresent(old -> old.setPrimary(false));
 
-        // 2. 새 대표 설정
         resume.setPrimary(true);
-        // 저장은 Transaction Commit 시 dirty checking으로 발생하지만, 명시적 save도 무방
         resumeRepository.save(resume);
 
-        // 3. AI 요약/임베딩 요청 (비동기)
         resumeSummaryService.requestSummary(resume.getId(), userId);
     }
+
+    // --- Helper Methods ---
 
     private UserEntity getUser(Long userId) {
         return userRepository.findById(userId)
@@ -264,7 +264,6 @@ public class ResumeService {
     }
 
     private void validateOwner(Resume resume, Long userId) {
-        // ID 비교는 equals로 안전하게 처리 (Long 객체끼리 비교)
         if (!resume.getUser().getId().equals(userId)) {
             throw new IllegalArgumentException("Unauthorized access to resume");
         }
@@ -301,7 +300,6 @@ public class ResumeService {
         summary.put("role", user.getRoleType() != null ? user.getRoleType().name() : "");
         summary.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : "");
 
-        // 대표 이력서 정보
         Optional<Resume> primaryResume = resumeRepository.findByUser_IdAndPrimaryTrue(userId);
         if (primaryResume.isPresent()) {
             Resume resume = primaryResume.get();
@@ -321,7 +319,7 @@ public class ResumeService {
             }
 
             summary.put("primaryResume", resumeSummary);
-            summary.put("job_title", resume.getField()); // 직무 분야를 job_title로 표시
+            summary.put("job_title", resume.getField());
         } else {
             summary.put("primaryResume", null);
             summary.put("avatar_url", "");
@@ -332,7 +330,7 @@ public class ResumeService {
         List<Resume> allResumes = resumeRepository.findAllByUser_Id(userId);
         summary.put("resumeCount", allResumes.size());
 
-        // 스크랩(관심공고) 개수
+        // ✅ 내 코드: 스크랩(관심공고) 개수
         long savedJobCount = jobScrapService.getScrapCount(userId);
         summary.put("savedJobCount", savedJobCount);
 
