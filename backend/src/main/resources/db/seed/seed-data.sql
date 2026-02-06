@@ -1,3 +1,7 @@
+﻿-- =========================================================
+-- FitMe dummy dataset
+-- =========================================================
+
 -- =========================================================
 -- FitMe DB 통합 더미 데이터 (자동 생성)
 -- 생성일시: 2026. 2. 4. 오후 9:36:26
@@ -6,7 +10,12 @@
 BEGIN;
 
 -- FK 제약 조건 임시 비활성화 (데이터 삽입 순서 문제 방지)
-SET session_replication_role = 'replica';
+DO $$
+BEGIN
+  PERFORM set_config('session_replication_role','replica', true);
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'Skipping session_replication_role=replica (insufficient privilege). If you see FK/order errors, run as superuser or load data in dependency order.';
+END $$;
 
 -- 0. updated_at 자동 갱신 함수 (ERD 트리거에서 사용)
 CREATE OR REPLACE FUNCTION set_updated_at()
@@ -170735,47 +170744,19 @@ SELECT setval(pg_get_serial_sequence('inquiry', 'inquiry_id'), (SELECT COALESCE(
 SELECT setval(pg_get_serial_sequence('report', 'report_id'), (SELECT COALESCE(MAX(report_id), 1) FROM report));
 
 -- FK 제약 조건 다시 활성화
-SET session_replication_role = 'origin';
+DO $$
+BEGIN
+  PERFORM set_config('session_replication_role','origin', true);
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'Skipping session_replication_role=origin (insufficient privilege).';
+END $$;
 
 COMMIT;
 
-INSERT INTO member (
-    member_uid, email, login_id, auth_provider, password_hash,
-    name, gender, birth_date, phone, role, status,
-    phone_verified_at,
-    terms_notice_id, terms_agreed_at,      -- 이용약관 (필수)
-    privacy_notice_id, privacy_agreed_at,  -- 개인정보 (필수)
-    policy_notice_id, policy_agreed_at,    -- 위치기반 (선택이지만 값 채움)
-    marketing_opt_in, marketing_agreed_at,
-    created_at, updated_at
-) VALUES (
-    gen_random_uuid(),
-    'admin@fitme.com',
-    'admin',
-    'OTHER',
-    '$2a$10$6v8Q1XxVMqG1CxS/U1MLr.Kmlwtj.0bRqW038QQIYSWDXgdZ7n5t2', -- test1234!
-    '관리자',
-    'MALE',
-    '2024-01-01',
-    '01000000000',
-    'SERVICEADMIN', -- 관리자 권한
-    'ACTIVE',
-    now(),
-    1, now(),       -- terms_notice_id=1
-    2, now(),       -- privacy_notice_id=2
-    3, now(),       -- policy_notice_id=3
-    false, null,    -- 마케팅 동의 미수신
-    now(),
-    now()
-);
-BEGIN;
-
--- ✅ 기존 상품 데이터 삭제
--- 주의: orders/subscription 등이 product를 FK로 참조하므로 CASCADE면 연관 데이터도 삭제될 수 있음
-TRUNCATE TABLE product RESTART IDENTITY CASCADE;
-
--- ✅ 더미 상품 데이터 생성 (ONE_TIME 6개 + SUBSCRIPTION 3개)
--- ONE_TIME: 고가 상품일수록 보너스 크레딧 제공(단가 개선)
+-- =========================================================
+-- Seed/Update Products (upsert by product_code)
+-- Source: 상품 더미데이터.txt (modified: no TRUNCATE)
+-- =========================================================
 INSERT INTO product (
   product_code,
   product_type,
@@ -170786,7 +170767,7 @@ INSERT INTO product (
   credit_amount,
   plan_tier
 ) VALUES
-  /* =========================
+/* =========================
    * ONE_TIME (크레딧 충전)
    * - 저가: 1:10 유지
    * - 고가: 보너스 크레딧으로 실질 단가 개선
@@ -170806,7 +170787,73 @@ INSERT INTO product (
    * ========================= */
   ('SUB_BASIC',    'SUBSCRIPTION', '구독 BASIC (월 10,000 크레딧)',     'ON_SALE',  99000.00, 'KRW',  10000, 'BASIC'),
   ('SUB_STANDARD', 'SUBSCRIPTION', '구독 STANDARD (월 60,000 크레딧)',  'ON_SALE', 399000.00, 'KRW',  60000, 'STANDARD'),
-  ('SUB_PRO',      'SUBSCRIPTION', '구독 PRO (월 140,000 크레딧)',      'ON_SALE', 799000.00, 'KRW', 140000, 'PRO');
+  ('SUB_PRO',      'SUBSCRIPTION', '구독 PRO (월 140,000 크레딧)',      'ON_SALE', 799000.00, 'KRW', 140000, 'PRO')
+ON CONFLICT (product_code)
+DO UPDATE SET
+  product_type  = EXCLUDED.product_type,
+  name          = EXCLUDED.name,
+  sale_status   = EXCLUDED.sale_status,
+  price_amount  = EXCLUDED.price_amount,
+  currency      = EXCLUDED.currency,
+  credit_amount = EXCLUDED.credit_amount,
+  plan_tier     = EXCLUDED.plan_tier,
+  updated_at    = now(),
+  deleted_at    = NULL;
 
-COMMIT;
 
+-- =========================================================
+-- Seed/Update Admin account (upsert by email)
+-- Source: 관리자 sql.txt (modified: idempotent)
+-- Password hash in source comment: test1234!
+-- =========================================================
+INSERT INTO member (
+    member_uid, email, login_id, auth_provider, password_hash,
+    name, gender, birth_date, phone, role, status,
+    phone_verified_at,
+    terms_notice_id, terms_agreed_at,
+    privacy_notice_id, privacy_agreed_at,
+    policy_notice_id, policy_agreed_at,
+    marketing_opt_in, marketing_agreed_at,
+    created_at, updated_at
+) VALUES (
+    gen_random_uuid(),
+    'admin@fitme.com',
+    'admin',
+    'OTHER',
+    '$2a$10$6v8Q1XxVMqG1CxS/U1MLr.Kmlwtj.0bRqW038QQIYSWDXgdZ7n5t2',
+    '관리자',
+    'MALE',
+    '2024-01-01',
+    '01000000000',
+    'SERVICEADMIN',
+    'ACTIVE',
+    now(),
+    1, now(),
+    2, now(),
+    3, now(),
+    false, null,
+    now(),
+    now()
+)
+ON CONFLICT (email)
+DO UPDATE SET
+    login_id          = EXCLUDED.login_id,
+    auth_provider     = EXCLUDED.auth_provider,
+    password_hash     = EXCLUDED.password_hash,
+    name              = EXCLUDED.name,
+    gender            = EXCLUDED.gender,
+    birth_date        = EXCLUDED.birth_date,
+    phone             = EXCLUDED.phone,
+    role              = EXCLUDED.role,
+    status            = EXCLUDED.status,
+    phone_verified_at = EXCLUDED.phone_verified_at,
+    terms_notice_id   = EXCLUDED.terms_notice_id,
+    terms_agreed_at   = EXCLUDED.terms_agreed_at,
+    privacy_notice_id = EXCLUDED.privacy_notice_id,
+    privacy_agreed_at = EXCLUDED.privacy_agreed_at,
+    policy_notice_id  = EXCLUDED.policy_notice_id,
+    policy_agreed_at  = EXCLUDED.policy_agreed_at,
+    marketing_opt_in  = EXCLUDED.marketing_opt_in,
+    marketing_agreed_at = EXCLUDED.marketing_agreed_at,
+    updated_at        = now(),
+    deleted_at        = NULL;

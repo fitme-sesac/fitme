@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useApplicants, useUpdateApplicantStatus } from "@/hooks/useEmployers";
 import { toast } from "sonner";
+import { getResume } from "@/api/resumes";
 
 const statusConfig: Record<string, { label: string; className: string; icon: typeof Clock }> = {
   SUBMITTED: { label: "지원완료", className: "bg-info/10 text-info border-info/20", icon: Clock },
@@ -127,6 +128,114 @@ export function ApplicantsTab() {
     const hired = applicants.filter((a) => (a.status || "").toUpperCase() === "HIRED" || a.status === "hired").length;
     return { total, submitted, interview, hired };
   }, [applicants, total]);
+
+  const [resumeDialog, setResumeDialog] = useState<{
+    open: boolean;
+    loading: boolean;
+    error: string | null;
+    resume: any | null;
+  }>({
+    open: false,
+    loading: false,
+    error: null,
+    resume: null,
+  });
+
+  const handleOpenResume = async (applicant: any) => {
+    if (!applicant.resumeId) {
+      toast.error("이력서 정보가 없습니다.");
+      return;
+    }
+
+    setResumeDialog({
+      open: true,
+      loading: true,
+      error: null,
+      resume: null,
+    });
+
+    try {
+      const res = await getResume(applicant.resumeId);
+      setResumeDialog((prev) => ({
+        ...prev,
+        loading: false,
+        resume: res,
+      }));
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "이력서를 불러오지 못했습니다.";
+      toast.error(msg);
+      setResumeDialog((prev) => ({
+        ...prev,
+        loading: false,
+        error: msg,
+      }));
+    }
+  };
+
+  const renderResumeContent = (resume: any) => {
+    if (!resume) return null;
+
+    const skills: string[] = Array.isArray(resume.reStack)
+      ? resume.reStack
+      : typeof resume.reStack === "string"
+        ? resume.reStack.split(",").map((s: string) => s.trim()).filter(Boolean)
+        : [];
+
+    const careers = Array.isArray(resume.careers) ? resume.careers : [];
+
+    return (
+      <div className="space-y-5 py-2">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground mb-1">
+            {resume.title ?? "제목 없는 이력서"}
+          </h3>
+          {resume.summary && (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              {resume.summary}
+            </p>
+          )}
+        </div>
+
+        {careers.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">경력</p>
+            <ul className="space-y-2">
+              {careers.map((c: any) => (
+                <li key={c.id} className="border-b last:border-0 pb-2 last:pb-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-sm text-foreground">
+                      {c.companyName ?? "(회사명)"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {c.startDate ?? ""} ~ {c.endDate ?? (c.current ? "재직 중" : "")}
+                    </span>
+                  </div>
+                  {c.role && (
+                    <p className="text-xs text-primary mt-0.5">
+                      {c.role}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {skills.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">기술 스택</p>
+            <div className="flex flex-wrap gap-1.5">
+              {skills.map((s, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs">
+                  {s}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -225,7 +334,16 @@ export function ApplicantsTab() {
               return (
                 <div
                   key={applicant.applicationId}
-                  className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all"
+                  className="p-4 rounded-xl border border-border bg-card hover:shadow-card-hover transition-all cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setExpandedId(isExpanded ? null : applicant.applicationId)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setExpandedId(isExpanded ? null : applicant.applicationId);
+                    }
+                  }}
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
@@ -256,7 +374,10 @@ export function ApplicantsTab() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div
+                      className="flex items-center gap-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {/* AI 매칭 점수 (채용공고 stack vs 이력서 re_stack·tech_stack) */}
                       <div className="text-center px-4 py-2 rounded-lg bg-primary/5 border border-primary/20">
                         <p className="text-2xl font-bold text-primary">{rate}%</p>
@@ -327,7 +448,12 @@ export function ApplicantsTab() {
                         )}
                         
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" title="이력서 보기 (추후 연동)">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title={applicant.resumeTitle ? `이력서 보기: ${applicant.resumeTitle}` : "이력서 보기"}
+                            onClick={() => handleOpenResume(applicant)}
+                          >
                             <FileText className="h-4 w-4 mr-1" />
                             이력서
                           </Button>
@@ -467,6 +593,36 @@ export function ApplicantsTab() {
               {actionDialog.type === "reject" && "거절"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 이력서 상세 모달 */}
+      <Dialog
+        open={resumeDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResumeDialog({
+              open: false,
+              loading: false,
+              error: null,
+              resume: null,
+            });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>이력서 보기</DialogTitle>
+          </DialogHeader>
+          {resumeDialog.loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : resumeDialog.error ? (
+            <p className="text-sm text-destructive py-4">{resumeDialog.error}</p>
+          ) : (
+            renderResumeContent(resumeDialog.resume)
+          )}
         </DialogContent>
       </Dialog>
     </div>

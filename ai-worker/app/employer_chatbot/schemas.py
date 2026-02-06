@@ -9,47 +9,81 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class EmployerChatbotIntent(str, Enum):
-    """기업용 챗봇 인텐트"""
-    COUNT_APPLICATIONS = "COUNT_APPLICATIONS"  # 지원자 수 조회
-    LIST_APPLICATIONS = "LIST_APPLICATIONS"    # 지원자 목록 조회
-    APPLICATION_STATS = "APPLICATION_STATS"    # 지원 통계 (공고별/기간별)
-    POSTING_PERFORMANCE = "POSTING_PERFORMANCE"  # 공고 성과 분석
-    TOP_SKILLS = "TOP_SKILLS"                  # 지원자 보유 스킬 상위
+    """기업용 챗봇 인텐트 - 채용 담당자의 다양한 질문 유형"""
+    
+    # === 지원자 관련 ===
+    COUNT_APPLICATIONS = "COUNT_APPLICATIONS"          # 지원자 수 카운트
+    LIST_APPLICATIONS = "LIST_APPLICATIONS"            # 지원자 목록 조회
+    APPLICATION_STATS = "APPLICATION_STATS"            # 지원 통계 (상태별/공고별 분포)
+    APPLICANT_TREND = "APPLICANT_TREND"                # 지원자 추이 (일별/주별 변화)
+    
+    # === 공고 성과 관련 ===
+    POSTING_PERFORMANCE = "POSTING_PERFORMANCE"        # 공고 성과 분석
+    COMPARE_POSTINGS = "COMPARE_POSTINGS"              # 공고 간 비교 분석
+    
+    # === 인재 분석 ===
+    TOP_SKILLS = "TOP_SKILLS"                          # 지원자 보유 스킬 상위
+    APPLICANT_PROFILE = "APPLICANT_PROFILE"            # 지원자 프로필 요약/분석
+    
+    # === 전환율/효율 분석 ===
+    CONVERSION_RATE = "CONVERSION_RATE"                # 채용 퍼널 전환율
+    
+    # === 긴급/액션 아이템 ===
+    URGENT_ACTIONS = "URGENT_ACTIONS"                  # 긴급 처리 필요 건
+    PENDING_REVIEW = "PENDING_REVIEW"                  # 검토 대기 중인 지원자
+    
+    # === 도움 ===
     HELP = "HELP"
 
 
 class EmployerChatbotParsedSpec(BaseModel):
     intent: EmployerChatbotIntent
 
+    # === 기간 필터 ===
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
-    # 공고 필터
+    # === 공고 필터 ===
     job_posting_ids: List[int] = Field(default_factory=list, max_length=50)
     job_title_keywords: List[str] = Field(default_factory=list, max_length=30)
-
-    # 지원자 필터
+    
+    # === 지원자 스킬 필터 ===
     applicant_skills_any: List[str] = Field(default_factory=list, max_length=30)
     applicant_skills_all: List[str] = Field(default_factory=list, max_length=30)
 
-    # 지원 상태 필터
+    # === 지원 상태 필터 ===
     application_status_any: List[str] = Field(default_factory=list, max_length=10)
-    # PENDING, REVIEWED, SHORTLISTED, REJECTED, HIRED 등
+    # 지원 상태: PENDING(대기), REVIEWED(검토완료), SHORTLISTED(서류통과), 
+    #           INTERVIEW(면접진행), REJECTED(불합격), HIRED(합격)
 
-    # 경력 필터
+    # === 경력 필터 ===
     min_experience_years: Optional[int] = Field(default=None, ge=0, le=60)
     max_experience_years: Optional[int] = Field(default=None, ge=0, le=60)
 
-    # 희망 연봉 필터 (만원 단위)
+    # === 희망 연봉 필터 (만원 단위) ===
     min_expected_salary_m만원: Optional[int] = Field(default=None, ge=0, le=50000)
     max_expected_salary_m만원: Optional[int] = Field(default=None, ge=0, le=50000)
 
-    # 지역 필터
+    # === 지역 필터 ===
     regions_any: List[str] = Field(default_factory=list, max_length=10)
 
+    # === 정렬/그룹 ===
+    sort_by: Optional[str] = Field(default=None, max_length=30)
+    # 정렬 옵션: created_at, experience, salary, name
+    
+    group_by: Optional[str] = Field(default=None, max_length=30)
+    # 그룹 옵션: day, week, month, status, posting
+
+    # === 결과 제한 ===
     limit: Optional[int] = Field(default=None, ge=1, le=50)
     random: Optional[bool] = None
+    
+    # === 신뢰도 ===
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    
+    # === 분석 대상 기간 단위 (추이 분석용) ===
+    time_unit: Optional[str] = Field(default=None, max_length=10)
+    # 시간 단위: day, week, month
 
     @field_validator(
         "job_posting_ids",
