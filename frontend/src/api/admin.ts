@@ -120,7 +120,7 @@ export const getFAQStatistics = async () => {
 
 // === Subscriptions ===
 export const getAdminSubscriptions = async () => {
-    const response = await http.get("/admin/api/subscriptions");
+    const response = await http.get("/api/v1/admin/subscriptions");
     return response.data;
 };
 

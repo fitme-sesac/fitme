@@ -19,7 +19,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/admin/api/subscriptions")
+@RequestMapping("/api/v1/admin/subscriptions")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')") // 클래스 레벨에서 권한 설정
 public class AdminSubscriptionController {
@@ -117,7 +117,8 @@ public class AdminSubscriptionController {
     public ResponseEntity<SubscriptionBillingCycleResponse> createBillingCycle(
             @RequestParam Long subscriptionId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate billingMonth) {
-        SubscriptionBillingCycleResponse response = billingCycleService.createBillingCycle(subscriptionId, billingMonth);
+        SubscriptionBillingCycleResponse response = billingCycleService.createBillingCycle(subscriptionId,
+                billingMonth);
         return ResponseEntity.ok(response);
     }
 
