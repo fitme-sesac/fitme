@@ -51,6 +51,9 @@ class AdCampaignServiceTest {
         @Mock
         private AdGuardService adGuardService;
 
+        @Mock
+        private AdImpressionService adImpressionService;
+
         @InjectMocks
         private AdCampaignService adCampaignService;
 
@@ -213,7 +216,7 @@ class AdCampaignServiceTest {
                                 .willReturn(page);
 
                 // 2. [When]
-                Page<AdCampaignEntity> result = adCampaignService.getActiveAdsForServing(pageable);
+                Page<AdCampaignEntity> result = adCampaignService.getActiveAdsForServing(pageable, null);
 
                 // 3. [Then]
                 assertThat(result.getTotalElements()).isEqualTo(1);

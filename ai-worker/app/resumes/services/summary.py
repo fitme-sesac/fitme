@@ -23,7 +23,7 @@ class SummaryService:
     def __init__(self):
         self.llm = ChatOpenAI(
             model=settings.OPENAI_MODEL_NAME,
-            temperature=0,
+            # temperature=0, # o1/o3 모델은 temperature 지원 안 할 수 있음
             openai_api_key=settings.OPENAI_API_KEY
         )
         # Output Parser 설정
@@ -37,7 +37,7 @@ class SummaryService:
 
         self.pdf_handler = PDFHandler(tesseract_cmd_path=tesseract_path, poppler_path=poppler_path)
 
-    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED) -> Union[str, ResumeSummary, ResumeInsightReport]:
+    async def generate_summary(self, data: dict, type: str, summary_type: SummaryType = SummaryType.STRUCTURED, resume_id: int = None) -> Union[str, ResumeSummary, ResumeInsightReport]:
         """
         이력서 데이터를 받아 요약을 생성합니다.
         data: ResumeRequest 객체 (Schema Validation을 거친 데이터가 들어옴)
@@ -165,8 +165,22 @@ class SummaryService:
         {file_content}
         """
 
+        # [NEW] Target Job Info 처리 (맞춤형 첨삭/요약)
+        target_job = data.get("target_job")
+        if target_job:
+            # dict 변환 (Pydantic model or dict)
+            if hasattr(target_job, 'dict'): 
+                target_job = target_job.dict()
+            
+            job_text = f"""
+            - Job Title: {target_job.get('title', 'N/A')}
+            - Key Skills: {', '.join(target_job.get('required_skills', []))}
+            - Description: {target_job.get('description', '')}
+            """
+            final_input_text += f"\n\n[Target Job Description]\n{job_text}"
+
         # [Common System Instruction]
-        common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘."
+        common_role = f"너는 IT 전문 기술 리쿠르터이자 기술 면접관이야. 제공된 데이터를 분석하여 요약 리포트를 작성해줘. 만약 [Target Job Description]이 제공되었다면, 해당 채용 공고와의 연관성을 중심으로 분석해."
 
         common_constraints = """
         [Constraints]
@@ -241,37 +255,31 @@ class SummaryService:
             structured_instruction = """
             [작성 가이드라인 - Dual Strategy (Display vs Embedding)]
             
-            **전략 1. Display Fields (사람이 읽는 용도): 문맥(Context)과 설득력 있는 서사 중심 + 수치적 성과(가용 시) 포함**
-            **전략 2. Embedding Fields (기계 매칭 용도): 채용 공고(JD) 표준 용어 중심 + 수치 제거(일반화)**
+            **전략 1. Display Fields (사람이 읽는 용도): 핵심만 간결하게 요약 (가독성 최우선)**
+            **전략 2. Embedding Fields (기계 매칭 용도): 채용 공고(JD) 표준 용어 중심 + 강력한 사실 검증**
             
-            1. professional_identity: (서사 중심) 후보자의 직무 정체성과 핵심 강점을 매력적인 문장으로 요약
-               - 예: "대규모 트래픽 처리 경험을 보유한 5년차 백엔드 개발자로서, 안정적인 시스템 설계를 주도합니다."
+            1. professional_identity: 후보자의 직무 정체성과 핵심 강점을 2-3문장 이내로 요약
             
-            2. key_achievement: (성과 중심) 프로젝트의 수치적 성과와 기여도를 구체적으로 명시
-               - 예: "결제 시스템 MSA 전환 프로젝트를 통해 TPS를 30% 개선하고 장애율을 0%로 낮춤"
+            2. key_achievement: 가장 핵심적인 성과를 **'•' 기호를 사용하여 개조식 텍스트**로 작성 (최대 3줄)
                - **경고: 원본 데이터에 수치가 명시되지 않았다면, 구체적인 기술적 구현 내용(방법론, 패턴)을 서술하고 절대 임의로 숫자를 지어내지 말 것.**
             
-            3. problem_solving: (과정 중심) 어떤 상황에서 어떤 기술로 문제를 해결했는지 인과관계 명시
-               - 예: "이벤트 발행 실패 문제를 해결하기 위해 Transactional Outbox 패턴을 도입하여 데이터 정합성 확보"
+            3. problem_solving: 트러블슈팅 경험을 **최대 150자 이내**의 간결한 평문으로 작성
+               - **[금지 사항]**: 마크다운 리스트 문법(`-`, `*`)을 절대 사용하지 마라. 대신 리스트 느낌이 필요하면 텍스트 기호(`•`)를 직접 사용하라.
+               - 핵심 기술, 직면한 문제, 해결책만 압축해서 서술할 것.
 
-            4. credibility: (팩트 중심) 학력, 자격증, 수상 내역 중 최상위 3개
+            4. collaboration: 협업 스타일 및 가치관 (1-2문장)
             
-            5. collaboration: (태도 중심) 협업 스타일 및 리더십 경험
-            6. matching_info: 희망 연봉 및 근무지
+            5. universal_competencies (리스트):
+               - 후보자의 경험을 채용 공고(JD)의 '자격 요건' 및 '우대 사항' 섹션에 등장하는 표준적인 **기술 키워드 및 전문 역량**으로 변환하여 리스트로 나열하라.
+               - 반드시 **명사형 키워드** 위주로 짧고 간결하게 작성하라. (예: ["대규모 트래픽 처리", "MSA 아키텍처 설계", "CI/CD 자동화"])
+               - **[Hallucination Prevention]**: 데이터에 명시된 사실만 포함하고, 직접 기여가 확인되지 않은 팀 기술은 제외하라.
             
-            7. universal_competencies (리스트):
-               - 위 내용들을 채용 공고에 자주 등장하는 '일반화된 역량 키워드'로 변환하라.
-               
-            8. job_category: 가장 적합한 표준 직무명 하나 (예: "백엔드 개발자")
+            6. job_category:
+               - 후보자의 경험과 기술 스택을 종합하여 **가장 적합한 표준 직무명(Standard Job Category)** 하나를 추출하라. (예: "백엔드 개발자")
             
-            9. embedding_summary (필수 - 검색 최적화):
-               - **목표:** 채용 공고(JD)와의 매칭을 위해 **수치를 '의미 있는 단위'로 정규화(Normalization)**하여 요약하라.
-               - **규칙 1 (Noise Reduction):** 비교를 방해하는 미세 수치(예: 342ms, 23.5%)는 제거하거나 "대폭 개선", "sub-second" 등으로 일반화하라.
-               - **규칙 2 (Scale Preservation):** 규모를 나타내는 중요 수치는 **단위(Order of Magnitude)** 위주로 남겨라. (예: 120만 건 -> "대용량(수백만)", 5000 TPS -> "고트래픽")
-               - **규칙 3 (Tech Version):** 기술 스택의 버전 정보(Java 17, Spring 3.0)는 호환성 판단을 위해 **그대로 유지**하라.
-               - 예시: "이 지원자는 백엔드 개발자로서 MSA 아키텍처를 설계하고, Kafka를 도입하여 비동기 처리 파이프라인을 구축했습니다. 특히 대용량 트래픽 환경(수백만 건)에서 Redis 캐싱을 통해 응답 속도를 수십 배 개선한 경험이 있습니다. (Java 17 활용)"
-
-            10. ai_reasoning: 분석 근거
+            7. ai_reasoning: 분석 근거 (가장 핵심적인 근거 2-3개만)
+            
+            * 주의: 마크다운 리스트 기호(`-`, `*`)는 가독성을 해치므로 쓰지 마라. 모든 항목은 일반 텍스트 문단으로 작성한다.
             """
 
             system_instruction = f"""{common_role}
@@ -426,8 +434,8 @@ class SummaryService:
         parser = JsonOutputParser(pydantic_object=EvalOut)
         llm = ChatOpenAI(model=settings.OPENAI_MODEL_NAME, temperature=0, openai_api_key=settings.OPENAI_API_KEY)
         
-        # Escape Braces
-        safe_original = original[:2000].replace("{", "{{").replace("}", "}}")
+        # [요청하신 대로 한계치를 대폭 늘립니다] 원문이 길어질 수 있으므로 8000자까지 허용 (GPT-4o 충분히 수용 가능)
+        safe_original = original[:8000].replace("{", "{{").replace("}", "}}")
         safe_summary = summary.replace("{", "{{").replace("}", "}}")
 
         prompt = ChatPromptTemplate.from_messages([
@@ -455,8 +463,8 @@ class SummaryService:
         llm = ChatOpenAI(model=settings.OPENAI_MODEL_NAME, temperature=0, openai_api_key=settings.OPENAI_API_KEY)
         parser = self.json_parser
         
-        # Escape Braces
-        safe_original = original[:2000].replace("{", "{{").replace("}", "}}")
+        # [요정하신 대로 한계치를 대폭 늘립니다] 피드백 시에도 원문 전체를 볼 수 있도록 8000자 허용
+        safe_original = original[:8000].replace("{", "{{").replace("}", "}}")
         safe_prev_summary = prev_summary.replace("{", "{{").replace("}", "}}")
         safe_feedback = feedback.replace("{", "{{").replace("}", "}}")
 

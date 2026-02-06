@@ -1,4 +1,5 @@
 import { Bookmark, MapPin, Briefcase, Clock, Coins, Building2, Heart, Loader2 } from "lucide-react";
+import { Bookmark, MapPin, Briefcase, Clock, Coins, Building2, Heart, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -126,11 +127,8 @@ export function JobCard({
 
   const brandColor = getBrandColor(company);
 
-  // For guests, show a rich mock match score if not provided
-  // Calculate match score only for authenticated users, otherwise undefined
-  const displayMatchScore = isAuthenticated
-    ? (matchScoreProp ?? (Math.floor(Math.random() * 26) + 70))
-    : undefined;
+  // Show match score only when real data is provided
+  const displayMatchScore = matchScoreProp;
 
   const postedLabel = postedAt || "방금 전";
 
@@ -179,26 +177,20 @@ export function JobCard({
           </div>
         </div>
 
-        {/* AI Match Rate Bar - Only for Authenticated Users */}
-        {isAuthenticated && (
-          <div className="mb-5">
-            <div className="flex justify-between items-end mb-2">
-              <span className="text-sm font-bold text-gray-700">AI 매칭률</span>
+        {/* AI Match Rate Badge - Only when real data exists */}
+        {displayMatchScore !== undefined && displayMatchScore !== null && (
+          <div className="mb-4">
+            <div
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/10 shadow-sm"
+              style={{ background: "rgba(255, 255, 255, 0.8)" }}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
               <span
-                className="text-lg font-black text-transparent bg-clip-text"
+                className="text-sm font-black text-transparent bg-clip-text"
                 style={{ backgroundImage: mainGradient }}
               >
-                {displayMatchScore}%
+                AI 매칭률 {displayMatchScore}%
               </span>
-            </div>
-            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-1000 ease-out"
-                style={{
-                  width: `${displayMatchScore || 0}%`,
-                  background: mainGradient
-                }}
-              />
             </div>
           </div>
         )}

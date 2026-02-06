@@ -66,6 +66,7 @@ services:
       # Redis (used for OTP/cache etc.)
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
 
       # Optional: keep file uploads inside container volume
       TEMP_FOLDER: /app/uploads/
@@ -78,6 +79,9 @@ services:
       FRONT_BASE_URL: ${FRONT_BASE_URL:-http://localhost:5173}
       # AWS S3 (Removed)
       # AWS_S3_ENABLED: false
+
+      # AI Worker (Docker Network)
+      AI_SERVER_BASE_URL: http://ai-worker:8000
 
     ports:
       - "8080:8080"

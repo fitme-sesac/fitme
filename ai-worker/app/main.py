@@ -44,6 +44,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# [Debug Handler] 422 에러 상세 로깅
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    logging.error(f"[Validation Error] URL: {request.url}")
+    logging.error(f"[Validation Error] Body: {exc.body}")
+    logging.error(f"[Validation Error] Details: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
 
 # Health Check
 @app.get("/")

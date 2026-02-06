@@ -137,8 +137,8 @@ export function WideJobCard({
     const brandColor = getBrandColor(company);
     const mainGradient = "linear-gradient(90deg, #5AB2FA 0%, #3DCEC9 100%)";
 
-    // For guests, show a rich mock match score if not provided
-    const displayMatchScore = matchScoreProp ?? (Math.floor(Math.random() * 26) + 70); // 70% ~ 95%
+    // For guests or when data is missing, show nothing instead of mock scores
+    const displayMatchScore = matchScoreProp;
 
     const displayLocation = location.split(" ").slice(0, 2).join(" ");
     const experienceLabel = requiredExperience ? `경력 ${requiredExperience}년+` : "신입/경력";
@@ -201,24 +201,33 @@ export function WideJobCard({
                 {/* Bottom Section: Job Details */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                     <div className="space-y-3 flex-1">
-                        <div className="flex items-center flex-wrap gap-2">
-                            <Link to={`/jobs/${id}`} className="group-hover:text-primary transition-colors">
-                                <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-                            </Link>
-                            <span className="text-gray-400 text-sm">·</span>
-                            <span className="text-gray-800 font-medium text-sm">{experienceLabel}</span>
+                        {/* Title: Always full width for consistency */}
+                        <Link to={`/jobs/${id}`} className="group-hover:text-primary transition-colors block w-full">
+                            <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+                        </Link>
 
-                            {/* AI Match Score Badge */}
-                            {isAuthenticated && displayMatchScore !== undefined && displayMatchScore !== null && (
-                                <span
-                                    className="ml-1 text-xs font-black text-transparent bg-clip-text px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50"
-                                    style={{ backgroundImage: mainGradient }}
+                        {/* Metadata Row: AI Match, Experience, Status Badges */}
+                        <div className="flex items-center flex-wrap gap-2 pt-1">
+                            {/* New Prominent AI Match Rate Badge - Only when real data exists */}
+                            {displayMatchScore !== undefined && displayMatchScore !== null && (
+                                <div
+                                    className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/10 shadow-sm"
+                                    style={{ background: "rgba(255, 255, 255, 0.8)" }}
                                 >
-                                    AI 매칭률 {displayMatchScore}%
-                                </span>
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                    <span
+                                        className="text-sm font-black text-transparent bg-clip-text"
+                                        style={{ backgroundImage: mainGradient }}
+                                    >
+                                        AI 매칭률 {displayMatchScore}%
+                                    </span>
+                                </div>
                             )}
 
-                            {/* Dummy Active Hiring Badge */}
+                            <span className="text-gray-400 text-sm hidden sm:inline">·</span>
+                            <span className="text-gray-800 font-medium text-sm">{experienceLabel}</span>
+
+                            {/* Status Badges */}
                             <Badge variant="outline" className="text-xs font-bold text-purple-600 border-purple-200 bg-purple-50">
                                 적극 채용 중
                             </Badge>

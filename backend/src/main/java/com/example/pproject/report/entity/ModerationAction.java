@@ -24,16 +24,16 @@ public class ModerationAction {
     private Long adminMemberId;
 
     @Column(length = 20, nullable = false)
-    private String decision;  // ACCEPT, REJECT
+    private String decision; // ACCEPT, REJECT
 
     @Column(name = "sanction_level")
-    private Integer sanctionLevel;  // 제재 수준 (1~5)
+    private Integer sanctionLevel; // 제재 수준 (1~5)
 
     @Column(name = "restrict_days")
-    private Integer restrictDays;  // 제재 기간 (일)
+    private Integer restrictDays; // 제재 기간 (일)
 
     @Column(columnDefinition = "TEXT", nullable = false)
-    private String reason;  // 판단 사유
+    private String reason; // 판단 사유
 
     @Column(name = "decided_at", nullable = false)
     private LocalDateTime decidedAt;

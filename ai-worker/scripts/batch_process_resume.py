@@ -138,12 +138,6 @@ async def process_resume_by_id(resume_id: int):
         print(embedding_text)
         print("="*106 + "\n")
         
-        # [DEBUG] Show Previous Narrative Version (if available)
-        if result_obj.searchable_narrative:
-            print("\n" + "="*40 + " [Previous Narrative Version (Hidden)] " + "="*40)
-            print(result_obj.searchable_narrative)
-            print("="*106 + "\n")
-
         logger.info(f"📝 Generated Embedding Text Length: {len(embedding_text)}")
 
         # 5. Generate Vector

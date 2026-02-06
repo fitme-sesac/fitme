@@ -216,7 +216,6 @@ export default function Settings() {
                 </main>
                 <Footer />
             </div>
-
             <PaymentResultModal />
         </div>
     );

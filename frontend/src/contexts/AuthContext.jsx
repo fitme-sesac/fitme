@@ -65,18 +65,7 @@ export function AuthProvider({ children }) {
             const status = await authApi.checkAuthStatus();
             setUser(status?.authenticated ? status : null);
             // Pass the user role to ensure we fetch the correct wallet
-            if (status?.authenticated) {
-                try {
-                    await refreshCredits(status?.role);
-                } catch (error) {
-                    console.error("Failed to refresh credits during session check:", error);
-                    // 지갑 조회 실패 시 기존 크레딧 값 유지 (0으로 초기화하지 않음)
-                }
-            } else {
-                // 로그아웃 상태일 때만 크레딧 0으로 설정
-                setCredits(0);
-            }
-
+            await refreshCredits(status?.role);
             return status;
         } catch {
             setUser(null);

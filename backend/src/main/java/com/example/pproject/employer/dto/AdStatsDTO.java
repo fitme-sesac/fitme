@@ -16,6 +16,7 @@ public class AdStatsDTO {
     private long totalClicks;
     private long totalImpressions;
     private long totalSpent;
+    private long totalApplicants;
     private double ctr;
     private List<CampaignDTO> campaigns;
 
@@ -31,9 +32,11 @@ public class AdStatsDTO {
         private String status;
         private int clicks;
         private int impressions;
+        private int applicants;
         private double ctr;
         private int dailyBudget;
         private int cpcBid;
-        private int applicants; // 해당 채용공고의 지원자 수
+        private String startDate;
+        private String endDate;
     }
 }

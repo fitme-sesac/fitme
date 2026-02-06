@@ -3,9 +3,9 @@ from typing import Dict, Any, List, Optional, Union
 from enum import Enum
 
 class Preference(BaseModel):
-    location: str = Field(description="희망 근무지")
-    salary: str = Field(description="희망 연봉")
-    employment_type: str = Field(description="고용 형태")
+    location: Optional[str] = Field(default=None, description="희망 근무지")
+    salary: Optional[str] = Field(default=None, description="희망 연봉")
+    employment_type: Optional[str] = Field(default=None, description="고용 형태")
 
 class Education(BaseModel):
     status: str = Field(description="학적 상태 (예: 졸업, 재학, 휴학)")
@@ -14,10 +14,20 @@ class Education(BaseModel):
 
 class BasicInfo(BaseModel):
     title: str = Field(description="한줄 소개")
+    tagline: Optional[str] = Field(default=None, description="태그라인 (선택)")
     re_stack: List[str] = Field(description="종합 보유 기술 (나의 정체성)")
-    field: str = Field(description="데이터 타입 (RESUME 또는 SELF_INTRO)")
+    field: str = Field(description="데이터 타입 (RESUME, PORTFOLIO, INTRO)")
     education: Optional[Education] = Field(default=None, description="학력 정보")
     preference: Preference
+
+class TargetJobInfo(BaseModel):
+    job_id: int
+    title: str
+    description: str
+    required_skills: List[str] = []
+    location: Optional[str] = None
+    salary_text: Optional[str] = None
+    company_name: Optional[str] = None
 
 class SummaryType(str, Enum):
     STRUCTURED = "STRUCTURED"
@@ -48,6 +58,7 @@ class ResumeRequest(BaseModel):
     careers: List[Union[Career, str]]
     summary_type: SummaryType = Field(default=SummaryType.STRUCTURED, description="요약 형태 (STRUCTURED: 구조화, TEXT: 줄글, REPORT: 인사이트 보고서)")
     include_reasoning: bool = Field(default=False, description="AI 분석 근거(Page/Section Reference) 포함 여부")
+    target_job: Optional[TargetJobInfo] = Field(default=None, description="맞춤 상담을 위한 타겟 채용공고 정보")
 
 class AIProcessResult(BaseModel):
     id: str
@@ -71,24 +82,20 @@ class ResumeSummary(BaseModel):
     universal_competencies: List[str] = Field(default=[], description="[Embed Only] 매칭을 위해 이력서 내용을 채용 공고(JD) 표준 용어로 변환한 보편적 역량 키워드 리스트 (예: '대규모 트래픽 분산 처리', 'MSA 아키텍처 설계')")
     job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리 (예: 'Backend Developer', 'Data Scientist', 'Frontend Developer'). 후보자의 경력과 기술을 바탕으로 가장 적합한 표준 직무명 하나만 추출")
 
-    # [NEW] Vector Optimized Summary (Numeric-Free)
-    embedding_summary: str = Field(default="", description="[Embed Only] 벡터 검색 최적화를 위한 의미(Semantic) 중심 요약. 구체적인 수치(%, ms, 건 등)를 제거하고 '대폭 개선', '고성능 아키텍처 구축' 등 일반화된 표현 사용. 기술적 문맥과 문제 해결 키워드 위주로 작성.")
-
     # [System] 분석 근거
     ai_reasoning: List[str] = Field(description="분석 근거: 각 항목을 작성하기 위해 참고한 문서의 페이지 번호나 섹션 출처 (리스트 형태)")
 
     def to_formatted_string(self, include_reasoning: bool = False) -> str:
+        # 마크다운 리스트 문법을 배제하고 일반 텍스트 기호 사용 (여백 조절용)
         base_text = (
-            f"전문성 및 기술 역량: {self.professional_identity}\n"
-            f"핵심 프로젝트 성과: {self.key_achievement}\n"
-            f"문제 해결 능력: {self.problem_solving}\n"
-            f"대외 신뢰도: {self.credibility}\n"
-            f"협업 및 가치관: {self.collaboration}\n"
-            f"채용 매칭 정보: {self.matching_info}"
+            f"**🎯 전문성 및 기술 역량**\n{self.professional_identity}\n\n"
+            f"**🏆 핵심 프로젝트 성과**\n{self.key_achievement}\n\n"
+            f"**🛠️ 문제 해결 능력**\n{self.problem_solving}\n\n"
+            f"**🤝 협업 및 가치관**\n{self.collaboration}"
         )
         if include_reasoning:
             reasoning_str = "\n".join(self.ai_reasoning)
-            base_text += f"\n\n[AI 분석 근거]\n{reasoning_str}"
+            base_text += f"\n\n---\n**[AI 분석 근거]**\n{reasoning_str}"
         return base_text
 
     def to_embedding_string(self, title: str = "", tech_stack: str = "") -> str:
@@ -99,17 +106,21 @@ class ResumeSummary(BaseModel):
         """
         
         # 1. Competency Block Construction
-        if self.embedding_summary:
-            # [NEW] 의미 기반 요약이 있으면 그것을 통째로 Competency 블록으로 사용
-            competency_block = self.embedding_summary
-        elif self.universal_competencies:
-            competency_block = "\n".join([f"- {c}" for c in self.universal_competencies])
-        else:
-            competency_block = (
-                f"- Professional Identity: {self.professional_identity}\n"
-                f"- Key Achievements: {self.key_achievement}\n"
+        # [REVERT] 사용자가 강조한 '순수 개조식(Keywords Only)'으로 되돌립니다.
+        # 서술형 요약을 완전히 제거하고 JD 표준 키워드 리스트만 임베딩에 사용합니다.
+        items = []
+        if self.universal_competencies:
+            items.extend([f"- {c}" for c in self.universal_competencies])
+        
+        if not items:
+            # Fallback (최소한의 개조식 유지)
+            items = [
+                f"- Identity: {self.professional_identity}",
+                f"- Achievement: {self.key_achievement}",
                 f"- Problem Solving: {self.problem_solving}"
-            )
+            ]
+
+        competency_block = "\n".join(items)
 
         # Role: job_category가 있으면 그것을 사용, 없으면 user input title 사용
         role_text = self.job_category if self.job_category else title
@@ -133,27 +144,23 @@ class ResumeInsightReport(BaseModel):
 
     job_category: str = Field(default="", description="[Embed Only] 매칭을 위한 표준 직무 카테고리")
     
-    # [NEW] Vector Optimized Summary
-    embedding_summary: str = Field(default="", description="[Embed Only] 벡터 검색 최적화를 위한 의미(Semantic) 중심 요약. 수치 제거, 문제해결 문맥 위주.")
-    
     ai_reasoning: List[str] = Field(description="분석 근거")
 
     def to_formatted_string(self, include_reasoning: bool = False) -> str:
         achievements_str = "\n".join([f"  • {item}" for item in self.technical_achievements])
 
         base_text = (
-            f"### {self.headline}\n\n"
-            f"**[전문가 프로필]**\n{self.professional_profile}\n\n"
-            f"**[핵심 기술적 성과]**\n{achievements_str}\n\n"
-            f"**[기술적 깊이 및 해결 능력]**\n{self.deep_dive}\n\n"
-            f"**[리쿠르터의 관전 포인트]**\n💡 {self.recruiter_insight}\n\n"
-            f"--- \n"
-            f"**[추가 정보]**\n- 협업/가치관: {self.soft_skills}\n- 매칭 정보: {self.matching_info}"
+            f"#### {self.headline}\n"
+            f"**👤 전문가 프로필**: {self.professional_profile}\n"
+            f"**🚀 핵심 기술적 성과**\n{achievements_str}\n"
+            f"**🎓 기술적 깊이 및 해결 능력**\n{self.deep_dive}\n"
+            f"**💡 리쿠르터의 관전 포인트**: {self.recruiter_insight}\n"
+            f"**🤝 협업/가치관**: {self.soft_skills}"
         )
 
         if include_reasoning:
             reasoning_str = "\n".join(self.ai_reasoning)
-            base_text += f"\n\n**[AI 분석 근거]**\n{reasoning_str}"
+            base_text += f"\n\n---\n**[AI 분석 근거]**\n{reasoning_str}"
 
         return base_text
 
@@ -163,17 +170,18 @@ class ResumeInsightReport(BaseModel):
         """
         role_text = self.job_category if self.job_category else title
 
-        # [NEW] embedding_summary 우선 사용
+        # [REFINED] 개조식(Bulleted List) 우선 적용
+        items = []
+        if self.technical_achievements:
+            items.extend([f"- {a}" for a in self.technical_achievements])
+        
         if self.embedding_summary:
-            competency_body = self.embedding_summary
-        else:
-            achievements_str = ", ".join(self.technical_achievements)
-            competency_body = (
-                f"{self.headline}\n"
-                f"{self.professional_profile}\n"
-                f"{achievements_str}\n"
-                f"{self.deep_dive}"
-            )
+            items.append(f"\n[Summary]\n{self.embedding_summary}")
+            
+        if not items:
+            items = [f"- {self.headline}", self.professional_profile, self.deep_dive]
+
+        competency_body = "\n".join(items)
 
         return (
             f"[Role] {role_text}\n"
