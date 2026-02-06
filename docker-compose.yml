@@ -137,7 +137,7 @@ services:
       # 카카오맵 API 키 (.env.docker의 KAKAO_MAP_API_KEY 사용)
       VITE_KAKAO_MAP_API_KEY: ${KAKAO_MAP_API_KEY}
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - backend
       - ai-worker
