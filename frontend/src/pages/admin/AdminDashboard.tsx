@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { StatCard } from "@/components/admin/StatCard";
-import { DataTable } from "@/components/admin/DataTable";
+import { DataTable, type Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import ReportDetailModal from "@/components/admin/ReportDetailModal";
 import { Users, Briefcase, Building2, Flag, TrendingUp, Clock } from "lucide-react";
 import { getAdminStats, getReports } from "@/api/admin";
+import { toast } from "sonner";
 
 interface DashboardStats {
     totalMembers: number;
@@ -16,12 +18,23 @@ interface DashboardStats {
     weeklyNewMembers: number;
 }
 
+type ReportStatus = "PENDING" | "RESOLVED" | "REJECTED";
+type ReportTargetType = "MEMBER" | "JOB";
+
 interface Report {
     id: number;
+    reportId: number;
     reporterMemberId: number;
-    targetType: string;
-    status: string;
+    targetType: ReportTargetType;
+    targetId: number;
+    targetMemberId?: number;
+    targetJobId?: number;
+    reasonCode: string;
+    reasonDetail: string;
+    status: ReportStatus;
     createdAt: string;
+    processedAt?: string;
+    adminMemberId?: number;
 }
 
 const AdminDashboard = () => {
@@ -36,34 +49,54 @@ const AdminDashboard = () => {
     });
     const [recentReports, setRecentReports] = useState<Report[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+    const [modalOpen, setModalOpen] = useState(false);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [statsData, reportsData] = await Promise.all([
-                    getAdminStats(),
-                    getReports("PENDING", { page: 0, size: 5 }),
-                ]);
-                setStats(statsData);
-                setRecentReports(reportsData.content || []);
-            } catch (error) {
-                console.error("대시보드 데이터 로드 실패:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [statsData, reportsData] = await Promise.all([
+                getAdminStats(),
+                getReports("PENDING", { page: 0, size: 5 }),
+            ]);
+            setStats(statsData);
+            
+            const mappedReports = (reportsData.content || []).map((r: Omit<Report, 'id' | 'targetId'>) => ({
+                ...r,
+                id: r.reportId,
+                targetId: r.targetMemberId || r.targetJobId || 0,
+            }));
+            setRecentReports(mappedReports);
+        } catch (error) {
+            console.error("대시보드 데이터 로드 실패:", error);
+            toast.error("대시보드 데이터를 불러오는데 실패했습니다.");
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const reportColumns = [
-        { key: "id", label: "ID" },
+    useEffect(() => {
+        void fetchData();
+    }, [fetchData]);
+
+    const handleViewReport = (report: Report) => {
+        setSelectedReport(report);
+        setModalOpen(true);
+    };
+
+    const reportColumns: Column<Report>[] = [
+        { key: "reportId", label: "ID" },
         { key: "targetType", label: "유형" },
         {
             key: "status",
             label: "상태",
-            render: (item: Report) => <StatusBadge status={item.status.toLowerCase()} />
+            render: (item: Report) => <StatusBadge status={item.status} />
         },
-        { key: "createdAt", label: "신고일" },
+        { 
+            key: "createdAt", 
+            label: "신고일",
+            render: (item: Report) => item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"
+        },
     ];
 
     return (
@@ -105,7 +138,7 @@ const AdminDashboard = () => {
                 <StatCard
                     title="오늘 지원"
                     value={stats.todayApplications.toLocaleString()}
-                    icon={TrendingUp}
+                    icon={Briefcase}
                     iconColor="bg-orange-500/10 text-orange-500"
                 />
                 <StatCard
@@ -126,11 +159,21 @@ const AdminDashboard = () => {
                         columns={reportColumns}
                         data={recentReports}
                         actions={[
-                            { label: "상세보기", onClick: (item) => console.log("View", item) },
+                            { label: "상세보기", onClick: handleViewReport },
                         ]}
                     />
                 )}
             </div>
+
+            {/* Report Detail Modal */}
+            <ReportDetailModal
+                report={selectedReport}
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                onReportProcessed={() => {
+                    void fetchData();
+                }}
+            />
         </AdminLayout>
     );
 };

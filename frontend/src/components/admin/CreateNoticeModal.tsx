@@ -18,7 +18,7 @@ export const CreateNoticeModal = ({ open, onOpenChange, onSuccess }: CreateNotic
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState("");
     const [body, setBody] = useState("");
-    const [type, setType] = useState("COMMUNITY"); // 기본값 COMMUNITY
+    const [type, setType] = useState("OPS");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,7 +40,7 @@ export const CreateNoticeModal = ({ open, onOpenChange, onSuccess }: CreateNotic
             onOpenChange(false);
             setTitle("");
             setBody("");
-            setType("COMMUNITY");
+            setType("OPS");
             onSuccess();
         } catch (error) {
             console.error(error);
@@ -64,10 +64,10 @@ export const CreateNoticeModal = ({ open, onOpenChange, onSuccess }: CreateNotic
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="COMMUNITY">커뮤니티 게시글</SelectItem>
                                 <SelectItem value="OPS">운영 공지</SelectItem>
                                 <SelectItem value="TERMS">이용약관</SelectItem>
                                 <SelectItem value="PRIVACY">개인정보 처리방침</SelectItem>
+                                <SelectItem value="POLICY">정책</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

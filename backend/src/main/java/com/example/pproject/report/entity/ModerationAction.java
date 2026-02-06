@@ -5,21 +5,19 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "moderation_action", indexes = {
-        @Index(name = "idx_report_id", columnList = "report_id"),
-        @Index(name = "idx_admin_member_id", columnList = "admin_member_id")
-})
+@Table(name = "moderation_action")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class ModerationAction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long actionId;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true) // 하나의 신고에는 하나의 조치만
     private Long reportId;
 
     @Column(name = "admin_member_id")
@@ -40,13 +38,9 @@ public class ModerationAction {
     @Column(name = "decided_at", nullable = false)
     private LocalDateTime decidedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
     @PrePersist
     protected void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.decidedAt = now;
+        // 생성될 때 현재 시간을 '결정 일시'로 저장
+        this.decidedAt = LocalDateTime.now();
     }
 }

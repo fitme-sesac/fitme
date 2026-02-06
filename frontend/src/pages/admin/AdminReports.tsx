@@ -1,23 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { DataTable } from "@/components/admin/DataTable";
+import { DataTable, type Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { Button } from "@/components/ui/button";
+import ReportDetailModal from "@/components/admin/ReportDetailModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle } from "lucide-react";
 import { getReports, processReport } from "@/api/admin";
 import { toast } from "sonner";
 
+type ReportStatus = "PENDING" | "RESOLVED" | "REJECTED";
+type ReportTargetType = "MEMBER" | "JOB";
+type ReportReasonCode = "SPAM" | "ABUSE" | "FRAUD" | "ETC";
+
 interface Report {
     id: number;
     reportId: number;
     reporterMemberId: number;
-    targetType: string;
+    targetType: ReportTargetType;
     targetId: number;
-    reason: string;
-    status: string;
+    targetMemberId?: number;
+    targetJobId?: number;
+    reasonCode: ReportReasonCode;
+    reasonDetail: string;
+    status: ReportStatus;
     createdAt: string;
-    // Missing fields populated manually
+    processedAt?: string;
+    adminMemberId?: number;
 }
 
 const AdminReports = () => {
@@ -25,18 +33,20 @@ const AdminReports = () => {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
     const [total, setTotal] = useState(0);
-    const [status, setStatus] = useState("PENDING");
+    const [status, setStatus] = useState<ReportStatus>("PENDING");
+    const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+    const [modalOpen, setModalOpen] = useState(false);
 
-    const fetchReports = async () => {
+    const fetchReports = useCallback(async () => {
         setLoading(true);
         try {
             const data = await getReports(status, { page, size: 20 });
-            setReports(data.content?.map((r: any) => ({
+            const reportsWithId = data.content?.map((r: Omit<Report, 'id' | 'targetId'>) => ({
                 ...r,
                 id: r.reportId,
-                reason: r.reasonDetail || r.reasonCode, // Map detail or code to reason
-                targetId: r.targetMemberId || r.targetJobId // Pick whichever is present
-            })) || []);
+                targetId: r.targetMemberId || r.targetJobId || 0
+            })) || [];
+            setReports(reportsWithId);
             setTotal(data.totalElements || 0);
         } catch (error) {
             console.error("신고 목록 로드 실패:", error);
@@ -44,31 +54,57 @@ const AdminReports = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchReports();
     }, [page, status]);
 
-    const handleProcess = async (report: Report, action: string) => {
+    useEffect(() => {
+        void fetchReports();
+    }, [fetchReports]);
+
+    const handleProcess = async (report: Report, action: "APPROVE" | "REJECT") => {
         try {
-            await processReport(report.reportId, { action, penaltyPoints: 10 });
+            const requestData = {
+                decision: action === "APPROVE" ? "ACCEPT" : "REJECT",
+                violationType: action === "APPROVE" ? "MINOR_ETC" : undefined,
+                reason: action === "APPROVE" ? "신고 승인 처리" : "신고 거절",
+            };
+            
+            await processReport(report.reportId, requestData);
             toast.success("신고가 처리되었습니다.");
-            fetchReports();
-        } catch (error) {
-            toast.error("처리에 실패했습니다.");
+            void fetchReports();
+        } catch (error: unknown) {
+            console.error("신고 처리 실패:", error);
+            let errorMessage = "처리에 실패했습니다.";
+            if (error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && error.response !== null && 'data' in error.response) {
+                const responseData = error.response.data as { message?: string; error?: string };
+                errorMessage = `처리에 실패했습니다: ${responseData.message || responseData.error || '알 수 없는 오류'}`;
+            }
+            toast.error(errorMessage);
         }
     };
 
-    const columns = [
+    const handleViewReport = (report: Report) => {
+        setSelectedReport(report);
+        setModalOpen(true);
+    };
+    
+    const handleStatusTabChange = (value: string) => {
+        setStatus(value as ReportStatus);
+        setPage(0);
+    };
+
+    const columns: Column<Report>[] = [
         { key: "reportId", label: "ID" },
         { key: "targetType", label: "유형" },
         { key: "targetId", label: "대상 ID" },
-        { key: "reason", label: "사유" },
+        { 
+            key: "reasonCode", 
+            label: "사유",
+            render: (item: Report) => item.reasonDetail || item.reasonCode || "-"
+        },
         {
             key: "status",
             label: "상태",
-            render: (item: Report) => <StatusBadge status={item.status?.toLowerCase()} />,
+            render: (item: Report) => <StatusBadge status={item.status} />,
         },
         {
             key: "createdAt",
@@ -81,7 +117,6 @@ const AdminReports = () => {
 
     return (
         <AdminLayout title="신고 관리" subtitle="사용자 신고를 확인하고 처리합니다">
-            {/* Warning Banner */}
             {pendingCount > 0 && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6 flex items-center gap-3">
                     <AlertTriangle className="w-5 h-5 text-yellow-600" />
@@ -91,8 +126,7 @@ const AdminReports = () => {
                 </div>
             )}
 
-            {/* Status Tabs */}
-            <Tabs value={status} onValueChange={setStatus} className="mb-6">
+            <Tabs value={status} onValueChange={handleStatusTabChange} className="mb-6">
                 <TabsList>
                     <TabsTrigger value="PENDING">대기중</TabsTrigger>
                     <TabsTrigger value="RESOLVED">처리완료</TabsTrigger>
@@ -100,7 +134,6 @@ const AdminReports = () => {
                 </TabsList>
             </Tabs>
 
-            {/* Table */}
             {loading ? (
                 <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
             ) : (
@@ -109,14 +142,24 @@ const AdminReports = () => {
                     data={reports}
                     totalItems={total}
                     currentPage={page}
+                    pageSize={20}
                     onPageChange={setPage}
                     actions={[
-                        { label: "상세보기", onClick: (item) => console.log("View", item) },
-                        { label: "승인 (조치)", onClick: (item) => handleProcess(item, "APPROVE") },
-                        { label: "거절", onClick: (item) => handleProcess(item, "REJECT") },
+                        { label: "상세보기", onClick: handleViewReport },
+                        { label: "승인 (조치)", onClick: (item: Report) => handleProcess(item, "APPROVE"), disabled: (item: Report) => item.status !== 'PENDING' },
+                        { label: "거절", onClick: (item: Report) => handleProcess(item, "REJECT"), disabled: (item: Report) => item.status !== 'PENDING' },
                     ]}
                 />
             )}
+
+            <ReportDetailModal
+                report={selectedReport}
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                onReportProcessed={() => {
+                    void fetchReports();
+                }}
+            />
         </AdminLayout>
     );
 };

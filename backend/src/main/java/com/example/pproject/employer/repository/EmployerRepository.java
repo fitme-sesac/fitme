@@ -31,4 +31,12 @@ public interface EmployerRepository extends JpaRepository<EmployerEntity, Long> 
     // 공개 기업 상세 조회
     @Query("SELECT e FROM EmployerEntity e WHERE e.id = :id AND e.status = 'ACTIVE' AND e.deletedAt IS NULL")
     Optional<EmployerEntity> findPublicById(@Param("id") Long id);
+
+    // 관리자 기업 검색 (기업명)
+    Page<EmployerEntity> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    // 관리자 기업 목록: 상태별 필터 (ACTIVE=승인, REJECTED=거절)
+    Page<EmployerEntity> findByStatus(String status, Pageable pageable);
+
+    Page<EmployerEntity> findByStatusAndNameContainingIgnoreCase(String status, String name, Pageable pageable);
 }

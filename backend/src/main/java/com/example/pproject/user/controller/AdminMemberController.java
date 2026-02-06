@@ -22,7 +22,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/admin/members")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN') or hasRole('SERVICEADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
 @Slf4j
 public class AdminMemberController {
 
@@ -30,15 +30,30 @@ public class AdminMemberController {
 
     /**
      * GET /api/v1/admin/members
-     * 회원 목록 조회 (페이징)
+     * 회원 목록 조회 (페이징, 상태 필터)
+     * status: ACTIVE, SUSPENDED 등 (미지정 시 전체)
+     * 정렬: id DESC 로 고정하여 페이지별 일관된 순서 보장
      */
     @GetMapping
     public ResponseEntity<Page<Map<String, Object>>> getMembers(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
-            @RequestParam(required = false) String search) {
-        log.info("관리자 회원 목록 조회: search={}", search);
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status) {
+        log.info("관리자 회원 목록 조회: search={}, status={}", search, status);
 
-        Page<UserEntity> users = userRepository.findAll(pageable);
+        String keyword = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+        String statusFilter = (status != null && !status.trim().isEmpty()) ? status.trim().toUpperCase() : null;
+
+        Page<UserEntity> users;
+        if (keyword != null && statusFilter != null) {
+            users = userRepository.searchByKeywordAndStatus(keyword, statusFilter, pageable);
+        } else if (statusFilter != null) {
+            users = userRepository.findByStatus(statusFilter, pageable);
+        } else if (keyword != null) {
+            users = userRepository.searchByKeyword(keyword, pageable);
+        } else {
+            users = userRepository.findAll(pageable);
+        }
 
         Page<Map<String, Object>> result = users.map(u -> {
             Map<String, Object> map = new HashMap<>();
@@ -53,6 +68,32 @@ public class AdminMemberController {
         });
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * GET /api/v1/admin/members/{memberId}
+     * 회원 단건 조회 (관리자용 프로필)
+     */
+    @GetMapping("/{memberId}")
+    public ResponseEntity<Map<String, Object>> getMember(@PathVariable Long memberId) {
+        log.info("관리자 회원 단건 조회: memberId={}", memberId);
+
+        UserEntity user = userRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("회원을 찾을 수 없습니다: " + memberId));
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("memberId", user.getId());
+        map.put("name", user.getUsername());
+        map.put("email", user.getEmail());
+        map.put("phone", user.getPhone());
+        map.put("role", user.getRoleType() != null ? user.getRoleType().name() : null);
+        map.put("status", user.getStatus() != null ? user.getStatus() : "ACTIVE");
+        map.put("createdAt", user.getCreatedAt());
+        map.put("userid", user.getUserid());
+        map.put("gender", user.getGender());
+        map.put("birthday", user.getBirthday());
+
+        return ResponseEntity.ok(map);
     }
 
     /**

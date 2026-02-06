@@ -1,28 +1,24 @@
 package com.example.pproject.report.dto.request;
 
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@ToString
 public class ProcessReportRequest {
+    private Long reportId;       // 신고 ID
+    private Long adminMemberId;  // 관리자 ID
 
-    @NotNull(message = "신고 ID는 필수입니다")
-    private Long reportId;
+    private String decision;     // ACCEPT, REJECT
 
-    @NotBlank(message = "판정은 필수입니다")
-    private String decision;  // ACCEPT, REJECT
+    // ✅ [수정] 위반 유형 코드
+    private String violationType;
 
-    private Integer sanctionLevel;  // 제재 수준
-    private Integer restrictDays;   // 제재 기간
+    // (선택 사항: sanctionLevel은 지워도 됩니다)
+    private Integer sanctionLevel;
 
-    @NotBlank(message = "판단 사유는 필수입니다")
+    private Integer restrictDays;
     private String reason;
-
-    @NotNull(message = "관리자 ID는 필수입니다")
-    private Long adminMemberId;
 }

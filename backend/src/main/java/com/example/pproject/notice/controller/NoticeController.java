@@ -1,16 +1,19 @@
 package com.example.pproject.notice.controller;
 
+import com.example.pproject.Config.JwtUserPrincipal;
 import com.example.pproject.notice.dto.*;
-import com.example.pproject.notice.entity.NoticeDelivery; // [추가] 발송 채널 Enum 사용
+import com.example.pproject.notice.entity.NoticeDelivery;
 import com.example.pproject.notice.entity.Notice.NoticeType;
 import com.example.pproject.notice.service.NoticeService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -18,6 +21,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1/notices")
 @RequiredArgsConstructor
+@Slf4j
 public class NoticeController {
 
     private final NoticeService noticeService;
@@ -70,7 +74,10 @@ public class NoticeController {
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<NoticeResponse> createNotice(
             @Valid @RequestBody NoticeCreateRequest request,
-            @RequestHeader("X-User-Id") Long adminId) {
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+
+        Long adminId = principal.getId();
+        log.info("공지사항 생성: adminId={}, title={}", adminId, request.getTitle());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(noticeService.createNotice(request, adminId));
     }
@@ -79,9 +86,10 @@ public class NoticeController {
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Page<NoticeListResponse>> getNoticesAdmin(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) NoticeType noticeType) {
         return ResponseEntity.ok(noticeService.getNoticesAdmin(
-                PageRequest.of(page, size, Sort.by("createdAt").descending())));
+                PageRequest.of(page, size, Sort.by("createdAt").descending()), noticeType));
     }
 
     @GetMapping("/admin/{noticeId}")
@@ -95,15 +103,19 @@ public class NoticeController {
     public ResponseEntity<NoticeResponse> updateNotice(
             @PathVariable Long noticeId,
             @Valid @RequestBody NoticeUpdateRequest request,
-            @RequestHeader("X-User-Id") Long adminId) {
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+
+        Long adminId = principal.getId();
+        log.info("공지사항 수정: noticeId={}, adminId={}", noticeId, adminId);
         return ResponseEntity.ok(noticeService.updateNotice(noticeId, request, adminId));
     }
 
     @DeleteMapping("/admin/{noticeId}")
     @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<Void> deleteNotice(@PathVariable Long noticeId) {
+        log.info("공지사항 삭제: noticeId={}", noticeId);
         noticeService.deleteNotice(noticeId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/admin/statistics")
@@ -119,9 +131,11 @@ public class NoticeController {
     public ResponseEntity<Void> sendNoticeNotification(
             @PathVariable Long noticeId,
             @RequestParam NoticeDelivery.DeliveryChannel channel,
-            @RequestHeader("X-User-Id") Long adminId) {
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
 
-        // 실제 발송 로직은 Service에 구현 필요 (현재는 엔드포인트만 설계)
+        Long adminId = principal.getId();
+        log.info("공지사항 발송 요청: noticeId={}, channel={}, adminId={}", noticeId, channel, adminId);
+        // 실제 발송 로직은 Service에 구현 필요
         // noticeService.sendNotice(noticeId, channel, adminId);
         return ResponseEntity.ok().build();
     }
