@@ -132,6 +132,22 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref BackendTargetGroup
 
+  BackendListenerRule2:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 12
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /User/*
+              - /Login*
+              - /Logout*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
   BackendDocsListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -156,6 +172,8 @@ Resources:
           PathPatternConfig:
             Values:
               - /ai/*
+              - /chatbot/*
+              - /employer-chatbot/*
       Actions:
         - Type: forward
           TargetGroupArn: !Ref AIWorkerTargetGroup

@@ -26,9 +26,9 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProduct(productId));
     }
 
-    // 2. 상품 전체 조회 (페이징) - 인증된 사용자 가능
+    // 2. 상품 전체 조회 (페이징) - 모든 사용자 가능 (Pricing 페이지)
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<ProductResponse>> getAllProducts(
             @RequestParam(required = false) ProductType type,
             @PageableDefault(size = 10, sort = "price.amount", direction = Sort.Direction.ASC) Pageable pageable) {

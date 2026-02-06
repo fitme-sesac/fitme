@@ -52,7 +52,8 @@ public class UserController {
     }
 
     private boolean equalsHash(String hashB64Url, String code) {
-        if (hashB64Url == null) return false;
+        if (hashB64Url == null)
+            return false;
         byte[] a = java.util.Base64.getUrlDecoder().decode(hashB64Url);
         byte[] b = java.util.Base64.getUrlDecoder().decode(hashVerifyCode(code));
         return java.security.MessageDigest.isEqual(a, b);
@@ -80,7 +81,8 @@ public class UserController {
     }
 
     private String redirectFrontWithQuery(String path, String query) {
-        if (query == null || query.isBlank()) return redirectFront(path);
+        if (query == null || query.isBlank())
+            return redirectFront(path);
         return "redirect:" + frontBaseUrl + path + "?" + query;
     }
 
@@ -109,14 +111,17 @@ public class UserController {
     }
 
     private String normalizePhoneDigits(String v) {
-        if (v == null) return "";
+        if (v == null)
+            return "";
         return v.replaceAll("[^0-9]", "");
     }
 
     private String normalizeGender(String g) {
-        if (g == null) return "";
+        if (g == null)
+            return "";
         String v = g.trim().toUpperCase();
-        if (v.isBlank()) return "";
+        if (v.isBlank())
+            return "";
         return switch (v) {
             case "M", "MALE" -> "MALE";
             case "F", "FEMALE" -> "FEMALE";
@@ -129,14 +134,19 @@ public class UserController {
     // ✅ 예전 호환: birthyear="1994" + birthday="12-31" 조합도 처리
     private String normalizeBirthDate(String yyyyMmDdOrEmpty, String birthyear, String mmDd) {
         String v = (yyyyMmDdOrEmpty == null) ? "" : yyyyMmDdOrEmpty.trim();
-        if (!v.isBlank() && v.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) return v;
+        if (!v.isBlank() && v.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))
+            return v;
 
-        if (birthyear == null || mmDd == null) return "";
+        if (birthyear == null || mmDd == null)
+            return "";
         String y = birthyear.trim();
         String bd = mmDd.trim();
-        if (y.isBlank() || bd.isBlank()) return "";
-        if (!y.matches("^[0-9]{4}$")) return "";
-        if (!bd.matches("^[0-9]{2}-[0-9]{2}$")) return "";
+        if (y.isBlank() || bd.isBlank())
+            return "";
+        if (!y.matches("^[0-9]{4}$"))
+            return "";
+        if (!bd.matches("^[0-9]{2}-[0-9]{2}$"))
+            return "";
         return y + "-" + bd;
     }
 
@@ -148,13 +158,17 @@ public class UserController {
         return request.getRemoteAddr();
     }
 
-    @GetMapping("/Login")
     public String login(Model model,
-                        @RequestParam(value = "errorMessage", required = false) String errorMessage) {
+            @RequestParam(value = "errorMessage", required = false) String errorMessage) {
         if (errorMessage != null && !errorMessage.isBlank()) {
             model.addAttribute("errorMessage", errorMessage);
         }
-        return redirectFrontWithQuery("/Login", errorMessage == null ? "" : ("errorMessage=" + enc(errorMessage)));
+
+        String q = "tab=login";
+        if (errorMessage != null && !errorMessage.isBlank()) {
+            q += "&errorMessage=" + enc(errorMessage);
+        }
+        return redirectFrontWithQuery("/auth", q);
     }
 
     @GetMapping("/User/Register")
@@ -171,8 +185,7 @@ public class UserController {
             HttpServletRequest request,
             HttpServletResponse response,
             @CookieValue(value = "PHONE_VERIFIED_TMP", required = false) String phoneVerifiedToken,
-            Model model
-    ) {
+            Model model) {
         try {
             String email = emailId.trim() + "@" + emailDomain.trim() + "." + emailTLD.trim();
             userDTO.setEmail(email);
@@ -220,7 +233,7 @@ public class UserController {
     // ✅ 소셜 최초 가입 화면 이동 (OAUTH2_TMP -> 프론트 쿼리 전달)
     @GetMapping("/User/First_Social_Login")
     public String firstSocialLoginForm(HttpServletRequest request,
-                                       @CookieValue(value = "OAUTH2_TMP", required = false) String tmpToken) {
+            @CookieValue(value = "OAUTH2_TMP", required = false) String tmpToken) {
 
         if (tmpToken == null || tmpToken.isBlank() || !jwtTokenProvider.validateToken(tmpToken)) {
             return redirectFrontWithQuery("/Login", "errorMessage=" + enc("소셜 가입 절차가 만료되었습니다. 다시 로그인해주세요."));
@@ -241,14 +254,15 @@ public class UserController {
 
         String email = str(flowClaims.get("email"));
         String provider = str(flowClaims.get("provider"));
-        if (provider.isBlank()) provider = "OTHER";
+        if (provider.isBlank())
+            provider = "OTHER";
 
         // ✅ 이름(name) = 실명/이름 (닉네임 X)
         String username = str(flowClaims.get("name"));
 
         // ✅ 통일 키 우선 사용
-        String gender = normalizeGender(str(flowClaims.get("gender")));         // MALE/FEMALE/UNDISCLOSED
-        String birthdayRaw = str(flowClaims.get("birthday"));                   // YYYY-MM-DD 기대
+        String gender = normalizeGender(str(flowClaims.get("gender"))); // MALE/FEMALE/UNDISCLOSED
+        String birthdayRaw = str(flowClaims.get("birthday")); // YYYY-MM-DD 기대
         String phoneDigits = normalizePhoneDigits(str(flowClaims.get("phone"))); // digits 기대
 
         // ✅ 호환 키(과거/실수 대비)
@@ -267,20 +281,24 @@ public class UserController {
         StringBuilder q = new StringBuilder();
         q.append("email=").append(enc(email));
         q.append("&socialType=").append(enc(provider));
-        if (!username.isBlank()) q.append("&username=").append(enc(username));
-        if (!gender.isBlank()) q.append("&gender=").append(enc(gender));
-        if (!birthdayRaw.isBlank()) q.append("&birthday=").append(enc(birthdayRaw));
-        if (!phoneDigits.isBlank()) q.append("&phone=").append(enc(phoneDigits));
+        if (!username.isBlank())
+            q.append("&username=").append(enc(username));
+        if (!gender.isBlank())
+            q.append("&gender=").append(enc(gender));
+        if (!birthdayRaw.isBlank())
+            q.append("&birthday=").append(enc(birthdayRaw));
+        if (!phoneDigits.isBlank())
+            q.append("&phone=").append(enc(phoneDigits));
 
         return redirectFrontWithQuery("/FirstSocialLogin", q.toString());
     }
 
     @PostMapping("/User/First_Social_Login")
     public String firstSocialLoginSubmit(@ModelAttribute("data") UserRequestDTO userDTO,
-                                         HttpServletRequest request,
-                                         HttpServletResponse response,
-                                         @CookieValue(value = "OAUTH2_TMP", required = false) String tmpToken,
-                                         @CookieValue(value = "PHONE_VERIFIED_TMP", required = false) String phoneVerifiedToken) {
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @CookieValue(value = "OAUTH2_TMP", required = false) String tmpToken,
+            @CookieValue(value = "PHONE_VERIFIED_TMP", required = false) String phoneVerifiedToken) {
         try {
             if (tmpToken == null || tmpToken.isBlank() || !jwtTokenProvider.validateToken(tmpToken)) {
                 throw new IllegalStateException("소셜 가입 절차가 만료되었습니다. 다시 로그인해주세요.");
@@ -344,9 +362,10 @@ public class UserController {
             var authForToken = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
                     saved.getUserid(),
                     null,
-                    java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + saved.getRoleType().name()))
-            );
-            String accessToken = jwtTokenProvider.createAccessToken(authForToken, saved.getUsername(), saved.getEmail());
+                    java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                            "ROLE_" + saved.getRoleType().name())));
+            String accessToken = jwtTokenProvider.createAccessToken(authForToken, saved.getUsername(),
+                    saved.getEmail());
             CookieUtils.addHttpOnlyCookie(request, response, "ACCESS_TOKEN", accessToken,
                     jwtTokenProvider.getAccessTokenValiditySeconds(), "Lax");
 
@@ -367,8 +386,8 @@ public class UserController {
 
     @PostMapping("/User/Find_Userid")
     public String sendUseridVerifyCode(@RequestParam String email,
-                                       HttpServletRequest request,
-                                       HttpServletResponse response) {
+            HttpServletRequest request,
+            HttpServletResponse response) {
         try {
             userService.assertEmailExists(email);
 
@@ -393,9 +412,9 @@ public class UserController {
 
     @PostMapping("/User/Verify_Userid_Code")
     public String verifyUseridCode(@RequestParam String inputCode,
-                                   @CookieValue(value = "FIND_USERID_TMP", required = false) String tmpToken,
-                                   HttpServletRequest request,
-                                   HttpServletResponse response) {
+            @CookieValue(value = "FIND_USERID_TMP", required = false) String tmpToken,
+            HttpServletRequest request,
+            HttpServletResponse response) {
 
         if (tmpToken == null || tmpToken.isBlank() || !jwtTokenProvider.validateToken(tmpToken)) {
             return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 절차가 만료되었습니다. 다시 시도해주세요."));
@@ -418,7 +437,8 @@ public class UserController {
         String codeHash = flowClaims.get("codeHash") == null ? null : flowClaims.get("codeHash").toString();
         Integer attempts = 0;
         Object at = flowClaims.get("attempts");
-        if (at instanceof Number n) attempts = n.intValue();
+        if (at instanceof Number n)
+            attempts = n.intValue();
 
         if (email == null || codeHash == null) {
             return redirectFrontWithQuery("/FindUserId", "errorMessage=" + enc("인증 절차가 만료되었습니다. 다시 시도해주세요."));
@@ -458,11 +478,12 @@ public class UserController {
 
     @PostMapping("/User/Change_Password")
     public String updatePassword(@RequestParam String currentPassword,
-                                 @RequestParam String newPassword,
-                                 @RequestParam String confirmPassword,
-                                 @AuthenticationPrincipal JwtUserPrincipal principal,
-                                 Model model) {
-        if (principal == null) return redirectFrontWithQuery("/Login", "errorMessage=" + enc("로그인이 필요합니다."));
+            @RequestParam String newPassword,
+            @RequestParam String confirmPassword,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            Model model) {
+        if (principal == null)
+            return redirectFrontWithQuery("/Login", "errorMessage=" + enc("로그인이 필요합니다."));
 
         String userid = principal.getUserid();
 

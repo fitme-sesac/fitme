@@ -426,7 +426,7 @@ CREATE TABLE IF NOT EXISTS job_posting (
   required_questions  JSONB NULL,
   view_count          INT NOT NULL DEFAULT 0,
   apply_count         INT NOT NULL DEFAULT 0,
-  stack              TEXT[] NULL,           
+  stack              TEXT[] NULL,
   required_experience INT NOT NULL DEFAULT 0,
   summary             TEXT NULL,
   embedding           vector(1536) NULL,
@@ -482,7 +482,7 @@ CREATE TABLE IF NOT EXISTS resume (
   preference_location  VARCHAR(80) NULL,
   preference_salary    VARCHAR(80) NULL,
   employment_type      VARCHAR(80) NULL,
-  re_stack            TEXT[] NULL,                
+  re_stack            TEXT[] NULL,
   career_years         INT NOT NULL DEFAULT 0,
   school               TEXT NULL,
   school_state         TEXT NULL,
@@ -1506,28 +1506,28 @@ ORDER BY cnt DESC, e.industry ASC;
 DO $$
 BEGIN
     -- 카드사 정보 컬럼 추가
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='subscription' AND column_name='card_company') THEN
         ALTER TABLE subscription ADD COLUMN card_company VARCHAR(255);
     END IF;
 
     -- 카드 번호 컬럼 추가
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='subscription' AND column_name='card_number') THEN
         ALTER TABLE subscription ADD COLUMN card_number VARCHAR(255);
     END IF;
 
     -- 다음 상품 ID (변경용) 컬럼 추가
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='subscription' AND column_name='next_product_id') THEN
         ALTER TABLE subscription ADD COLUMN next_product_id BIGINT;
     END IF;
 
     -- next_product_id에 대한 외래 키 제약 조건 추가 (product 테이블 참조)
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint 
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
                    WHERE conname = 'fk_subscription_next_product') THEN
-        ALTER TABLE subscription 
-        ADD CONSTRAINT fk_subscription_next_product 
+        ALTER TABLE subscription
+        ADD CONSTRAINT fk_subscription_next_product
         FOREIGN KEY (next_product_id) REFERENCES product (product_id);
     END IF;
 END $$;
@@ -1650,3 +1650,4 @@ ON CONFLICT (alias) DO UPDATE SET
 
 -- 6) 변경 후 refresh(데이터 추가/수정할 때마다)
 REFRESH MATERIALIZED VIEW public.industry_vocab;
+

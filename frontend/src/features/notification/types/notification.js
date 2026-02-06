@@ -6,45 +6,53 @@ export const NotificationEventType = {
     APPLICATION_SUBMITTED: "APPLICATION_SUBMITTED",
     APPLICATION_VIEWED: "APPLICATION_VIEWED",
     APPLICATION_STATUS_CHANGED: "APPLICATION_STATUS_CHANGED",
-    
+    APPLICATION_DEADLINE: "APPLICATION_DEADLINE",
+
     // 면접 관련
     INTERVIEW_SCHEDULED: "INTERVIEW_SCHEDULED",
     INTERVIEW_REMINDER: "INTERVIEW_REMINDER",
     INTERVIEW_CANCELED: "INTERVIEW_CANCELED",
     INTERVIEW_RESULT: "INTERVIEW_RESULT",
-    
+
     // 포지션 제안 관련 (구직자용)
     PROPOSAL_RECEIVED: "PROPOSAL_RECEIVED",
     PROPOSAL_ACCEPTED: "PROPOSAL_ACCEPTED",
     PROPOSAL_REJECTED: "PROPOSAL_REJECTED",
     PROPOSAL_EXPIRED: "PROPOSAL_EXPIRED",
-    
+
     // 채용 결과 관련
     HIRED: "HIRED",
     REJECTED: "REJECTED",
-    
+
     // 결제 관련
     PAYMENT_COMPLETED: "PAYMENT_COMPLETED",
     PAYMENT_FAILED: "PAYMENT_FAILED",
     PAYMENT_REFUNDED: "PAYMENT_REFUNDED",
-    
+
     // 구독 관련
     SUBSCRIPTION_STARTED: "SUBSCRIPTION_STARTED",
     SUBSCRIPTION_RENEWED: "SUBSCRIPTION_RENEWED",
     SUBSCRIPTION_EXPIRING: "SUBSCRIPTION_EXPIRING",
     SUBSCRIPTION_CANCELED: "SUBSCRIPTION_CANCELED",
-    
+
     // 크레딧 관련
     CREDIT_CHARGED: "CREDIT_CHARGED",
     CREDIT_USED: "CREDIT_USED",
     CREDIT_LOW: "CREDIT_LOW",
-    
+
     // 채용공고 관련 (기업용)
     NEW_APPLICATION_RECEIVED: "NEW_APPLICATION_RECEIVED",
     JOB_POSTING_APPROVED: "JOB_POSTING_APPROVED",
     JOB_POSTING_REJECTED: "JOB_POSTING_REJECTED",
     JOB_POSTING_EXPIRED: "JOB_POSTING_EXPIRED",
-    
+    JOB_SCRAP_ALERT: "JOB_SCRAP_ALERT",
+
+    // 커뮤니티 관련
+    COMMUNITY_COMMENT: "COMMUNITY_COMMENT",
+
+    // 이력서 관련
+    RESUME_VIEWED: "RESUME_VIEWED",
+
     // 시스템
     SYSTEM_NOTICE: "SYSTEM_NOTICE"
 };
@@ -58,49 +66,57 @@ export const getNotificationIcon = (eventType) => {
         APPLICATION_SUBMITTED: "bi bi-send-check",
         APPLICATION_VIEWED: "bi bi-eye",
         APPLICATION_STATUS_CHANGED: "bi bi-arrow-repeat",
-        
+
         // 면접 관련
         INTERVIEW_SCHEDULED: "bi bi-calendar-check",
         INTERVIEW_REMINDER: "bi bi-alarm",
         INTERVIEW_CANCELED: "bi bi-calendar-x",
         INTERVIEW_RESULT: "bi bi-clipboard-check",
-        
+
         // 포지션 제안 관련
         PROPOSAL_RECEIVED: "bi bi-briefcase",
         PROPOSAL_ACCEPTED: "bi bi-check-circle",
         PROPOSAL_REJECTED: "bi bi-x-circle",
         PROPOSAL_EXPIRED: "bi bi-hourglass",
-        
+
         // 채용 결과
         HIRED: "bi bi-trophy",
         REJECTED: "bi bi-x-circle",
-        
+
         // 결제 관련
         PAYMENT_COMPLETED: "bi bi-credit-card-2-front",
         PAYMENT_FAILED: "bi bi-exclamation-triangle",
         PAYMENT_REFUNDED: "bi bi-arrow-counterclockwise",
-        
+
         // 구독 관련
         SUBSCRIPTION_STARTED: "bi bi-star",
         SUBSCRIPTION_RENEWED: "bi bi-arrow-clockwise",
         SUBSCRIPTION_EXPIRING: "bi bi-clock-history",
         SUBSCRIPTION_CANCELED: "bi bi-x-octagon",
-        
+
         // 크레딧 관련
         CREDIT_CHARGED: "bi bi-coin",
         CREDIT_USED: "bi bi-cash",
         CREDIT_LOW: "bi bi-exclamation-circle",
-        
+
         // 채용공고 관련
         NEW_APPLICATION_RECEIVED: "bi bi-person-plus",
         JOB_POSTING_APPROVED: "bi bi-check-circle",
         JOB_POSTING_REJECTED: "bi bi-x-circle",
         JOB_POSTING_EXPIRED: "bi bi-hourglass",
-        
+        JOB_SCRAP_ALERT: "bi bi-bookmark-star",
+
+        // 커뮤니티 관련
+        COMMUNITY_COMMENT: "bi bi-chat-left-text",
+
+        // 이력서 관련
+        RESUME_VIEWED: "bi bi-eye",
+        APPLICATION_DEADLINE: "bi bi-clock",
+
         // 시스템
         SYSTEM_NOTICE: "bi bi-megaphone"
     };
-    
+
     return iconMap[eventType] || "bi bi-bell";
 };
 
@@ -117,7 +133,7 @@ export const getNotificationBgColor = (eventType) => {
         CREDIT_CHARGED: "bg-success",
         JOB_POSTING_APPROVED: "bg-success",
         PROPOSAL_ACCEPTED: "bg-success",
-        
+
         // 정보
         APPLICATION_VIEWED: "bg-info",
         APPLICATION_STATUS_CHANGED: "bg-info",
@@ -126,13 +142,13 @@ export const getNotificationBgColor = (eventType) => {
         NEW_APPLICATION_RECEIVED: "bg-primary",
         SUBSCRIPTION_RENEWED: "bg-info",
         PROPOSAL_RECEIVED: "bg-primary",
-        
+
         // 경고/주의
         SUBSCRIPTION_EXPIRING: "bg-warning",
         CREDIT_LOW: "bg-warning",
         JOB_POSTING_EXPIRED: "bg-warning",
         PROPOSAL_EXPIRED: "bg-warning",
-        
+
         // 실패/부정
         REJECTED: "bg-secondary",
         PAYMENT_FAILED: "bg-danger",
@@ -140,11 +156,19 @@ export const getNotificationBgColor = (eventType) => {
         SUBSCRIPTION_CANCELED: "bg-secondary",
         JOB_POSTING_REJECTED: "bg-danger",
         PROPOSAL_REJECTED: "bg-secondary",
-        
+
+        // 커뮤니티
+        COMMUNITY_COMMENT: "bg-info",
+
+        // 이력서/채용공고
+        RESUME_VIEWED: "bg-primary",
+        JOB_SCRAP_ALERT: "bg-info",
+        APPLICATION_DEADLINE: "bg-warning",
+
         // 기타
         SYSTEM_NOTICE: "bg-dark"
     };
-    
+
     return colorMap[eventType] || "bg-secondary";
 };
 
@@ -155,12 +179,12 @@ export const getRelativeTime = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now - date;
-    
+
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    
+
     if (seconds < 60) {
         return "방금 전";
     } else if (minutes < 60) {

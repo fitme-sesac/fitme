@@ -1,4 +1,3 @@
--- Spring Batch 테이블은 spring.batch.jdbc.initialize-schema: always 설정으로 자동 생성됨
 -- =========================================================
 -- FitMe DB 통합 더미 데이터 (자동 생성)
 -- 생성일시: 2026. 2. 4. 오후 9:36:26
@@ -217,17 +216,6 @@ ON CONFLICT (alias) DO UPDATE SET
   updated_at = now();
 
 -- stack_alias (ERD 0203 기술스택 별칭)
-CREATE TABLE IF NOT EXISTS public.stack_alias (
-  entity_type  text NOT NULL,
-  alias        text NOT NULL,
-  canonical    text NOT NULL,
-  display_name text NULL,
-  is_active    boolean NOT NULL DEFAULT true,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (entity_type, alias)
-);
-
 INSERT INTO public.stack_alias (entity_type, alias, canonical, display_name) VALUES
     ('STACK', 'node', 'nodejs', 'Node.js'),
     ('STACK', 'node.js', 'nodejs', 'Node.js'),
@@ -170750,32 +170738,3 @@ SELECT setval(pg_get_serial_sequence('report', 'report_id'), (SELECT COALESCE(MA
 SET session_replication_role = 'origin';
 
 COMMIT;
-INSERT INTO member (
-    member_uid, email, login_id, auth_provider, password_hash,
-    name, gender, birth_date, phone, role, status,
-    phone_verified_at,
-    terms_notice_id, terms_agreed_at,      -- 이용약관 (필수)
-    privacy_notice_id, privacy_agreed_at,  -- 개인정보 (필수)
-    policy_notice_id, policy_agreed_at,    -- 위치기반 (선택이지만 값 채움)
-    marketing_opt_in, marketing_agreed_at,
-    created_at, updated_at
-) VALUES (
-    gen_random_uuid(),
-    'admin@fitme.com',
-    'admin',
-    'OTHER',
-    '$2a$10$6v8Q1XxVMqG1CxS/U1MLr.Kmlwtj.0bRqW038QQIYSWDXgdZ7n5t2', -- test1234!
-    '관리자',
-    'MALE',
-    '2024-01-01',
-    '01000000000',
-    'SERVICEADMIN', -- 관리자 권한
-    'ACTIVE',
-    now(),
-    1, now(),       -- terms_notice_id=1
-    2, now(),       -- privacy_notice_id=2
-    3, now(),       -- policy_notice_id=3
-    false, null,    -- 마케팅 동의 미수신
-    now(),
-    now()
-);

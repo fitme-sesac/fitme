@@ -1,5 +1,5 @@
 // frontend/src/api/chatbot.js
-import axios from "axios";
+import { http } from "./http";
 
 /**
  * @typedef {Object} ChatbotQueryRequest
@@ -23,8 +23,6 @@ import axios from "axios";
  * @returns {Promise<ChatbotQueryResponse>}
  */
 export async function chatbotQuery(req) {
-    const res = await axios.post("/chatbot/query", req, {
-        headers: { "Content-Type": "application/json" },
-    });
+    const res = await http.post("/chatbot/query", req);
     return res.data;
 }

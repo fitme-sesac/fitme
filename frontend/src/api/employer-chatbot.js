@@ -1,5 +1,5 @@
 // frontend/src/api/employer-chatbot.js
-import axios from "axios";
+import { http } from "./http";
 
 /**
  * @typedef {Object} EmployerChatbotQueryRequest
@@ -24,8 +24,6 @@ import axios from "axios";
  * @returns {Promise<EmployerChatbotQueryResponse>}
  */
 export async function employerChatbotQuery(req) {
-    const res = await axios.post("/employer-chatbot/query", req, {
-        headers: { "Content-Type": "application/json" },
-    });
+    const res = await http.post("/employer-chatbot/query", req);
     return res.data;
 }

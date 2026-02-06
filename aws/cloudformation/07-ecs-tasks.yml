@@ -85,6 +85,16 @@ Resources:
               Value: prod
             - Name: TZ
               Value: Asia/Seoul
+            - Name: APP_BASE_URL
+              Value: !Sub
+                - "http://${Dns}"
+                - Dns: !ImportValue
+                    Fn::Sub: ${EnvironmentName}-ALBDNSName
+            - Name: FRONT_BASE_URL
+              Value: !Sub
+                - "http://${Dns}"
+                - Dns: !ImportValue
+                    Fn::Sub: ${EnvironmentName}-ALBDNSName
           Secrets:
             - Name: DB_URL
               ValueFrom:
@@ -165,14 +175,6 @@ Resources:
                 Fn::Sub: ${EnvironmentName}-BackendLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: backend
-          HealthCheck:
-            Command:
-              - CMD-SHELL
-              - curl -f http://localhost:8080/actuator/health || exit 1
-            Interval: 30
-            Timeout: 10
-            Retries: 3
-            StartPeriod: 300
 
   #============================================================================
   # AI Worker Task Definition
