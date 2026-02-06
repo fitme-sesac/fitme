@@ -53,12 +53,12 @@ CREATE TABLE IF NOT EXISTS notice (
   is_public      BOOLEAN NOT NULL DEFAULT TRUE,
   notice_type    VARCHAR(30) NOT NULL DEFAULT 'OPS',
   status         VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-  purge_after    TIMESTAMPTZ(3) NULL,
+  purge_after    TIMESTAMP(3) WITH TIME ZONE NULL,
   created_by     BIGINT NULL,
   updated_by     BIGINT NULL,
-  created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at     TIMESTAMPTZ(3) NULL,
+  created_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at     TIMESTAMP(3) WITH TIME ZONE NULL,
   CONSTRAINT ck_notice_type CHECK (notice_type IN ('OPS','POLICY','PRIVACY','TERMS')),
   CONSTRAINT ck_notice_status CHECK (status IN ('ACTIVE','PENDING_DELETE','DELETED'))
 );
@@ -80,22 +80,22 @@ CREATE TABLE IF NOT EXISTS member (
   phone                   VARCHAR(20) NULL,
   role                    VARCHAR(20) NOT NULL,
   status                  VARCHAR(20) NOT NULL,
-  last_login_at           TIMESTAMPTZ(3) NULL,
-  password_changed_at     TIMESTAMPTZ(3) NULL,
+  last_login_at           TIMESTAMP(3) WITH TIME ZONE NULL,
+  password_changed_at     TIMESTAMP(3) WITH TIME ZONE NULL,
   failed_login_count      INT NOT NULL DEFAULT 0,
-  locked_until            TIMESTAMPTZ(3) NULL,
-  phone_verified_at       TIMESTAMPTZ(3) NULL,
-  created_at              TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at              TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at              TIMESTAMPTZ(3) NULL,
+  locked_until            TIMESTAMP(3) WITH TIME ZONE NULL,
+  phone_verified_at       TIMESTAMP(3) WITH TIME ZONE NULL,
+  created_at              TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at              TIMESTAMP(3) WITH TIME ZONE NULL,
   terms_notice_id         BIGINT NULL REFERENCES notice(notice_id),
-  terms_agreed_at         TIMESTAMPTZ(3) NULL,
+  terms_agreed_at         TIMESTAMP(3) WITH TIME ZONE NULL,
   privacy_notice_id       BIGINT NULL REFERENCES notice(notice_id),
-  privacy_agreed_at       TIMESTAMPTZ(3) NULL,
+  privacy_agreed_at       TIMESTAMP(3) WITH TIME ZONE NULL,
   policy_notice_id        BIGINT NULL REFERENCES notice(notice_id),
-  policy_agreed_at        TIMESTAMPTZ(3) NULL,
+  policy_agreed_at        TIMESTAMP(3) WITH TIME ZONE NULL,
   marketing_opt_in        BOOLEAN NOT NULL DEFAULT FALSE,
-  marketing_agreed_at     TIMESTAMPTZ(3) NULL,
+  marketing_agreed_at     TIMESTAMP(3) WITH TIME ZONE NULL,
   consent_ip              VARCHAR(45) NULL,
   consent_user_agent      TEXT NULL,
   CONSTRAINT uq_member_uid UNIQUE (member_uid),
@@ -117,16 +117,16 @@ CREATE TABLE IF NOT EXISTS phone_verification (
   phone               VARCHAR(20) NOT NULL,
   purpose             VARCHAR(20) NOT NULL,
   code_hash           CHAR(64) NOT NULL,
-  expires_at          TIMESTAMPTZ(3) NOT NULL,
-  verified_at         TIMESTAMPTZ(3) NULL,
-  consumed_at         TIMESTAMPTZ(3) NULL,
+  expires_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL,
+  verified_at         TIMESTAMP(3) WITH TIME ZONE NULL,
+  consumed_at         TIMESTAMP(3) WITH TIME ZONE NULL,
   attempt_count       INT NOT NULL DEFAULT 0,
   resend_count        INT NOT NULL DEFAULT 0,
-  last_sent_at        TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  last_sent_at        TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   request_ip          VARCHAR(45) NULL,
   request_user_agent  TEXT NULL,
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_phone_verification_purpose CHECK (purpose IN ('SIGNUP','PASSWORD_RESET','PHONE_LINK')),
   CONSTRAINT ck_phone_verification_attempt CHECK (attempt_count >= 0),
   CONSTRAINT ck_phone_verification_resend CHECK (resend_count >= 0)
@@ -142,8 +142,8 @@ CREATE TABLE IF NOT EXISTS member_login_log (
   success         BOOLEAN NOT NULL DEFAULT FALSE,
   ip_address      VARCHAR(45) NULL,
   user_agent      TEXT NULL,
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_member_login_log_member_created ON member_login_log(member_id, created_at DESC);
@@ -167,9 +167,9 @@ CREATE TABLE IF NOT EXISTS employer (
   contact_phone   VARCHAR(20) NULL,
   website_url     TEXT NULL,
   status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at      TIMESTAMPTZ(3) NULL,
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at      TIMESTAMP(3) WITH TIME ZONE NULL,
   CONSTRAINT uq_employer_uid UNIQUE (employer_uid),
   CONSTRAINT ck_employer_status CHECK (status IN ('ACTIVE','SUSPENDED','CLOSED'))
 );
@@ -184,8 +184,8 @@ CREATE TABLE IF NOT EXISTS employer_member (
   member_id            BIGINT NOT NULL REFERENCES member(member_id),
   role_in_company      VARCHAR(20) NOT NULL,
   active               BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_employer_member UNIQUE (employer_id, member_id),
   CONSTRAINT ck_role_in_company CHECK (role_in_company IN ('OWNER','HR','STAFF'))
 );
@@ -202,9 +202,9 @@ CREATE TABLE IF NOT EXISTS product (
   currency        CHAR(3) NOT NULL DEFAULT 'KRW',
   credit_amount   INT NULL,
   plan_tier       VARCHAR(20) NULL,
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at      TIMESTAMPTZ(3) NULL,
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at      TIMESTAMP(3) WITH TIME ZONE NULL,
   CONSTRAINT uq_product_code UNIQUE (product_code),
   CONSTRAINT ck_product_type CHECK (product_type IN ('ONE_TIME','SUBSCRIPTION')),
   CONSTRAINT ck_sale_status CHECK (sale_status IN ('ON_SALE','PAUSED','STOPPED'))
@@ -222,8 +222,8 @@ CREATE TABLE IF NOT EXISTS orders (
   order_amount        NUMERIC(12,2) NOT NULL DEFAULT 0.00,
   status              VARCHAR(20) NOT NULL DEFAULT 'CREATED',
   idempotency_key     VARCHAR(64) NOT NULL,
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_order_uid UNIQUE (order_uid),
   CONSTRAINT uq_orders_idempotency UNIQUE (idempotency_key),
   CONSTRAINT ck_orders_buyer_type CHECK (buyer_type IN ('MEMBER','EMPLOYER')),
@@ -244,10 +244,10 @@ CREATE TABLE IF NOT EXISTS payment (
   pg_approval_key     VARCHAR(80) NULL,
   pg_transaction_id   VARCHAR(80) NULL,
   pg_payload          JSONB NULL,
-  approved_at         TIMESTAMPTZ(3) NULL,
-  canceled_at         TIMESTAMPTZ(3) NULL,
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  approved_at         TIMESTAMP(3) WITH TIME ZONE NULL,
+  canceled_at         TIMESTAMP(3) WITH TIME ZONE NULL,
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_payment_uid UNIQUE (payment_uid),
   CONSTRAINT ck_payment_app_status CHECK (app_status IN ('REQUESTED','APPROVED','FAILED','CANCELED','PARTIAL_CANCELED'))
 );
@@ -266,8 +266,8 @@ CREATE TABLE IF NOT EXISTS pg_webhook_inbox (
   process_status  VARCHAR(20) NOT NULL DEFAULT 'RECEIVED',
   retry_count     INT NOT NULL DEFAULT 0,
   last_error      TEXT NULL,
-  received_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  processed_at    TIMESTAMPTZ(3) NULL,
+  received_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  processed_at    TIMESTAMP(3) WITH TIME ZONE NULL,
   CONSTRAINT uq_pg_event_id UNIQUE (pg_event_id),
   CONSTRAINT ck_pg_webhook_process_status CHECK (process_status IN ('RECEIVED','PROCESSED','FAILED'))
 );
@@ -281,8 +281,8 @@ CREATE TABLE IF NOT EXISTS wallet (
   employer_id    BIGINT NULL REFERENCES employer(employer_id),
   balance        INT NOT NULL DEFAULT 0,
   status         VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-  created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_wallet_owner_type CHECK (owner_type IN ('MEMBER','EMPLOYER'))
 );
 
@@ -302,9 +302,9 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
   balance_after    INT NOT NULL,
   idempotency_key  VARCHAR(100) NOT NULL,
   memo             VARCHAR(200) NULL,
-  occurred_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  occurred_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  created_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_wallet_ledger_idem UNIQUE (idempotency_key),
   CONSTRAINT ck_wallet_ledger_tx_type CHECK (tx_type IN ('CREDIT','DEBIT')),
   CONSTRAINT ck_wallet_ledger_source_type CHECK (source_type IN ('PAYMENT','SUBSCRIPTION','AI','AD_CLICK','MANUAL'))
@@ -319,16 +319,16 @@ CREATE TABLE IF NOT EXISTS subscription (
   employer_id      BIGINT NOT NULL REFERENCES employer(employer_id),
   product_id       BIGINT NOT NULL REFERENCES product(product_id),
   status           VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-  started_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  next_billing_at  TIMESTAMPTZ(3) NULL,
-  ended_at         TIMESTAMPTZ(3) NULL,
+  started_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  next_billing_at  TIMESTAMP(3) WITH TIME ZONE NULL,
+  ended_at         TIMESTAMP(3) WITH TIME ZONE NULL,
   customer_key     VARCHAR(80) NULL,
   billing_key      VARCHAR(200) NULL,
   card_company     VARCHAR(255) NULL,
   card_number      VARCHAR(255) NULL,
   next_product_id  BIGINT NULL REFERENCES product(product_id),
-  created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_subscription_status CHECK (status IN ('ACTIVE','CANCELED','PAYMENT_FAILED'))
 );
 
@@ -343,8 +343,8 @@ CREATE TABLE IF NOT EXISTS subscription_billing_cycle (
   ledger_id        BIGINT NULL REFERENCES wallet_ledger(ledger_id),
   payment_status   VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED',
   credit_status    VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-  created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_subscription_billing UNIQUE (subscription_id, billing_month),
   CONSTRAINT ck_cycle_payment_status CHECK (payment_status IN ('SCHEDULED','PAID','FAILED')),
   CONSTRAINT ck_cycle_credit_status CHECK (credit_status IN ('PENDING','GRANTED','FAILED','REVOKED'))
@@ -369,9 +369,9 @@ CREATE TABLE IF NOT EXISTS job_posting (
   embedding           vector(1536) NULL,
   ad_bid_credit       INT NOT NULL DEFAULT 0,
   recruitment_capacity INT NOT NULL DEFAULT 0,
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at          TIMESTAMPTZ(3) NULL,
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at          TIMESTAMP(3) WITH TIME ZONE NULL,
   CONSTRAINT ck_job_posting_status CHECK (status IN ('DRAFT','OPEN','CLOSED')),
   CONSTRAINT ck_job_posting_counts CHECK (view_count >= 0 AND apply_count >= 0),
   CONSTRAINT ck_job_posting_ad_bid_credit_nonneg CHECK (ad_bid_credit >= 0),
@@ -391,10 +391,10 @@ CREATE TABLE IF NOT EXISTS resume (
   is_primary           BOOLEAN NOT NULL DEFAULT FALSE,
   is_public            BOOLEAN NOT NULL DEFAULT FALSE,
   status               VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
-  last_modified_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  created_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at           TIMESTAMPTZ(3) NULL,
+  last_modified_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  created_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at           TIMESTAMP(3) WITH TIME ZONE NULL,
   target_job_id        BIGINT NULL REFERENCES job_posting(job_id),
   content              TEXT NULL,
   field                VARCHAR(20) NOT NULL DEFAULT 'RESUME',
@@ -426,12 +426,12 @@ CREATE TABLE IF NOT EXISTS job_application (
   resume_id             BIGINT NOT NULL REFERENCES resume(resume_id),
   status                VARCHAR(30) NOT NULL DEFAULT 'SUBMITTED',
   answers               JSONB NULL,
-  applied_at            TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  canceled_at           TIMESTAMPTZ(3) NULL,
-  viewed_at             TIMESTAMPTZ(3) NULL,
-  contact_disclosed_at  TIMESTAMPTZ(3) NULL,
-  created_at            TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at            TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  applied_at            TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  canceled_at           TIMESTAMP(3) WITH TIME ZONE NULL,
+  viewed_at             TIMESTAMP(3) WITH TIME ZONE NULL,
+  contact_disclosed_at  TIMESTAMP(3) WITH TIME ZONE NULL,
+  created_at            TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_job_application UNIQUE (job_id, member_id),
   CONSTRAINT ck_job_application_status CHECK (status IN ('SUBMITTED','VIEWED','INTERVIEW','HIRED','REJECTED','CANCELED'))
 );
@@ -445,12 +445,12 @@ CREATE TABLE IF NOT EXISTS interview_schedule (
   method               VARCHAR(20) NOT NULL,
   location             VARCHAR(200) NULL,
   meeting_url          TEXT NULL,
-  start_at             TIMESTAMPTZ(3) NOT NULL,
-  end_at               TIMESTAMPTZ(3) NOT NULL,
+  start_at             TIMESTAMP(3) WITH TIME ZONE NOT NULL,
+  end_at               TIMESTAMP(3) WITH TIME ZONE NOT NULL,
   status               VARCHAR(20) NOT NULL DEFAULT 'PROPOSED',
   created_by_member_id BIGINT NULL REFERENCES member(member_id),
-  created_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_interview_stage CHECK (stage IN ('1ST','2ND','FINAL')),
   CONSTRAINT ck_interview_method CHECK (method IN ('ONSITE','VIDEO','PHONE')),
   CONSTRAINT ck_interview_status CHECK (status IN ('PROPOSED','CONFIRMED','CANCELED','DONE')),
@@ -464,9 +464,9 @@ CREATE TABLE IF NOT EXISTS interview_response (
   interview_id    BIGINT NOT NULL REFERENCES interview_schedule(interview_id),
   response        VARCHAR(20) NOT NULL,
   message         TEXT NULL,
-  responded_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  responded_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_interview_response CHECK (response IN ('ACCEPT','DECLINE','REQUEST_CHANGE'))
 );
 
@@ -477,8 +477,8 @@ CREATE TABLE IF NOT EXISTS resume_profile (
   resume_id    BIGINT NOT NULL REFERENCES resume(resume_id),
   address      VARCHAR(200) NULL,
   photo_url    TEXT NULL,
-  created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_resume_profile UNIQUE (resume_id)
 );
 
@@ -494,8 +494,8 @@ CREATE TABLE IF NOT EXISTS resume_project (
   tech_stack          TEXT[] NULL,
   description         TEXT NULL,
   sort_order          INT NOT NULL DEFAULT 0,
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 
@@ -510,8 +510,8 @@ CREATE TABLE IF NOT EXISTS resume_attachment (
   scan_status     VARCHAR(20) NOT NULL DEFAULT 'PENDING',
   copyright_ok    BOOLEAN NOT NULL DEFAULT FALSE,
   ai_description  TEXT NULL,
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_resume_attachment_scan_status CHECK (scan_status IN ('PENDING','PASSED','FAILED'))
 );
 
@@ -522,8 +522,8 @@ CREATE TABLE IF NOT EXISTS resume_link (
   resume_id    BIGINT NOT NULL REFERENCES resume(resume_id),
   link_type    VARCHAR(20) NOT NULL,
   url          TEXT NOT NULL,
-  created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_resume_link_type CHECK (link_type IN ('GITHUB','BLOG','ETC'))
 );
 
@@ -539,8 +539,8 @@ CREATE TABLE IF NOT EXISTS resume_career (
   end_date        DATE NULL,
   is_current      BOOLEAN NULL,
   is_verified     BOOLEAN NULL,
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_resume_career_resume_id ON resume_career(resume_id);
@@ -554,8 +554,8 @@ CREATE TABLE IF NOT EXISTS resume_certificate (
   issuer                 VARCHAR(100) NOT NULL,
   acquisition_date       DATE NOT NULL,
   is_verified            BOOLEAN NULL,
-  created_at             TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at             TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at             TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at             TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_resume_certificate_resume_id ON resume_certificate(resume_id);
@@ -566,8 +566,8 @@ CREATE TABLE IF NOT EXISTS job_scrap (
   scrap_id     BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   member_id    BIGINT NOT NULL REFERENCES member(member_id),
   job_id       BIGINT NOT NULL REFERENCES job_posting(job_id),
-  created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_job_scrap UNIQUE (member_id, job_id)
 );
 
@@ -577,9 +577,9 @@ CREATE TABLE IF NOT EXISTS job_view_log (
   view_log_id  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   member_id    BIGINT NULL REFERENCES member(member_id),
   job_id       BIGINT NOT NULL REFERENCES job_posting(job_id),
-  viewed_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  viewed_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  created_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 
@@ -591,10 +591,10 @@ CREATE TABLE IF NOT EXISTS ad_campaign (
   cpc_bid        INT NOT NULL,
   daily_budget   INT NOT NULL,
   status         VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-  start_at       TIMESTAMPTZ(3) NULL,
-  end_at         TIMESTAMPTZ(3) NULL,
-  created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  start_at       TIMESTAMP(3) WITH TIME ZONE NULL,
+  end_at         TIMESTAMP(3) WITH TIME ZONE NULL,
+  created_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_ad_campaign_status CHECK (status IN ('ACTIVE','PAUSED','ENDED'))
 );
 
@@ -606,9 +606,9 @@ CREATE TABLE IF NOT EXISTS ad_click_event (
   member_id     BIGINT NULL REFERENCES member(member_id),
   click_key     VARCHAR(120) NOT NULL,
   ledger_id     BIGINT NULL REFERENCES wallet_ledger(ledger_id),
-  occurred_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  created_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  occurred_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  created_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_ad_click_key UNIQUE (click_key)
 );
 
@@ -619,10 +619,10 @@ CREATE TABLE IF NOT EXISTS inquiry (
   member_id        BIGINT NOT NULL REFERENCES member(member_id),
   title            VARCHAR(200) NOT NULL,
   status           VARCHAR(20) NOT NULL DEFAULT 'OPEN',
-  answered_at      TIMESTAMPTZ(3) NULL,
-  retention_until  TIMESTAMPTZ(3) NULL,
-  created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  answered_at      TIMESTAMP(3) WITH TIME ZONE NULL,
+  retention_until  TIMESTAMP(3) WITH TIME ZONE NULL,
+  created_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_inquiry_status CHECK (status IN ('OPEN','ANSWERED','CLOSED'))
 );
 
@@ -634,8 +634,8 @@ CREATE TABLE IF NOT EXISTS inquiry_message (
   author_type          VARCHAR(20) NOT NULL,
   admin_member_id      BIGINT NULL REFERENCES member(member_id),
   body                 TEXT NOT NULL,
-  created_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_inquiry_author_type CHECK (author_type IN ('CUSTOMER','ADMIN'))
 );
 
@@ -646,8 +646,8 @@ CREATE TABLE IF NOT EXISTS notice_attachment (
   notice_id      BIGINT NOT NULL REFERENCES notice(notice_id),
   file_url       TEXT NOT NULL,
   file_name      VARCHAR(200) NOT NULL,
-  created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 
@@ -658,10 +658,10 @@ CREATE TABLE IF NOT EXISTS notice_delivery (
   member_id     BIGINT NOT NULL REFERENCES member(member_id),
   channel       VARCHAR(20) NOT NULL,
   status        VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-  sent_at       TIMESTAMPTZ(3) NULL,
+  sent_at       TIMESTAMP(3) WITH TIME ZONE NULL,
   fail_reason   VARCHAR(200) NULL,
-  created_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_notice_delivery_channel CHECK (channel IN ('EMAIL','SMS','LMS','PUSH')),
   CONSTRAINT ck_notice_delivery_status CHECK (status IN ('PENDING','SENT','FAILED'))
 );
@@ -674,9 +674,9 @@ CREATE TABLE IF NOT EXISTS faq (
   answer      TEXT NOT NULL,
   locked      BOOLEAN NOT NULL DEFAULT TRUE,
   is_public   BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at  TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  deleted_at  TIMESTAMPTZ(3) NULL
+  created_at  TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  deleted_at  TIMESTAMP(3) WITH TIME ZONE NULL
 );
 
 
@@ -689,8 +689,8 @@ CREATE TABLE IF NOT EXISTS report (
   reason_code         VARCHAR(30) NOT NULL,
   reason_detail       TEXT NULL,
   status              VARCHAR(20) NOT NULL DEFAULT 'OPEN',
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_report_target_type CHECK (target_type IN ('JOB_POSTING','MEMBER','ETC')),
   CONSTRAINT ck_report_status CHECK (status IN ('OPEN','ACCEPTED','REJECTED'))
 );
@@ -705,9 +705,9 @@ CREATE TABLE IF NOT EXISTS moderation_action (
   sanction_level   INT NULL,
   restrict_days    INT NULL,
   reason           TEXT NOT NULL,
-  decided_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  decided_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  created_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_moderation_action_report UNIQUE (report_id),
   CONSTRAINT ck_moderation_decision CHECK (decision IN ('ACCEPT','REJECT'))
 );
@@ -720,8 +720,8 @@ CREATE TABLE IF NOT EXISTS member_penalty_point (
   report_id    BIGINT NULL REFERENCES report(report_id),
   points       INT NOT NULL,
   reason       VARCHAR(200) NOT NULL,
-  created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 
@@ -732,8 +732,8 @@ CREATE TABLE IF NOT EXISTS notification_template (
   channel        VARCHAR(20) NOT NULL,
   subject        VARCHAR(200) NULL,
   body           TEXT NOT NULL,
-  created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_notification_template_code UNIQUE (template_code),
   CONSTRAINT ck_notification_channel CHECK (channel IN ('EMAIL','SMS','PUSH'))
 );
@@ -747,9 +747,9 @@ CREATE TABLE IF NOT EXISTS notification_delivery (
   event_type    VARCHAR(40) NOT NULL,
   channel       VARCHAR(20) NOT NULL,
   status        VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-  sent_at       TIMESTAMPTZ(3) NULL,
+  sent_at       TIMESTAMP(3) WITH TIME ZONE NULL,
   payload       JSONB NULL,
-  created_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at    TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT ck_notification_delivery_status CHECK (status IN ('PENDING','SENT','FAILED')),
   CONSTRAINT ck_notification_delivery_channel CHECK (channel IN ('EMAIL','SMS','PUSH'))
 );
@@ -764,13 +764,13 @@ CREATE TABLE IF NOT EXISTS outbox_event (
   payload         JSONB NOT NULL,
   status          VARCHAR(20) NOT NULL DEFAULT 'PENDING',
   retry_count     INT NOT NULL DEFAULT 0,
-  next_run_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  locked_at       TIMESTAMPTZ(3) NULL,
+  next_run_at     TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  locked_at       TIMESTAMP(3) WITH TIME ZONE NULL,
   locked_by       VARCHAR(80) NULL,
   last_error      TEXT NULL,
-  created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  processed_at    TIMESTAMPTZ(3) NULL,
+  created_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  processed_at    TIMESTAMP(3) WITH TIME ZONE NULL,
   CONSTRAINT ck_outbox_status CHECK (status IN ('PENDING','PROCESSING','SUCCEEDED','FAILED'))
 );
 
@@ -788,8 +788,8 @@ CREATE TABLE IF NOT EXISTS wallet_credit_lot (
   unit_price_amount   NUMERIC(12,2) NOT NULL,
   currency            CHAR(3) NOT NULL DEFAULT 'KRW',
   pricing_meta        JSONB NULL,
-  created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now()
+  created_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_credit_lot_wallet_payment ON wallet_credit_lot(wallet_id, payment_id);
@@ -804,11 +804,11 @@ CREATE TABLE IF NOT EXISTS payment_cancel (
   cancel_status          VARCHAR(40) NULL,
   cancel_amount          NUMERIC(12,2) NOT NULL,
   cancel_reason          VARCHAR(200) NOT NULL,
-  canceled_at            TIMESTAMPTZ(3) NULL,
+  canceled_at            TIMESTAMP(3) WITH TIME ZONE NULL,
   idempotency_key        VARCHAR(100) NOT NULL,
   raw_cancel             JSONB NULL,
-  created_at             TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at             TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at             TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at             TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_payment_cancel_tx UNIQUE (payment_id, toss_transaction_key),
   CONSTRAINT uq_payment_cancel_idem UNIQUE (idempotency_key),
   CONSTRAINT ck_payment_cancel_amount CHECK (cancel_amount > 0)
@@ -859,12 +859,12 @@ CREATE TABLE IF NOT EXISTS talent_proposal (
   message           TEXT NULL,
   offered_salary    VARCHAR(100) NULL,
   offered_position  VARCHAR(100) NULL,
-  expires_at        TIMESTAMPTZ(3) NULL,
-  viewed_at         TIMESTAMPTZ(3) NULL,
-  responded_at      TIMESTAMPTZ(3) NULL,
+  expires_at        TIMESTAMP(3) WITH TIME ZONE NULL,
+  viewed_at         TIMESTAMP(3) WITH TIME ZONE NULL,
+  responded_at      TIMESTAMP(3) WITH TIME ZONE NULL,
   response_message  TEXT NULL,
-  created_at        TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
+  created_at        TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMP(3) WITH TIME ZONE NOT NULL DEFAULT now(),
   CONSTRAINT uq_talent_proposal UNIQUE (employer_id, candidate_id, job_id),
   CONSTRAINT ck_talent_proposal_status CHECK (status IN ('PENDING','VIEWED','ACCEPTED','REJECTED','CANCELED','EXPIRED'))
 );
