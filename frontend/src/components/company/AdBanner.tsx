@@ -1,6 +1,7 @@
 import { Megaphone, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface AdBannerProps {
   position: "top" | "side";
@@ -8,6 +9,11 @@ interface AdBannerProps {
 
 export function AdBanner({ position }: AdBannerProps) {
   const [isVisible, setIsVisible] = useState(true);
+  const navigate = useNavigate();
+
+  const goToAdsTab = () => {
+    navigate("/company/dashboard?tab=ads");
+  };
 
   if (!isVisible) return null;
 
@@ -32,7 +38,10 @@ export function AdBanner({ position }: AdBannerProps) {
               상위 노출 광고 이용 시 지원률이 평균 3배 증가합니다.
             </p>
           </div>
-          <button className="btn-gradient-primary px-4 py-2 rounded-lg text-sm hidden sm:block">
+          <button
+            className="btn-gradient-primary px-4 py-2 rounded-lg text-sm hidden sm:block"
+            onClick={goToAdsTab}
+          >
             광고 시작하기
           </button>
         </div>
@@ -64,7 +73,10 @@ export function AdBanner({ position }: AdBannerProps) {
         <p className="text-sm text-muted-foreground mb-3">
           이번 주 채용광고 50% 할인 중!
         </p>
-        <button className="w-full py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition-opacity">
+        <button
+          className="w-full py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+          onClick={goToAdsTab}
+        >
           자세히 보기
         </button>
       </div>
