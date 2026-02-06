@@ -1,4 +1,4 @@
-﻿-- =========================================================
+-- =========================================================
 -- FitMe combined SQL for PostgreSQL 17.7
 -- Generated: 2026-02-05 11:48:24
 --
@@ -28,9 +28,9 @@
 -- ================================================================
 -- PART 1: 확장 및 함수
 -- ================================================================
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS vector@@
+CREATE EXTENSION IF NOT EXISTS pgcrypto@@
+CREATE EXTENSION IF NOT EXISTS pg_trgm@@
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -38,7 +38,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$;
+$$@@
 
 
 -- ================================================================
@@ -61,9 +61,9 @@ CREATE TABLE IF NOT EXISTS notice (
   deleted_at     TIMESTAMPTZ(3) NULL,
   CONSTRAINT ck_notice_type CHECK (notice_type IN ('OPS','POLICY','PRIVACY','TERMS')),
   CONSTRAINT ck_notice_status CHECK (status IN ('ACTIVE','PENDING_DELETE','DELETED'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_notice_type_status_created ON notice(notice_type, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notice_type_status_created ON notice(notice_type, status, created_at DESC)@@
 
 
 -- 2) member
@@ -105,10 +105,10 @@ CREATE TABLE IF NOT EXISTS member (
   CONSTRAINT ck_member_failed_login_count CHECK (failed_login_count >= 0),
   CONSTRAINT ck_member_auth_provider CHECK (auth_provider IN ('NAVER','GOOGLE','KAKAO','OTHER')),
   CONSTRAINT ck_member_gender CHECK (gender IS NULL OR gender IN ('MALE','FEMALE'))
-);
+)@@
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_member_login_id_active ON member(login_id) WHERE deleted_at IS NULL AND login_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_member_phone_verified_active ON member(phone) WHERE deleted_at IS NULL AND phone IS NOT NULL AND phone_verified_at IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_member_login_id_active ON member(login_id) WHERE deleted_at IS NULL AND login_id IS NOT NULL@@
+CREATE UNIQUE INDEX IF NOT EXISTS uq_member_phone_verified_active ON member(phone) WHERE deleted_at IS NULL AND phone IS NOT NULL AND phone_verified_at IS NOT NULL@@
 
 
 -- 3) phone_verification
@@ -130,9 +130,9 @@ CREATE TABLE IF NOT EXISTS phone_verification (
   CONSTRAINT ck_phone_verification_purpose CHECK (purpose IN ('SIGNUP','PASSWORD_RESET','PHONE_LINK')),
   CONSTRAINT ck_phone_verification_attempt CHECK (attempt_count >= 0),
   CONSTRAINT ck_phone_verification_resend CHECK (resend_count >= 0)
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_phone_verification_phone_purpose_created ON phone_verification(phone, purpose, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_phone_verification_phone_purpose_created ON phone_verification(phone, purpose, created_at DESC)@@
 
 
 -- 4) member_login_log
@@ -144,9 +144,9 @@ CREATE TABLE IF NOT EXISTS member_login_log (
   user_agent      TEXT NULL,
   created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_member_login_log_member_created ON member_login_log(member_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_member_login_log_member_created ON member_login_log(member_id, created_at DESC)@@
 
 
 -- 5) employer
@@ -172,9 +172,9 @@ CREATE TABLE IF NOT EXISTS employer (
   deleted_at      TIMESTAMPTZ(3) NULL,
   CONSTRAINT uq_employer_uid UNIQUE (employer_uid),
   CONSTRAINT ck_employer_status CHECK (status IN ('ACTIVE','SUSPENDED','CLOSED'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_employer_name ON employer(name);
+CREATE INDEX IF NOT EXISTS idx_employer_name ON employer(name)@@
 
 
 -- 6) employer_member
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS employer_member (
   updated_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_employer_member UNIQUE (employer_id, member_id),
   CONSTRAINT ck_role_in_company CHECK (role_in_company IN ('OWNER','HR','STAFF'))
-);
+)@@
 
 
 -- 7) product
@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS product (
   CONSTRAINT uq_product_code UNIQUE (product_code),
   CONSTRAINT ck_product_type CHECK (product_type IN ('ONE_TIME','SUBSCRIPTION')),
   CONSTRAINT ck_sale_status CHECK (sale_status IN ('ON_SALE','PAUSED','STOPPED'))
-);
+)@@
 
 
 -- 8) orders
@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS orders (
   CONSTRAINT uq_orders_idempotency UNIQUE (idempotency_key),
   CONSTRAINT ck_orders_buyer_type CHECK (buyer_type IN ('MEMBER','EMPLOYER')),
   CONSTRAINT ck_orders_status CHECK (status IN ('CREATED','PAID','CANCELED','FAILED'))
-);
+)@@
 
 
 -- 9) payment
@@ -250,10 +250,10 @@ CREATE TABLE IF NOT EXISTS payment (
   updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_payment_uid UNIQUE (payment_uid),
   CONSTRAINT ck_payment_app_status CHECK (app_status IN ('REQUESTED','APPROVED','FAILED','CANCELED','PARTIAL_CANCELED'))
-);
+)@@
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_pg_payment_key ON payment(pg_payment_key) WHERE pg_payment_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_payment_order_id ON payment(order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_pg_payment_key ON payment(pg_payment_key) WHERE pg_payment_key IS NOT NULL@@
+CREATE INDEX IF NOT EXISTS idx_payment_order_id ON payment(order_id)@@
 
 
 -- 10) pg_webhook_inbox
@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS pg_webhook_inbox (
   processed_at    TIMESTAMPTZ(3) NULL,
   CONSTRAINT uq_pg_event_id UNIQUE (pg_event_id),
   CONSTRAINT ck_pg_webhook_process_status CHECK (process_status IN ('RECEIVED','PROCESSED','FAILED'))
-);
+)@@
 
 
 -- 11) wallet
@@ -284,10 +284,10 @@ CREATE TABLE IF NOT EXISTS wallet (
   created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_wallet_owner_type CHECK (owner_type IN ('MEMBER','EMPLOYER'))
-);
+)@@
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_member_one ON wallet(member_id) WHERE member_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_employer_one ON wallet(employer_id) WHERE employer_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_member_one ON wallet(member_id) WHERE member_id IS NOT NULL@@
+CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_employer_one ON wallet(employer_id) WHERE employer_id IS NOT NULL@@
 
 
 -- 12) wallet_ledger
@@ -308,9 +308,9 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
   CONSTRAINT uq_wallet_ledger_idem UNIQUE (idempotency_key),
   CONSTRAINT ck_wallet_ledger_tx_type CHECK (tx_type IN ('CREDIT','DEBIT')),
   CONSTRAINT ck_wallet_ledger_source_type CHECK (source_type IN ('PAYMENT','SUBSCRIPTION','AI','AD_CLICK','MANUAL'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_wallet_ledger_wallet_occurred ON wallet_ledger(wallet_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wallet_ledger_wallet_occurred ON wallet_ledger(wallet_id, occurred_at DESC)@@
 
 
 -- 13) subscription
@@ -330,7 +330,7 @@ CREATE TABLE IF NOT EXISTS subscription (
   created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_subscription_status CHECK (status IN ('ACTIVE','CANCELED','PAYMENT_FAILED'))
-);
+)@@
 
 
 -- 14) subscription_billing_cycle
@@ -348,7 +348,7 @@ CREATE TABLE IF NOT EXISTS subscription_billing_cycle (
   CONSTRAINT uq_subscription_billing UNIQUE (subscription_id, billing_month),
   CONSTRAINT ck_cycle_payment_status CHECK (payment_status IN ('SCHEDULED','PAID','FAILED')),
   CONSTRAINT ck_cycle_credit_status CHECK (credit_status IN ('PENDING','GRANTED','FAILED','REVOKED'))
-);
+)@@
 
 
 -- 15) job_posting
@@ -376,10 +376,10 @@ CREATE TABLE IF NOT EXISTS job_posting (
   CONSTRAINT ck_job_posting_counts CHECK (view_count >= 0 AND apply_count >= 0),
   CONSTRAINT ck_job_posting_ad_bid_credit_nonneg CHECK (ad_bid_credit >= 0),
   CONSTRAINT ck_job_posting_recruitment_capacity CHECK (recruitment_capacity >= 0)
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_job_posting_employer_status ON job_posting(employer_id, status);
-CREATE INDEX IF NOT EXISTS idx_job_posting_stack_gin ON job_posting USING GIN (stack);
+CREATE INDEX IF NOT EXISTS idx_job_posting_employer_status ON job_posting(employer_id, status)@@
+CREATE INDEX IF NOT EXISTS idx_job_posting_stack_gin ON job_posting USING GIN (stack)@@
 
 
 -- 16) resume
@@ -412,10 +412,10 @@ CREATE TABLE IF NOT EXISTS resume (
   CONSTRAINT ck_resume_status CHECK (status IN ('DRAFT','ACTIVE','DELETED')),
   CONSTRAINT ck_resume_field CHECK (field IN ('RESUME','PORTFOLIO','INTRO')),
   CONSTRAINT ck_resume_summary_status CHECK (summary_status IN ('NONE','PENDING','PROCESSING','COMPLETED','FAILED'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_resume_member_status ON resume(member_id, status);
-CREATE INDEX IF NOT EXISTS idx_resume_re_stack_gin ON resume USING GIN (re_stack);
+CREATE INDEX IF NOT EXISTS idx_resume_member_status ON resume(member_id, status)@@
+CREATE INDEX IF NOT EXISTS idx_resume_re_stack_gin ON resume USING GIN (re_stack)@@
 
 
 -- 17) job_application
@@ -434,7 +434,7 @@ CREATE TABLE IF NOT EXISTS job_application (
   updated_at            TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_job_application UNIQUE (job_id, member_id),
   CONSTRAINT ck_job_application_status CHECK (status IN ('SUBMITTED','VIEWED','INTERVIEW','HIRED','REJECTED','CANCELED'))
-);
+)@@
 
 
 -- 18) interview_schedule
@@ -455,7 +455,7 @@ CREATE TABLE IF NOT EXISTS interview_schedule (
   CONSTRAINT ck_interview_method CHECK (method IN ('ONSITE','VIDEO','PHONE')),
   CONSTRAINT ck_interview_status CHECK (status IN ('PROPOSED','CONFIRMED','CANCELED','DONE')),
   CONSTRAINT ck_interview_time CHECK (end_at > start_at)
-);
+)@@
 
 
 -- 19) interview_response
@@ -468,7 +468,7 @@ CREATE TABLE IF NOT EXISTS interview_response (
   created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_interview_response CHECK (response IN ('ACCEPT','DECLINE','REQUEST_CHANGE'))
-);
+)@@
 
 
 -- 20) resume_profile
@@ -480,7 +480,7 @@ CREATE TABLE IF NOT EXISTS resume_profile (
   created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_resume_profile UNIQUE (resume_id)
-);
+)@@
 
 
 -- 21) resume_project
@@ -496,7 +496,7 @@ CREATE TABLE IF NOT EXISTS resume_project (
   sort_order          INT NOT NULL DEFAULT 0,
   created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
 
 -- 22) resume_attachment
@@ -513,7 +513,7 @@ CREATE TABLE IF NOT EXISTS resume_attachment (
   created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_resume_attachment_scan_status CHECK (scan_status IN ('PENDING','PASSED','FAILED'))
-);
+)@@
 
 
 -- 23) resume_link
@@ -525,7 +525,7 @@ CREATE TABLE IF NOT EXISTS resume_link (
   created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_resume_link_type CHECK (link_type IN ('GITHUB','BLOG','ETC'))
-);
+)@@
 
 
 -- 24) resume_career
@@ -541,9 +541,9 @@ CREATE TABLE IF NOT EXISTS resume_career (
   is_verified     BOOLEAN NULL,
   created_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_resume_career_resume_id ON resume_career(resume_id);
+CREATE INDEX IF NOT EXISTS idx_resume_career_resume_id ON resume_career(resume_id)@@
 
 
 -- 25) resume_certificate
@@ -556,9 +556,9 @@ CREATE TABLE IF NOT EXISTS resume_certificate (
   is_verified            BOOLEAN NULL,
   created_at             TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at             TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_resume_certificate_resume_id ON resume_certificate(resume_id);
+CREATE INDEX IF NOT EXISTS idx_resume_certificate_resume_id ON resume_certificate(resume_id)@@
 
 
 -- 26) job_scrap
@@ -569,7 +569,7 @@ CREATE TABLE IF NOT EXISTS job_scrap (
   created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_job_scrap UNIQUE (member_id, job_id)
-);
+)@@
 
 
 -- 27) job_view_log
@@ -580,7 +580,7 @@ CREATE TABLE IF NOT EXISTS job_view_log (
   viewed_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
 
 -- 28) ad_campaign
@@ -596,7 +596,7 @@ CREATE TABLE IF NOT EXISTS ad_campaign (
   created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_ad_campaign_status CHECK (status IN ('ACTIVE','PAUSED','ENDED'))
-);
+)@@
 
 
 -- 29) ad_click_event
@@ -610,7 +610,7 @@ CREATE TABLE IF NOT EXISTS ad_click_event (
   created_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_ad_click_key UNIQUE (click_key)
-);
+)@@
 
 
 -- 30) inquiry
@@ -624,7 +624,7 @@ CREATE TABLE IF NOT EXISTS inquiry (
   created_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_inquiry_status CHECK (status IN ('OPEN','ANSWERED','CLOSED'))
-);
+)@@
 
 
 -- 31) inquiry_message
@@ -637,7 +637,7 @@ CREATE TABLE IF NOT EXISTS inquiry_message (
   created_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at           TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_inquiry_author_type CHECK (author_type IN ('CUSTOMER','ADMIN'))
-);
+)@@
 
 
 -- 32) notice_attachment
@@ -648,7 +648,7 @@ CREATE TABLE IF NOT EXISTS notice_attachment (
   file_name      VARCHAR(200) NOT NULL,
   created_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
 
 -- 33) notice_delivery
@@ -664,7 +664,7 @@ CREATE TABLE IF NOT EXISTS notice_delivery (
   updated_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_notice_delivery_channel CHECK (channel IN ('EMAIL','SMS','LMS','PUSH')),
   CONSTRAINT ck_notice_delivery_status CHECK (status IN ('PENDING','SENT','FAILED'))
-);
+)@@
 
 
 -- 34) faq
@@ -677,7 +677,7 @@ CREATE TABLE IF NOT EXISTS faq (
   created_at  TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   deleted_at  TIMESTAMPTZ(3) NULL
-);
+)@@
 
 
 -- 35) report
@@ -693,7 +693,7 @@ CREATE TABLE IF NOT EXISTS report (
   updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_report_target_type CHECK (target_type IN ('JOB_POSTING','MEMBER','ETC')),
   CONSTRAINT ck_report_status CHECK (status IN ('OPEN','ACCEPTED','REJECTED'))
-);
+)@@
 
 
 -- 36) moderation_action
@@ -710,7 +710,7 @@ CREATE TABLE IF NOT EXISTS moderation_action (
   updated_at       TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_moderation_action_report UNIQUE (report_id),
   CONSTRAINT ck_moderation_decision CHECK (decision IN ('ACCEPT','REJECT'))
-);
+)@@
 
 
 -- 37) member_penalty_point
@@ -722,7 +722,7 @@ CREATE TABLE IF NOT EXISTS member_penalty_point (
   reason       VARCHAR(200) NOT NULL,
   created_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
 
 -- 38) notification_template
@@ -736,7 +736,7 @@ CREATE TABLE IF NOT EXISTS notification_template (
   updated_at     TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_notification_template_code UNIQUE (template_code),
   CONSTRAINT ck_notification_channel CHECK (channel IN ('EMAIL','SMS','PUSH'))
-);
+)@@
 
 
 -- 39) notification_delivery
@@ -752,7 +752,7 @@ CREATE TABLE IF NOT EXISTS notification_delivery (
   created_at    TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT ck_notification_delivery_status CHECK (status IN ('PENDING','SENT','FAILED')),
   CONSTRAINT ck_notification_delivery_channel CHECK (channel IN ('EMAIL','SMS','PUSH'))
-);
+)@@
 
 
 -- 40) outbox_event
@@ -772,10 +772,10 @@ CREATE TABLE IF NOT EXISTS outbox_event (
   updated_at      TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   processed_at    TIMESTAMPTZ(3) NULL,
   CONSTRAINT ck_outbox_status CHECK (status IN ('PENDING','PROCESSING','SUCCEEDED','FAILED'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_outbox_pick ON outbox_event(status, next_run_at, outbox_id);
-CREATE INDEX IF NOT EXISTS idx_outbox_agg ON outbox_event(aggregate_type, aggregate_id);
+CREATE INDEX IF NOT EXISTS idx_outbox_pick ON outbox_event(status, next_run_at, outbox_id)@@
+CREATE INDEX IF NOT EXISTS idx_outbox_agg ON outbox_event(aggregate_type, aggregate_id)@@
 
 
 -- 41) wallet_credit_lot
@@ -790,10 +790,10 @@ CREATE TABLE IF NOT EXISTS wallet_credit_lot (
   pricing_meta        JSONB NULL,
   created_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ(3) NOT NULL DEFAULT now()
-);
+)@@
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_credit_lot_wallet_payment ON wallet_credit_lot(wallet_id, payment_id);
-CREATE INDEX IF NOT EXISTS idx_wallet_credit_lot_wallet_created ON wallet_credit_lot(wallet_id, created_at ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_wallet_credit_lot_wallet_payment ON wallet_credit_lot(wallet_id, payment_id)@@
+CREATE INDEX IF NOT EXISTS idx_wallet_credit_lot_wallet_created ON wallet_credit_lot(wallet_id, created_at ASC)@@
 
 
 -- 42) payment_cancel
@@ -812,9 +812,9 @@ CREATE TABLE IF NOT EXISTS payment_cancel (
   CONSTRAINT uq_payment_cancel_tx UNIQUE (payment_id, toss_transaction_key),
   CONSTRAINT uq_payment_cancel_idem UNIQUE (idempotency_key),
   CONSTRAINT ck_payment_cancel_amount CHECK (cancel_amount > 0)
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_payment_cancel_payment_created ON payment_cancel(payment_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_cancel_payment_created ON payment_cancel(payment_id, created_at DESC)@@
 
 
 -- 43) stack_alias (기술스택 별칭)
@@ -828,10 +828,10 @@ CREATE TABLE IF NOT EXISTS stack_alias (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (entity_type, alias),
   CONSTRAINT stack_alias_entity_type_chk CHECK (entity_type IN ('STACK','INDUSTRY'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS ix_stack_alias_alias_trgm_stack ON stack_alias USING gin (alias gin_trgm_ops) WHERE is_active AND entity_type='STACK';
-CREATE INDEX IF NOT EXISTS ix_stack_alias_canonical_trgm_stack ON stack_alias USING gin (canonical gin_trgm_ops) WHERE is_active AND entity_type='STACK';
+CREATE INDEX IF NOT EXISTS ix_stack_alias_alias_trgm_stack ON stack_alias USING gin (alias gin_trgm_ops) WHERE is_active AND entity_type='STACK'@@
+CREATE INDEX IF NOT EXISTS ix_stack_alias_canonical_trgm_stack ON stack_alias USING gin (canonical gin_trgm_ops) WHERE is_active AND entity_type='STACK'@@
 
 
 -- 44) industry_alias (업종 별칭)
@@ -842,10 +842,10 @@ CREATE TABLE IF NOT EXISTS industry_alias (
   is_active    BOOLEAN NOT NULL DEFAULT TRUE,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS ix_industry_alias_alias_trgm ON industry_alias USING gin (alias gin_trgm_ops) WHERE is_active;
-CREATE INDEX IF NOT EXISTS ix_industry_alias_canonical_trgm ON industry_alias USING gin (canonical gin_trgm_ops) WHERE is_active;
+CREATE INDEX IF NOT EXISTS ix_industry_alias_alias_trgm ON industry_alias USING gin (alias gin_trgm_ops) WHERE is_active@@
+CREATE INDEX IF NOT EXISTS ix_industry_alias_canonical_trgm ON industry_alias USING gin (canonical gin_trgm_ops) WHERE is_active@@
 
 
 -- 45) talent_proposal (기업→구직자 제안)
@@ -867,14 +867,14 @@ CREATE TABLE IF NOT EXISTS talent_proposal (
   updated_at        TIMESTAMPTZ(3) NOT NULL DEFAULT now(),
   CONSTRAINT uq_talent_proposal UNIQUE (employer_id, candidate_id, job_id),
   CONSTRAINT ck_talent_proposal_status CHECK (status IN ('PENDING','VIEWED','ACCEPTED','REJECTED','CANCELED','EXPIRED'))
-);
+)@@
 
-CREATE INDEX IF NOT EXISTS idx_talent_proposal_candidate ON talent_proposal(candidate_id, status);
-CREATE INDEX IF NOT EXISTS idx_talent_proposal_employer ON talent_proposal(employer_id, status);
+CREATE INDEX IF NOT EXISTS idx_talent_proposal_candidate ON talent_proposal(candidate_id, status)@@
+CREATE INDEX IF NOT EXISTS idx_talent_proposal_employer ON talent_proposal(employer_id, status)@@
 
 
 -- 46) industry_vocab (Materialized View - fuzzy 검색용)
-DROP MATERIALIZED VIEW IF EXISTS industry_vocab;
+DROP MATERIALIZED VIEW IF EXISTS industry_vocab@@
 CREATE MATERIALIZED VIEW industry_vocab AS
 WITH tokens AS (
   SELECT lower(btrim(tok)) AS token
@@ -888,10 +888,10 @@ WITH tokens AS (
 SELECT token, COUNT(*)::bigint AS cnt
 FROM tokens
 WHERE token <> ''
-GROUP BY token;
+GROUP BY token@@
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_industry_vocab_token ON industry_vocab (token);
-CREATE INDEX IF NOT EXISTS ix_industry_vocab_token_trgm ON industry_vocab USING gin (token gin_trgm_ops);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_industry_vocab_token ON industry_vocab (token)@@
+CREATE INDEX IF NOT EXISTS ix_industry_vocab_token_trgm ON industry_vocab USING gin (token gin_trgm_ops)@@
 
 
 -- ================================================================
@@ -919,7 +919,7 @@ BEGIN
             EXECUTE format('CREATE TRIGGER trg_set_updated_at_%I BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION set_updated_at()', t, t);
         END IF;
     END LOOP;
-END $$;
+END $$@@
 
 
 -- ================================================================
@@ -935,10 +935,14 @@ VALUES
 ON CONFLICT (notice_id) DO UPDATE SET
     title = EXCLUDED.title,
     body = EXCLUDED.body,
-    notice_type = EXCLUDED.notice_type;
+    notice_type = EXCLUDED.notice_type@@
 
 -- notice_id 시퀀스 동기화
-SELECT setval(pg_get_serial_sequence('notice', 'notice_id'), GREATEST(COALESCE(MAX(notice_id), 1), 3)) FROM notice;
+SELECT setval(pg_get_serial_sequence('notice', 'notice_id'), GREATEST(COALESCE(MAX(notice_id), 1), 3)) FROM notice@@
+
+
+-- product_id 시퀀스 동기화 (기존 데이터가 product_id를 직접 넣었거나 시퀀스가 뒤로 간 경우 PK 중복 방지)
+SELECT setval(pg_get_serial_sequence('product', 'product_id'), COALESCE((SELECT MAX(product_id) FROM product), 0) + 1, false)@@
 
 -- 상품 데이터 (결제 시 필요)
 INSERT INTO product (product_code, product_type, name, sale_status, price_amount, currency, credit_amount, plan_tier)
@@ -953,7 +957,11 @@ ON CONFLICT (product_code) DO UPDATE SET
     name = EXCLUDED.name,
     price_amount = EXCLUDED.price_amount,
     credit_amount = EXCLUDED.credit_amount,
-    plan_tier = EXCLUDED.plan_tier;
+    plan_tier = EXCLUDED.plan_tier@@
+
+
+-- notification_template.template_id 시퀀스 동기화 (PK 중복 방지)
+SELECT setval(pg_get_serial_sequence('notification_template', 'template_id'), COALESCE((SELECT MAX(template_id) FROM notification_template), 0) + 1, false)@@
 
 -- 알림 템플릿
 INSERT INTO notification_template (template_code, channel, subject, body) VALUES
@@ -965,7 +973,11 @@ INSERT INTO notification_template (template_code, channel, subject, body) VALUES
 ON CONFLICT (template_code) DO UPDATE SET
     channel = EXCLUDED.channel,
     subject = EXCLUDED.subject,
-    body = EXCLUDED.body;
+    body = EXCLUDED.body@@
+
+
+-- faq.faq_id 시퀀스 동기화 (PK 중복 방지)
+SELECT setval(pg_get_serial_sequence('faq', 'faq_id'), COALESCE((SELECT MAX(faq_id) FROM faq), 0) + 1, false)@@
 
 -- FAQ (없을 때만 삽입)
 INSERT INTO faq (question, answer, locked, is_public)
@@ -976,7 +988,7 @@ SELECT * FROM (VALUES
     ('크레딧은 어떻게 충전하나요?', '마이페이지 > 크레딧 충전 메뉴에서 충전하실 수 있습니다.', TRUE, TRUE),
     ('지원 취소는 어떻게 하나요?', '마이페이지 > 지원현황에서 "지원 취소" 버튼을 클릭하시면 됩니다.', TRUE, TRUE)
 ) AS v(question, answer, locked, is_public)
-WHERE NOT EXISTS (SELECT 1 FROM faq WHERE faq.question = v.question);
+WHERE NOT EXISTS (SELECT 1 FROM faq WHERE faq.question = v.question)@@
 
 -- 기술스택 별칭
 INSERT INTO stack_alias (entity_type, alias, canonical, display_name) VALUES
@@ -986,7 +998,7 @@ INSERT INTO stack_alias (entity_type, alias, canonical, display_name) VALUES
     ('STACK', 'vue.js', 'vuejs', 'Vue.js'),
     ('STACK', 'next', 'nextjs', 'Next.js'),
     ('STACK', 'next.js', 'nextjs', 'Next.js')
-ON CONFLICT (entity_type, alias) DO UPDATE SET canonical = EXCLUDED.canonical, display_name = EXCLUDED.display_name, is_active = TRUE;
+ON CONFLICT (entity_type, alias) DO UPDATE SET canonical = EXCLUDED.canonical, display_name = EXCLUDED.display_name, is_active = TRUE@@
 
 -- 업종 별칭
 INSERT INTO industry_alias (alias, canonical, display_name) VALUES
@@ -1010,10 +1022,10 @@ INSERT INTO industry_alias (alias, canonical, display_name) VALUES
     ('healthcare', 'healthcare', 'Healthcare'),
     ('edtech', 'edtech', 'EdTech'),
     ('에듀테크', 'edtech', 'EdTech')
-ON CONFLICT (alias) DO UPDATE SET canonical = EXCLUDED.canonical, display_name = EXCLUDED.display_name, is_active = TRUE;
+ON CONFLICT (alias) DO UPDATE SET canonical = EXCLUDED.canonical, display_name = EXCLUDED.display_name, is_active = TRUE@@
 
 -- industry_vocab 갱신
-REFRESH MATERIALIZED VIEW industry_vocab;
+REFRESH MATERIALIZED VIEW industry_vocab@@
 
 
 -- ================================================================
@@ -1032,7 +1044,7 @@ CREATE TABLE IF NOT EXISTS BATCH_JOB_INSTANCE (
     JOB_NAME VARCHAR(100) NOT NULL,
     JOB_KEY VARCHAR(32) NOT NULL,
     CONSTRAINT JOB_INST_UN UNIQUE (JOB_NAME, JOB_KEY)
-);
+)@@
 
 -- 2. BATCH_JOB_EXECUTION: Job 실행 정보
 CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION (
@@ -1048,7 +1060,7 @@ CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION (
     LAST_UPDATED TIMESTAMP,
     CONSTRAINT JOB_INST_EXEC_FK FOREIGN KEY (JOB_INSTANCE_ID)
         REFERENCES BATCH_JOB_INSTANCE(JOB_INSTANCE_ID)
-);
+)@@
 
 -- 3. BATCH_JOB_EXECUTION_PARAMS: Job 실행 파라미터
 CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION_PARAMS (
@@ -1059,7 +1071,7 @@ CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION_PARAMS (
     IDENTIFYING CHAR(1) NOT NULL,
     CONSTRAINT JOB_EXEC_PARAMS_FK FOREIGN KEY (JOB_EXECUTION_ID)
         REFERENCES BATCH_JOB_EXECUTION(JOB_EXECUTION_ID)
-);
+)@@
 
 -- 4. BATCH_STEP_EXECUTION: Step 실행 정보
 CREATE TABLE IF NOT EXISTS BATCH_STEP_EXECUTION (
@@ -1084,7 +1096,7 @@ CREATE TABLE IF NOT EXISTS BATCH_STEP_EXECUTION (
     LAST_UPDATED TIMESTAMP,
     CONSTRAINT JOB_EXEC_STEP_FK FOREIGN KEY (JOB_EXECUTION_ID)
         REFERENCES BATCH_JOB_EXECUTION(JOB_EXECUTION_ID)
-);
+)@@
 
 -- 5. BATCH_STEP_EXECUTION_CONTEXT: Step 실행 컨텍스트
 CREATE TABLE IF NOT EXISTS BATCH_STEP_EXECUTION_CONTEXT (
@@ -1093,7 +1105,7 @@ CREATE TABLE IF NOT EXISTS BATCH_STEP_EXECUTION_CONTEXT (
     SERIALIZED_CONTEXT TEXT,
     CONSTRAINT STEP_EXEC_CTX_FK FOREIGN KEY (STEP_EXECUTION_ID)
         REFERENCES BATCH_STEP_EXECUTION(STEP_EXECUTION_ID)
-);
+)@@
 
 -- 6. BATCH_JOB_EXECUTION_CONTEXT: Job 실행 컨텍스트
 CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION_CONTEXT (
@@ -1102,9 +1114,9 @@ CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION_CONTEXT (
     SERIALIZED_CONTEXT TEXT,
     CONSTRAINT JOB_EXEC_CTX_FK FOREIGN KEY (JOB_EXECUTION_ID)
         REFERENCES BATCH_JOB_EXECUTION(JOB_EXECUTION_ID)
-);
+)@@
 
 -- 시퀀스 테이블들 (ID 생성용)
-CREATE SEQUENCE IF NOT EXISTS BATCH_STEP_EXECUTION_SEQ MAXVALUE 9223372036854775807 NO CYCLE;
-CREATE SEQUENCE IF NOT EXISTS BATCH_JOB_EXECUTION_SEQ MAXVALUE 9223372036854775807 NO CYCLE;
-CREATE SEQUENCE IF NOT EXISTS BATCH_JOB_SEQ MAXVALUE 9223372036854775807 NO CYCLE;
+CREATE SEQUENCE IF NOT EXISTS BATCH_STEP_EXECUTION_SEQ MAXVALUE 9223372036854775807 NO CYCLE@@
+CREATE SEQUENCE IF NOT EXISTS BATCH_JOB_EXECUTION_SEQ MAXVALUE 9223372036854775807 NO CYCLE@@
+CREATE SEQUENCE IF NOT EXISTS BATCH_JOB_SEQ MAXVALUE 9223372036854775807 NO CYCLE@@

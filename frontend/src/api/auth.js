@@ -44,7 +44,7 @@ export async function login(userid, password) {
   body.set("userid", userid ?? "");
   body.set("password", password ?? "");
 
-  const res = await http.post("/Login", body, {
+  const res = await http.post("/api/auth/login", body, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     // Spring Security 성공/실패 모두 redirect를 사용하므로,
     // 최종 redirect URL의 query를 파싱해 에러를 판단한다.
@@ -56,10 +56,8 @@ export async function login(userid, password) {
 }
 
 export async function logout() {
-  // Spring Security logoutUrl
-  const res = await http.post("/Logout", null, { maxRedirects: 5 });
-  // logout은 보통 성공 redirect만 있으므로 에러가 없다면 ok
-  return { ok: true, message: throwIfRedirectError(res) };
+    const res = await http.post("/api/auth/logout", null, { maxRedirects: 5 });
+    return { ok: true, message: throwIfRedirectError(res) };
 }
 
 export async function checkAuthStatus() {

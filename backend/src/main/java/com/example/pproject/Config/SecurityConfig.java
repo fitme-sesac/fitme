@@ -179,7 +179,9 @@ public class SecurityConfig {
 
                 http.formLogin(login -> login
                                 .loginPage("/Login")
-                                .loginProcessingUrl("/Login")
+                                // SPA(React)에서 사용하는 로그인 엔드포인트
+                                // - 프론트는 /api/auth/login 으로 form-urlencoded POST
+                                .loginProcessingUrl("/api/auth/login")
                                 .usernameParameter("userid")
                                 .passwordParameter("password")
                                 .defaultSuccessUrl("/", true)
@@ -202,7 +204,8 @@ public class SecurityConfig {
                                 .failureHandler(customAuthenticationFailureHandler));
 
                 http.logout(logout -> logout
-                                .logoutUrl("/Logout")
+                                // SPA(React)에서 사용하는 로그아웃 엔드포인트
+                                .logoutUrl("/api/auth/logout")
                                 .deleteCookies("JSESSIONID", "ACCESS_TOKEN")
                                 .logoutSuccessUrl(frontBaseUrl + "/")
                                 .invalidateHttpSession(true)

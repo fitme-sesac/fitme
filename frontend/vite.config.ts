@@ -67,14 +67,7 @@ export default defineConfig(({ mode }) => {
                 overlay: false,
             },
             proxy: {
-                // ===== Backend proxies =====
-                // ✅ Spring Security form 로그인: POST /Login 은 백엔드로, GET /Login 은 SPA로
-                "/Login": { target: backendTarget, changeOrigin: true, bypass: bypassSpaPageGet },
 
-                // ✅ 백엔드 form 엔드포인트들 (/User/*)은 모두 백엔드로 전달
-                "/User": { target: backendTarget, changeOrigin: true },
-
-                "/Logout": { target: backendTarget, changeOrigin: true },
                 "/oauth2": { target: backendTarget, changeOrigin: true },
                 "/login": { target: backendTarget, changeOrigin: true },
 
@@ -91,10 +84,23 @@ export default defineConfig(({ mode }) => {
                 "/chatbot": { target: aiTarget, changeOrigin: true },
                 "/employer-chatbot": { target: aiTarget, changeOrigin: true },
                 "/resumes": { target: aiTarget, changeOrigin: true },
+                // 백엔드의 /User/**(회원가입/비밀번호변경 등)는 프록시 유지
+                "/User":  { target: backendTarget, changeOrigin: true, secure: false },
+
+                // ✅ /Login 은 SPA 라우트(App.tsx에서 /auth?tab=login 으로 리다이렉트)
+                //    - 회원가입 성공/실패 redirect가 /Login 으로 오는 경우가 있어,
+                //      GET은 반드시 SPA(index.html)로 우회해야 한다.
+                //    - POST /api/auth/login 으로 로그인 처리(백엔드 SecurityConfig 기준)
+                "/Login": { target: backendTarget, changeOrigin: true, secure: false, bypass: bypassSpaPageGet },
+
+                // ✅ /Logout 은 페이지가 아니라 API 동작이므로 GET은 SPA로 우회, POST는 프록시
+                "/Logout":{ target: backendTarget, changeOrigin: true, secure: false, bypass: bypassSpaPageGet },
             },
         },
         define: {
             "import.meta.env.VITE_TOSS_CLIENT_KEY": JSON.stringify(process.env.TOSS_CLIENT_KEY || env.TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY),
         },
     };
+
 });
+
