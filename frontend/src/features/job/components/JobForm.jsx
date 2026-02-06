@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { uploadJobImages } from '../api/jobApi';
 
 /**
  * 채용공고 작성/수정 폼 컴포넌트
- * ERD 기준 필드: title, description, status, location, salary_text, stack
+ * ERD 기준 필드: title, description, status, location, salary_text, stack, images
  */
 export default function JobForm({ job, onSubmit, loading }) {
   const navigate = useNavigate();
@@ -18,7 +19,12 @@ export default function JobForm({ job, onSubmit, loading }) {
     requiredExperience: 0,
     recruitmentCapacity: 0,
     status: 'DRAFT',
+    images: [],
   });
+
+  // 새로 업로드할 파일들 (미리보기용)
+  const [newImageFiles, setNewImageFiles] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const [errors, setErrors] = useState({});
 
@@ -33,9 +39,38 @@ export default function JobForm({ job, onSubmit, loading }) {
         requiredExperience: job.requiredExperience || 0,
         recruitmentCapacity: job.recruitmentCapacity || 0,
         status: job.status || 'DRAFT',
+        images: job.images || [],
       });
     }
   }, [job]);
+
+  // 이미지 파일 선택 핸들러
+  const handleImageSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    // 최대 5개 제한
+    const totalCount = formData.images.length + newImageFiles.length + files.length;
+    if (totalCount > 5) {
+      alert('이미지는 최대 5개까지 업로드할 수 있습니다.');
+      return;
+    }
+
+    setNewImageFiles((prev) => [...prev, ...files]);
+  };
+
+  // 새 이미지 삭제 (업로드 전)
+  const handleRemoveNewImage = (index) => {
+    setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // 기존 이미지 삭제
+  const handleRemoveExistingImage = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -86,14 +121,31 @@ export default function JobForm({ job, onSubmit, loading }) {
 
     if (!validate()) return;
 
-    const submitData = {
-      ...formData,
-      salaryText: formatSalaryText(formData.salaryText),
-      status: saveAsDraft ? 'DRAFT' : formData.status,
-    };
-
     try {
+      // 새 이미지 업로드
+      let uploadedUrls = [];
+      if (newImageFiles.length > 0) {
+        setUploadingImages(true);
+        try {
+          const result = await uploadJobImages(newImageFiles);
+          uploadedUrls = result.urls || [];
+        } catch (uploadErr) {
+          alert('이미지 업로드에 실패했습니다: ' + (uploadErr.response?.data?.error || uploadErr.message));
+          setUploadingImages(false);
+          return;
+        }
+        setUploadingImages(false);
+      }
+
+      const submitData = {
+        ...formData,
+        salaryText: formatSalaryText(formData.salaryText),
+        status: saveAsDraft ? 'DRAFT' : formData.status,
+        images: [...formData.images, ...uploadedUrls],
+      };
+
       await onSubmit(submitData);
+      setNewImageFiles([]); // 성공 시 업로드 대기 파일 초기화
     } catch (err) {
       // 에러 처리는 부모 컴포넌트에서
     }
@@ -247,6 +299,113 @@ export default function JobForm({ job, onSubmit, loading }) {
         </div>
       </div>
 
+      {/* 채용공고 이미지 */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header bg-white">
+          <h5 className="mb-0">
+            <i className="bi bi-images me-2"></i>
+            채용공고 이미지
+          </h5>
+        </div>
+        <div className="card-body">
+          <p className="text-muted small mb-3">
+            채용공고에 표시될 이미지를 업로드하세요. (최대 5장, png/jpg/gif/webp)
+          </p>
+
+          {/* 기존 이미지 */}
+          {formData.images.length > 0 && (
+            <div className="mb-3">
+              <label className="form-label small fw-semibold">등록된 이미지</label>
+              <div className="d-flex flex-wrap gap-2">
+                {formData.images.map((url, idx) => (
+                  <div key={idx} className="position-relative" style={{ width: 120 }}>
+                    <img
+                      src={url}
+                      alt={`이미지 ${idx + 1}`}
+                      className="img-thumbnail"
+                      style={{ width: '100%', height: 80, objectFit: 'cover' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm position-absolute top-0 end-0"
+                      style={{ transform: 'translate(30%, -30%)', padding: '2px 6px' }}
+                      onClick={() => handleRemoveExistingImage(idx)}
+                    >
+                      <i className="bi bi-x"></i>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 새 이미지 미리보기 */}
+          {newImageFiles.length > 0 && (
+            <div className="mb-3">
+              <label className="form-label small fw-semibold">업로드 대기 중</label>
+              <div className="d-flex flex-wrap gap-2">
+                {newImageFiles.map((file, idx) => (
+                  <div key={idx} className="position-relative" style={{ width: 120 }}>
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={`새 이미지 ${idx + 1}`}
+                      className="img-thumbnail border-primary"
+                      style={{ width: '100%', height: 80, objectFit: 'cover', borderWidth: 2 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-warning btn-sm position-absolute top-0 end-0"
+                      style={{ transform: 'translate(30%, -30%)', padding: '2px 6px' }}
+                      onClick={() => handleRemoveNewImage(idx)}
+                    >
+                      <i className="bi bi-x"></i>
+                    </button>
+                    <span
+                      className="badge bg-primary position-absolute bottom-0 start-50 translate-middle-x"
+                      style={{ fontSize: '0.65rem' }}
+                    >
+                      NEW
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 이미지 추가 버튼 */}
+          {(formData.images.length + newImageFiles.length) < 5 && (
+            <div>
+              <input
+                type="file"
+                id="imageUpload"
+                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                multiple
+                onChange={handleImageSelect}
+                className="d-none"
+              />
+              <label
+                htmlFor="imageUpload"
+                className="btn btn-outline-primary"
+                style={{ cursor: 'pointer' }}
+              >
+                <i className="bi bi-plus-lg me-1"></i>
+                이미지 추가
+              </label>
+              <span className="text-muted small ms-2">
+                {formData.images.length + newImageFiles.length}/5
+              </span>
+            </div>
+          )}
+
+          {uploadingImages && (
+            <div className="alert alert-info mt-3 mb-0">
+              <span className="spinner-border spinner-border-sm me-2"></span>
+              이미지 업로드 중...
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 공개 설정 */}
       <div className="card shadow-sm mb-4">
         <div className="card-header bg-white">
@@ -304,9 +463,9 @@ export default function JobForm({ job, onSubmit, loading }) {
             type="button"
             className="btn btn-outline-primary"
             onClick={(e) => handleSubmit(e, true)}
-            disabled={loading}
+            disabled={loading || uploadingImages}
           >
-            {loading ? (
+            {(loading || uploadingImages) ? (
               <span className="spinner-border spinner-border-sm me-1"></span>
             ) : (
               <i className="bi bi-save me-1"></i>
@@ -316,9 +475,9 @@ export default function JobForm({ job, onSubmit, loading }) {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={loading}
+            disabled={loading || uploadingImages}
           >
-            {loading ? (
+            {(loading || uploadingImages) ? (
               <span className="spinner-border spinner-border-sm me-1"></span>
             ) : (
               <i className="bi bi-check-circle me-1"></i>
