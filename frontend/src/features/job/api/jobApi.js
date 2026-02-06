@@ -74,6 +74,21 @@ export const getRecentViewedJobs = async (limit = 10) => {
   return response.data;
 };
 
+// 채용공고 이미지 업로드 (다중 파일)
+export const uploadJobImages = async (files) => {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+
+  const response = await http.post('/api/jobs/upload-images', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
 export default {
   getJobPostings,
   getJobPosting,
@@ -85,4 +100,5 @@ export default {
   getMyScrapList,
   getScrapCount,
   getRecentViewedJobs,
+  uploadJobImages,
 };
