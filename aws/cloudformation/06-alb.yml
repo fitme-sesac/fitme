@@ -1,0 +1,217 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FitMe Application Load Balancer
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: fitme
+    Description: Environment name prefix
+
+Resources:
+  #============================================================================
+  # Application Load Balancer
+  #============================================================================
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-alb
+      Type: application
+      Scheme: internet-facing
+      SecurityGroups:
+        - !ImportValue
+          Fn::Sub: ${EnvironmentName}-ALBSecurityGroupId
+      Subnets:
+        - !ImportValue
+          Fn::Sub: ${EnvironmentName}-PublicSubnet1Id
+        - !ImportValue
+          Fn::Sub: ${EnvironmentName}-PublicSubnet2Id
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-alb
+
+  #============================================================================
+  # Target Groups
+  #============================================================================
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-frontend-tg
+      Port: 80
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-VpcId
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200-399
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-frontend-tg
+
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-backend-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-VpcId
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /actuator/health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-backend-tg
+
+  AIWorkerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-ai-worker-tg
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-VpcId
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ai-worker-tg
+
+  #============================================================================
+  # Listeners
+  #============================================================================
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  #============================================================================
+  # Listener Rules
+  #============================================================================
+  BackendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /api/*
+              - /oauth2/*
+              - /login/*
+              - /actuator/*
+              - /swagger-ui/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  BackendListenerRule2:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 12
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /User/*
+              - /Login*
+              - /Logout*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  BackendDocsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 11
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /v3/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  AIWorkerListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 20
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /ai/*
+              - /chatbot/*
+              - /employer-chatbot/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref AIWorkerTargetGroup
+
+#============================================================================
+# Outputs
+#============================================================================
+Outputs:
+  LoadBalancerArn:
+    Description: ALB ARN
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub ${EnvironmentName}-ALBArn
+
+  LoadBalancerDNSName:
+    Description: ALB DNS Name
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub ${EnvironmentName}-ALBDNSName
+
+  LoadBalancerURL:
+    Description: ALB URL
+    Value: !Sub http://${ApplicationLoadBalancer.DNSName}
+
+  FrontendTargetGroupArn:
+    Description: Frontend Target Group ARN
+    Value: !Ref FrontendTargetGroup
+    Export:
+      Name: !Sub ${EnvironmentName}-FrontendTargetGroupArn
+
+  BackendTargetGroupArn:
+    Description: Backend Target Group ARN
+    Value: !Ref BackendTargetGroup
+    Export:
+      Name: !Sub ${EnvironmentName}-BackendTargetGroupArn
+
+  AIWorkerTargetGroupArn:
+    Description: AI Worker Target Group ARN
+    Value: !Ref AIWorkerTargetGroup
+    Export:
+      Name: !Sub ${EnvironmentName}-AIWorkerTargetGroupArn

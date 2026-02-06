@@ -100,7 +100,15 @@ public class JobApplicationService {
 
     public List<JobApplicationResponse> getMyApplications(Long memberId) {
         return jobApplicationRepository.findByMemberIdOrderByAppliedAtDesc(memberId).stream()
-                .map(JobApplicationResponse::from)
+                .map(app -> {
+                    // 기업 정보 조회
+                    Long employerId = app.getJob().getEmployerId();
+                    EmployerEntity employer = employerRepository.findById(employerId).orElse(null);
+                    String companyName = employer != null ? employer.getName() : "알 수 없음";
+                    String companyLogo = employer != null ? employer.getLogoUrl() : null;
+                    
+                    return JobApplicationResponse.from(app, companyName, companyLogo);
+                })
                 .collect(Collectors.toList());
     }
 }

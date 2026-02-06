@@ -12,11 +12,11 @@ import java.time.Instant;
 public record WalletLedgerResponse(
         Long ledgerId,
         TxType type, // CREDIT(입금) / DEBIT(출금)
-        Long amount,          // 변동 금액
-        Long balanceAfter,    // 변동 후 잔액
+        Long amount, // 변동 금액
+        Long balanceAfter, // 변동 후 잔액
         String memo,
-        Instant occurredAt
-) {
+        Instant occurredAt,
+        com.example.pproject.Constant.SourceType sourceType) {
     public static WalletLedgerResponse from(WalletLedger ledger) {
         return new WalletLedgerResponse(
                 ledger.getLedgerId(),
@@ -24,7 +24,7 @@ public record WalletLedgerResponse(
                 ledger.getAmount(),
                 ledger.getBalanceAfter(),
                 ledger.getMemo(),
-                ledger.getOccurredAt()
-        );
+                ledger.getOccurredAt(),
+                ledger.getSourceType());
     }
 }

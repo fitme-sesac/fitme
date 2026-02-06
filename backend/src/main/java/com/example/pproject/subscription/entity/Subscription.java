@@ -241,7 +241,7 @@ public class Subscription extends BaseTimeEntity {
     }
 
     /**
-     * 구독 취소
+     * 구독 취소 (즉시 취소) - 관리자용 혹은 특수 상황
      */
     public void cancel() {
         // 멱등성: 이미 취소 상태면 무시
@@ -250,6 +250,26 @@ public class Subscription extends BaseTimeEntity {
         }
         this.status = SubscriptionStatus.CANCELED;
         this.endedAt = Instant.now();
+    }
+
+    /**
+     * 구독 해지 예약 (다음 결제일에 종료)
+     */
+    public void scheduleCancellation(Instant endDate) {
+        if (this.status != SubscriptionStatus.ACTIVE) {
+            throw new IllegalStateException("활성 상태의 구독만 해지 예약할 수 있습니다.");
+        }
+        this.endedAt = endDate;
+    }
+
+    /**
+     * 구독 해지 예약 취소 (구독 유지)
+     */
+    public void revokeCancellation() {
+        if (this.status != SubscriptionStatus.ACTIVE) {
+            throw new IllegalStateException("활성 상태의 구독만 해지 예약을 취소할 수 있습니다.");
+        }
+        this.endedAt = null;
     }
 
     /**

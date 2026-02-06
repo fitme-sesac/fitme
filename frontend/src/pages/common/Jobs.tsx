@@ -127,6 +127,81 @@ export default function Jobs() {
         "포지션": [],
     });
 
+    // ✅ URL 쿼리스트링(/jobs?...)로 들어온 필터를 초기 상태로 반영
+    // 지원 파라미터:
+    // - stack=Python,Java
+    // - position=서버/백엔드
+    // - industry=인공지능
+    // - location=서울,경기
+    // - minExperience=2, maxExperience=5
+    // - salaryMin=6000, salaryMax=8000 (만원 단위, 1000단위 버킷)
+    useEffect(() => {
+        const stackParam = searchParams.get("stack");
+        const positionParam = searchParams.get("position");
+        const industryParam = searchParams.get("industry");
+        const locationParam = searchParams.get("location");
+        const minExpParam = searchParams.get("minExperience");
+        const maxExpParam = searchParams.get("maxExperience");
+        const salMinParam = searchParams.get("salaryMin");
+        const salMaxParam = searchParams.get("salaryMax");
+
+        const hasAny =
+            !!stackParam ||
+            !!positionParam ||
+            !!industryParam ||
+            !!locationParam ||
+            !!minExpParam ||
+            !!maxExpParam ||
+            !!salMinParam ||
+            !!salMaxParam;
+
+        if (!hasAny) return;
+
+        const splitCsv = (v: string | null) =>
+            (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+        const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+        const salaryValueToIndex = (val: number) => {
+            if (!Number.isFinite(val)) return 0;
+            if (val <= 3000) return 0;
+            if (val >= 10000) return 7;
+            return clamp(Math.round((val - 3000) / 1000), 0, 7);
+        };
+
+        const nextSkills = splitCsv(stackParam).filter((x) => x !== "전체");
+        const nextPositions = splitCsv(positionParam).filter((x) => x !== "전체");
+        const nextIndustries = splitCsv(industryParam).filter((x) => x !== "전체");
+        const nextLocations = splitCsv(locationParam).filter((x) => x !== "전체");
+
+        setSelectedFilters((prev) => ({
+            ...prev,
+            ...(nextSkills.length ? { 스킬: nextSkills } : {}),
+            ...(nextPositions.length ? { "포지션": nextPositions } : {}),
+            ...(nextIndustries.length ? { "서비스 분야": nextIndustries } : {}),
+            ...(nextLocations.length ? { 근무지: nextLocations } : {}),
+        }));
+
+        // 경력 슬라이더
+        if (minExpParam || maxExpParam) {
+            const minE = minExpParam ? parseInt(minExpParam, 10) : 0;
+            const maxE = maxExpParam ? parseInt(maxExpParam, 10) : 10;
+            setExperienceRange([clamp(isNaN(minE) ? 0 : minE, 0, 10), clamp(isNaN(maxE) ? 10 : maxE, 0, 10)]);
+        }
+
+        // 연봉 슬라이더 (만원)
+        if (salMinParam || salMaxParam) {
+            const smin = salMinParam ? parseInt(salMinParam, 10) : 3000;
+            const smax = salMaxParam ? parseInt(salMaxParam, 10) : 10000;
+            const a = salaryValueToIndex(isNaN(smin) ? 3000 : smin);
+            const b = salaryValueToIndex(isNaN(smax) ? 10000 : smax);
+            const lo = Math.min(a, b);
+            const hi = Math.max(a, b);
+            setSalaryRange([lo, hi]);
+        }
+    }, [searchParams]);
+
+
     const getSelectedArray = (key: string): string[] => {
         const v = selectedFilters[key];
         return Array.isArray(v) ? v : (v ? [v] : []);
@@ -148,6 +223,11 @@ export default function Jobs() {
     const selectedIndustries = getSelectedArray("서비스 분야");
     const selectedPositions = getSelectedArray("포지션");
 
+    // 연봉 슬라이더(0~7) → 만원 단위 값(3000~10000)으로 변환
+    const salaryIndexToValue = (idx: number) => 3000 + (idx * 1000);
+    const salaryMin = salaryRange[0] > 0 ? salaryIndexToValue(salaryRange[0]) : null;
+    const salaryMax = salaryRange[1] < 7 ? salaryIndexToValue(salaryRange[1]) : null;
+
     // 현재 필터 조건에 따른 포지션별 카운트 조회 (포지션 필터 제외한 다른 필터 조건 적용)
     const { data: positionCountsData } = usePositionCounts({
         keyword: searchParams.get("keyword") || "",
@@ -156,6 +236,8 @@ export default function Jobs() {
         minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
         industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
+        salaryMin,
+        salaryMax,
     });
 
     // 포지션 카운트 기반으로 0개인 포지션 필터링 (전체는 항상 표시)
@@ -201,6 +283,8 @@ export default function Jobs() {
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
         position: selectedPositions.length > 0 ? selectedPositions.join(",") : "",
         industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
+        salaryMin,
+        salaryMax,
     });
 
     const data = rawData as JobsResponse | undefined;

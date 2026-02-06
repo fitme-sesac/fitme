@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { format, isSameDay, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { getMyInterviews, getInterviewsByApplication, InterviewDTO } from "@/api/interviews";
+import { getMyInterviews, getInterviewsByApplication, InterviewDTO, respondToInterview } from "@/api/interviews";
 import { getMyApplications } from "@/api/applications";
 import { getReceivedProposals, respondToProposal, ProposalResponse } from "@/api/proposal";
 import { useNotificationContext } from "@/contexts/NotificationContext";
@@ -598,53 +598,130 @@ const InterviewPage = () => {
                                             </CardContent>
                                         </Card>
 
-                                        {/* 전체 면접 일정 요약 */}
+                                        {/* 전체 면접 일정 */}
                                         <div className="space-y-4">
-                                            <h2 className="text-lg font-bold text-gray-900 px-1">다가오는 면접 일정</h2>
+                                            <div className="flex items-center justify-between px-1">
+                                                <h2 className="text-lg font-bold text-gray-900">전체 면접 일정</h2>
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <span className="flex items-center gap-1">
+                                                        <div className="h-2 w-2 rounded-full bg-sky-500" />
+                                                        예정
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <div className="h-2 w-2 rounded-full bg-gray-400" />
+                                                        완료/취소
+                                                    </span>
+                                                </div>
+                                            </div>
                                             <div className="space-y-3">
                                                 {interviews.length > 0 ? (
-                                                    interviews.map((interview) => (
-                                                        <div
-                                                            key={interview.interviewId}
-                                                            className="flex items-center justify-between p-5 rounded-xl bg-white shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                                                        >
-                                                            <div className="flex items-center gap-5">
-                                                                <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors">
-                                                                    {interview.method === "VIDEO" ? (
-                                                                        <Video className="h-7 w-7 text-sky-500" />
-                                                                    ) : interview.method === "PHONE" ? ( // PHONE case added if needed, or map appropriately
-                                                                        <Video className="h-7 w-7 text-sky-500" />
-                                                                    ) : (
-                                                                        <Building2 className="h-7 w-7 text-sky-500" />
-                                                                    )}
-                                                                </div>
-                                                                <div>
-                                                                    <p className="font-bold text-gray-900 group-hover:text-sky-600 transition-colors">
-                                                                        {interview.companyName} - {interview.jobTitle}
-                                                                    </p>
-                                                                    <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
-                                                                        <span className="flex items-center gap-1.5">
-                                                                            <CalendarIcon className="h-3.5 w-3.5" />
-                                                                            {format(parseISO(interview.startAt), "M월 d일 (EEE) a h:mm", { locale: ko })}
-                                                                        </span>
-                                                                        <span className="text-gray-200">|</span>
-                                                                        <span>{interview.method === 'ONSITE' ? '대면' : interview.method === 'VIDEO' ? '화상' : '전화'} 면접</span>
+                                                    [...interviews]
+                                                        .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
+                                                        .map((interview) => {
+                                                            const isPast = new Date(interview.startAt) < new Date();
+                                                            const isProposed = interview.status === "PROPOSED";
+                                                            
+                                                            return (
+                                                                <div
+                                                                    key={interview.interviewId}
+                                                                    className={`p-5 rounded-xl bg-white shadow-sm hover:shadow-md transition-all group ${
+                                                                        isPast || interview.status === "CANCELED" || interview.status === "DONE" 
+                                                                            ? "opacity-75" 
+                                                                            : ""
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-5">
+                                                                            <div className={`h-14 w-14 rounded-xl flex items-center justify-center transition-colors ${
+                                                                                isPast || interview.status === "CANCELED" || interview.status === "DONE"
+                                                                                    ? "bg-gray-100"
+                                                                                    : "bg-sky-50 group-hover:bg-sky-100"
+                                                                            }`}>
+                                                                                {interview.method === "VIDEO" ? (
+                                                                                    <Video className={`h-7 w-7 ${isPast ? "text-gray-400" : "text-sky-500"}`} />
+                                                                                ) : interview.method === "PHONE" ? (
+                                                                                    <Video className={`h-7 w-7 ${isPast ? "text-gray-400" : "text-sky-500"}`} />
+                                                                                ) : (
+                                                                                    <Building2 className={`h-7 w-7 ${isPast ? "text-gray-400" : "text-sky-500"}`} />
+                                                                                )}
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className={`font-bold transition-colors ${
+                                                                                    isPast ? "text-gray-500" : "text-gray-900 group-hover:text-sky-600"
+                                                                                }`}>
+                                                                                    {interview.companyName} - {interview.jobTitle}
+                                                                                </p>
+                                                                                <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
+                                                                                    <span className="flex items-center gap-1.5">
+                                                                                        <CalendarIcon className="h-3.5 w-3.5" />
+                                                                                        {format(parseISO(interview.startAt), "M월 d일 (EEE) a h:mm", { locale: ko })}
+                                                                                    </span>
+                                                                                    <span className="text-gray-200">|</span>
+                                                                                    <span>{interview.method === 'ONSITE' ? '대면' : interview.method === 'VIDEO' ? '화상' : '전화'} 면접</span>
+                                                                                    {interview.location && (
+                                                                                        <>
+                                                                                            <span className="text-gray-200">|</span>
+                                                                                            <span className="flex items-center gap-1">
+                                                                                                <MapPin className="h-3 w-3" />
+                                                                                                {interview.location}
+                                                                                            </span>
+                                                                                        </>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-3">
+                                                                            {getStatusBadge(interview.status)}
+                                                                            {isProposed && !isPast && (
+                                                                                <div className="flex gap-2">
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                                                        onClick={async () => {
+                                                                                            try {
+                                                                                                await respondToInterview(interview.interviewId, "ACCEPT");
+                                                                                                const data = await getMyInterviews();
+                                                                                                const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.content ?? [];
+                                                                                                setInterviews(Array.isArray(list) ? list : []);
+                                                                                            } catch {}
+                                                                                        }}
+                                                                                    >
+                                                                                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                                                                                        수락
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant="outline"
+                                                                                        className="text-red-600 border-red-200 hover:bg-red-50"
+                                                                                        onClick={async () => {
+                                                                                            try {
+                                                                                                await respondToInterview(interview.interviewId, "DECLINE");
+                                                                                                const data = await getMyInterviews();
+                                                                                                const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.content ?? [];
+                                                                                                setInterviews(Array.isArray(list) ? list : []);
+                                                                                            } catch {}
+                                                                                        }}
+                                                                                    >
+                                                                                        <XCircle className="h-4 w-4 mr-1" />
+                                                                                        거절
+                                                                                    </Button>
+                                                                                </div>
+                                                                            )}
+                                                                            {!isProposed && (
+                                                                                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-sky-500 transition-colors" />
+                                                                            )}
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-4">
-                                                                {getStatusBadge(interview.status)}
-                                                                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-sky-500 transition-colors" />
-                                                            </div>
-                                                        </div>
-                                                    ))
+                                                            );
+                                                        })
                                                 ) : (
                                                     <div className="flex flex-col items-center justify-center py-12 bg-white rounded-xl shadow-sm">
                                                         <div className="h-12 w-12 bg-gray-50 rounded-full flex items-center justify-center mb-4">
                                                             <Briefcase className="h-6 w-6 text-gray-300" />
                                                         </div>
-                                                        <p className="text-gray-500 font-medium">예정된 면접 일정이 없습니다.</p>
-                                                        <p className="text-gray-400 text-sm mt-1">면접이 예정되면 여기에 표시됩니다. 서버 연동이 필요하면 백엔드를 확인해 주세요.</p>
+                                                        <p className="text-gray-500 font-medium">면접 일정이 없습니다.</p>
+                                                        <p className="text-gray-400 text-sm mt-1">지원한 공고에서 면접 요청이 들어오면 여기에 표시됩니다.</p>
                                                     </div>
                                                 )}
                                             </div>

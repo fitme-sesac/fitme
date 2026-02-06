@@ -79,6 +79,8 @@ import AdminCompanyProfilePage from "./pages/admin/AdminCompanyProfilePage";
 // ============================================
 import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
 import PaymentFailPage from "./pages/payment/PaymentFailPage";
+import SubscriptionCheckoutPage from "./pages/payment/SubscriptionCheckoutPage";
+import SubscriptionSuccessPage from "./pages/payment/SubscriptionSuccessPage";
 
 import PrivateRoute from "./components/auth/PrivateRoute";
 
@@ -94,7 +96,7 @@ function JumpToBackendSamePath() {
     const loc = useLocation();
     useEffect(() => {
         const backendPublic =
-            (import.meta as any).env?.VITE_API_BASE_URL?.trim() || "http://localhost:8080";
+            (import.meta as any).env?.VITE_API_BASE_URL?.trim() || window.location.origin;
         const base = backendPublic.replace(/\/+$/, "");
         window.location.replace(`${base}${loc.pathname}${loc.search}${loc.hash || ""}`);
     }, [loc.pathname, loc.search, loc.hash]);
@@ -108,41 +110,41 @@ export default function App() {
             <ProfileSetupModal />
             <BrowserRouter>
                 <NotificationProvider>
-                <Routes>
-                    {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
-                    <Route path="/Login" element={<RedirectToAuthTab tab="login" />} />
-                    <Route path="/Register" element={<RedirectToAuthTab tab="signup" />} />
-                    <Route path="/User/Register" element={<RedirectToAuthTab tab="signup" />} />
+                    <Routes>
+                        {/* ✅ 레거시 로그인/회원가입 URL은 새 Auth(컴포넌트 기반)로 강제 유도 */}
+                        <Route path="/Login" element={<RedirectToAuthTab tab="login" />} />
+                        <Route path="/Register" element={<RedirectToAuthTab tab="signup" />} />
+                        <Route path="/User/Register" element={<RedirectToAuthTab tab="signup" />} />
 
-                    {/* ✅ 백엔드 redirectFront(..)가 사용하는 프론트 경로 호환 */}
-                    <Route path="/FindUserId" element={<FindUserIdPage />} />
-                    <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
-                    <Route path="/ResultUserId" element={<ResultUserIdPage />} />
-                    <Route path="/FindPassword" element={<FindPasswordPage />} />
-                    <Route path="/VerifyCode" element={<VerifyCodePage />} />
-                    <Route path="/NewPassword" element={<NewPasswordPage />} />
+                        {/* ✅ 백엔드 redirectFront(..)가 사용하는 프론트 경로 호환 */}
+                        <Route path="/FindUserId" element={<FindUserIdPage />} />
+                        <Route path="/VerifyUserIdCode" element={<VerifyUserIdCodePage />} />
+                        <Route path="/ResultUserId" element={<ResultUserIdPage />} />
+                        <Route path="/FindPassword" element={<FindPasswordPage />} />
+                        <Route path="/VerifyCode" element={<VerifyCodePage />} />
+                        <Route path="/NewPassword" element={<NewPasswordPage />} />
 
-                    {/* ✅ 레거시/호환 URL 유지 */}
-                    <Route path="/User/Find_Userid" element={<FindUserIdPage />} />
-                    <Route path="/User/Find_Password" element={<FindPasswordPage />} />
-                    <Route path="/User/Verify_Userid_Code" element={<VerifyUserIdCodePage />} />
-                    <Route path="/User/Result_Userid" element={<ResultUserIdPage />} />
-                    <Route path="/User/Verify_Code" element={<VerifyCodePage />} />
-                    <Route path="/User/New_Password" element={<NewPasswordPage />} />
-                    <Route path="/User/Change_Password" element={<ChangePasswordPage />} />
-                    <Route path="/User/First_Social_Login" element={<JumpToBackendSamePath />} />
+                        {/* ✅ 레거시/호환 URL 유지 */}
+                        <Route path="/User/Find_Userid" element={<FindUserIdPage />} />
+                        <Route path="/User/Find_Password" element={<FindPasswordPage />} />
+                        <Route path="/User/Verify_Userid_Code" element={<VerifyUserIdCodePage />} />
+                        <Route path="/User/Result_Userid" element={<ResultUserIdPage />} />
+                        <Route path="/User/Verify_Code" element={<VerifyCodePage />} />
+                        <Route path="/User/New_Password" element={<NewPasswordPage />} />
+                        <Route path="/User/Change_Password" element={<ChangePasswordPage />} />
+                        <Route path="/User/First_Social_Login" element={<JumpToBackendSamePath />} />
 
                     {/* ✅ 새 Auth 페이지 */}
                     <Route path="/auth" element={<Auth />} />
                     <Route path="/account-suspended" element={<AccountSuspendedPage />} />
 
-                    {/* ✅ 새 Auth 하위 경로(로그인 폼의 링크와 일치) */}
-                    <Route path="/auth/find-id" element={<FindUserIdPage />} />
-                    <Route path="/auth/find-id/result" element={<ResultUserIdPage />} />
-                    <Route path="/auth/find-password" element={<FindPasswordPage />} />
+                        {/* ✅ 새 Auth 하위 경로(로그인 폼의 링크와 일치) */}
+                        <Route path="/auth/find-id" element={<FindUserIdPage />} />
+                        <Route path="/auth/find-id/result" element={<ResultUserIdPage />} />
+                        <Route path="/auth/find-password" element={<FindPasswordPage />} />
 
-                    {/* ✅ 홈 */}
-                    <Route path="/" element={<Index />} />
+                        {/* ✅ 홈 */}
+                        <Route path="/" element={<Index />} />
 
                     {/* ✅ 나머지 페이지 */}
                     <Route path="/jobs" element={<Jobs />} />
@@ -162,10 +164,13 @@ export default function App() {
                     <Route path="/interview" element={<Interview />} />
                     <Route path="/support" element={<Support />} />
 
-                    <Route path="/payment/success" element={<PaymentSuccessPage />} />
-                    <Route path="/payment/fail" element={<PaymentFailPage />} />
-                    <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
-                    <Route path="/payment/products" element={<Subscription />} />
+                        <Route path="/payment/success" element={<PaymentSuccessPage />} />
+                        <Route path="/payment/fail" element={<PaymentFailPage />} />
+                        <Route path="/signup/job-seeker" element={<JobSeekerSignup />} />
+                        <Route path="/products" element={<Subscription />} />
+
+                        <Route path="/subscription/success" element={<SubscriptionSuccessPage />} />
+                        <Route path="/subscription/fail" element={<PaymentFailPage />} />
 
                     <Route path="/resume" element={<Resume />} />
                     <Route
@@ -343,10 +348,10 @@ export default function App() {
                         }
                     />
 
-                    <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
+                        <Route path="/FirstSocialLogin" element={<FirstSocialLoginPage />} />
 
-                    <Route path="*" element={<NotFound />} />
-                </Routes>
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
                 </NotificationProvider>
             </BrowserRouter>
         </AuthProvider>

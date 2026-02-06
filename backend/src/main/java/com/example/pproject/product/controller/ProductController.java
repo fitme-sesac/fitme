@@ -1,5 +1,6 @@
 package com.example.pproject.product.controller;
 
+import com.example.pproject.Constant.ProductType;
 import com.example.pproject.product.dto.ProductResponse;
 import com.example.pproject.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -25,11 +26,12 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProduct(productId));
     }
 
-    // 2. 상품 전체 조회 (페이징) - 인증된 사용자 가능
+    // 2. 상품 전체 조회 (페이징) - 모든 사용자 가능 (Pricing 페이지)
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<ProductResponse>> getAllProducts(
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(productService.getAllProducts(pageable));
+            @RequestParam(required = false) ProductType type,
+            @PageableDefault(size = 10, sort = "price.amount", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(productService.getAllProducts(type, pageable));
     }
 }

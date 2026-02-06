@@ -48,6 +48,12 @@ public class SecurityConfig {
         private final CustomAuthenticationFailureHandler customAuthenticationFailureHandler;
 
         @Bean
+        public PasswordEncoder passwordEncoder() {
+                return org.springframework.security.crypto.factory.PasswordEncoderFactories
+                                .createDelegatingPasswordEncoder();
+        }
+
+        @Bean
         public DaoAuthenticationProvider daoAuthenticationProvider(UserDetailsService userDetailsService,
                         PasswordEncoder passwordEncoder) {
                 DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -90,49 +96,84 @@ public class SecurityConfig {
                                 new org.springframework.security.web.context.NullSecurityContextRepository()));
 
                 http.authorizeHttpRequests(auth -> {
-                        auth.requestMatchers("/test1", "/test2").permitAll();
+                        auth.requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll();
+
+                        // Swagger / OpenAPI
+                        auth.requestMatchers(
+                                        "/swagger-ui/**",
+                                        "/v3/api-docs/**",
+                                        "/swagger-ui.html").permitAll();
+
+                        // Web pages (Thymeleaf) + static
+                        auth.requestMatchers(
+                                        "/",
+                                        "/index",
+                                        "/Login",
+                                        "/Logout",
+                                        "/User/**",
+                                        "/oauth2/**",
+                                        "/login/**",
+                                        "/login/oauth2/**",
+                                        "/images/**").permitAll();
 
                         // 토스 페이먼츠 웹훅 (인증 없이 접근 가능해야 함)
-                        auth.requestMatchers("/api/v1/payments/webhook").permitAll();
+                        auth.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/payments/webhook")
+                                        .permitAll();
 
                         // 공개 API (인증 없이 접근 가능)
                         auth.requestMatchers("/api/public/**").permitAll();
+                        auth.requestMatchers("/api/auth/**").permitAll();
+                        auth.requestMatchers("/api/user/find-id/**", "/api/user/find-password/**").permitAll();
+                        auth.requestMatchers("/api/phone/otp/**").permitAll();
 
+                        // 관리자 API
                         auth.requestMatchers(
-                                        "/Login",
-                                        "/Logout",
-                                        "/User/Login",
-                                        "/User/Register",
-                                        "/User/Find_Userid",
-                                        "/User/Verify_Userid_Code",
-                                        "/User/Find_Password",
-                                        "/User/Find_Password_Link",
-                                        "/User/Password_Reset_Link",
-                                        "/User/Verify_Code",
-                                        "/User/New_Password",
-                                        "/User/Change_Password",
-                                        "/oauth2/**",
-                                        "/login/**").permitAll();
-
-                        auth.requestMatchers(
-                                        "/user/update", "/board/new", "/board/edit", "/board/delete",
-                                        "/board/like", "/comment/insert", "/user/info", "/User/MyPage",
-                                        "/user/other_user_page", "/user/change_password", "/user/re_enter_credentials")
-                                        .authenticated();
-
-                        auth.requestMatchers("/User/Register", "/user/find-userid", "/user/find-password").anonymous();
-                        auth.requestMatchers("/images/**").permitAll();
-
-                        auth.requestMatchers(
-                                        "/product/new", "/product/edit", "/product/delete",
-                                        "/qna/insert", "/qna/delete/{id}", "/qna/update/{id}",
-                                        "/document/insert", "/document/update/", "/plantation/delete",
-                                        "/plantation/insert", "/plantation/update",
-                                        "/event/delete", "/event/create", "/event/update",
-                                        "/admin/**", "/fruit/create", "/fruit/delete", "/fruit/update",
-                                        "/disease/create", "/disease/delete", "/disease/update")
+                                        "/api/v1/admin/**",
+                                        "/admin/api/**",
+                                        "/api/v1/faqs/admin/**",
+                                        "/api/v1/notices/admin/**")
                                         .hasAnyRole("SERVICEADMIN", "APPROVEADMIN", "MASTER");
 
+                        // 공개 조회 (READ-ONLY)
+                        auth.requestMatchers(org.springframework.http.HttpMethod.GET,
+                                        "/api/v1/faqs/**",
+                                        "/api/v1/notices/**",
+                                        "/api/v1/products/**").permitAll();
+
+                        // 광고 노출/클릭 트래킹(비로그인 허용)
+                        auth.requestMatchers(
+                                        "/api/v1/ad/serve",
+                                        "/api/v1/ad/serve/**",
+                                        "/api/v2/ad/serve",
+                                        "/api/v2/ad/serve/**").permitAll();
+                        auth.requestMatchers(org.springframework.http.HttpMethod.POST,
+                                        "/api/v1/ad/clicks",
+                                        "/api/v2/ad/clicks").permitAll();
+
+                        // 광고 캠페인 관리 (기업/관리자)
+                        auth.requestMatchers("/api/v1/ad/campaigns/**")
+                                        .hasAnyRole("EMPLOYER", "SERVICEADMIN", "APPROVEADMIN", "MASTER");
+
+                        // 기업 전용 API
+                        auth.requestMatchers(
+                                        "/api/employer/**",
+                                        "/api/jobs/**",
+                                        "/api/talents/**")
+                                        .hasAnyRole("EMPLOYER", "SERVICEADMIN", "APPROVEADMIN", "MASTER");
+
+                        // 커뮤니티: 조회는 공개, 작성/내글은 인증 필요
+                        auth.requestMatchers(org.springframework.http.HttpMethod.GET,
+                                        "/api/community/announcements",
+                                        "/api/community/popular",
+                                        "/api/community/recommended-members",
+                                        "/api/community/posts/**").permitAll();
+                        auth.requestMatchers("/api/community/my/**").authenticated();
+                        auth.requestMatchers("/api/community/**").authenticated();
+
+                        // 나머지 API는 인증 필요
+                        auth.requestMatchers("/api/**").authenticated();
+
+                        // 그 외(정적/템플릿 등)는 공개
                         auth.anyRequest().permitAll();
                 });
 
@@ -174,7 +215,6 @@ public class SecurityConfig {
                                                 "/Login",
                                                 "/User/**",
                                                 "/api/**",
-                                                "/admin/**",
                                                 "/oauth2/**",
                                                 "/login/oauth2/**"));
 

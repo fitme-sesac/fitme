@@ -4,11 +4,20 @@ spring:
 
   batch:
     jdbc:
-      # 개발 환경에서는 always로, 운영 환경에서는 never로 설정
-      initialize-schema: always
+      # schema.sql에 BATCH 테이블이 이미 정의되어 있으므로 never로 설정
+      initialize-schema: never
     job:
       # 애플리케이션 시작 시 Job 자동 실행 방지
       enabled: false
+
+  sql:
+    init:
+      # 운영: never, 개발: always (환경변수로 제어)
+      mode: ${SQL_INIT_MODE:always}
+      schema-locations: classpath:db/ddl/schema-tables.sql
+      data-locations: classpath:db/seed/seed-data.sql
+      continue-on-error: true
+
   task:
     scheduling:
       pool:
@@ -78,7 +87,7 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope: [email, profile]
-            redirect-uri: ${APP_BASE_URL:http://localhost:8080}/login/oauth2/code/google
+            redirect-uri: ${APP_BASE_URL:http://fitme-alb-556764388.ap-northeast-2.elb.amazonaws.com}/login/oauth2/code/google
             client-name: Google
 
           kakao:
@@ -86,7 +95,7 @@ spring:
             client-secret: ${KAKAO_CLIENT_SECRET:}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
-            redirect-uri: ${APP_BASE_URL:http://localhost:8080}/login/oauth2/code/kakao
+            redirect-uri: ${APP_BASE_URL:http://fitme-alb-556764388.ap-northeast-2.elb.amazonaws.com}/login/oauth2/code/kakao
             scope: [account_email]
             client-name: Kakao
 
@@ -95,7 +104,7 @@ spring:
             client-secret: ${NAVER_CLIENT_SECRET:}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
-            redirect-uri: ${APP_BASE_URL:http://localhost:8080}/login/oauth2/code/naver
+            redirect-uri: ${APP_BASE_URL:http://fitme-alb-556764388.ap-northeast-2.elb.amazonaws.com}/login/oauth2/code/naver
             scope: [name, email, gender, birthday, birthyear, mobile]
             client-name: Naver
 
@@ -118,22 +127,40 @@ server:
     whitelabel:
       enabled: false
 
+# Actuator 설정 - ECS health check용
+management:
+  endpoint:
+    health:
+      show-details: never
+      # Health check 타임아웃 설정 (5초)
+      probes:
+        enabled: true
+  health:
+    # Redis가 느릴 때 health check 실패 방지
+    redis:
+      enabled: false
+    # DB 체크는 유지하되 빠른 응답을 위해 간단하게
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+
 tempFolder: ${TEMP_FOLDER:C:/PProject/uploads/}
 uploadPath: ${UPLOAD_PATH:file:///C:/PProject/uploads/}
 
-# AWS S3 설정
+# AWS S3 설정 (Disabled)
 cloud:
   aws:
     credentials:
-      access-key: ${AWS_ACCESS_KEY:}
-      secret-key: ${AWS_SECRET_KEY:}
+      access-key: 
+      secret-key: 
     region:
-      static: ${AWS_REGION:ap-northeast-2}
+      static: ap-northeast-2
     s3:
-      bucket: ${AWS_S3_BUCKET:}
-      enabled: ${AWS_S3_ENABLED:false}
+      bucket: 
+      enabled: false
     cloudfront:
-      domain: ${AWS_CLOUDFRONT_DOMAIN:}
+      domain:
 
 jwt:
   secret: ${JWT_SECRET:defaultSecretKeyForDevelopmentOnlyDoNotUseInProduction}
@@ -152,7 +179,7 @@ logging:
     org.springframework.security: ${SPRING_SECURITY_LOG_LEVEL:DEBUG}
 
 app:
-  front-base-url: ${FRONT_BASE_URL:http://localhost:5173}
+  front-base-url: ${FRONT_BASE_URL:http://fitme-alb-556764388.ap-northeast-2.elb.amazonaws.com}
   notice:
     terms-id: ${NOTICE_TERMS_ID:1}
     privacy-id: ${NOTICE_PRIVACY_ID:2}

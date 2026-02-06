@@ -66,6 +66,21 @@ export default function JobForm({ job, onSubmit, loading }) {
     }
   };
 
+  // 연봉 텍스트에 "만원" 자동 추가
+  const formatSalaryText = (salary) => {
+    if (!salary || salary.trim() === "") return "";
+    const trimmed = salary.trim();
+    // 이미 "만원", "원", "협의" 등이 포함되어 있으면 그대로 반환
+    if (/만원|원|협의|면접|회의/i.test(trimmed)) {
+      return trimmed;
+    }
+    // 숫자만 있거나 숫자~숫자 형태인 경우 "만원" 추가
+    if (/^[\d,.\s~\-]+$/.test(trimmed)) {
+      return `${trimmed}만원`;
+    }
+    return trimmed;
+  };
+
   const handleSubmit = async (e, saveAsDraft = false) => {
     e.preventDefault();
 
@@ -73,6 +88,7 @@ export default function JobForm({ job, onSubmit, loading }) {
 
     const submitData = {
       ...formData,
+      salaryText: formatSalaryText(formData.salaryText),
       status: saveAsDraft ? 'DRAFT' : formData.status,
     };
 

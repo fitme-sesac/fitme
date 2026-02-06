@@ -66,7 +66,7 @@ export default function Auth() {
     <div className="min-h-screen flex w-full bg-slate-50 overflow-hidden relative">
 
       {/* Background Texture Overlay - soft paper feel */}
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-multiply pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.03] mix-blend-multiply pointer-events-none"></div>
 
       {/* 1. Left Panel: Brand Visual (Hidden on mobile) */}
       <div className="hidden lg:flex w-1/2 items-center justify-center relative overflow-hidden z-10">
@@ -126,8 +126,8 @@ export default function Auth() {
               {(flashError || flashSuccess) && (
                 <div
                   className={`mb-4 rounded-xl border p-3 text-sm ${flashError
-                      ? "border-red-200 bg-red-50 text-red-800"
-                      : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-800"
                     }`}
                   role="alert"
                 >

@@ -1,5 +1,54 @@
 import { Check, X } from "lucide-react";
-import { planComparison } from "@/data/subscriptionPlans";
+const planComparison = [
+    {
+        feature: "인재 프로필 열람",
+        free: "월 5명",
+        pro: "월 50명",
+        enterprise: "무제한",
+    },
+    {
+        feature: "검색 필터",
+        free: "기본",
+        pro: "고급",
+        enterprise: "전체",
+    },
+    {
+        feature: "연락처 열람",
+        free: false,
+        pro: true,
+        enterprise: true,
+    },
+    {
+        feature: "인재 스크랩",
+        free: false,
+        pro: "100명",
+        enterprise: "무제한",
+    },
+    {
+        feature: "면접 제안",
+        free: false,
+        pro: true,
+        enterprise: true,
+    },
+    {
+        feature: "채용 분석 리포트",
+        free: false,
+        pro: false,
+        enterprise: true,
+    },
+    {
+        feature: "전담 매니저",
+        free: false,
+        pro: false,
+        enterprise: true,
+    },
+    {
+        feature: "API 연동",
+        free: false,
+        pro: false,
+        enterprise: true,
+    },
+];
 import {
     Table,
     TableBody,

@@ -28,9 +28,11 @@ public enum RoleType {
      */
     @JsonCreator
     public static RoleType from(String value) {
-        if (value == null) return null;
+        if (value == null)
+            return null;
         String v = value.trim();
-        if (v.isEmpty()) return null;
+        if (v.isEmpty())
+            return null;
 
         // legacy aliases
         String upper = v.toUpperCase();
@@ -38,6 +40,7 @@ public enum RoleType {
             case "USER" -> CANDIDATE;
             case "ADMIN" -> SERVICEADMIN;
             case "MASTER" -> MASTER;
+            case "ROLE_COMPANY", "COMPANY" -> EMPLOYER;
             default -> {
                 try {
                     yield RoleType.valueOf(upper);

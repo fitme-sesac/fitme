@@ -208,6 +208,15 @@ export function Header() {
           {/* 크레딧 충전 모달 */}
           <CreditChargeModal open={chargeModalOpen} onOpenChange={setChargeModalOpen} />
 
+          {/* 요금 안내 (비로그인 시) */}
+          {!user && (
+            <Button asChild variant="ghost" className="hidden sm:flex h-9 text-sm font-medium text-muted-foreground hover:text-foreground">
+              <Link to="/products">
+                요금 안내
+              </Link>
+            </Button>
+          )}
+
           {/* 알림 드롭다운 */}
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
             <DropdownMenuTrigger asChild>

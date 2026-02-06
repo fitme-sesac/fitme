@@ -1,5 +1,6 @@
 package com.example.pproject.product.service;
 
+import com.example.pproject.Constant.ProductType;
 import com.example.pproject.common.vo.Money;
 import com.example.pproject.product.dto.CreateOneTimeRequest;
 import com.example.pproject.product.dto.CreateSubscriptionRequest;
@@ -50,10 +51,20 @@ public class ProductService {
         return ProductResponse.from(product);
     }
 
-    // 모든 상품 조회 (삭제된 상품 제외, 페이징)
+    // 모든 상품 조회 (삭제된 상품 제외, 페이징, 타입 필터링 지원)
+    public Page<ProductResponse> getAllProducts(ProductType type, Pageable pageable) {
+        Page<Product> productPage;
+        if (type != null) {
+            productPage = productRepository.findAllByProductTypeAndDeletedAtIsNull(type, pageable);
+        } else {
+            productPage = productRepository.findAllByDeletedAtIsNull(pageable);
+        }
+        return productPage.map(ProductResponse::from);
+    }
+
+    // (Legacy Support) 기존 호출 유지를 위한 오버로딩 (필요시) - Controller가 변경되므로 없어도 되지만 안전하게 유지
     public Page<ProductResponse> getAllProducts(Pageable pageable) {
-        return productRepository.findAllByDeletedAtIsNull(pageable)
-                .map(ProductResponse::from);
+        return getAllProducts(null, pageable);
     }
 
     // 내부용 엔티티 조회 메서드 (삭제된 상품 제외)
@@ -68,7 +79,7 @@ public class ProductService {
         Product product = getProductById(productId);
         // Repository.delete() 대신 엔티티의 비즈니스 메서드 호출
         // Dirty Checking에 의해 트랜잭션 커밋 시 update 쿼리 발생
-        product.delete(); 
+        product.delete();
     }
 
     // === 상태 변경 로직 ===

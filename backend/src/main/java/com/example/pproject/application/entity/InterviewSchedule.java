@@ -2,6 +2,7 @@ package com.example.pproject.application.entity;
 
 import com.example.pproject.Constant.InterviewMethod;
 import com.example.pproject.Constant.InterviewStage;
+import com.example.pproject.Constant.InterviewStageConverter;
 import com.example.pproject.Constant.InterviewStatus;
 import com.example.pproject.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
@@ -28,7 +29,7 @@ public class InterviewSchedule extends BaseTimeEntity {
     @JoinColumn(name = "application_id", nullable = false)
     private JobApplication application;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = InterviewStageConverter.class)
     @Column(name = "stage", nullable = false, length = 20)
     private InterviewStage stage;
 

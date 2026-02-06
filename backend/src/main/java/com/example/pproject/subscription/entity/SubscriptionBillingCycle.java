@@ -77,6 +77,7 @@ public class SubscriptionBillingCycle {
         cycle.billingMonth = billingMonth;
         cycle.paymentStatus = PaymentStatus.SCHEDULED;
         cycle.creditStatus = CreditStatus.PENDING;
+        cycle.creditGrant = 0; // Not Null Constraint 준수
         cycle.createdAt = Instant.now();
         return cycle;
     }
@@ -208,6 +209,15 @@ public class SubscriptionBillingCycle {
         this.creditGrant = creditAmount;
         this.walletLedger = walletLedger;
         this.creditStatus = CreditStatus.GRANTED;
+    }
+
+    /**
+     * 이미 지급된 크레딧 정보 기록 (시스템 동기화용)
+     */
+    public void recordGrantedCredit(Integer creditAmount) {
+        if (creditAmount != null) {
+            this.creditGrant = creditAmount;
+        }
     }
 
     /**

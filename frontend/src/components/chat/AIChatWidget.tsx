@@ -1,5 +1,6 @@
 // frontend/src/components/chat/AIChatWidget.tsx
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { X, Send, Bot, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,70 @@ interface AIChatWidgetProps {
     resetSeq: number;
 }
 
+
+const _LINK_RE = /(https?:\/\/[^\s<]+)|(\/jobs(?:\/\d+)?(?:\?[^\s<]+)?)/g;
+
+function linkifyLine(line: string, navigate?: (to: string) => void): ReactNode[] {
+    const nodes: ReactNode[] = [];
+    let last = 0;
+
+    line.replace(_LINK_RE, (match, absUrl, relPath, offset) => {
+        const idx = offset as number;
+        if (idx > last) nodes.push(line.slice(last, idx));
+
+        if (absUrl) {
+            nodes.push(
+                <a
+                    key={`u-${idx}`}
+                    href={absUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline break-all text-sky-600 hover:text-sky-700"
+                >
+                    {absUrl}
+                </a>
+            );
+        } else if (relPath) {
+            nodes.push(
+                <a
+                    key={`p-${idx}`}
+                    href={relPath}
+                    onClick={(e) => {
+                        if (!navigate) return;
+                        e.preventDefault();
+                        navigate(relPath);
+                    }}
+                    className="underline break-all text-sky-600 hover:text-sky-700"
+                >
+                    {relPath}
+                </a>
+            );
+        } else {
+            nodes.push(match);
+        }
+
+        last = idx + match.length;
+        return match;
+    });
+
+    if (last < line.length) nodes.push(line.slice(last));
+    return nodes;
+}
+
+function renderMessageContent(content: string, navigate?: (to: string) => void): ReactNode {
+    const lines = (content ?? "").split("\n");
+    return (
+        <>
+            {lines.map((line, i) => (
+                <span key={i}>
+                    {linkifyLine(line, navigate)}
+                    {i < lines.length - 1 ? <br /> : null}
+                </span>
+            ))}
+        </>
+    );
+}
+
 const WELCOME_MESSAGE: Message = {
     id: "welcome",
     role: "assistant",
@@ -32,6 +97,7 @@ const WELCOME_MESSAGE: Message = {
 };
 
 export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
     const [input, setInput] = useState("");
 
@@ -96,6 +162,16 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                 setConversationId(data.conversation_id);
             }
 
+            // ✅ 서버가 'NAVIGATE' 액션을 내려주면 즉시 라우팅
+            const redirectUrl = data?.data?.redirect_url;
+            if (data?.data?.action === "NAVIGATE" && typeof redirectUrl === "string" && redirectUrl) {
+                if (redirectUrl.startsWith("http")) {
+                    window.open(redirectUrl, "_blank");
+                } else {
+                    navigate(redirectUrl);
+                }
+            }
+
             setMessages((prev) =>
                 prev.map((m) =>
                     m.id === pendingId
@@ -144,7 +220,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <Avatar className="h-10 w-10 border-2 border-white/20">
-                                <AvatarImage src="/ai-avatar.png" />
+                                <AvatarImage src="/ai-avatar.svg" />
                                 <AvatarFallback className="bg-white/10 text-white">
                                     <Bot className="h-6 w-6" />
                                 </AvatarFallback>
@@ -202,7 +278,7 @@ export function AIChatWidget({ isOpen, onClose, resetSeq }: AIChatWidgetProps) {
                                             : "bg-background border rounded-tl-none"
                                     )}
                                 >
-                                    {msg.content}
+                                    {renderMessageContent(msg.content, navigate)}
                                 </div>
 
                                 <span className="text-[10px] text-muted-foreground self-end mb-1 px-1">

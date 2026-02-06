@@ -117,6 +117,23 @@ public class ResumeController {
         return ResponseEntity.ok(resumeService.copyResume(resumeId, memberId));
     }
 
+    /**
+     * 대표 이력서 설정
+     * 설명: 특정 이력서를 대표 이력서로 설정합니다. 기존 대표 이력서는 해제됩니다.
+     */
+    @Operation(summary = "대표 이력서 설정", description = "특정 이력서를 대표 이력서로 설정합니다. 기존에 대표로 설정된 이력서는 자동으로 해제됩니다.")
+    @PatchMapping("/{resumeId}/primary")
+    public ResponseEntity<Long> setPrimaryResume(@PathVariable Long resumeId,
+                                                 @AuthenticationPrincipal JwtUserPrincipal user) {
+        Long memberId = resolveMemberId(user);
+        if (memberId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        
+        // primary: true로 설정하여 대표 이력서로 지정
+        ResumeRequest request = new ResumeRequest();
+        request.setPrimary(true);
+        return ResponseEntity.ok(resumeService.updateResume(resumeId, request, memberId));
+    }
+
     @Operation(summary = "경력 추가", description = "이력서에 경력 사항을 추가합니다.")
     @PostMapping("/{resumeId}/careers")
     public ResponseEntity<Void> addCareer(@PathVariable Long resumeId,

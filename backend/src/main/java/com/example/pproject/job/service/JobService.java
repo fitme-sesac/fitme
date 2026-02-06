@@ -230,6 +230,7 @@ public class JobService {
                 .requiredExperience(dto.getRequiredExperience() != null ? dto.getRequiredExperience() : 0)
                 .recruitmentCapacity(dto.getRecruitmentCapacity() != null ? dto.getRecruitmentCapacity() : 0)
                 .requiredQuestions(dto.getRequiredQuestions())
+                .images(dto.getImages())
                 .build();
 
         jobEntityRepository.save(job);
@@ -285,6 +286,7 @@ public class JobService {
         if (dto.getRequiredExperience() != null) job.setRequiredExperience(dto.getRequiredExperience());
         if (dto.getRecruitmentCapacity() != null) job.setRecruitmentCapacity(dto.getRecruitmentCapacity());
         if (dto.getRequiredQuestions() != null) job.setRequiredQuestions(dto.getRequiredQuestions());
+        if (dto.getImages() != null) job.setImages(dto.getImages());
 
         jobEntityRepository.save(job);
         log.info("채용공고 수정: {}", job.getTitle());
@@ -438,7 +440,8 @@ public class JobService {
      * - 0개인 포지션도 포함 (프론트에서 필터링 가능)
      */
     public Map<String, Long> getPositionCounts(String keyword, String stack, String location,
-                                                Integer minExperience, Integer maxExperience, String industry) {
+                                                Integer minExperience, Integer maxExperience,
+                                                Integer salaryMin, Integer salaryMax, String industry) {
         // 모든 포지션 카테고리
         List<String> allPositions = JobPositionUtil.getAllPositionCategories();
         Map<String, Long> counts = new LinkedHashMap<>();
@@ -473,7 +476,8 @@ public class JobService {
                 // 전체는 포지션 필터 없이 카운트
                 long totalCount = jobEntityRepository.countPublicJobsWithFilters(
                         searchKeyword, searchStack, searchLocation,
-                        minExperience, maxExperience, null, industryKeywords);
+                        minExperience, maxExperience, null, industryKeywords,
+                        salaryMin, salaryMax);
                 counts.put(position, totalCount);
             } else {
                 // 해당 포지션의 키워드로 카운트
@@ -484,7 +488,8 @@ public class JobService {
                             .collect(Collectors.joining(","));
                     long count = jobEntityRepository.countPublicJobsWithFilters(
                             searchKeyword, searchStack, searchLocation,
-                            minExperience, maxExperience, positionKeywords, industryKeywords);
+                            minExperience, maxExperience, positionKeywords, industryKeywords,
+                            salaryMin, salaryMax);
                     counts.put(position, count);
                 } else {
                     counts.put(position, 0L);
@@ -503,7 +508,7 @@ public class JobService {
      * - 다중 필터 지원 (keyword + stack + location + experience + position + industry)
      */
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack, String location) {
-        return getPublicJobs(page, size, keyword, stack, location, null, null, null, null);
+        return getPublicJobs(page, size, keyword, stack, location, null, null, null, null, null, null);
     }
 
     /**
@@ -518,7 +523,7 @@ public class JobService {
      */
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack,
                                              String location, Integer minExperience, Integer maxExperience) {
-        return getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, null, null);
+        return getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, null, null, null, null);
     }
 
     /**
@@ -535,7 +540,7 @@ public class JobService {
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack,
                                              String location, Integer minExperience, Integer maxExperience,
                                              String position) {
-        return getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, null);
+        return getPublicJobs(page, size, keyword, stack, location, minExperience, maxExperience, position, null, null, null);
     }
 
     /**
@@ -552,7 +557,8 @@ public class JobService {
      */
     public JobListResponseDTO getPublicJobs(int page, int size, String keyword, String stack,
                                              String location, Integer minExperience, Integer maxExperience,
-                                             String position, String industry) {
+                                             String position, String industry,
+                                             Integer salaryMin, Integer salaryMax) {
         // 네이티브 쿼리용 (정렬은 쿼리 내부에서 처리하므로 제외)
         PageRequest pageRequest = PageRequest.of(page, size);
 
@@ -611,6 +617,8 @@ public class JobService {
                 maxExperience,
                 positionKeywords,
                 industryKeywords,
+                salaryMin,
+                salaryMax,
                 pageRequest
         );
 
@@ -704,6 +712,7 @@ public class JobService {
                 .updatedAt(job.getUpdatedAt() != null ? job.getUpdatedAt().toString() : null)
                 .companyName(employer != null ? employer.getName() : "알 수 없음")
                 .companyLogoUrl(employer != null ? employer.getLogoUrl() : null)
+                .images(job.getImages())
                 .build();
     }
 
@@ -790,6 +799,7 @@ public class JobService {
                 .updatedAt(job.getUpdatedAt() != null ? job.getUpdatedAt().toString() : null)
                 .companyName(employer.getName())
                 .companyLogoUrl(employer.getLogoUrl())
+                .images(job.getImages())
                 .build();
     }
     
@@ -815,9 +825,10 @@ public class JobService {
     public JobListResponseDTO getPublicJobsWithMatch(int page, int size, String keyword, 
                                                       String stack, String location,
                                                       Integer minExperience, Integer maxExperience,
-                                                      String position, String industry, Long memberId) {
+                                                      String position, String industry,
+                                                      Integer salaryMin, Integer salaryMax, Long memberId) {
         JobListResponseDTO baseResponse = getPublicJobs(page, size, keyword, stack, location, 
-                                                        minExperience, maxExperience, position, industry);
+                                                        minExperience, maxExperience, position, industry, salaryMin, salaryMax);
         
         // memberId가 없거나 CandidateSkillProvider가 없으면 매칭 정보 없이 반환
         if (memberId == null) {

@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: FitMe ElastiCache Redis Cluster
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: fitme
+    Description: Environment name prefix
+
+  CacheNodeType:
+    Type: String
+    Default: cache.t3.small
+    AllowedValues:
+      - cache.t3.micro
+      - cache.t3.small
+      - cache.t3.medium
+    Description: ElastiCache node type
+
+  RedisAuthToken:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Redis AUTH token (min 16 characters)
+
+Resources:
+  #============================================================================
+  # ElastiCache Redis Cluster
+  #============================================================================
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub ${EnvironmentName}-redis
+      ReplicationGroupDescription: FitMe Redis cluster
+      Engine: redis
+      EngineVersion: '7.1'
+      CacheNodeType: !Ref CacheNodeType
+      NumCacheClusters: 1  # Single node for cost optimization
+      AutomaticFailoverEnabled: false
+      MultiAZEnabled: false
+      CacheSubnetGroupName: !ImportValue
+        Fn::Sub: ${EnvironmentName}-CacheSubnetGroup
+      SecurityGroupIds:
+        - !ImportValue
+          Fn::Sub: ${EnvironmentName}-RedisSecurityGroupId
+      Port: 6379
+      TransitEncryptionEnabled: true
+      AtRestEncryptionEnabled: true
+      AuthToken: !Ref RedisAuthToken
+      SnapshotRetentionLimit: 1
+      SnapshotWindow: 03:00-05:00
+      PreferredMaintenanceWindow: Mon:05:00-Mon:06:00
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-redis
+
+#============================================================================
+# Outputs
+#============================================================================
+Outputs:
+  RedisEndpoint:
+    Description: Redis Primary Endpoint
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub ${EnvironmentName}-RedisEndpoint
+
+  RedisPort:
+    Description: Redis Port
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+    Export:
+      Name: !Sub ${EnvironmentName}-RedisPort
+
+  RedisConnectionString:
+    Description: Redis Connection String
+    Value: !Sub
+      - rediss://${Endpoint}:${Port}
+      - Endpoint: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+        Port: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+    Export:
+      Name: !Sub ${EnvironmentName}-RedisConnectionString

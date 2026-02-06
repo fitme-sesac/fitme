@@ -514,5 +514,238 @@ class EmployerStatsRepository:
         finally:
             conn.close()
 
+    def applicant_trend(
+            self,
+            employer_id: int,
+            start_date: date,
+            end_date: date,
+            time_unit: str = "day",
+            job_posting_ids: Optional[List[int]] = None,
+    ) -> Dict[str, Any]:
+        """지원자 추이 분석 (일별/주별/월별)"""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                where = [
+                    "jp.employer_id = %(employer_id)s",
+                    "jp.deleted_at IS NULL",
+                    "ja.created_at >= %(start_ts)s",
+                    "ja.created_at < %(end_ts)s",
+                ]
+                params: Dict[str, Any] = {
+                    "employer_id": employer_id,
+                    "start_ts": f"{start_date} 00:00:00",
+                    "end_ts": f"{end_date} 00:00:00",
+                }
+
+                if job_posting_ids:
+                    where.append("jp.job_id = ANY(%(job_ids)s::bigint[])")
+                    params["job_ids"] = [int(x) for x in job_posting_ids]
+
+                # 시간 단위별 그룹핑
+                if time_unit == "week":
+                    date_expr = "date_trunc('week', ja.created_at)::date"
+                elif time_unit == "month":
+                    date_expr = "date_trunc('month', ja.created_at)::date"
+                else:  # day
+                    date_expr = "ja.created_at::date"
+
+                sql = f"""
+                    SELECT {date_expr} AS period, COUNT(*)::bigint AS cnt
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    WHERE {" AND ".join(where)}
+                    GROUP BY period
+                    ORDER BY period ASC
+                """
+                cur.execute(sql, params)
+                rows = cur.fetchall() or []
+
+                trend = [
+                    {"period": r[0].isoformat() if r[0] else "-", "count": int(r[1])}
+                    for r in rows
+                ]
+
+                return {
+                    "trend": trend,
+                    "time_unit": time_unit,
+                    "employer_id": employer_id,
+                    "start_date": str(start_date),
+                    "end_date": str(end_date),
+                    "job_posting_ids": job_posting_ids or [],
+                }
+        finally:
+            conn.close()
+
+    def applicant_profile(
+            self,
+            employer_id: int,
+            start_date: date,
+            end_date: date,
+            job_posting_ids: Optional[List[int]] = None,
+    ) -> Dict[str, Any]:
+        """지원자 프로필 분석 (경력 분포 등)"""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                where = [
+                    "jp.employer_id = %(employer_id)s",
+                    "jp.deleted_at IS NULL",
+                    "ja.created_at >= %(start_ts)s",
+                    "ja.created_at < %(end_ts)s",
+                ]
+                params: Dict[str, Any] = {
+                    "employer_id": employer_id,
+                    "start_ts": f"{start_date} 00:00:00",
+                    "end_ts": f"{end_date} 00:00:00",
+                }
+
+                if job_posting_ids:
+                    where.append("jp.job_id = ANY(%(job_ids)s::bigint[])")
+                    params["job_ids"] = [int(x) for x in job_posting_ids]
+
+                # 총 지원자 수
+                sql_total = f"""
+                    SELECT COUNT(DISTINCT ja.user_id)::bigint AS total
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    WHERE {" AND ".join(where)}
+                """
+                cur.execute(sql_total, params)
+                total = int((cur.fetchone() or [0])[0] or 0)
+
+                # 경력 분포 (resume 테이블 연동 시)
+                exp_distribution = {}
+                avg_experience = None
+
+                # resume 테이블에 career_years 컬럼이 있는 경우
+                if _column_exists("resume", "career_years"):
+                    sql_exp = f"""
+                        SELECT
+                            CASE 
+                                WHEN r.career_years IS NULL THEN '미입력'
+                                WHEN r.career_years = 0 THEN '신입'
+                                WHEN r.career_years <= 3 THEN '1-3년'
+                                WHEN r.career_years <= 5 THEN '4-5년'
+                                WHEN r.career_years <= 10 THEN '6-10년'
+                                ELSE '10년 이상'
+                            END AS exp_range,
+                            COUNT(*)::bigint AS cnt
+                        FROM job_application ja
+                        JOIN job_posting jp ON jp.job_id = ja.job_id
+                        LEFT JOIN resume r ON r.user_id = ja.user_id
+                        WHERE {" AND ".join(where)}
+                        GROUP BY exp_range
+                        ORDER BY cnt DESC
+                    """
+                    cur.execute(sql_exp, params)
+                    exp_rows = cur.fetchall() or []
+                    exp_distribution = {r[0]: int(r[1]) for r in exp_rows}
+
+                    # 평균 경력
+                    sql_avg = f"""
+                        SELECT AVG(r.career_years)
+                        FROM job_application ja
+                        JOIN job_posting jp ON jp.job_id = ja.job_id
+                        LEFT JOIN resume r ON r.user_id = ja.user_id
+                        WHERE {" AND ".join(where)} AND r.career_years IS NOT NULL
+                    """
+                    cur.execute(sql_avg, params)
+                    avg_row = cur.fetchone()
+                    if avg_row and avg_row[0]:
+                        avg_experience = float(avg_row[0])
+
+                return {
+                    "total": total,
+                    "avg_experience": avg_experience,
+                    "experience_distribution": exp_distribution,
+                    "employer_id": employer_id,
+                    "start_date": str(start_date),
+                    "end_date": str(end_date),
+                    "job_posting_ids": job_posting_ids or [],
+                }
+        finally:
+            conn.close()
+
+    def pending_applications(
+            self,
+            employer_id: int,
+            start_date: date,
+            end_date: date,
+            limit: int = 10,
+    ) -> Dict[str, Any]:
+        """검토 대기 중인 지원자 목록"""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                where = [
+                    "jp.employer_id = %(employer_id)s",
+                    "jp.deleted_at IS NULL",
+                    "ja.created_at >= %(start_ts)s",
+                    "ja.created_at < %(end_ts)s",
+                    "ja.status = 'PENDING'",
+                ]
+                params: Dict[str, Any] = {
+                    "employer_id": employer_id,
+                    "start_ts": f"{start_date} 00:00:00",
+                    "end_ts": f"{end_date} 00:00:00",
+                }
+
+                lim = max(1, min(50, int(limit)))
+                params["lim"] = lim
+
+                # 총 대기 수
+                sql_count = f"""
+                    SELECT COUNT(*)::bigint AS cnt
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    WHERE {" AND ".join(where)}
+                """
+                cur.execute(sql_count, params)
+                total_pending = int((cur.fetchone() or [0])[0] or 0)
+
+                # 목록 (오래된 순)
+                sql = f"""
+                    SELECT
+                        ja.application_id,
+                        ja.user_id,
+                        u.name AS applicant_name,
+                        jp.job_id,
+                        jp.title AS job_title,
+                        ja.created_at,
+                        EXTRACT(DAY FROM NOW() - ja.created_at)::int AS days_waiting
+                    FROM job_application ja
+                    JOIN job_posting jp ON jp.job_id = ja.job_id
+                    LEFT JOIN "user" u ON u.user_id = ja.user_id
+                    WHERE {" AND ".join(where)}
+                    ORDER BY ja.created_at ASC
+                    LIMIT %(lim)s
+                """
+                cur.execute(sql, params)
+                rows = cur.fetchall() or []
+
+                items = []
+                for r in rows:
+                    items.append({
+                        "application_id": int(r[0]),
+                        "user_id": int(r[1]) if r[1] else None,
+                        "applicant_name": r[2] or "-",
+                        "job_id": int(r[3]),
+                        "job_title": r[4],
+                        "created_at": r[5].isoformat() if r[5] else None,
+                        "days_waiting": int(r[6]) if r[6] else 0,
+                    })
+
+                return {
+                    "count": total_pending,
+                    "items": items,
+                    "employer_id": employer_id,
+                    "start_date": str(start_date),
+                    "end_date": str(end_date),
+                    "limit": lim,
+                }
+        finally:
+            conn.close()
+
 
 employer_stats_repo = EmployerStatsRepository()
