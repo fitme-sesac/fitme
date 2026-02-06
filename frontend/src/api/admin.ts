@@ -82,6 +82,7 @@ export const getInquiries = async (params: {
     page: number;
     size: number;
     isPublic?: boolean;
+    question?: string; // Add question for searching
 }) => {
     const { isPublic, ...rest } = params;
     const url =
@@ -129,7 +130,7 @@ export const createNotice = async (data: { title: string; body: string; noticeTy
     return response.data;
 };
 
-export const getAdminNotices = async (params: { page: number; size: number; noticeType?: string }) => {
+export const getAdminNotices = async (params: { page: number; size: number; noticeType?: string; title?: string }) => {
     const response = await http.get("/api/v1/notices/admin/list", { params });
     return response.data;
 };
@@ -157,4 +158,3 @@ export const getAdminNotifications = async () => {
     const response = await http.get("/api/v1/admin/notifications");
     return response.data;
 };
-

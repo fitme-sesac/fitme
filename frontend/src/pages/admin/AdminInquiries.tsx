@@ -1,20 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { DataTable } from "@/components/admin/DataTable";
+import { DataTable, type Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { StatCard } from "@/components/admin/StatCard";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Clock, CheckCircle, Search } from "lucide-react";
 import { getInquiries, getFAQStatistics, deleteFAQ } from "@/api/admin";
 import { FAQDetailEditModal } from "@/components/admin/FAQDetailEditModal";
 import { toast } from "sonner";
 
+type InquiryStatus = "PUBLIC" | "PRIVATE";
+
 interface Inquiry {
     id: number;
     question: string;
     isPublic: boolean;
-    status: string;
+    status: InquiryStatus;
     createdAt: string;
 }
 
@@ -31,25 +34,19 @@ const AdminInquiries = () => {
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [selectedFaqId, setSelectedFaqId] = useState<number | null>(null);
 
-    const fetchInquiries = async () => {
+    const fetchInquiries = useCallback(async () => {
         setLoading(true);
         try {
-            const isPublicParam =
-                publicTab === "ALL"
-                    ? undefined
-                    : publicTab === "PUBLIC";
+            const isPublicParam = publicTab === "ALL" ? undefined : publicTab === "PUBLIC";
             const [data, statsData] = await Promise.all([
-                getInquiries({ page, size: 20, isPublic: isPublicParam }),
+                getInquiries({ page, size: 20, isPublic: isPublicParam, question: search || undefined }),
                 getFAQStatistics(),
             ]);
 
             setInquiries(
                 data.content?.map((i: { id: number; question: string; isPublic: boolean; createdAt: string }) => ({
-                    id: i.id,
-                    question: i.question,
-                    isPublic: i.isPublic,
-                    status: i.isPublic ? "ACTIVE" : "HIDDEN",
-                    createdAt: i.createdAt,
+                    ...i,
+                    status: i.isPublic ? "PUBLIC" : "PRIVATE",
                 })) ?? []
             );
             setTotal(data.totalElements ?? 0);
@@ -67,11 +64,16 @@ const AdminInquiries = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, publicTab, search]);
 
     useEffect(() => {
-        fetchInquiries();
-    }, [page, publicTab]);
+        void fetchInquiries();
+    }, [fetchInquiries]);
+
+    const handleSearch = () => {
+        setPage(0);
+        void fetchInquiries();
+    };
 
     const handlePublicTabChange = (value: string) => {
         setPublicTab(value as PublicTab);
@@ -88,14 +90,14 @@ const AdminInquiries = () => {
         try {
             await deleteFAQ(item.id);
             toast.success("삭제되었습니다.");
-            fetchInquiries();
+            void fetchInquiries();
         } catch (error) {
-            console.error(error);
+            console.error("FAQ 삭제 실패:", error);
             toast.error("삭제에 실패했습니다.");
         }
     };
 
-    const columns = [
+    const columns: Column<Inquiry>[] = [
         { key: "id", label: "ID" },
         { key: "question", label: "질문" },
         {
@@ -113,7 +115,6 @@ const AdminInquiries = () => {
 
     return (
         <AdminLayout title="문의 관리" subtitle="사용자 문의와 FAQ를 관리합니다">
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <StatCard
                     title="전체 문의 (FAQ)"
@@ -135,7 +136,6 @@ const AdminInquiries = () => {
                 />
             </div>
 
-            {/* Tabs */}
             <Tabs value={publicTab} onValueChange={handlePublicTabChange} className="mb-6">
                 <TabsList>
                     <TabsTrigger value="ALL">전체</TabsTrigger>
@@ -144,7 +144,6 @@ const AdminInquiries = () => {
                 </TabsList>
             </Tabs>
 
-            {/* Search (optional - can wire to admin/search later) */}
             <div className="flex gap-4 mb-6">
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -153,11 +152,12 @@ const AdminInquiries = () => {
                         className="pl-9"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     />
                 </div>
+                <Button onClick={handleSearch}>검색</Button>
             </div>
 
-            {/* Table */}
             {loading ? (
                 <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
             ) : (
@@ -166,21 +166,25 @@ const AdminInquiries = () => {
                     data={inquiries}
                     totalItems={total}
                     currentPage={page}
+                    pageSize={20}
                     onPageChange={setPage}
                     actions={[
-                        { label: "상세보기", onClick: handleViewDetail },
                         { label: "수정", onClick: handleViewDetail },
                         { label: "삭제", onClick: handleDelete },
                     ]}
                 />
             )}
 
-            <FAQDetailEditModal
-                open={detailModalOpen}
-                onOpenChange={setDetailModalOpen}
-                faqId={selectedFaqId}
-                onSuccess={fetchInquiries}
-            />
+            {selectedFaqId && (
+                <FAQDetailEditModal
+                    open={detailModalOpen}
+                    onOpenChange={setDetailModalOpen}
+                    faqId={selectedFaqId}
+                    onSuccess={() => {
+                        void fetchInquiries();
+                    }}
+                />
+            )}
         </AdminLayout>
     );
 };

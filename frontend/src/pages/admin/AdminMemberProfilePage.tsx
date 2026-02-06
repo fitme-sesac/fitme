@@ -7,24 +7,27 @@ import { ArrowLeft, User, Mail, Phone, Calendar, Shield } from "lucide-react";
 import { getMember } from "@/api/admin";
 import { toast } from "sonner";
 
+type MemberStatus = "ACTIVE" | "SUSPENDED" | "DELETED";
+type MemberRole = "CANDIDATE" | "EMPLOYER" | "SERVICE_ADMIN" | "APPROVE_ADMIN" | "MASTER";
+
 interface MemberProfile {
     memberId: number;
     name: string;
     email: string;
     phone: string;
-    role: string;
-    status: string;
+    role: MemberRole;
+    status: MemberStatus;
     createdAt: string;
     userid?: string;
     gender?: string;
     birthday?: string;
 }
 
-const ROLE_LABEL: Record<string, string> = {
+const ROLE_LABEL: Record<MemberRole, string> = {
     CANDIDATE: "구직자",
     EMPLOYER: "기업회원",
-    SERVICEADMIN: "서비스관리자",
-    APPROVEADMIN: "승인관리자",
+    SERVICE_ADMIN: "서비스 관리자",
+    APPROVE_ADMIN: "승인 관리자",
     MASTER: "마스터",
 };
 
@@ -36,18 +39,38 @@ export default function AdminMemberProfilePage() {
 
     useEffect(() => {
         const id = memberId ? parseInt(memberId, 10) : NaN;
-        if (!id || Number.isNaN(id)) {
-            toast.error("잘못된 회원 정보입니다.");
+        if (isNaN(id)) {
+            toast.error("잘못된 회원 ID입니다.");
             navigate("/admin/members");
             return;
         }
-        getMember(id)
-            .then((data) => setMember(data))
-            .catch(() => {
+
+        let isMounted = true;
+        
+        const fetchMember = async () => {
+            try {
+                const data = await getMember(id);
+                if (isMounted) {
+                    setMember(data);
+                }
+            } catch (error) {
+                console.error("회원 정보 로드 실패:", error);
                 toast.error("회원 정보를 불러오는데 실패했습니다.");
-                navigate("/admin/members");
-            })
-            .finally(() => setLoading(false));
+                if (isMounted) {
+                    navigate("/admin/members");
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        void fetchMember();
+
+        return () => {
+            isMounted = false;
+        };
     }, [memberId, navigate]);
 
     if (loading) {
@@ -59,6 +82,7 @@ export default function AdminMemberProfilePage() {
     }
 
     if (!member) {
+        // 데이터 로드 실패 시, useEffect에서 이미 navigate 처리됨
         return null;
     }
 
@@ -84,7 +108,7 @@ export default function AdminMemberProfilePage() {
                             <p className="text-sm text-muted-foreground">
                                 {ROLE_LABEL[member.role] ?? member.role} · ID {member.memberId}
                             </p>
-                            <StatusBadge status={member.status?.toLowerCase() || "active"} />
+                            <StatusBadge status={member.status} />
                         </div>
                     </div>
 

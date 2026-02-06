@@ -65,7 +65,7 @@ public class UserEntity {
     private String gender;
 
     /** DDL의 birth_date (DATE). 기존 코드 호환을 위해 String 유지(YYYY-MM-DD 권장) */
-    @Column(name = "birth_date")
+    @Column(name = "birth_date", columnDefinition = "DATE")
     private String birthday;
 
     /** 소셜 가입자는 NULL 허용(추후 연결). */

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { DataTable } from "@/components/admin/DataTable";
+import { DataTable, type Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,17 @@ import { Search } from "lucide-react";
 import { getEmployers, verifyEmployer } from "@/api/admin";
 import { toast } from "sonner";
 
+type EmployerStatus = "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
+
 interface Employer {
     id: number;
     employerId: number;
     companyName: string;
-    status: string;
+    status: EmployerStatus;
     createdAt: string;
 }
 
-type StatusTab = "ALL" | "ACTIVE" | "REJECTED";
+type StatusTab = "ALL" | "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
 
 const AdminCompanies = () => {
     const navigate = useNavigate();
@@ -29,7 +31,7 @@ const AdminCompanies = () => {
     const [search, setSearch] = useState("");
     const [statusTab, setStatusTab] = useState<StatusTab>("ALL");
 
-    const fetchCompanies = async () => {
+    const fetchCompanies = useCallback(async () => {
         setLoading(true);
         try {
             const statusParam = statusTab === "ALL" ? undefined : statusTab;
@@ -39,7 +41,8 @@ const AdminCompanies = () => {
                 search: search || undefined,
                 status: statusParam,
             });
-            setCompanies(data.content?.map((e: any) => ({ ...e, id: e.employerId })) || []);
+            const companiesWithId = data.content?.map((e: Omit<Employer, 'id'>) => ({ ...e, id: e.employerId })) || [];
+            setCompanies(companiesWithId);
             setTotal(data.totalElements || 0);
         } catch (error) {
             console.error("기업 목록 로드 실패:", error);
@@ -47,15 +50,15 @@ const AdminCompanies = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, statusTab, search]);
 
     useEffect(() => {
-        fetchCompanies();
-    }, [page, statusTab]);
+        void fetchCompanies();
+    }, [fetchCompanies]);
 
     const handleSearch = () => {
         setPage(0);
-        fetchCompanies();
+        void fetchCompanies();
     };
 
     const handleStatusTabChange = (value: string) => {
@@ -71,19 +74,19 @@ const AdminCompanies = () => {
         try {
             await verifyEmployer(company.employerId, action);
             toast.success(action === 'APPROVE' ? "기업이 승인되었습니다." : "기업이 거절되었습니다.");
-            fetchCompanies();
+            void fetchCompanies();
         } catch (error) {
             toast.error("처리에 실패했습니다.");
         }
     };
 
-    const columns = [
+    const columns: Column<Employer>[] = [
         { key: "employerId", label: "ID" },
         { key: "companyName", label: "기업명" },
         {
             key: "status",
             label: "상태",
-            render: (item: Employer) => <StatusBadge status={item.status?.toLowerCase() || "active"} />,
+            render: (item: Employer) => <StatusBadge status={item.status} />,
         },
         {
             key: "createdAt",
@@ -94,16 +97,16 @@ const AdminCompanies = () => {
 
     return (
         <AdminLayout title="기업 관리" subtitle="등록된 기업을 관리하고 인증을 처리합니다">
-            {/* Status Tabs */}
             <Tabs value={statusTab} onValueChange={handleStatusTabChange} className="mb-6">
                 <TabsList>
                     <TabsTrigger value="ALL">전체</TabsTrigger>
+                    <TabsTrigger value="PENDING">승인 대기</TabsTrigger>
                     <TabsTrigger value="ACTIVE">승인</TabsTrigger>
                     <TabsTrigger value="REJECTED">거절</TabsTrigger>
+                    <TabsTrigger value="SUSPENDED">정지</TabsTrigger>
                 </TabsList>
             </Tabs>
 
-            {/* Search */}
             <div className="flex gap-4 mb-6">
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -118,7 +121,6 @@ const AdminCompanies = () => {
                 <Button onClick={handleSearch}>검색</Button>
             </div>
 
-            {/* Table */}
             {loading ? (
                 <div className="text-center py-8 text-muted-foreground">로딩 중...</div>
             ) : (
@@ -127,11 +129,12 @@ const AdminCompanies = () => {
                     data={companies}
                     totalItems={total}
                     currentPage={page}
+                    pageSize={20}
                     onPageChange={setPage}
                     actions={[
-                        { label: "상세보기", onClick: (item) => handleViewProfile(item) },
-                        { label: "승인", onClick: (item) => handleVerify(item, 'APPROVE') },
-                        { label: "거절", onClick: (item) => handleVerify(item, 'REJECT') },
+                        { label: "상세보기", onClick: (item: Employer) => handleViewProfile(item) },
+                        { label: "승인", onClick: (item: Employer) => handleVerify(item, 'APPROVE'), disabled: (item: Employer) => item.status !== 'PENDING' },
+                        { label: "거절", onClick: (item: Employer) => handleVerify(item, 'REJECT'), disabled: (item: Employer) => item.status !== 'PENDING' },
                     ]}
                 />
             )}

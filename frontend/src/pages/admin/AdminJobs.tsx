@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { DataTable } from "@/components/admin/DataTable";
+import { DataTable, type Column } from "@/components/admin/DataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ interface Job {
     jobId: number;
     title: string;
     companyName: string;
-    status: string;
+    status: 'OPEN' | 'CLOSED' | 'DELETED';
     viewCount: number;
     createdAt: string;
     deadline: string;
@@ -30,7 +30,7 @@ const AdminJobs = () => {
     const [search, setSearch] = useState("");
     const [statusTab, setStatusTab] = useState<StatusTab>("ALL");
 
-    const fetchJobs = async () => {
+    const fetchJobs = useCallback(async () => {
         setLoading(true);
         try {
             const statusParam = statusTab === "ALL" ? undefined : statusTab;
@@ -40,7 +40,9 @@ const AdminJobs = () => {
                 search: search || undefined,
                 status: statusParam,
             });
-            setJobs(data.content?.map((j: any) => ({ ...j, id: j.jobId })) || []);
+            // API 응답 데이터에 id를 추가하여 상태를 업데이트합니다.
+            const jobsWithId = data.content?.map((j: Omit<Job, 'id'>) => ({ ...j, id: j.jobId })) || [];
+            setJobs(jobsWithId);
             setTotal(data.totalElements || 0);
         } catch (error) {
             console.error("채용공고 목록 로드 실패:", error);
@@ -48,15 +50,15 @@ const AdminJobs = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, statusTab, search]);
 
     useEffect(() => {
-        fetchJobs();
-    }, [page, statusTab]);
+        void fetchJobs();
+    }, [fetchJobs]);
 
     const handleSearch = () => {
         setPage(0);
-        fetchJobs();
+        void fetchJobs();
     };
 
     const handleStatusTabChange = (value: string) => {
@@ -64,11 +66,11 @@ const AdminJobs = () => {
         setPage(0);
     };
 
-    const handleStatusChange = async (job: Job, status: string) => {
+    const handleStatusChange = async (job: Job, status: 'OPEN' | 'CLOSED' | 'DELETED') => {
         try {
             await updateJobStatus(job.jobId, status);
             toast.success(status === "DELETED" ? "삭제되었습니다. 삭제 탭에서 확인할 수 있습니다." : "채용공고 상태가 변경되었습니다.");
-            fetchJobs();
+            void fetchJobs();
         } catch (error) {
             toast.error("상태 변경에 실패했습니다.");
         }
@@ -79,7 +81,7 @@ const AdminJobs = () => {
         try {
             await deleteJobPermanent(job.jobId);
             toast.success("완전 삭제되었습니다.");
-            fetchJobs();
+            void fetchJobs();
         } catch (error: unknown) {
             const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
             toast.error(msg || "완전 삭제에 실패했습니다.");
@@ -90,20 +92,20 @@ const AdminJobs = () => {
         try {
             await updateJobStatus(job.jobId, "OPEN");
             toast.success("복구되었습니다. 전체/승인 탭에서 확인할 수 있습니다.");
-            fetchJobs();
+            void fetchJobs();
         } catch (error) {
             toast.error("복구에 실패했습니다.");
         }
     };
 
-    const columns = [
+    const columns: Column<Job>[] = [
         { key: "jobId", label: "ID" },
         { key: "title", label: "제목" },
         { key: "companyName", label: "기업명" },
         {
             key: "status",
             label: "상태",
-            render: (item: Job) => <StatusBadge status={item.status?.toLowerCase() || "open"} />,
+            render: (item: Job) => <StatusBadge status={item.status} />,
         },
         { key: "viewCount", label: "조회수" },
         {
@@ -154,19 +156,20 @@ const AdminJobs = () => {
                     data={jobs}
                     totalItems={total}
                     currentPage={page}
+                    pageSize={20}
                     onPageChange={setPage}
                     actions={
                         statusTab === "DELETED"
                             ? [
                                   { label: "상세보기", onClick: (item) => window.open(`/jobs/${item.jobId}`, "_blank") },
-                                  { label: "복구", onClick: (item) => handleRestore(item) },
-                                  { label: "완전삭제", onClick: (item) => handlePermanentDelete(item) },
+                                  { label: "복구", onClick: (item: Job) => handleRestore(item) },
+                                  { label: "완전삭제", onClick: (item: Job) => handlePermanentDelete(item) },
                               ]
                             : [
                                   { label: "상세보기", onClick: (item) => window.open(`/jobs/${item.jobId}`, "_blank") },
-                                  { label: "승인", onClick: (item) => handleStatusChange(item, "OPEN") },
-                                  { label: "마감", onClick: (item) => handleStatusChange(item, "CLOSED") },
-                                  { label: "삭제", onClick: (item) => handleStatusChange(item, "DELETED") },
+                                  { label: "승인", onClick: (item: Job) => handleStatusChange(item, "OPEN") },
+                                  { label: "마감", onClick: (item: Job) => handleStatusChange(item, "CLOSED") },
+                                  { label: "삭제", onClick: (item: Job) => handleStatusChange(item, "DELETED") },
                               ]
                     }
                 />

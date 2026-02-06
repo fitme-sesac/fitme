@@ -7,10 +7,12 @@ import { ArrowLeft, Building2, Mail, Phone, MapPin, Globe, Calendar } from "luci
 import { getEmployer } from "@/api/admin";
 import { toast } from "sonner";
 
+type EmployerStatus = "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
+
 interface EmployerProfile {
     employerId: number;
     companyName: string;
-    status: string;
+    status: EmployerStatus;
     createdAt: string;
     logoUrl?: string;
     industry?: string;
@@ -34,18 +36,38 @@ export default function AdminCompanyProfilePage() {
 
     useEffect(() => {
         const id = employerId ? parseInt(employerId, 10) : NaN;
-        if (!id || Number.isNaN(id)) {
-            toast.error("잘못된 기업 정보입니다.");
+        if (isNaN(id)) {
+            toast.error("잘못된 기업 ID입니다.");
             navigate("/admin/companies");
             return;
         }
-        getEmployer(id)
-            .then((data) => setEmployer(data))
-            .catch(() => {
+
+        let isMounted = true;
+
+        const fetchEmployer = async () => {
+            try {
+                const data = await getEmployer(id);
+                if (isMounted) {
+                    setEmployer(data);
+                }
+            } catch (error) {
+                console.error("기업 정보 로드 실패:", error);
                 toast.error("기업 정보를 불러오는데 실패했습니다.");
-                navigate("/admin/companies");
-            })
-            .finally(() => setLoading(false));
+                if (isMounted) {
+                    navigate("/admin/companies");
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        void fetchEmployer();
+
+        return () => {
+            isMounted = false;
+        };
     }, [employerId, navigate]);
 
     if (loading) {
@@ -91,7 +113,7 @@ export default function AdminCompanyProfilePage() {
                                 ID {employer.employerId}
                                 {employer.industry && ` · ${employer.industry}`}
                             </p>
-                            <StatusBadge status={employer.status?.toLowerCase() || "active"} />
+                            <StatusBadge status={employer.status} />
                         </div>
                     </div>
 

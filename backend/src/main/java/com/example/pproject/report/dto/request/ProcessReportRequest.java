@@ -2,9 +2,11 @@ package com.example.pproject.report.dto.request;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 @Getter
 @Setter
+@ToString
 public class ProcessReportRequest {
     private Long reportId;       // 신고 ID
     private Long adminMemberId;  // 관리자 ID

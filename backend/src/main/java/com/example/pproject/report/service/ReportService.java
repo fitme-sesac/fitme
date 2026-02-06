@@ -84,58 +84,140 @@ public class ReportService {
         log.info("신고 처리 시작: reportId={}, decision={}, type={}",
                 request.getReportId(), request.getDecision(), request.getViolationType());
 
-        validateDecision(request.getDecision());
+        try {
+            validateDecision(request.getDecision());
 
-        Report report = reportRepository.findById(request.getReportId())
-                .orElseThrow(() -> new ReportNotFoundException("신고를 찾을 수 없습니다."));
+            Report report = reportRepository.findById(request.getReportId())
+                    .orElseThrow(() -> new ReportNotFoundException("신고를 찾을 수 없습니다."));
 
-        if (!"OPEN".equals(report.getStatus())) {
-            throw new InvalidReportStatusException("이미 처리된 신고입니다.");
-        }
+            log.info("신고 상태 확인: reportId={}, currentStatus={}", request.getReportId(), report.getStatus());
 
-        // 조치 내역 저장
-        ModerationAction action = new ModerationAction();
-        action.setReportId(request.getReportId());
-        action.setAdminMemberId(request.getAdminMemberId());
-        action.setDecision(request.getDecision());
-        action.setRestrictDays(request.getRestrictDays());
-        action.setReason(request.getReason());
-
-        ModerationAction savedAction = moderationActionRepository.save(action);
-
-        // 신고 상태 업데이트
-        String newStatus = "ACCEPT".equals(request.getDecision()) ? "ACCEPTED" : "REJECTED";
-        report.setStatus(newStatus);
-
-        // 감사 로그 저장
-        AuditLog auditLog = AuditLog.builder()
-                .actorMemberId(request.getAdminMemberId())
-                .targetType("REPORT")
-                .targetId(report.getReportId())
-                .action("REPORT_PROCESS")
-                .clientIp("127.0.0.1")
-                .beforeData("{\"status\": \"OPEN\"}")
-                .afterData("{\"status\": \"" + request.getDecision() + "\", \"type\": \"" + request.getViolationType() + "\"}")
-                .build();
-        auditLogRepository.save(auditLog);
-
-        // 승인 시 벌점 자동 부여
-        if ("ACCEPT".equals(request.getDecision())) {
-            Long targetMemberId = report.getTargetMemberId();
-            if (targetMemberId != null && request.getViolationType() != null) {
-
-                // Enum에서 점수 자동 획득
-                ViolationType type = ViolationType.valueOf(request.getViolationType());
-                int points = type.getScore();
-
-                addPenaltyPoints(targetMemberId, request.getReportId(), points,
-                        "신고 승인 [" + type.getDescription() + "]: " + request.getReason());
-
-                applyAutomaticSanction(targetMemberId, request.getAdminMemberId());
+            // 이미 처리된 신고인지 확인
+            boolean alreadyProcessed = moderationActionRepository.existsByReportId(request.getReportId());
+            
+            if (!"OPEN".equals(report.getStatus()) || alreadyProcessed) {
+                log.warn("이미 처리된 신고 재처리 요청: reportId={}, status={}, alreadyProcessed={}", 
+                        request.getReportId(), report.getStatus(), alreadyProcessed);
+                
+                // 재처리를 위해 기존 데이터 정리
+                if (alreadyProcessed) {
+                    log.info("기존 처리 기록 삭제 시작: reportId={}", request.getReportId());
+                    moderationActionRepository.deleteByReportId(request.getReportId());
+                    moderationActionRepository.flush(); // 즉시 DB에 반영
+                    log.info("기존 처리 기록 삭제 완료: reportId={}", request.getReportId());
+                }
+                
+                // 신고 상태를 OPEN으로 초기화
+                log.info("신고 상태 초기화: {} -> OPEN", report.getStatus());
+                report.setStatus("OPEN");
+                reportRepository.save(report);
+                reportRepository.flush(); // 즉시 DB에 반영
             }
-        }
 
-        return toActionResponse(savedAction);
+            // reason이 null이면 기본값 설정
+            String reason = request.getReason();
+            if (reason == null || reason.trim().isEmpty()) {
+                reason = "ACCEPT".equals(request.getDecision()) ? "신고 승인" : "신고 거절";
+            }
+            log.info("처리 사유 설정: {}", reason);
+
+            // 조치 내역 저장
+            ModerationAction action = new ModerationAction();
+            action.setReportId(request.getReportId());
+            action.setAdminMemberId(request.getAdminMemberId());
+            action.setDecision(request.getDecision());
+            action.setRestrictDays(request.getRestrictDays());
+            action.setReason(reason);
+
+            log.info("ModerationAction 저장 시도: {}", action);
+            
+            try {
+                ModerationAction savedAction = moderationActionRepository.save(action);
+                log.info("ModerationAction 저장 완료: actionId={}", savedAction.getActionId());
+                
+                // 신고 상태 업데이트
+                String newStatus = "ACCEPT".equals(request.getDecision()) ? "ACCEPTED" : "REJECTED";
+                log.info("신고 상태 업데이트: {} -> {}", report.getStatus(), newStatus);
+                report.setStatus(newStatus);
+                reportRepository.save(report); // 명시적으로 저장
+                
+                // 나머지 처리 로직...
+                // 감사 로그 저장
+                try {
+                    AuditLog auditLog = AuditLog.builder()
+                            .actorMemberId(request.getAdminMemberId())
+                            .targetType("REPORT")
+                            .targetId(report.getReportId())
+                            .action("REPORT_PROCESS")
+                            .clientIp("127.0.0.1")
+                            .beforeData("{\"status\": \"OPEN\"}")
+                            .afterData("{\"status\": \"" + request.getDecision() + "\", \"type\": \"" + request.getViolationType() + "\"}")
+                            .build();
+                    auditLogRepository.save(auditLog);
+                    log.info("감사 로그 저장 완료");
+                } catch (Exception e) {
+                    log.warn("감사 로그 저장 실패: {}", e.getMessage());
+                    // 감사 로그 실패는 전체 트랜잭션을 롤백하지 않음
+                }
+
+                // 승인 시 벌점 자동 부여 (회원 신고인 경우만)
+                if ("ACCEPT".equals(request.getDecision())) {
+                    Long targetMemberId = report.getTargetMemberId();
+                    if (targetMemberId != null && request.getViolationType() != null) {
+                        try {
+                            // Enum에서 점수 자동 획득
+                            ViolationType type = ViolationType.valueOf(request.getViolationType());
+                            int points = type.getScore();
+
+                            log.info("벌점 부여 시작: memberId={}, points={}, type={}", 
+                                    targetMemberId, points, request.getViolationType());
+
+                            addPenaltyPoints(targetMemberId, request.getReportId(), points,
+                                    "신고 승인 [" + type.getDescription() + "]: " + reason);
+
+                            applyAutomaticSanction(targetMemberId, request.getAdminMemberId());
+                            log.info("벌점 부여 완료");
+                        } catch (Exception e) {
+                            log.warn("벌점 부여 실패: {}", e.getMessage(), e);
+                            // 벌점 부여 실패는 전체 트랜잭션을 롤백하지 않음
+                        }
+                    } else {
+                        log.info("벌점 부여 건너뜀: targetMemberId={}, violationType={}", 
+                                targetMemberId, request.getViolationType());
+                    }
+                }
+
+                ModerationActionResponse response = toActionResponse(savedAction);
+                log.info("신고 처리 완료: {}", response);
+                return response;
+                
+            } catch (Exception e) {
+                if (e.getMessage().contains("uq_moderation_action_report")) {
+                    log.error("중복 키 오류 발생, 기존 기록 강제 삭제 후 재시도: reportId={}", request.getReportId());
+                    
+                    // 강제로 기존 기록 삭제
+                    moderationActionRepository.deleteByReportId(request.getReportId());
+                    moderationActionRepository.flush();
+                    
+                    // 재시도
+                    ModerationAction savedAction = moderationActionRepository.save(action);
+                    log.info("재시도 성공: actionId={}", savedAction.getActionId());
+                    
+                    // 신고 상태 업데이트
+                    String newStatus = "ACCEPT".equals(request.getDecision()) ? "ACCEPTED" : "REJECTED";
+                    report.setStatus(newStatus);
+                    reportRepository.save(report);
+                    
+                    return toActionResponse(savedAction);
+                } else {
+                    throw e;
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("신고 처리 중 오류 발생: reportId={}, error={}", request.getReportId(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     // 자동 제재 로직
