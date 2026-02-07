@@ -179,7 +179,9 @@ public class SecurityConfig {
 
                 http.formLogin(login -> login
                                 .loginPage("/Login")
-                                .loginProcessingUrl("/Login")
+                                // SPA(React)에서 사용하는 로그인 엔드포인트
+                                // - 프론트는 /api/auth/login 으로 form-urlencoded POST
+                                .loginProcessingUrl("/api/auth/login")
                                 .usernameParameter("userid")
                                 .passwordParameter("password")
                                 .defaultSuccessUrl("/", true)
@@ -202,11 +204,19 @@ public class SecurityConfig {
                                 .failureHandler(customAuthenticationFailureHandler));
 
                 http.logout(logout -> logout
-                                .logoutUrl("/Logout")
-                                .deleteCookies("JSESSIONID", "ACCESS_TOKEN")
-                                .logoutSuccessUrl(frontBaseUrl + "/")
-                                .invalidateHttpSession(true)
-                                .clearAuthentication(true));
+                        .logoutUrl("/api/auth/logout")
+                        .addLogoutHandler((request, response, authentication) -> {
+                            CookieUtils.deleteCookie(request, response, "ACCESS_TOKEN");
+                            CookieUtils.deleteCookie(request, response, "JSESSIONID");
+                            CookieUtils.deleteCookie(request, response, "OAUTH2_TMP");
+                        })
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            response.setStatus(200);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"success\":true}");
+                        })
+                        .clearAuthentication(true)
+                );
 
                 http.csrf(csrf -> csrf
                                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())

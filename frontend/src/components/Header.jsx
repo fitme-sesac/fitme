@@ -127,7 +127,7 @@ export default function Header({ isAuthenticated, displayName, apiBase, role }) 
             {/* 로그아웃 폼 (숨김) */}
             <form 
                 id="logout-form"
-                action={`${apiBase}/Logout`} 
+                action={`${apiBase}/api/auth/logout`}
                 method="post" 
                 style={{ display: "none" }}
             >

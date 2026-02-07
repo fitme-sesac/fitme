@@ -137,7 +137,7 @@ public class EmployerController {
             return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다."));
         }
         try {
-            AdStatsDTO stats = employerService.getAdStats(principal.getUserid(), demo);
+            AdStatsDTO stats = employerService.getAdStats(principal.getUserid());
             return ResponseEntity.ok(stats);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

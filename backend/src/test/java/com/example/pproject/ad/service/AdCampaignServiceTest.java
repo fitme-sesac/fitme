@@ -51,6 +51,9 @@ class AdCampaignServiceTest {
         @Mock
         private AdGuardService adGuardService;
 
+        @Mock
+        private AdImpressionService adImpressionService;
+
         @InjectMocks
         private AdCampaignService adCampaignService;
 
@@ -67,7 +70,7 @@ class AdCampaignServiceTest {
                 // Wallet의 balance는 @Builder에 포함되어 있지 않으므로 Mock으로 처리
                 Wallet wallet = mock(Wallet.class);
                 given(wallet.getBalance()).willReturn(2000L);
-                given(walletService.getMyWallet(1L, RoleType.EMPLOYER)).willReturn(wallet);
+                given(walletService.getEmployerWallet(1L)).willReturn(wallet);
 
                 AdCampaignEntity savedEntity = AdCampaignEntity.builder()
                                 .id(1L).employerId(1L).jobId(100L).cpcBid(50).dailyBudget(1000).status("ACTIVE")
@@ -122,7 +125,7 @@ class AdCampaignServiceTest {
                 // Wallet의 balance는 @Builder에 포함되어 있지 않으므로 Mock으로 처리
                 Wallet wallet = mock(Wallet.class);
                 given(wallet.getBalance()).willReturn(1000L); // 5000원 필요한데 1000원뿐
-                given(walletService.getMyWallet(1L, RoleType.EMPLOYER)).willReturn(wallet);
+                given(walletService.getEmployerWallet(1L)).willReturn(wallet);
 
                 // 2. [When & Then]
                 assertThatThrownBy(() -> adCampaignService.createCampaign(dto))
@@ -213,7 +216,7 @@ class AdCampaignServiceTest {
                                 .willReturn(page);
 
                 // 2. [When]
-                Page<AdCampaignEntity> result = adCampaignService.getActiveAdsForServing(pageable);
+                Page<AdCampaignEntity> result = adCampaignService.getActiveAdsForServing(pageable, null);
 
                 // 3. [Then]
                 assertThat(result.getTotalElements()).isEqualTo(1);

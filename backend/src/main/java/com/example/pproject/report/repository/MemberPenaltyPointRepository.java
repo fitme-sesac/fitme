@@ -10,14 +10,9 @@ import java.util.List;
 @Repository
 public interface MemberPenaltyPointRepository extends JpaRepository<MemberPenaltyPoint, Long> {
 
-    /**
-     * 회원 ID로 경고 점수 조회
-     */
-    List<MemberPenaltyPoint> findByMemberId(Long memberId);
+    List<MemberPenaltyPoint> findByMemberIdOrderByCreatedAtDesc(Long memberId);
 
-    /**
-     * 회원 ID로 총 경고 점수 조회
-     */
+    // 회원의 총 벌점 합계 계산 (JPQL)
     @Query("SELECT COALESCE(SUM(p.points), 0) FROM MemberPenaltyPoint p WHERE p.memberId = :memberId")
-    Integer getTotalPenaltyPoints(@Param("memberId") Long memberId);
+    Integer sumPointsByMemberId(@Param("memberId") Long memberId);
 }

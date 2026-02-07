@@ -1,4 +1,5 @@
 // frontend/src/pages/company/TalentDetail.tsx
+import ReactMarkdown from "react-markdown";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -259,13 +260,13 @@ export default function TalentDetail() {
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Sparkles className="h-5 w-5 text-purple-600 fill-purple-100" />
-                                        AI 10줄 요약
+                                        AI 요약
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-muted-foreground leading-relaxed">
-                                        {talent.summary}
-                                    </p>
+                                    <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap space-y-2 px-1">
+                                        <ReactMarkdown>{talent.summary}</ReactMarkdown>
+                                    </div>
                                 </CardContent>
                             </Card>
 

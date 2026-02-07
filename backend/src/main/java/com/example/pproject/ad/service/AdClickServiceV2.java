@@ -5,11 +5,15 @@ import com.example.pproject.ad.entity.AdClickEventEntity;
 import com.example.pproject.ad.repository.AdClickEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+
 /**
  * [Phase 2] Redis Guard + Reserved Budget 기반 클릭 처리 서비스
+ * - Redis 기반 10분 중복 클릭 방지 적용
  */
 @Slf4j
 @Service
@@ -18,35 +22,64 @@ public class AdClickServiceV2 {
 
     private final AdGuardService adGuardService;
     private final AdClickEventRepository adClickEventRepository;
+    private final StringRedisTemplate redisTemplate;
+
+    // 중복 클릭 방지 시간 (10분)
+    private static final Duration CLICK_DEDUP_TTL = Duration.ofMinutes(10);
+    private static final String CLICK_DEDUP_KEY_PREFIX = "ad:click:dedup:";
 
     @Transactional
     public void trackClick(AdClickEventCreateDTO dto) {
         Long campaignId = dto.getCampaignId();
+        Long memberId = dto.getMemberId();
 
-        // [Phase 2 Refactoring]
-        // DB 조회(AdCampaignRepository)를 제거하고, 모든 검증을 Redis(Unified Hash)에 위임합니다.
-        // -> 성능 최적화: DB 트랜잭션 없이 Redis Atomic 연산으로 처리
+        // 1. 중복 클릭 체크 (Redis SET NX + TTL)
+        if (!isNewClick(campaignId, memberId)) {
+            log.info("Duplicate click ignored (10min window). CampaignId: {}, MemberId: {}", campaignId, memberId);
+            return;
+        }
 
-        // 1. Redis Guard Check + Deduct
-        // (내부적으로 Status Check, Budget Check, Active Set Management 모두 수행)
+        // 2. Redis Guard Check + Deduct
         long deductedAmount = adGuardService.reduceBudget(campaignId);
 
         if (deductedAmount < 0) {
-            // 예산 소진, 비활성 상태, 또는 키 만료 -> 차단
             log.warn("Blocked by Redis Guard (Budget Exhausted or Inactive). CampaignId: {}", campaignId);
             return;
         }
 
-        // 2. Record Event (Async Log)
-        // 실제로는 Kafka 등으로 보내는 것이 좋으나, 현재는 DB에 로그만 비동기 성격으로 저장
+        // 3. Record Event
         AdClickEventEntity entity = AdClickEventEntity.builder()
                 .campaignId(campaignId)
-                .memberId(dto.getMemberId())
+                .memberId(memberId)
                 .clickKey(dto.getClickKey())
-                .cost((int) deductedAmount) // 실제 차감된 금액을 과금액으로 기록 (Source of Truth)
+                .cost((int) deductedAmount)
                 .build();
 
         adClickEventRepository.save(entity);
-        log.info("Ad Click V2 Recorded (Redis Only). CampaignId: {}, Cost: {}", campaignId, deductedAmount);
+        log.info("Ad Click V2 Recorded. CampaignId: {}, MemberId: {}, Cost: {}", campaignId, memberId, deductedAmount);
+    }
+
+    /**
+     * Redis를 활용한 클릭 중복 체크 (SET NX + TTL 패턴)
+     * 
+     * @return true: 신규 클릭 (기록해야 함), false: 중복 클릭 (무시)
+     */
+    private boolean isNewClick(Long campaignId, Long memberId) {
+        // 비로그인 사용자는 중복 체크 불가 -> 항상 기록
+        if (memberId == null) {
+            return true;
+        }
+
+        String key = CLICK_DEDUP_KEY_PREFIX + campaignId + ":" + memberId;
+
+        try {
+            // setIfAbsent: 키가 없으면 true 반환 (신규), 있으면 false 반환 (중복)
+            Boolean isNew = redisTemplate.opsForValue().setIfAbsent(key, "1", CLICK_DEDUP_TTL);
+            return Boolean.TRUE.equals(isNew);
+        } catch (Exception e) {
+            // Redis 장애 시 DB 폴백 (비관적 접근: 중복으로 처리하지 않고 기록)
+            log.warn("Redis unavailable for click dedup. Falling back to record. Key: {}", key, e);
+            return true;
+        }
     }
 }

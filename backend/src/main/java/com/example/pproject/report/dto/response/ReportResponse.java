@@ -13,6 +13,7 @@ public class ReportResponse {
 
     private Long reportId;
     private Long reporterMemberId;
+
     private String targetType;
     private Long targetJobId;
     private Long targetMemberId;
@@ -22,7 +23,4 @@ public class ReportResponse {
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
-
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime updatedAt;
 }

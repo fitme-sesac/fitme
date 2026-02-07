@@ -142,8 +142,6 @@ Resources:
           PathPatternConfig:
             Values:
               - /User/*
-              - /Login*
-              - /Logout*
       Actions:
         - Type: forward
           TargetGroupArn: !Ref BackendTargetGroup

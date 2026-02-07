@@ -27,7 +27,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/admin/dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN') or hasRole('SERVICEADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
 @Slf4j
 public class AdminDashboardController {
 
@@ -54,7 +54,7 @@ public class AdminDashboardController {
         // 대기중인 신고 건수 조회
         long pendingReports = 0;
         try {
-            pendingReports = reportRepository.countByStatus("PENDING");
+            pendingReports = reportRepository.countByStatus("OPEN");
         } catch (Exception e) {
             log.warn("대기중 신고 건수 조회 실패: {}", e.getMessage());
         }

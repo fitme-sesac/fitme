@@ -77,6 +77,19 @@ public class WalletService {
     }
 
     /**
+     * 기업 ID로 지갑을 조회합니다. (AdCampaignService 등에서 사용)
+     *
+     * @param employerId 기업 ID
+     * @return 조회된 지갑 엔티티
+     */
+    public Wallet getEmployerWallet(Long employerId) {
+        EmployerEntity employer = employerRepository.findById(employerId)
+                .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다. ID: " + employerId));
+        return walletRepository.findByEmployer(employer)
+                .orElseThrow(() -> new IllegalArgumentException("지갑을 찾을 수 없습니다."));
+    }
+
+    /**
      * 내 지갑의 거래 내역(원장)을 전체 조회합니다. (페이징)
      * 지갑이 없으면 자동으로 생성합니다.
      *
@@ -434,7 +447,8 @@ public class WalletService {
      */
     @Transactional
     public void holdBudget(Long employerId, long amount, String idempotencyKey) {
-        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+        // [Fix] 시스템 호출이므로 EmployerID를 직접 사용 (MemberID 변환 불필요)
+        Wallet wallet = findWalletByEmployerWithLock(employerId);
 
         if (ledgerRepository.existsByIdempotencyKey(idempotencyKey)) {
             return;
@@ -446,7 +460,7 @@ public class WalletService {
         wallet.hold(amount);
 
         // 2. Ledger 기록 (TxType: DEBIT, 금액은 찍히지만 잔액 변동은 없음 - 예약 로그)
-        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, 0L, balanceBefore,
+        WalletLedger ledger = wallet.createLedger(TxType.DEBIT, SourceType.AD_CLICK, null, amount, balanceBefore,
                 idempotencyKey, "광고 예산 예약 (HOLD: " + amount + ")");
         ledgerRepository.save(ledger);
     }
@@ -462,7 +476,8 @@ public class WalletService {
             return;
         }
 
-        Wallet wallet = findWalletByOwnerWithLock(employerId, BuyerType.EMPLOYER);
+        // [Fix] 시스템 호출이므로 EmployerID를 직접 사용
+        Wallet wallet = findWalletByEmployerWithLock(employerId);
         long balanceBefore = wallet.getBalance(); // 사실상 balance 변화는 없음 (reserved 내부 처리) -> 아님, 환불 시 증가함.
 
         // 1. 실제 사용분 처리 (예약금 소멸)
@@ -528,6 +543,15 @@ public class WalletService {
                 throw new IllegalStateException("데이터 정합성 오류: LOT 차감이 진행되지 않습니다.");
             }
         }
+    }
+
+    /**
+     * 기업 ID로 지갑을 조회하며 비관적 락을 겁니다. (시스템/스케줄러용)
+     * 지갑이 없으면 자동으로 생성합니다.
+     */
+    private Wallet findWalletByEmployerWithLock(Long employerId) {
+        return walletRepository.findByEmployerWithLock(employerId)
+                .orElseGet(() -> createWalletForEmployer(employerId));
     }
 
     /**

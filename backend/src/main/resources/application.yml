@@ -12,11 +12,13 @@ spring:
 
   sql:
     init:
+      encoding: UTF-8
       # 운영: never, 개발: always (환경변수로 제어)
       mode: ${SQL_INIT_MODE:always}
       schema-locations: classpath:db/ddl/schema-tables.sql
       data-locations: classpath:db/seed/seed-data.sql
-      continue-on-error: true
+      continue-on-error: false
+      separator: "@@"
 
   task:
     scheduling:

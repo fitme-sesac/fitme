@@ -147706,8 +147706,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO inquiry_message (inquiry_id, author_type, body, created_at) VALUES
     (2, 'CUSTOMER', '결제 취소 요청합니다.', now())
 ON CONFLICT DO NOTHING;
-INSERT INTO report (report_id, reporter_member_id, target_type, target_job_id, reason_code, status, created_at, updated_at) VALUES
-    (1, 100, 'JOB_POSTING', 100, 'SPAM', 'OPEN', now(), now())
+INSERT INTO report (report_id, reporter_member_id, target_type, target_job_id, target_member_id, reason_code, status, created_at, updated_at) VALUES
+    (1, 100, 'JOB_POSTING', 100, NULL, 'SPAM', 'REJECTED', now(), now()),
+    (2, 101, 'MEMBER', NULL, 102, 'HARASSMENT', 'OPEN', now(), now()),
+    (3, 102, 'JOB_POSTING', 101, NULL, 'INAPPROPRIATE', 'OPEN', now(), now())
 ON CONFLICT (report_id) DO UPDATE SET status = EXCLUDED.status, updated_at = now();
 INSERT INTO moderation_action (report_id, admin_member_id, decision, reason, decided_at, created_at, updated_at) VALUES
     (1, 900, 'REJECT', '이상없음 확인', now(), now(), now())

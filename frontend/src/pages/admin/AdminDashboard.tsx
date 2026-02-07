@@ -17,7 +17,9 @@ interface DashboardStats {
 }
 
 interface Report {
-    id: number;
+    // 백엔드 응답은 reportId를 사용한다. DataTable 호환을 위해 id를 매핑한다.
+    id?: number;
+    reportId: number;
     reporterMemberId: number;
     targetType: string;
     status: string;
@@ -37,6 +39,14 @@ const AdminDashboard = () => {
     const [recentReports, setRecentReports] = useState<Report[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const toReportBadgeStatus = (raw: string) => {
+        const s = (raw || "").toUpperCase();
+        if (s === "OPEN") return "pending";
+        if (s === "ACCEPTED") return "resolved";
+        if (s === "REJECTED") return "rejected";
+        return (raw || "").toLowerCase();
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -45,7 +55,11 @@ const AdminDashboard = () => {
                     getReports("PENDING", { page: 0, size: 5 }),
                 ]);
                 setStats(statsData);
-                setRecentReports(reportsData.content || []);
+                const content = reportsData?.content || [];
+                setRecentReports(content.map((r: any) => ({
+                    ...r,
+                    id: r.reportId ?? r.id,
+                })));
             } catch (error) {
                 console.error("대시보드 데이터 로드 실패:", error);
             } finally {
@@ -56,14 +70,25 @@ const AdminDashboard = () => {
     }, []);
 
     const reportColumns = [
-        { key: "id", label: "ID" },
+        { key: "reportId", label: "ID" },
         { key: "targetType", label: "유형" },
         {
             key: "status",
             label: "상태",
-            render: (item: Report) => <StatusBadge status={item.status.toLowerCase()} />
+            render: (item: Report) => {
+                const badge = toReportBadgeStatus(item.status);
+                const label = badge === "pending" ? "대기중" : (badge === "resolved" ? "처리완료" : undefined);
+                return <StatusBadge status={badge} label={label} />;
+            }
         },
-        { key: "createdAt", label: "신고일" },
+        {
+            key: "createdAt",
+            label: "신고일",
+            render: (item: Report) => {
+                const d = item.createdAt ? new Date(item.createdAt) : null;
+                return d ? d.toLocaleString() : "";
+            }
+        },
     ];
 
     return (

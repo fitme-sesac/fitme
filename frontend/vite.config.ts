@@ -67,14 +67,7 @@ export default defineConfig(({ mode }) => {
                 overlay: false,
             },
             proxy: {
-                // ===== Backend proxies =====
-                // ✅ Spring Security form 로그인: POST /Login 은 백엔드로, GET /Login 은 SPA로
-                "/Login": { target: backendTarget, changeOrigin: true, bypass: bypassSpaPageGet },
 
-                // ✅ 백엔드 form 엔드포인트들 (/User/*)은 모두 백엔드로 전달
-                "/User": { target: backendTarget, changeOrigin: true },
-
-                "/Logout": { target: backendTarget, changeOrigin: true },
                 "/oauth2": { target: backendTarget, changeOrigin: true },
                 "/login": { target: backendTarget, changeOrigin: true },
 
@@ -91,10 +84,15 @@ export default defineConfig(({ mode }) => {
                 "/chatbot": { target: aiTarget, changeOrigin: true },
                 "/employer-chatbot": { target: aiTarget, changeOrigin: true },
                 "/resumes": { target: aiTarget, changeOrigin: true },
+                "/User":  { target: backendTarget, changeOrigin: true, secure: false },
+                "/Login": { target: backendTarget, changeOrigin: true, secure: false },
+                "/Logout":{ target: backendTarget, changeOrigin: true, secure: false },
             },
         },
         define: {
             "import.meta.env.VITE_TOSS_CLIENT_KEY": JSON.stringify(process.env.TOSS_CLIENT_KEY || env.TOSS_CLIENT_KEY || env.VITE_TOSS_CLIENT_KEY),
         },
     };
+
 });
+

@@ -71,4 +71,8 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     @Query("SELECT COUNT(r) FROM Resume r WHERE r.status = 'ACTIVE' AND r.deletedAt IS NULL " +
             "AND r.user.roleType = 'CANDIDATE' AND r.user.status = 'ACTIVE'")
     long countActiveResumesForTalentPool();
+
+    // [추가] 장시간 PROCESSING인 항목 찾기 (zombie cleanup용)
+    List<Resume> findAllBySummaryStatusAndUpdatedAtBefore(com.example.pproject.Constant.SummaryStatus status,
+            java.time.Instant time);
 }

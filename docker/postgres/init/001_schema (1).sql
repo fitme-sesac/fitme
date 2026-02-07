@@ -888,6 +888,7 @@ CREATE TABLE IF NOT EXISTS report (
   reporter_member_id  BIGINT NOT NULL REFERENCES member(member_id),
   target_type         VARCHAR(20) NOT NULL,
   target_job_id       BIGINT NULL REFERENCES job_posting(job_id),
+  target_member_id   BIGINT NULL,
   reason_code         VARCHAR(30) NOT NULL,
   reason_detail       TEXT NULL,
   status              VARCHAR(20) NOT NULL DEFAULT 'OPEN',
@@ -898,6 +899,8 @@ CREATE TABLE IF NOT EXISTS report (
   CONSTRAINT ck_report_status CHECK (status IN ('OPEN','ACCEPTED','REJECTED'))
 );
 
+
+ALTER TABLE report ADD COLUMN IF NOT EXISTS target_member_id BIGINT;
 
 /* =========================================================
  * 35) moderation_action

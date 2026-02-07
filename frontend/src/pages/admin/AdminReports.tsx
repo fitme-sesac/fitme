@@ -27,6 +27,14 @@ const AdminReports = () => {
     const [total, setTotal] = useState(0);
     const [status, setStatus] = useState("PENDING");
 
+    const toReportBadgeStatus = (raw: string) => {
+        const s = (raw || "").toUpperCase();
+        if (s === "OPEN") return "pending";
+        if (s === "ACCEPTED") return "resolved";
+        if (s === "REJECTED") return "rejected";
+        return (raw || "").toLowerCase();
+    };
+
     const fetchReports = async () => {
         setLoading(true);
         try {
@@ -50,9 +58,15 @@ const AdminReports = () => {
         fetchReports();
     }, [page, status]);
 
-    const handleProcess = async (report: Report, action: string) => {
+    const handleProcess = async (report: Report, decision: 'ACCEPT' | 'REJECT') => {
         try {
-            await processReport(report.reportId, { action, penaltyPoints: 10 });
+            await processReport(report.reportId, {
+                decision,
+                // 승인 시 벌점 자동 부여에 사용됨(백엔드 ViolationType enum)
+                violationType: decision === 'ACCEPT' ? 'MINOR_ETC' : undefined,
+                restrictDays: 0,
+                reason: decision === 'ACCEPT' ? '관리자 처리: 승인' : '관리자 처리: 거절',
+            });
             toast.success("신고가 처리되었습니다.");
             fetchReports();
         } catch (error) {
@@ -68,7 +82,11 @@ const AdminReports = () => {
         {
             key: "status",
             label: "상태",
-            render: (item: Report) => <StatusBadge status={item.status?.toLowerCase()} />,
+            render: (item: Report) => {
+                const badge = toReportBadgeStatus(item.status);
+                const label = badge === 'pending' ? '대기중' : (badge === 'resolved' ? '처리완료' : undefined);
+                return <StatusBadge status={badge} label={label} />;
+            },
         },
         {
             key: "createdAt",
@@ -112,7 +130,7 @@ const AdminReports = () => {
                     onPageChange={setPage}
                     actions={[
                         { label: "상세보기", onClick: (item) => console.log("View", item) },
-                        { label: "승인 (조치)", onClick: (item) => handleProcess(item, "APPROVE") },
+                        { label: "승인 (조치)", onClick: (item) => handleProcess(item, "ACCEPT") },
                         { label: "거절", onClick: (item) => handleProcess(item, "REJECT") },
                     ]}
                 />

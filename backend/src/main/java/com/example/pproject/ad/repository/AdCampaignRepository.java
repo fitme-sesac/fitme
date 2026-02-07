@@ -37,6 +37,9 @@ public interface AdCampaignRepository extends JpaRepository<AdCampaignEntity, Lo
     // 특정 job_id로 활성 상태(ENDED가 아닌) 캠페인이 존재하는지 확인
     boolean existsByJobIdAndStatusNot(Long jobId, String status);
 
+    // 특정 job_id와 연결된 캠페인 조회 (Cascade Delete용)
+    List<AdCampaignEntity> findByJobIdAndStatusNot(Long jobId, String status);
+
     // =================================================================================
     // [V1: Pure DB Logic - Legacy]
     // Redis 도입 전, 순수 RDB 쿼리로만 광고를 조회하던 방식입니다.

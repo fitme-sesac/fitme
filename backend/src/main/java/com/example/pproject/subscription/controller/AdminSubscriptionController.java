@@ -12,14 +12,16 @@ import com.example.pproject.wallet.entity.WalletLedger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/admin/api/subscriptions")
+@RequestMapping("/api/v1/admin/subscriptions")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')") // 클래스 레벨에서 권한 설정
 public class AdminSubscriptionController {
 
     private final SubscriptionService subscriptionService;
@@ -33,6 +35,7 @@ public class AdminSubscriptionController {
      * 모든 구독 목록 조회
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('SERVICEADMIN', 'APPROVEADMIN', 'MASTER')")
     public ResponseEntity<List<SubscriptionResponse>> getAllSubscriptions() {
         List<SubscriptionResponse> responses = subscriptionService.getAllSubscriptions();
         return ResponseEntity.ok(responses);
@@ -122,7 +125,8 @@ public class AdminSubscriptionController {
     public ResponseEntity<SubscriptionBillingCycleResponse> createBillingCycle(
             @RequestParam Long subscriptionId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate billingMonth) {
-        SubscriptionBillingCycleResponse response = billingCycleService.createBillingCycle(subscriptionId, billingMonth);
+        SubscriptionBillingCycleResponse response = billingCycleService.createBillingCycle(subscriptionId,
+                billingMonth);
         return ResponseEntity.ok(response);
     }
 

@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { Loader2, RotateCcw, ChevronDown, Check, ChevronRight, ChevronLeft, Sparkles, X } from "lucide-react";
+import {
+    Loader2,
+    RotateCcw,
+    ChevronDown,
+    Check,
+    ChevronRight,
+    ChevronLeft,
+    Sparkles,
+    X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -26,13 +35,13 @@ import {
 export interface Job {
     jobId: number;
     companyName: string;
-    companyLogoUrl?: string; // Optional if sometimes missing
+    companyLogoUrl?: string;
     title: string;
     location: string;
     salaryDisplay?: string;
-    stack: string[]; // job_posting.stack (기술 스택)
-    position?: string; // stack 기반 도출: "프론트엔드" | "백엔드" | "풀스택"
-    createdAt: string; // ISO date string
+    stack: string[];
+    position?: string;
+    createdAt: string;
     adBidCredit?: number;
     matchInfo?: {
         overallMatchRate?: number;
@@ -45,9 +54,9 @@ export interface Job {
         missingStacks?: string[];
         requiredStacks?: string[];
     };
-    requiredExperience?: number; // 경력 (년)
+    requiredExperience?: number;
     employer?: {
-        description?: string; // 기업 요약
+        description?: string;
         summary?: string;
     };
 }
@@ -59,9 +68,57 @@ interface JobsResponse {
 }
 
 // 기본 필터 옵션 (DB에서 로드 전 표시용)
-const DEFAULT_SKILL_OPTIONS = ["전체", "Java", "Python", "JavaScript", "TypeScript", "React", "Vue", "Spring", "Node.js", "Django", "AWS", "Docker", "Kubernetes"];
-const DEFAULT_INDUSTRY_OPTIONS = ["전체", "커머스", "금융/핀테크", "O2O", "소셜/커뮤니티", "게임", "SaaS", "인공지능", "블록체인", "모빌리티", "여행", "헬스케어", "에듀테크", "HR테크", "부동산", "푸드테크", "보안", "IoT", "IT서비스"];
-const DEFAULT_POSITION_OPTIONS = ["전체", "서버/백엔드", "프론트엔드", "웹 풀스택", "안드로이드", "iOS", "크로스플랫폼", "머신러닝/AI", "데이터 엔지니어", "DevOps", "게임 클라이언트", "임베디드", "QA 엔지니어"];
+const DEFAULT_SKILL_OPTIONS = [
+    "전체",
+    "Java",
+    "Python",
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Vue",
+    "Spring",
+    "Node.js",
+    "Django",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+];
+const DEFAULT_INDUSTRY_OPTIONS = [
+    "전체",
+    "커머스",
+    "금융/핀테크",
+    "O2O",
+    "소셜/커뮤니티",
+    "게임",
+    "SaaS",
+    "인공지능",
+    "블록체인",
+    "모빌리티",
+    "여행",
+    "헬스케어",
+    "에듀테크",
+    "HR테크",
+    "부동산",
+    "푸드테크",
+    "보안",
+    "IoT",
+    "IT서비스",
+];
+const DEFAULT_POSITION_OPTIONS = [
+    "전체",
+    "서버/백엔드",
+    "프론트엔드",
+    "웹 풀스택",
+    "안드로이드",
+    "iOS",
+    "크로스플랫폼",
+    "머신러닝/AI",
+    "데이터 엔지니어",
+    "DevOps",
+    "게임 클라이언트",
+    "임베디드",
+    "QA 엔지니어",
+];
 
 const EXPERIENCE_LABELS = ["신입", "1년", "2년", "3년", "4년", "5년", "6년", "7년", "8년", "9년", "10년+"];
 const getExperienceLabel = (value: number) => EXPERIENCE_LABELS[value] ?? "신입";
@@ -89,25 +146,29 @@ const LOCATION_REGIONS: { region: string; subRegions: string[] }[] = [
     { region: "제주", subRegions: ["제주시", "서귀포시"] },
 ];
 
-
 export default function Jobs() {
     const { isCompany, user } = useAuth();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+
     const [keyword, setKeyword] = useState(searchParams.get("keyword") || "");
     const [page, setPage] = useState(0);
     const [activePopup, setActivePopup] = useState<string | null>(null);
     const [locationDrillRegion, setLocationDrillRegion] = useState<string | null>(null);
+
+    const [sortBy, setSortBy] = useState<"recent" | "match">((user && !isCompany) ? "match" : "recent");
+
     const filterScrollRef = useRef<HTMLDivElement>(null);
 
     // Login Prompt Logic
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+    const [showResumePrompt, setShowResumePrompt] = useState(false);
 
     useEffect(() => {
         if (!user) {
             const timer = setTimeout(() => {
                 setShowLoginPrompt(true);
-            }, 5000); // 5초 후 로그인 유도 (커뮤니티보다 조금 더 빠르게)
+            }, 5000);
             return () => clearTimeout(timer);
         }
     }, [user]);
@@ -157,9 +218,7 @@ export default function Jobs() {
 
         if (!hasAny) return;
 
-        const splitCsv = (v: string | null) =>
-            (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
-
+        const splitCsv = (v: string | null) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
         const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
         const salaryValueToIndex = (val: number) => {
@@ -177,7 +236,7 @@ export default function Jobs() {
         setSelectedFilters((prev) => ({
             ...prev,
             ...(nextSkills.length ? { 스킬: nextSkills } : {}),
-            ...(nextPositions.length ? { "포지션": nextPositions } : {}),
+            ...(nextPositions.length ? { 포지션: nextPositions } : {}),
             ...(nextIndustries.length ? { "서비스 분야": nextIndustries } : {}),
             ...(nextLocations.length ? { 근무지: nextLocations } : {}),
         }));
@@ -200,7 +259,6 @@ export default function Jobs() {
             setSalaryRange([lo, hi]);
         }
     }, [searchParams]);
-
 
     const getSelectedArray = (key: string): string[] => {
         const v = selectedFilters[key];
@@ -242,49 +300,48 @@ export default function Jobs() {
 
     // 포지션 카운트 기반으로 0개인 포지션 필터링 (전체는 항상 표시)
     const filteredPositionOptions = useMemo(() => {
-        const baseOptions = filterOptionsData?.positionCategories?.length > 0
-            ? filterOptionsData.positionCategories
-            : DEFAULT_POSITION_OPTIONS;
-        
+        const baseOptions =
+            filterOptionsData?.positionCategories?.length > 0
+                ? filterOptionsData.positionCategories
+                : DEFAULT_POSITION_OPTIONS;
+
         if (!positionCountsData) return baseOptions;
-        
+
         return baseOptions.filter((option: string) => {
             if (option === "전체") return true;
             const count = positionCountsData[option] || 0;
             return count > 0;
         });
     }, [filterOptionsData, positionCountsData]);
-    
-    // 필터 옵션 (DB 데이터 우선, 없으면 기본값 사용)
-    // 포지션을 가장 왼쪽에 배치
-    const FILTER_OPTIONS: Record<string, string[]> = useMemo(() => ({
-        // 포지션: DB 기반 동적 옵션 + 카운트 기반 필터링 - 가장 왼쪽 배치
-        "포지션": filteredPositionOptions,
-        "경력": [], // 슬라이더로 관리
-        "스킬": filterOptionsData?.stacks?.length > 0
-            ? ["전체", ...filterOptionsData.stacks]
-            : DEFAULT_SKILL_OPTIONS,
-        "연봉": [], // 슬라이더로 관리
-        "근무지": [], // 2단계(광역→세부) UI로 별도 렌더
-        // 서비스 분야: DB 기반 동적 옵션 (실제 기업 업종만 표시, 한글 변환됨)
-        "서비스 분야": filterOptionsData?.industries?.length > 0
-            ? filterOptionsData.industries
-            : DEFAULT_INDUSTRY_OPTIONS
-    }), [filterOptionsData, filteredPositionOptions]);
-    
-    // 서버 API 호출 - 필터 파라미터 전달 (포지션 + 서비스 분야 서버사이드 필터링 적용)
+
+    // 필터 옵션 (DB 데이터 우선, 없으면 기본값 사용) - 포지션을 가장 왼쪽에 배치
+    const FILTER_OPTIONS: Record<string, string[]> = useMemo(
+        () => ({
+            포지션: filteredPositionOptions,
+            경력: [],
+            스킬: filterOptionsData?.stacks?.length > 0 ? ["전체", ...filterOptionsData.stacks] : DEFAULT_SKILL_OPTIONS,
+            연봉: [],
+            근무지: [],
+            "서비스 분야": filterOptionsData?.industries?.length > 0 ? filterOptionsData.industries : DEFAULT_INDUSTRY_OPTIONS,
+        }),
+        [filterOptionsData, filteredPositionOptions]
+    );
+
+    // 서버 API 호출 - 필터 파라미터 전달 (포지션 + 서비스 분야 + 연봉 + 정렬 + 매칭)
     const { data: rawData, isLoading, error } = usePublicJobs({
         page,
         size: 12,
         keyword: searchParams.get("keyword") || "",
         stack: selectedSkills.length > 0 ? selectedSkills.join(",") : "",
-        location: selectedLocations.length > 0 ? selectedLocations[0] : "", // 첫 번째 지역만 서버로 전달
+        location: selectedLocations.length > 0 ? selectedLocations[0] : "",
         minExperience: experienceRange[0] > 0 ? experienceRange[0] : null,
         maxExperience: experienceRange[1] < 10 ? experienceRange[1] : null,
         position: selectedPositions.length > 0 ? selectedPositions.join(",") : "",
         industry: selectedIndustries.length > 0 ? selectedIndustries.join(",") : "",
         salaryMin,
         salaryMax,
+        sortBy,
+        memberId: user?.id,
     });
 
     const data = rawData as JobsResponse | undefined;
@@ -294,43 +351,41 @@ export default function Jobs() {
     const totalElements = data?.totalElements || 0;
 
     // 클라이언트 사이드 추가 필터링 (서버에서 지원하지 않는 필터만)
-    // 서버 필터: keyword, stack, location, experience, position, industry
-    // 클라이언트 필터: salary, 다중 지역
+    // 서버 필터: keyword, stack, location(첫 번째), experience, position, industry, salary(있다면)
+    // 클라 필터: 다중 지역 + (표시 보정용) 연봉 + 정렬 보정
     const getFilteredJobs = () => {
         let filteredJobs = [...jobs];
         const locationSelected = getSelectedArray("근무지");
 
         // 근무지 추가 필터링: 서버는 첫 번째 지역만 처리하므로, 다중 지역은 클라이언트에서 추가 필터링
         if (locationSelected.length > 1) {
-            filteredJobs = filteredJobs.filter(job =>
-                locationSelected.some(loc => job.location?.includes(loc))
-            );
+            filteredJobs = filteredJobs.filter((job) => locationSelected.some((loc) => job.location?.includes(loc)));
         }
 
-        // 연봉 필터: 슬라이더 범위 (0~7 → 3,000만원~1억원+) - 클라이언트 사이드
+        // 연봉 필터(표시 보정): salaryDisplay에서 숫자 추출하여 대략 필터
         if (salaryRange[0] > 0 || salaryRange[1] < 7) {
-            const minVal = 3000 + salaryRange[0] * 1000; // 만원: 0→3000, 1→4000, ..., 7→10000
+            const minVal = 3000 + salaryRange[0] * 1000;
             const maxVal = salaryRange[1] === 7 ? 99999 : 3000 + salaryRange[1] * 1000;
-            filteredJobs = filteredJobs.filter(job => {
+
+            filteredJobs = filteredJobs.filter((job) => {
                 const s = job.salaryDisplay?.replace(/[^0-9]/g, "") || "";
                 if (!s) return true;
-                const num = parseInt(s.slice(0, 5), 10) || 0; // 만원 단위 추정
+                const num = parseInt(s.slice(0, 5), 10) || 0;
                 return num >= minVal && num <= maxVal;
             });
         }
 
-        // 정렬: (1) 매칭율 우선 (2) 최신순
-        filteredJobs.sort((a, b) => {
-            const aRate = a.matchInfo?.overallMatchRate ?? a.matchInfo?.matchRate;
-            const bRate = b.matchInfo?.overallMatchRate ?? b.matchInfo?.matchRate;
-            if (aRate !== undefined && bRate !== undefined) {
-                const rateDiff = (bRate || 0) - (aRate || 0);
-                if (rateDiff !== 0) return rateDiff;
-            }
-            if (aRate !== undefined && bRate === undefined) return -1;
-            if (aRate === undefined && bRate !== undefined) return 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+        // 정렬 보정
+        if (sortBy === "match") {
+            filteredJobs.sort((a, b) => {
+                const aRate = a.matchInfo?.overallMatchRate ?? a.matchInfo?.matchRate ?? 0;
+                const bRate = b.matchInfo?.overallMatchRate ?? b.matchInfo?.matchRate ?? 0;
+                if (bRate !== aRate) return bRate - aRate;
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            });
+        } else {
+            filteredJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
 
         return filteredJobs;
     };
@@ -340,26 +395,27 @@ export default function Jobs() {
     const MULTI_SELECT_KEYS = ["스킬", "근무지", "서비스 분야", "포지션"];
 
     // 필터 적용 함수: 다중 선택 시 토글 (추가/제거), "전체" 시 비우기
-    // 필터 선택 후에도 팝업은 열린 상태 유지 (닫기 버튼으로만 닫힘)
     const applyFilter = (filterKey: string, value: string) => {
         const newFilters = { ...selectedFilters };
+
         if (value === "전체" || value === "") {
             newFilters[filterKey] = MULTI_SELECT_KEYS.includes(filterKey) ? [] : "";
             setSelectedFilters(newFilters);
             setPage(0);
             return;
         }
+
         if (MULTI_SELECT_KEYS.includes(filterKey)) {
             const arr = getSelectedArray(filterKey);
-            const next = arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value];
+            const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
             newFilters[filterKey] = next;
         } else {
             newFilters[filterKey] = value;
         }
+
         setSelectedFilters(newFilters);
         setPage(0);
     };
-
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
@@ -373,10 +429,9 @@ export default function Jobs() {
                     {isCompany ? <CompanyMarketingBanner /> : <RecommendedSection />}
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-8">
-                        {/* 중앙 피드 (8 cols) */}
+                        {/* 중앙 피드 */}
                         <div className="lg:col-span-8 space-y-6">
-
-                            {/* Advanced Filter Section (Reference Style) */}
+                            {/* Advanced Filter Section */}
                             <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm -mx-4 px-4 md:mx-0 md:px-0 mb-6 border-b border-border/40">
                                 <div className="py-4 relative group">
                                     {/* Scroll Buttons */}
@@ -399,7 +454,7 @@ export default function Jobs() {
                                     <div
                                         ref={filterScrollRef}
                                         className="flex items-center gap-2 overflow-x-auto pb-1 px-8 scrollbar-hide [&::-webkit-scrollbar]:hidden scroll-smooth"
-                                        style={{ scrollbarWidth: 'none' }}
+                                        style={{ scrollbarWidth: "none" }}
                                     >
                                         <Button
                                             variant="ghost"
@@ -417,7 +472,7 @@ export default function Jobs() {
                                                     연봉: [],
                                                     근무지: [],
                                                     "서비스 분야": [],
-                                                    "포지션": [],
+                                                    포지션: [],
                                                 });
                                             }}
                                         >
@@ -428,24 +483,33 @@ export default function Jobs() {
                                             <Button
                                                 key={key}
                                                 variant={activePopup === key ? "default" : "outline"}
-                                                className={`rounded-full border-gray-300 font-normal px-4 h-10 shrink-0 transition-colors ${activePopup === key
-                                                    ? "bg-gray-900 text-white border-transparent"
-                                                    : selectedFilters[key] ? "bg-primary/10 text-primary border-primary"
-                                                        : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
-                                                    }`}
+                                                className={`rounded-full border-gray-300 font-normal px-4 h-10 shrink-0 transition-colors ${
+                                                    activePopup === key
+                                                        ? "bg-gray-900 text-white border-transparent"
+                                                        : selectedFilters[key]
+                                                            ? "bg-primary/10 text-primary border-primary"
+                                                            : "bg-white text-gray-600 hover:bg-gray-50 hover:text-primary hover:border-primary"
+                                                }`}
                                                 onClick={() => {
-                                                    // 같은 필터를 다시 클릭해도 닫히지 않음 (열린 상태 유지)
-                                                    // 다른 필터를 선택하면 해당 필터로 전환
                                                     setActivePopup(key);
                                                     if (key !== "근무지") setLocationDrillRegion(null);
                                                 }}
                                             >
-                                                {key} {(() => {
+                                                {key}{" "}
+                                                {(() => {
                                                     if (key === "경력" && (experienceRange[0] > 0 || experienceRange[1] < 10)) {
-                                                        return <span className="ml-1 text-xs">({getExperienceLabel(experienceRange[0])}~{getExperienceLabel(experienceRange[1])})</span>;
+                                                        return (
+                                                            <span className="ml-1 text-xs">
+                                ({getExperienceLabel(experienceRange[0])}~{getExperienceLabel(experienceRange[1])})
+                              </span>
+                                                        );
                                                     }
                                                     if (key === "연봉" && (salaryRange[0] > 0 || salaryRange[1] < 7)) {
-                                                        return <span className="ml-1 text-xs">({getSalaryLabel(salaryRange[0])}~{getSalaryLabel(salaryRange[1])})</span>;
+                                                        return (
+                                                            <span className="ml-1 text-xs">
+                                ({getSalaryLabel(salaryRange[0])}~{getSalaryLabel(salaryRange[1])})
+                              </span>
+                                                        );
                                                     }
                                                     const arr = getSelectedArray(key);
                                                     if (arr.length === 0) return null;
@@ -475,6 +539,7 @@ export default function Jobs() {
                                                 <X className="h-4 w-4" />
                                             </Button>
                                         </div>
+
                                         {(activePopup === "경력" || activePopup === "연봉") ? (
                                             <div className="p-4 bg-muted/30 rounded-xl border border-border">
                                                 {activePopup === "경력" && (
@@ -486,7 +551,10 @@ export default function Jobs() {
                                                         </div>
                                                         <Slider
                                                             value={experienceRange}
-                                                            onValueChange={(v) => { setExperienceRange(v); setPage(0); }}
+                                                            onValueChange={(v) => {
+                                                                setExperienceRange(v);
+                                                                setPage(0);
+                                                            }}
                                                             min={0}
                                                             max={10}
                                                             step={1}
@@ -498,6 +566,7 @@ export default function Jobs() {
                                                         </div>
                                                     </>
                                                 )}
+
                                                 {activePopup === "연봉" && (
                                                     <>
                                                         <div className="flex justify-between mb-4 text-sm font-medium text-muted-foreground">
@@ -507,7 +576,10 @@ export default function Jobs() {
                                                         </div>
                                                         <Slider
                                                             value={salaryRange}
-                                                            onValueChange={(v) => { setSalaryRange(v); setPage(0); }}
+                                                            onValueChange={(v) => {
+                                                                setSalaryRange(v);
+                                                                setPage(0);
+                                                            }}
                                                             min={0}
                                                             max={7}
                                                             step={1}
@@ -524,14 +596,21 @@ export default function Jobs() {
                                             <div className="p-4 bg-muted/30 rounded-xl border border-border">
                                                 {locationDrillRegion === null ? (
                                                     <>
-                                                        <p className="text-xs font-medium text-muted-foreground mb-3">큰 도시(광역)를 선택하면 세부 지역을 고를 수 있어요</p>
+                                                        <p className="text-xs font-medium text-muted-foreground mb-3">
+                                                            큰 도시(광역)를 선택하면 세부 지역을 고를 수 있어요
+                                                        </p>
                                                         <div className="flex flex-wrap gap-2">
                                                             <button
                                                                 onClick={() => applyFilter("근무지", "")}
-                                                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${getSelectedArray("근무지").length === 0 ? "bg-primary/10 border-primary text-primary font-bold" : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"}`}
+                                                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+                                                                    getSelectedArray("근무지").length === 0
+                                                                        ? "bg-primary/10 border-primary text-primary font-bold"
+                                                                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"
+                                                                }`}
                                                             >
                                                                 전체
                                                             </button>
+
                                                             {LOCATION_REGIONS.map(({ region }) => (
                                                                 <button
                                                                     key={region}
@@ -553,24 +632,35 @@ export default function Jobs() {
                                                         >
                                                             <ChevronLeft className="w-4 h-4" /> {locationDrillRegion} 선택으로 돌아가기
                                                         </button>
+
                                                         <p className="text-xs font-medium text-muted-foreground mb-2">{locationDrillRegion} 세부 지역</p>
+
                                                         <div className="flex flex-wrap gap-2">
                                                             <button
                                                                 onClick={() => {
                                                                     applyFilter("근무지", locationDrillRegion);
                                                                 }}
-                                                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${getSelectedArray("근무지").includes(locationDrillRegion) ? "bg-primary/10 border-primary text-primary font-bold" : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"}`}
+                                                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+                                                                    getSelectedArray("근무지").includes(locationDrillRegion)
+                                                                        ? "bg-primary/10 border-primary text-primary font-bold"
+                                                                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"
+                                                                }`}
                                                             >
                                                                 {locationDrillRegion} 전체
                                                             </button>
-                                                            {LOCATION_REGIONS.find(r => r.region === locationDrillRegion)?.subRegions.map((sub) => {
+
+                                                            {LOCATION_REGIONS.find((r) => r.region === locationDrillRegion)?.subRegions.map((sub) => {
                                                                 const value = `${locationDrillRegion} ${sub}`;
                                                                 const selected = getSelectedArray("근무지").includes(value);
                                                                 return (
                                                                     <button
                                                                         key={sub}
                                                                         onClick={() => applyFilter("근무지", value)}
-                                                                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${selected ? "bg-primary/10 border-primary text-primary font-bold" : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"}`}
+                                                                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+                                                                            selected
+                                                                                ? "bg-primary/10 border-primary text-primary font-bold"
+                                                                                : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"
+                                                                        }`}
                                                                     >
                                                                         {sub}
                                                                     </button>
@@ -588,6 +678,7 @@ export default function Jobs() {
                                                     const selected = isMulti
                                                         ? (option === "전체" ? arr.length === 0 : arr.includes(option))
                                                         : (selectedFilters[activePopup] === option || (option === "전체" && selectedFilters[activePopup] === ""));
+
                                                     return (
                                                         <button
                                                             key={option}
@@ -595,10 +686,11 @@ export default function Jobs() {
                                                                 const val = option === "전체" ? "" : option;
                                                                 applyFilter(activePopup, val);
                                                             }}
-                                                            className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${selected
-                                                                ? "bg-primary/10 border-primary text-primary font-bold"
-                                                                : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"
-                                                                }`}
+                                                            className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${
+                                                                selected
+                                                                    ? "bg-primary/10 border-primary text-primary font-bold"
+                                                                    : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-primary/30"
+                                                            }`}
                                                         >
                                                             {option}
                                                         </button>
@@ -623,10 +715,34 @@ export default function Jobs() {
                                             </>
                                         )}
                                     </div>
+
                                     <div className="flex items-center gap-4 text-xs sm:text-sm">
+                                        <button
+                                            onClick={() => {
+                                                if (!user) {
+                                                    setShowLoginPrompt(true);
+                                                    return;
+                                                }
+                                                setSortBy("match");
+                                            }}
+                                            className={`transition-colors flex items-center gap-1 ${
+                                                sortBy === "match" ? "text-gray-900 font-bold" : "text-gray-400 hover:text-gray-600"
+                                            }`}
+                                        >
+                                            {sortBy === "match" && <Check className="h-3 w-3 text-[#10B981]" />}
+                                            <Sparkles className={`h-3 w-3 ${sortBy === "match" ? "text-amber-400" : ""}`} /> 매칭률 높은 순 (AI 추천)
+                                        </button>
+
                                         <button className="text-gray-400 hover:text-gray-600 transition-colors">응답 빠른 순</button>
-                                        <button className="text-gray-900 font-bold flex items-center gap-1">
-                                            <Check className="h-3 w-3 text-[#10B981]" /> 최근 업데이트 순
+
+                                        <button
+                                            onClick={() => setSortBy("recent")}
+                                            className={`transition-colors flex items-center gap-1 ${
+                                                sortBy === "recent" ? "text-gray-900 font-bold" : "text-gray-400 hover:text-gray-600"
+                                            }`}
+                                        >
+                                            {sortBy === "recent" && <Check className="h-3 w-3 text-[#10B981]" />}
+                                            최근 업데이트 순
                                         </button>
                                     </div>
                                 </div>
@@ -671,7 +787,7 @@ export default function Jobs() {
                                 </div>
                             )}
 
-                            {/* 채용공고 리스트 (피드) - Wide Card Layout */}
+                            {/* 채용공고 리스트 (Wide Card Layout) */}
                             {!isLoading && filteredJobs.length > 0 && (
                                 <div className="grid grid-cols-1 gap-6">
                                     {filteredJobs.map((job) => (
@@ -687,7 +803,7 @@ export default function Jobs() {
                                             postedAt={new Date(job.createdAt).toLocaleDateString()}
                                             createdAt={job.createdAt}
                                             isAd={(job.adBidCredit ?? 0) > 0}
-                                            matchScore={job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate}
+                                            matchScore={sortBy === "match" ? (job.matchInfo?.overallMatchRate ?? job.matchInfo?.matchRate) : undefined}
                                             requiredExperience={job.requiredExperience}
                                             companySummary={job.employer?.summary || job.employer?.description}
                                             employmentType="정규직"
@@ -700,19 +816,23 @@ export default function Jobs() {
                             {!isLoading && filteredJobs.length === 0 && jobs.length > 0 && (
                                 <div className="text-center py-20 bg-card rounded-3xl border border-dashed border-border">
                                     <p className="text-lg font-medium text-muted-foreground">선택한 필터 조건에 맞는 채용공고가 없습니다</p>
-                                    <Button variant="link" onClick={() => {
-                                        setExperienceRange([0, 10]);
-                                        setSalaryRange([0, 7]);
-                                        setSelectedFilters({
-                                            경력: [],
-                                            스킬: [],
-                                            연봉: [],
-                                            근무지: [],
-                                            "서비스 분야": [],
-                                            "포지션": [],
-                                        });
-                                        setLocationDrillRegion(null);
-                                    }} className="mt-2 text-primary">
+                                    <Button
+                                        variant="link"
+                                        onClick={() => {
+                                            setExperienceRange([0, 10]);
+                                            setSalaryRange([0, 7]);
+                                            setSelectedFilters({
+                                                경력: [],
+                                                스킬: [],
+                                                연봉: [],
+                                                근무지: [],
+                                                "서비스 분야": [],
+                                                포지션: [],
+                                            });
+                                            setLocationDrillRegion(null);
+                                        }}
+                                        className="mt-2 text-primary"
+                                    >
                                         필터 초기화
                                     </Button>
                                 </div>
@@ -732,12 +852,7 @@ export default function Jobs() {
                             {!isLoading && totalPages > 1 && (
                                 <div className="flex justify-center pt-8 pb-4">
                                     <div className="flex gap-2">
-                                        <Button
-                                            variant="outline"
-                                            disabled={page === 0}
-                                            onClick={() => setPage(page - 1)}
-                                            className="rounded-xl"
-                                        >
+                                        <Button variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)} className="rounded-xl">
                                             이전
                                         </Button>
                                         <Button
@@ -753,20 +868,16 @@ export default function Jobs() {
                             )}
                         </div>
 
-                        {/* 우측 사이드바 (4 cols) - 고정 */}
+                        {/* 우측 사이드바 */}
                         <div className="hidden lg:block lg:col-span-4">
                             <div className="sticky top-20 space-y-6">
-                                {isCompany ? (
-                                    <CompanySidebar />
-                                ) : (
-                                    <SideJobList />
-                                )}
+                                {isCompany ? <CompanySidebar /> : <SideJobList />}
 
-                                {/* 추가 위젯 (예: 인기 태그) */}
+                                {/* 인기 검색 키워드 */}
                                 <div className="bg-card rounded-2xl border border-border p-5">
                                     <h3 className="font-bold mb-4 text-sm text-muted-foreground">인기 검색 키워드</h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {["Python", "Java", "React", "Spring Boot", "AI", "Data Engineer", "Frontend"].map(tag => (
+                                        {["Python", "Java", "React", "Spring Boot", "AI", "Data Engineer", "Frontend"].map((tag) => (
                                             <button
                                                 key={tag}
                                                 onClick={() => {
@@ -785,7 +896,29 @@ export default function Jobs() {
                         </div>
                     </div>
                 </main>
+
                 <Footer />
+
+                {/* Resume Registration Prompt Dialog */}
+                <Dialog open={showResumePrompt} onOpenChange={setShowResumePrompt}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>나에게 꼭 맞는 추천을 받아보세요!</DialogTitle>
+                            <DialogDescription>
+                                대표 이력서를 등록하시면 AI가 당신의 역량을 분석하여<br />
+                                가장 잘 맞는 채용 공고를 매칭률과 함께 보여드려요.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end gap-3 mt-4">
+                            <Button variant="outline" onClick={() => setShowResumePrompt(false)}>
+                                나중에 하기
+                            </Button>
+                            <Button onClick={() => navigate("/resume")} className="bg-primary hover:bg-primary/90">
+                                이력서 등록하러 가기
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             {/* Login Prompt Dialog */}

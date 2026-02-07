@@ -7,7 +7,6 @@ import com.example.pproject.ad.dto.AdCampaignUpdateDTO;
 import com.example.pproject.ad.dto.AdServeResponseDTO;
 import com.example.pproject.ad.entity.AdCampaignEntity;
 import com.example.pproject.ad.repository.AdCampaignRepository;
-import com.example.pproject.ad.repository.AdClickEventRepository;
 import com.example.pproject.employer.repository.EmployerRepository;
 import com.example.pproject.resume.repository.ResumeRepository;
 import com.example.pproject.wallet.entity.Wallet;
@@ -35,7 +34,7 @@ public class AdCampaignService {
 
     private final AdCampaignRepository adCampaignRepository;
     private final EmployerRepository employerRepository;
-    private final AdClickEventRepository adClickEventRepository; // [Restored]
+    private final AdImpressionService adImpressionService;
     private final ResumeRepository resumeRepository; // [Restored]
     private final WalletService walletService; // [Restored]
     private final AdGuardService adGuardService;
@@ -61,7 +60,12 @@ public class AdCampaignService {
             throw new IllegalArgumentException("이미 해당 채용공고에 대한 활성 광고 캠페인이 존재합니다. Job ID: " + dto.getJobId());
         }
 
-        Wallet wallet = walletService.getMyWallet(dto.getEmployerId(), RoleType.EMPLOYER);
+        Wallet wallet = walletService.getEmployerWallet(dto.getEmployerId());
+        if (wallet == null) {
+            // WalletService는 일반적으로 null을 반환하지 않지만,
+            // 테스트/Mock 환경 등에서 NPE로 터지는 것을 방지하기 위해 방어 로직을 둡니다.
+            throw new IllegalArgumentException("지갑을 찾을 수 없습니다. Employer ID: " + dto.getEmployerId());
+        }
         if (wallet.getBalance() < dto.getDailyBudget()) {
             throw new IllegalArgumentException(
                     String.format("잔액이 부족합니다. 현재 잔액: %d원, 필요 금액(일일 예산): %d원",
@@ -142,6 +146,25 @@ public class AdCampaignService {
         return AdCampaignResponseDTO.fromEntity(entity);
     }
 
+    /**
+     * 채용공고 삭제 시 연관된 광고 캠페인도 함께 삭제 (Cascade Delete)
+     *
+     * @param jobId 삭제할 채용공고 ID
+     */
+    @Transactional
+    public void deleteCampaignsByJobId(Long jobId) {
+        List<AdCampaignEntity> campaigns = adCampaignRepository.findByJobIdAndStatusNot(jobId, "DELETED");
+        if (!campaigns.isEmpty()) {
+            for (AdCampaignEntity campaign : campaigns) {
+                campaign.setStatus("DELETED");
+                // Redis 캐시에서도 제거 (updateStatus는 DELETED 상태를 처리하여 Active Set에서 제거함)
+                adGuardService.updateStatus(campaign.getId(), "DELETED");
+            }
+            adCampaignRepository.saveAll(campaigns);
+            log.info("채용공고 삭제로 인한 캠페인 삭제 완료. JobId: {}, 삭제된 캠페인 수: {}", jobId, campaigns.size());
+        }
+    }
+
     // =================================================================================
     // [SECTION 2: V3 Optimized - Hybrid Architecture]
     // 현재 사용 중인 가장 발전된 방식. DB의 Vector Index와 Redis의 고속 검증을 결합함.
@@ -157,13 +180,14 @@ public class AdCampaignService {
      * <li><b>Filter:</b> 돈 있는 광고만 최종 반환.</li>
      * </ol>
      */
+    @Transactional
     public List<AdServeResponseDTO> getAdsForMember(Long memberId, int limit) {
         // 0. 사용자 이력서 조회 (임베딩만 조회하여 최적화)
         Optional<String> embeddingOpt = resumeRepository.findEmbeddingByUserId(memberId);
 
         if (embeddingOpt.isEmpty()) {
             // 이력서가 없는 경우 입찰가 기반(V2 Serving)으로 Fallback
-            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit));
+            Page<AdCampaignEntity> activeAds = getActiveAdsForServing(PageRequest.of(0, limit), memberId);
             return activeAds.getContent().stream().map(AdServeResponseDTO::fromEntity).toList();
         }
 
@@ -195,10 +219,12 @@ public class AdCampaignService {
         result.sort((a, b) -> Double.compare(b.getHybridScore(), a.getHybridScore()));
 
         // 요청된 개수만큼 자르기 (Pagination)
-        if (result.size() > limit) {
-            return result.subList(0, limit);
-        }
-        return result;
+        List<AdServeResponseDTO> finalResult = result.size() > limit ? result.subList(0, limit) : result;
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressions(finalResult, memberId);
+
+        return finalResult;
     }
 
     // =================================================================================
@@ -210,13 +236,19 @@ public class AdCampaignService {
      * [V2 Serving] 입찰가 순 광고 노출 (비로그인용 등)
      * Redis에서 현재 활성 상태인 ID 목록(상위 5,000개)을 먼저 가져와서 DB에 던짐.
      */
-    public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable) {
+    @Transactional
+    public Page<AdCampaignEntity> getActiveAdsForServing(Pageable pageable, Long memberId) {
         java.util.Set<String> activeIdsStr = adGuardService.getActiveCampaignIds();
         if (activeIdsStr == null || activeIdsStr.isEmpty())
             return Page.empty(pageable);
 
         Long[] activeIds = activeIdsStr.stream().map(Long::valueOf).toArray(Long[]::new);
-        return adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
+        Page<AdCampaignEntity> page = adCampaignRepository.findActiveAdsByIdsOrderByCpcDesc(activeIds, pageable);
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressionsFromEntities(page.getContent(), memberId);
+
+        return page;
     }
 
     /**
@@ -256,7 +288,12 @@ public class AdCampaignService {
      * [V1 Legacy] 순수 DB 기반 조회
      */
     public Page<AdCampaignEntity> getActiveAdsForServingLegacy(Pageable pageable) {
-        return adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+        Page<AdCampaignEntity> page = adCampaignRepository.findActiveAdsOrderByCpcDesc(pageable);
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressionsFromEntities(page.getContent(), null);
+
+        return page;
     }
 
     /**
@@ -277,7 +314,12 @@ public class AdCampaignService {
         List<Object[]> matchResults = adCampaignRepository.findActiveAdsWithSimilarity(
                 embeddingOpt.get(), maxDistance, limit, 5000.0);
 
-        return matchResults.stream().map(AdServeResponseDTO::fromQueryResult).toList();
+        List<AdServeResponseDTO> result = matchResults.stream().map(AdServeResponseDTO::fromQueryResult).toList();
+
+        // [New] 노출 기록
+        adImpressionService.trackImpressions(result, memberId);
+
+        return result;
     }
 
     // =================================================================================

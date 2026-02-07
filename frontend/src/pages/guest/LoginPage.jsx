@@ -21,7 +21,7 @@ const html = `<main class="main">
         <div class="col-md-6 col-lg-6">
           <h2 style="font-weight: bold; margin-bottom: 3rem;">회원 로그인</h2>
 
-          <form action="/Login" method="post">
+          <form action="/api/auth/login" method="post">
             <input type="hidden" />
 
             <div class="input-wrap mb-3">

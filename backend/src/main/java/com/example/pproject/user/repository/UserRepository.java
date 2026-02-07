@@ -1,6 +1,8 @@
 package com.example.pproject.user.repository;
 
 import com.example.pproject.user.entity.UserEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -37,4 +39,20 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     // 주간 신규 회원 수 조회
     @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.createdAt >= :weekAgo AND u.deletedAt IS NULL")
     long countWeeklyNewMembers(@Param("weekAgo") Instant weekAgo);
+
+    // 관리자 회원 검색 (이름, 이메일, 로그인 아이디)
+    @Query("SELECT u FROM UserEntity u WHERE LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR (u.userid IS NOT NULL AND LOWER(u.userid) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<UserEntity> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+    // 상태별 회원 목록 (관리자)
+    Page<UserEntity> findByStatus(String status, Pageable pageable);
+
+    // 관리자 회원 검색 + 상태 필터
+    @Query("SELECT u FROM UserEntity u WHERE (:status IS NULL OR u.status = :status) AND " +
+            "(LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR (u.userid IS NOT NULL AND LOWER(u.userid) LIKE LOWER(CONCAT('%', :keyword, '%'))))")
+    Page<UserEntity> searchByKeywordAndStatus(@Param("keyword") String keyword, @Param("status") String status, Pageable pageable);
 }

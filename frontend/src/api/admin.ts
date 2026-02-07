@@ -42,11 +42,19 @@ export const verifyEmployer = async (employerId: number, action: 'APPROVE' | 'RE
 
 // === Reports (Using existing API) ===
 export const getReports = async (status: string, params: { page: number; size: number }) => {
-    const response = await http.get(`/api/v1/reports/status/${status}`, { params });
+    // UI(프론트) 상태값 <-> 백엔드 표준 상태값 매핑
+    // - PENDING  -> OPEN
+    // - RESOLVED -> ACCEPTED
+    const s = (status || "").toUpperCase();
+    const normalized = s === "PENDING" ? "OPEN" : (s === "RESOLVED" ? "ACCEPTED" : s);
+    const response = await http.get(`/api/v1/reports/status/${normalized}`, { params });
     return response.data;
 };
 
-export const processReport = async (reportId: number, data: { action: string; penaltyPoints?: number }) => {
+export const processReport = async (
+    reportId: number,
+    data: { decision: 'ACCEPT' | 'REJECT'; violationType?: string; restrictDays?: number; reason?: string }
+) => {
     const response = await http.post(`/api/v1/reports/${reportId}/process`, data);
     return response.data;
 };
@@ -64,7 +72,8 @@ export const getFAQStatistics = async () => {
 
 // === Subscriptions ===
 export const getAdminSubscriptions = async () => {
-    const response = await http.get("/admin/api/subscriptions");
+    // 백엔드 AdminSubscriptionController 기준
+    const response = await http.get("/api/v1/admin/subscriptions");
     return response.data;
 };
 
