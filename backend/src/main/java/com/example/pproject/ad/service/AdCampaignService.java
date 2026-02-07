@@ -61,6 +61,11 @@ public class AdCampaignService {
         }
 
         Wallet wallet = walletService.getEmployerWallet(dto.getEmployerId());
+        if (wallet == null) {
+            // WalletService는 일반적으로 null을 반환하지 않지만,
+            // 테스트/Mock 환경 등에서 NPE로 터지는 것을 방지하기 위해 방어 로직을 둡니다.
+            throw new IllegalArgumentException("지갑을 찾을 수 없습니다. Employer ID: " + dto.getEmployerId());
+        }
         if (wallet.getBalance() < dto.getDailyBudget()) {
             throw new IllegalArgumentException(
                     String.format("잔액이 부족합니다. 현재 잔액: %d원, 필요 금액(일일 예산): %d원",
@@ -143,7 +148,7 @@ public class AdCampaignService {
 
     /**
      * 채용공고 삭제 시 연관된 광고 캠페인도 함께 삭제 (Cascade Delete)
-     * 
+     *
      * @param jobId 삭제할 채용공고 ID
      */
     @Transactional
